@@ -13,6 +13,57 @@
 
 <body class="bg-black text-white font-sans antialiased">
 
+    <div id="sidebar-overlay"
+        class="fixed inset-0 bg-black bg-opacity-70 z-[60] hidden backdrop-blur-sm transition-opacity"></div>
+
+    <aside id="sidebar"
+        class="fixed inset-y-0 left-0 w-72 bg-gray-900 z-[70] transform -translate-x-full transition-transform duration-300 ease-in-out border-r border-gray-800 flex flex-col">
+
+        <div class="h-16 flex items-center justify-between px-4 border-b border-gray-800 bg-black">
+            <span class="text-yellow-500 font-bold tracking-tighter text-lg">
+                <i class="fas fa-shirt mr-2"></i>MENU
+            </span>
+            <button id="close-sidebar" class="text-gray-400 hover:text-white transition">
+                <i class="fas fa-times fa-lg"></i>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto py-4 px-2 space-y-1">
+
+            <a href="#" id="menu-link-home"
+                class="flex items-center px-4 py-3 text-white hover:bg-gray-800 rounded transition group">
+                <i class="fas fa-home w-6 text-yellow-500 group-hover:text-white transition"></i>
+                <span class="font-medium">Página Inicial</span>
+            </a>
+
+            <button id="theme-toggle"
+                class="w-full flex items-center px-4 py-3 text-white hover:bg-gray-800 rounded transition group text-left">
+                <i id="theme-icon" class="fas fa-sun w-6 text-yellow-500 group-hover:text-white transition"></i>
+                <span id="theme-text" class="font-medium">Modo Claro</span>
+            </button>
+
+            <button id="menu-btn-admin"
+                class="w-full flex items-center px-4 py-3 text-white hover:bg-gray-800 rounded transition group text-left">
+                <i class="fas fa-user-shield w-6 text-yellow-500 group-hover:text-white transition"></i>
+                <span class="font-medium">Área Administrativa</span>
+            </button>
+
+            <div class="border-t border-gray-800 my-2 mx-2"></div>
+
+            <div class="px-4 py-2">
+                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Categorias</h3>
+                <div id="sidebar-categories" class="space-y-1 ml-2 border-l-2 border-gray-800 pl-2">
+                    <p class="text-gray-600 text-sm italic">Carregando...</p>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="p-4 border-t border-gray-800 bg-black text-center">
+            <p class="text-xs text-gray-500">Veste Manto © 2025</p>
+        </div>
+    </aside>
+
     <nav class="bg-black border-b border-gray-800 sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
@@ -158,8 +209,7 @@
             <div class="w-full md:w-1/2 bg-black relative flex items-center justify-center h-64 md:h-auto">
                 <img id="modal-img" src="" class="max-h-full max-w-full object-contain">
                 <button class="absolute left-2 text-white text-2xl nav-gallery" data-dir="-1">
-                    << /button>
-                        <button class="absolute right-2 text-white text-2xl nav-gallery" data-dir="1">></button>
+                    <button class="absolute right-2 text-white text-2xl nav-gallery" data-dir="1">></button>
             </div>
 
             <div class="w-full md:w-1/2 p-6 overflow-y-auto">
