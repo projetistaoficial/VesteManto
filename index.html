@@ -134,27 +134,104 @@
                     data-tab="tab-stats">Estatísticas</button>
             </div>
 
-            <div id="tab-vendas" class="tab-content">
-                <div class="bg-gray-900 rounded p-4 overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead>
-                            <tr class="text-gray-400 border-b border-gray-700">
-                                <th>Pedido</th>
-                                <th>Data</th>
-                                <th>Total</th>
-                                <th>Status</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="orders-list"></tbody>
-                    </table>
+       <div id="tab-vendas" class="tab-content">
+                
+                <div class="bg-gray-900 border border-gray-700 rounded mb-6 p-4">
+                    
+                    <div id="btn-toggle-filters" class="flex justify-between items-center cursor-pointer border-b border-gray-800 pb-2 mb-4 group">
+                        <h3 class="text-yellow-500 font-bold group-hover:text-yellow-400 transition">Filtros de Pedido</h3>
+                        <i id="icon-filter-arrow" class="fas fa-chevron-up text-gray-400 group-hover:text-white transition-transform duration-300"></i>
+                    </div>
+                    
+                    <div id="filters-body" class="grid gap-4 transition-all duration-300">
+                        <div>
+                            <label class="text-gray-400 text-xs mb-1 block">Buscar Ref. Pedido (Ex: 12345):</label>
+                            <input type="text" id="filter-order-id" placeholder="Digite o código..." class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 focus:border-yellow-500 outline-none">
+                        </div>
+
+                        <div>
+                            <label class="text-gray-400 text-xs mb-1 block">Status:</label>
+                            <select id="filter-order-status" class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 focus:border-yellow-500 outline-none">
+                                <option value="">Todas as Vendas</option>
+                                <option value="Pendente">Pendentes</option>
+                                <option value="Confirmado">Aprovados / Confirmados</option>
+                                <option value="Cancelado">Cancelados</option>
+                                <option value="Reembolsado">Estornados / Reembolsados</option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-gray-400 text-xs mb-1 block">Data Inicial:</label>
+                                <input type="date" id="filter-date-start" class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 text-sm uppercase">
+                            </div>
+                            <div>
+                                <label class="text-gray-400 text-xs mb-1 block">Data Final:</label>
+                                <input type="date" id="filter-date-end" class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 text-sm uppercase">
+                            </div>
+                        </div>
+
+                        <button id="btn-clear-filters" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded text-sm transition">
+                            Limpar Filtros de Pedido
+                        </button>
+                    </div>
                 </div>
+
+                <h3 class="text-yellow-500 font-bold mb-2">Lista de Pedidos (<span id="orders-count">0</span> encontrados)</h3>
+                <div id="orders-list" class="space-y-3">
+                    </div>
             </div>
 
-            <div id="tab-produtos" class="tab-content hidden">
-                <button id="btn-add-product" class="bg-green-600 text-white px-4 py-2 rounded mb-4">+ Novo
-                    Produto</button>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="admin-product-list"></div>
+            <div id="tab-produtos" class="tab-content hidden relative">
+                
+                <div class="bg-gray-900 p-4 rounded mb-4 border border-gray-700 space-y-4 md:space-y-0 md:flex md:items-end md:gap-4">
+                    
+                    <div class="flex-1">
+                        <label class="text-xs text-gray-400 mb-1 block">Pesquisar (Nome, Descrição ou Cód #):</label>
+                        <input type="text" id="admin-search-prod" placeholder="Digite para buscar..." class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 focus:border-yellow-500 outline-none">
+                    </div>
+
+                    <div class="w-full md:w-48">
+                        <label class="text-xs text-gray-400 mb-1 block">Categoria:</label>
+                        <select id="admin-filter-cat" class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 focus:border-yellow-500 outline-none">
+                            <option value="">Todas</option>
+                            </select>
+                    </div>
+
+                    <div class="w-full md:w-48">
+                        <label class="text-xs text-gray-400 mb-1 block">Ordenar por:</label>
+                        <select id="admin-sort-prod" class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 focus:border-yellow-500 outline-none">
+                            <option value="newest">Recentes</option>
+                            <option value="price_asc">Valor (Menor)</option>
+                            <option value="price_desc">Valor (Maior)</option>
+                            <option value="stock_asc">Estoque (Baixo)</option>
+                            <option value="stock_desc">Estoque (Alto)</option>
+                        </select>
+                    </div>
+
+                    <button id="btn-add-product" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold h-10 shadow-lg">
+                        + Novo
+                    </button>
+                </div>
+
+                <div id="bulk-actions-bar" class="hidden bg-yellow-500 text-black p-3 rounded mb-4 flex justify-between items-center shadow-lg animate-pulse">
+                    <span class="font-bold text-sm"><span id="selected-count">0</span> itens selecionados</span>
+                    <div class="flex gap-2">
+                        <select id="bulk-category-select" class="bg-white border border-gray-400 rounded text-sm p-1">
+                            <option value="">Mover para...</option>
+                        </select>
+                        <button id="btn-bulk-move" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">Mover</button>
+                        <div class="w-px bg-black h-6 mx-1"></div>
+                        <button id="btn-bulk-delete" class="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700">Excluir Todos</button>
+                    </div>
+                </div>
+
+                <div class="space-y-2" id="admin-product-list">
+                    </div>
+                
+                <p class="text-gray-500 text-xs mt-4 text-center">
+                    <i class="fas fa-info-circle"></i> Dica: Clique 2x para editar. Use DEL para excluir. Arraste para esquerda no celular.
+                </p>
             </div>
 
             <div id="tab-loja" class="tab-content hidden">
@@ -270,41 +347,64 @@
         </div>
     </dialog>
 
-    <div id="product-form-modal"
-        class="fixed inset-0 z-[60] hidden bg-black bg-opacity-95 flex items-center justify-center p-4">
-        <div class="bg-gray-800 w-full max-w-2xl rounded p-6 overflow-y-auto max-h-[90vh]">
-            <h3 class="text-xl font-bold text-white mb-4">Gerenciar Produto</h3>
-
-            <form id="form-product" class="space-y-3">
+   <div id="product-form-modal" class="fixed inset-0 z-[60] hidden bg-black bg-opacity-95 flex items-center justify-center p-4">
+        <div class="bg-gray-800 w-full max-w-2xl rounded p-6 overflow-y-auto max-h-[90vh] border border-gray-700">
+            <h3 class="text-xl font-bold text-white mb-6 border-b border-gray-700 pb-2">Gerenciar Produto</h3>
+            
+            <form id="form-product" class="space-y-4">
                 <input type="hidden" id="edit-prod-id">
-                <input type="text" id="prod-name" placeholder="Nome do Produto"
-                    class="w-full bg-black border border-gray-600 p-2 text-white" required>
+                
+                <div>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Nome do Produto</label>
+                    <input type="text" id="prod-name" placeholder="Ex: Camisa Oficial 2025" class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none" required>
+                </div>
 
-                <select id="prod-cat-select" class="w-full bg-black border border-gray-600 p-2 text-white">
-                    <option value="">Selecione uma Categoria...</option>
-                </select>
-                <textarea id="prod-desc" placeholder="Descrição"
-                    class="w-full bg-black border border-gray-600 p-2 text-white"></textarea>
+                <div>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Categoria</label>
+                    <select id="prod-cat-select" class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
+                        <option value="">Selecione...</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Descrição Detalhada</label>
+                    <textarea id="prod-desc" rows="3" placeholder="Detalhes do tecido, modelo, etc..." class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"></textarea>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço de Venda (R$)</label>
+                        <input type="number" id="prod-price" placeholder="0.00" class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none" step="0.01" required>
+                    </div>
+                    <div>
+                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço Promocional (Opcional)</label>
+                        <input type="number" id="prod-promo" placeholder="0.00" class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none" step="0.01">
+                    </div>
+                </div>
 
                 <div class="grid grid-cols-2 gap-4">
-                    <input type="number" id="prod-price" placeholder="Preço (R$)"
-                        class="bg-black border border-gray-600 p-2 text-white" step="0.01" required>
-                    <input type="number" id="prod-promo" placeholder="Preço Promo (Opcional)"
-                        class="bg-black border border-gray-600 p-2 text-white" step="0.01">
+                    <div>
+                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Estoque Atual</label>
+                        <input type="number" id="prod-stock" placeholder="0" class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-gray-500 text-xs font-bold uppercase mb-1 block">Preço de Custo (Visível só p/ Admin)</label>
+                        <input type="number" id="prod-cost" placeholder="0.00" class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none" step="0.01">
+                    </div>
                 </div>
-                <input type="number" id="prod-cost" placeholder="Preço de Custo (apenas admin vê)"
-                    class="w-full bg-black border border-gray-600 p-2 text-white" step="0.01">
-                <input type="text" id="prod-sizes" placeholder="Tamanhos (separar por vírgula ex: P,M,G)"
-                    class="w-full bg-black border border-gray-600 p-2 text-white">
-                <input type="number" id="prod-stock" placeholder="Estoque Atual"
-                    class="w-full bg-black border border-gray-600 p-2 text-white">
-                <input type="text" id="prod-img" placeholder="URL da Imagem Principal"
-                    class="w-full bg-black border border-gray-600 p-2 text-white">
 
-                <div class="flex justify-end gap-2 mt-4">
-                    <button type="button" id="btn-cancel-prod"
-                        class="bg-gray-600 px-4 py-2 rounded text-white">Cancelar</button>
-                    <button type="submit" class="bg-yellow-500 px-4 py-2 rounded text-black font-bold">Salvar</button>
+                <div>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Tamanhos (Separados por vírgula)</label>
+                    <input type="text" id="prod-sizes" placeholder="Ex: P, M, G, GG" class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
+                </div>
+                <div>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Link da Imagem</label>
+                    <input type="text" id="prod-img" placeholder="https://..." class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
+                </div>
+                
+                <div class="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-700">
+                    <button type="button" id="btn-cancel-prod" class="bg-gray-600 hover:bg-gray-500 px-6 py-2 rounded text-white font-medium">Cancelar</button>
+                    <button type="submit" class="bg-yellow-500 hover:bg-yellow-400 px-6 py-2 rounded text-black font-bold shadow-lg transform hover:scale-105 transition">Salvar Produto</button>
                 </div>
             </form>
         </div>
