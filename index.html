@@ -134,21 +134,53 @@
                     data-tab="tab-stats">Estatísticas</button>
             </div>
 
-       <div id="tab-vendas" class="tab-content">
+     <div id="tab-vendas" class="tab-content">
                 
+                <div class="bg-black rounded-3xl p-6 mb-6 shadow-2xl border border-gray-800 relative overflow-hidden">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 relative z-10">
+                        <div class="flex items-center gap-6">
+                            <button id="dash-prev-date" class="text-white hover:text-yellow-500 transition text-3xl font-bold"><</button>
+                            <h2 id="dash-date-display" class="text-3xl font-bold text-white tracking-widest">--/----</h2>
+                            <button id="dash-next-date" class="text-white hover:text-yellow-500 transition text-3xl font-bold">></button>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="flex items-center gap-2 cursor-pointer" id="btn-view-day">
+                                <span class="text-white text-sm font-bold">Dia</span>
+                                <div id="check-day" class="w-5 h-5 border-2 border-white rounded flex items-center justify-center"></div>
+                            </div>
+                            <div class="flex items-center gap-2 cursor-pointer" id="btn-view-month">
+                                <span class="text-white text-sm font-bold">Mês</span>
+                                <div id="check-month" class="w-5 h-5 border-2 border-white rounded bg-green-500 border-none flex items-center justify-center"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center relative z-10">
+                        <div>
+                            <h4 class="text-yellow-500 font-bold mb-2 text-sm uppercase tracking-wider">Quantidade de Itens vendidos</h4>
+                            <p id="dash-total-items" class="text-5xl font-bold text-green-500">0</p>
+                        </div>
+                        <div>
+                            <h4 class="text-yellow-500 font-bold mb-2 text-sm uppercase tracking-wider">Vendas Confirmadas</h4>
+                            <p id="dash-confirmed-count" class="text-5xl font-bold text-green-500">0</p>
+                        </div>
+                        <div>
+                            <h4 class="text-yellow-500 font-bold mb-2 text-sm uppercase tracking-wider">Valor de Vendas ( Aprovadas )</h4>
+                            <p id="dash-total-value" class="text-5xl font-bold text-green-500">R$ 0,00</p>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="bg-gray-900 border border-gray-700 rounded mb-6 p-4">
-                    
                     <div id="btn-toggle-filters" class="flex justify-between items-center cursor-pointer border-b border-gray-800 pb-2 mb-4 group">
                         <h3 class="text-yellow-500 font-bold group-hover:text-yellow-400 transition">Filtros de Pedido</h3>
-                        <i id="icon-filter-arrow" class="fas fa-chevron-up text-gray-400 group-hover:text-white transition-transform duration-300"></i>
+                        <i id="icon-filter-arrow" class="fas fa-chevron-up text-gray-400 group-hover:text-white transition-transform duration-300 rotate-180"></i>
                     </div>
                     
-                    <div id="filters-body" class="grid gap-4 transition-all duration-300">
+                    <div id="filters-body" class="hidden grid gap-4 transition-all duration-300">
                         <div>
                             <label class="text-gray-400 text-xs mb-1 block">Buscar Ref. Pedido (Ex: 12345):</label>
                             <input type="text" id="filter-order-id" placeholder="Digite o código..." class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 focus:border-yellow-500 outline-none">
                         </div>
-
                         <div>
                             <label class="text-gray-400 text-xs mb-1 block">Status:</label>
                             <select id="filter-order-status" class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 focus:border-yellow-500 outline-none">
@@ -159,7 +191,6 @@
                                 <option value="Reembolsado">Estornados / Reembolsados</option>
                             </select>
                         </div>
-
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="text-gray-400 text-xs mb-1 block">Data Inicial:</label>
@@ -170,16 +201,16 @@
                                 <input type="date" id="filter-date-end" class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 text-sm uppercase">
                             </div>
                         </div>
-
                         <button id="btn-clear-filters" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded text-sm transition">
                             Limpar Filtros de Pedido
                         </button>
                     </div>
                 </div>
 
+                <div id="orders-summary-bar" class="flex flex-wrap gap-2 mb-4 text-xs font-bold text-black"></div>
+
                 <h3 class="text-yellow-500 font-bold mb-2">Lista de Pedidos (<span id="orders-count">0</span> encontrados)</h3>
-                <div id="orders-list" class="space-y-3">
-                    </div>
+                <div id="orders-list" class="space-y-3"></div>
             </div>
 
             <div id="tab-produtos" class="tab-content hidden relative">
@@ -234,29 +265,93 @@
                 </p>
             </div>
 
-            <div id="tab-loja" class="tab-content hidden">
-                <div class="grid gap-6 md:grid-cols-2">
-                    <div class="bg-gray-900 p-4 rounded">
-                        <h3 class="font-bold mb-2">Categorias</h3>
-                        <div class="flex gap-2 mb-2">
-                            <input type="text" id="new-cat-name" placeholder="Nova Categoria"
-                                class="bg-black border border-gray-700 p-1 w-full text-white">
-                            <button id="btn-add-cat" class="bg-blue-600 px-3 rounded">Add</button>
+           <div id="tab-loja" class="tab-content hidden space-y-6">
+                
+                <div class="bg-black border border-gray-800 rounded-xl p-6 flex items-center justify-center relative overflow-hidden group">
+                    <div class="absolute inset-0 bg-yellow-500 opacity-5 group-hover:opacity-10 transition"></div>
+                    
+                    <div class="flex flex-col items-center gap-3 z-10 text-center">
+                        <label for="toggle-stock-global" class="flex items-center cursor-pointer relative">
+                            <input type="checkbox" id="toggle-stock-global" class="sr-only peer">
+                            <div class="w-16 h-8 bg-gray-700 rounded-full peer peer-checked:bg-yellow-500 peer-focus:ring-2 peer-focus:ring-yellow-300 transition-all"></div>
+                            <div class="absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-all peer-checked:translate-x-8 shadow-md"></div>
+                        </label>
+                        <div>
+                            <h3 class="text-xl font-bold text-white">Venda sem estoque</h3>
+                            <p class="text-gray-400 text-xs">Permitir venda com estoque zerado</p>
                         </div>
-                        <ul id="admin-cat-list" class="text-sm text-gray-300"></ul>
-                    </div>
-                    <div class="bg-gray-900 p-4 rounded">
-                        <h3 class="font-bold mb-2">Cupons</h3>
-                        <div class="flex flex-col gap-2 mb-2">
-                            <input type="text" id="coupon-code" placeholder="Código (ex: DESC10)"
-                                class="bg-black border border-gray-700 p-1 text-white">
-                            <input type="number" id="coupon-val" placeholder="Valor ou %"
-                                class="bg-black border border-gray-700 p-1 text-white">
-                            <button id="btn-add-coupon" class="bg-blue-600 px-3 py-1 rounded">Criar Cupom</button>
-                        </div>
-                        <ul id="admin-coupon-list" class="text-sm text-gray-300"></ul>
                     </div>
                 </div>
+
+                <div class="bg-black border border-gray-800 rounded-xl overflow-hidden">
+                    <div id="btn-acc-cat" class="bg-black p-4 flex justify-between items-center cursor-pointer hover:bg-gray-900 transition border-b border-gray-800 border-l-4 border-l-yellow-500">
+                        <h3 class="text-lg font-bold text-yellow-500">Categorias</h3>
+                        <i id="arrow-acc-cat" class="fas fa-chevron-down text-yellow-500 transition-transform duration-300"></i>
+                    </div>
+
+                    <div id="content-acc-cat" class="hidden p-4 bg-gray-900">
+                        
+                        <div class="flex gap-2 mb-4">
+                            <input type="text" id="new-cat-name" placeholder="Nome da Categoria..." 
+                                class="flex-1 bg-gray-800 border border-gray-700 text-white rounded p-3 focus:border-yellow-500 outline-none placeholder-gray-500">
+                            <button id="btn-add-cat" class="bg-green-600 hover:bg-green-700 text-white px-6 rounded font-bold transition shadow-lg">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+
+                        <p class="text-xs text-gray-400 mb-2 italic">
+                            <i class="fas fa-info-circle"></i> Clique em uma categoria abaixo para criar uma subcategoria dentro dela.
+                        </p>
+
+                        <div id="admin-cat-list" class="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                            </div>
+                    </div>
+                </div>
+
+                <div class="bg-black border border-gray-800 rounded-xl overflow-hidden">
+                    <div id="btn-acc-coupon" class="bg-black p-4 flex justify-between items-center cursor-pointer hover:bg-gray-900 transition border-b border-gray-800 border-l-4 border-l-yellow-500">
+                        <h3 class="text-lg font-bold text-yellow-500">Cupons</h3>
+                        <i id="arrow-acc-coupon" class="fas fa-chevron-down text-yellow-500 transition-transform duration-300"></i>
+                    </div>
+
+                    <div id="content-acc-coupon" class="hidden p-4 bg-gray-900">
+                        
+                        <div class="flex flex-col md:flex-row gap-2 mb-2 items-end">
+                            <div class="flex-1 w-full">
+                                <label class="text-xs text-gray-500 mb-1 block">Código</label>
+                                <input type="text" id="coupon-code" placeholder="Ex: PROMO10" 
+                                    class="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded focus:border-yellow-500 outline-none uppercase font-bold">
+                            </div>
+                            
+                            <div class="w-full md:w-32">
+                                <label class="text-xs text-gray-500 mb-1 block">Valor</label>
+                                <div class="relative">
+                                    <input type="number" id="coupon-val" placeholder="0" 
+                                        class="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded focus:border-yellow-500 outline-none">
+                                </div>
+                            </div>
+
+                            <div class="flex items-center h-10 bg-gray-800 border border-gray-700 rounded px-3 cursor-pointer" onclick="document.getElementById('coupon-is-percent').click()">
+                                <input type="checkbox" id="coupon-is-percent" class="w-5 h-5 text-yellow-500 rounded bg-gray-700 border-gray-600 focus:ring-yellow-500 cursor-pointer" checked>
+                                <label class="ml-2 text-white font-bold cursor-pointer">%</label>
+                            </div>
+
+                            <div class="w-full md:w-48">
+                                <label class="text-xs text-gray-500 mb-1 block">Expira em (Opcional)</label>
+                                <input type="datetime-local" id="coupon-expiry" 
+                                    class="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded focus:border-yellow-500 outline-none text-xs">
+                            </div>
+
+                            <button id="btn-add-coupon" class="bg-green-600 hover:bg-green-700 text-white h-10 px-4 rounded font-bold w-full md:w-auto shadow-lg">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+
+                        <div id="admin-coupon-list" class="mt-4 space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                            </div>
+                    </div>
+                </div>
+
             </div>
 
             <div id="tab-stats" class="tab-content hidden">
