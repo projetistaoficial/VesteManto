@@ -106,15 +106,28 @@ function initApp() {
     });
 }
 
+// --- CONFIGURAÇÕES ---
 function loadSettings() {
     const docRef = doc(db, `sites/${state.siteId}/settings`, 'general');
+
+    // Ouve mudanças na configuração em Tempo Real
     onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
             state.globalSettings = docSnap.data();
-            if (els.toggleStockGlobal) els.toggleStockGlobal.checked = state.globalSettings.allowNoStock;
+
+            // Atualiza o botão visualmente se ele existir na tela
+            if (els.toggleStockGlobal) {
+                els.toggleStockGlobal.checked = state.globalSettings.allowNoStock;
+            }
         } else {
+            // Se não existir, cria o padrão
             setDoc(docRef, { allowNoStock: false });
+            state.globalSettings = { allowNoStock: false };
         }
+
+        // >>> A CORREÇÃO MÁGICA <<<
+        // Força a vitrine a se atualizar com a nova regra imediatamente
+        renderCatalog(state.products);
     });
 }
 
@@ -158,10 +171,18 @@ function updateCardStyles(isLight) {
 // --- LOAD DATA ---
 function loadProducts() {
     const q = query(collection(db, `sites/${state.siteId}/products`));
+
+    // Ouve mudanças nos produtos em Tempo Real
     onSnapshot(q, (snapshot) => {
         state.products = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Atualiza a Vitrine (Cliente)
         renderCatalog(state.products);
-        if (state.user) renderAdminProducts();
+
+        // Se estiver logado, atualiza a lista de Admin também
+        if (state.user) {
+            renderAdminProducts();
+        }
     });
 }
 function loadCategories() {
@@ -182,20 +203,30 @@ function loadCoupons() {
 
 // --- RENDERIZADORES ---
 
+// --- RENDER VITRINE (Corrigido para Estoque Negativo) ---
 function renderCatalog(products) {
     if (!els.grid) return;
     els.grid.innerHTML = '';
+
     products.forEach(p => {
-        const isOut = p.stock <= 0;
+        // 1. Verifica permissão (Global OU Produto)
+        const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
+
+        // 2. Define se está ESGOTADO
+        // Só é esgotado se estoque for <= 0 E a opção de negativo estiver DESATIVADA.
+        const isOut = p.stock <= 0 && !allowNegative;
+
         const priceDisplay = p.promoPrice ?
             `<span class="text-gray-500 line-through text-xs">${formatCurrency(p.price)}</span> <span class="text-green-600 font-bold">${formatCurrency(p.promoPrice)}</span>` :
             `<span class="text-green-500 font-bold">${formatCurrency(p.price)}</span>`;
+
         const card = document.createElement('div');
         card.className = "product-card bg-gray-800 rounded-lg overflow-hidden shadow-lg card-hover cursor-pointer relative group transition-colors duration-300";
         card.innerHTML = `
             <div class="relative pb-[100%] bg-gray-200">
                 <img src="${p.images ? p.images[0] : 'https://placehold.co/400x400/111/FFF?text=Sem+Foto'}" class="absolute h-full w-full object-cover">
-                ${isOut ? '<div class="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center text-white font-bold">ESGOTADO</div>' : ''}
+                
+                ${isOut ? '<div class="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center text-white font-bold z-10">ESGOTADO</div>' : ''}
             </div>
             <div class="p-3">
                 <h3 class="text-white font-bold truncate transition-colors">${p.name}</h3>
@@ -205,9 +236,11 @@ function renderCatalog(products) {
                     <span class="text-xs bg-gray-700 text-gray-200 px-2 py-1 rounded">${p.sizes ? p.sizes[0] : 'U'}</span>
                 </div>
             </div>`;
+
         card.onclick = () => openProductModal(p);
         els.grid.appendChild(card);
     });
+
     if (!state.isDarkMode) updateCardStyles(true);
 }
 
@@ -479,26 +512,46 @@ function renderSalesList(orders) {
 // --- CONTROLE DE ESTOQUE ---
 window.updateStatus = async (orderId, newStatus, oldStatus) => {
     if (!confirm(`Alterar status para ${newStatus}?`)) return;
+
+    // 1. Atualiza Status do Pedido no Firebase
     await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), { status: newStatus });
 
+    // 2. Lógica de Baixa/Devolução de Estoque
     const order = state.orders.find(o => o.id === orderId);
     if (!order) return;
 
+    // --- CENÁRIO A: APROVADO (Baixar Estoque) ---
     if (newStatus === 'Confirmado' && oldStatus !== 'Confirmado') {
         for (const item of order.items) {
             const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
             const prodInState = state.products.find(p => p.id === item.id);
+
             if (prodInState) {
-                const newStock = Math.max(0, prodInState.stock - item.qty);
+                // Verifica permissão de negativo
+                const allowNegative = state.globalSettings.allowNoStock || prodInState.allowNoStock;
+
+                let newStock = prodInState.stock - item.qty;
+
+                // Se NÃO permitir negativo, trava no zero (segurança)
+                if (!allowNegative && newStock < 0) {
+                    newStock = 0;
+                }
+                // Se permitir, ele vai salvar o número negativo (ex: -2) normalmente
+
                 await updateDoc(prodRef, { stock: newStock });
             }
         }
     }
+
+    // --- CENÁRIO B: CANCELADO/ESTORNADO (Devolver Estoque) ---
     if ((newStatus === 'Cancelado' || newStatus === 'Reembolsado') && oldStatus === 'Confirmado') {
         for (const item of order.items) {
             const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
             const prodInState = state.products.find(p => p.id === item.id);
+
             if (prodInState) {
+                // Simplesmente devolve o item. 
+                // Se estava -2 e devolve 1, vira -1. Se estava 0 e devolve 1, vira 1.
                 const newStock = prodInState.stock + item.qty;
                 await updateDoc(prodRef, { stock: newStock });
             }
@@ -541,6 +594,7 @@ function renderAdminProducts() {
     if (catFilter) filtered = filtered.filter(p => p.category === catFilter);
 
     filtered.forEach(p => {
+        const stockClass = p.stock < 0 ? 'text-red-500 font-bold' : 'text-yellow-500';
         const isSelected = state.selectedProducts.has(p.id);
         const row = document.createElement('div');
         row.className = "relative overflow-hidden rounded bg-gray-800 border border-gray-700 group touch-pan-y outline-none focus:ring-2 focus:ring-yellow-500 mb-2";
@@ -552,11 +606,12 @@ function renderAdminProducts() {
                 <img src="${p.images[0]}" class="w-12 h-12 object-cover rounded border border-gray-600">
                 <div class="flex-1 min-w-0 cursor-pointer select-none" ondblclick="editProduct('${p.id}')">
                     <div class="flex justify-between"><p class="font-bold text-white text-sm truncate">${p.name}</p></div>
-                    <div class="flex justify-between items-center mt-1"><p class="text-xs text-yellow-500">Estoque: ${p.stock}</p><p class="text-xs text-green-400 font-bold">${formatCurrency(p.price)}</p></div>
+                    <div class="flex justify-between items-center mt-1"><p class="text-xs ${stockClass}">Estoque: ${p.stock}</p><p class="text-xs text-green-400 font-bold">${formatCurrency(p.price)}</p></div>
                     <p class="text-xs text-gray-500 truncate">${p.category || 'Sem categoria'}</p>
                 </div>
                 <button onclick="editProduct('${p.id}')" class="text-gray-400 hover:text-white p-2"><i class="fas fa-pen"></i></button>
             </div>`;
+
         row.onfocus = () => state.focusedProductId = p.id;
         row.onblur = () => { if (state.focusedProductId === p.id) state.focusedProductId = null; };
         setupSwipe(row.querySelector('.prod-content-swipe'));
@@ -624,15 +679,46 @@ window.openProductModal = (p) => {
 };
 
 function addToCart(product, size) {
-    if (!state.globalSettings.allowNoStock && product.stock <= 0) {
-        alert('Este produto está esgotado no momento.');
+    // Verifica configurações (Global OU Produto Específico)
+    const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
+
+    // Se NÃO permitir negativo E o estoque for menor ou igual a zero, bloqueia
+    if (!allowNegative && product.stock <= 0) {
+        alert('Este produto está esgotado e não aceita encomendas (estoque negativo desativado).');
         return;
     }
+
     const existing = state.cart.find(i => i.id === product.id && i.size === size);
-    if (existing) { existing.qty++; }
-    else { state.cart.push({ id: product.id, name: product.name, price: parseFloat(product.promoPrice || product.price), size: size, qty: 1, code: product.code || '00000' }); }
+
+    // Verificação extra: Se já tem no carrinho, vai estourar o estoque?
+    if (existing && !allowNegative) {
+        if (existing.qty + 1 > product.stock) {
+            alert(`Limite de estoque atingido! Você já tem ${existing.qty} unidades no carrinho.`);
+            return;
+        }
+    }
+
+    if (existing) {
+        existing.qty++;
+    } else {
+        state.cart.push({
+            id: product.id,
+            name: product.name,
+            price: parseFloat(product.promoPrice || product.price),
+            size: size,
+            qty: 1,
+            code: product.code || '00000'
+        });
+    }
+
     saveCart();
-    const btn = getEl('cart-btn'); if (btn) { btn.classList.add('text-yellow-500'); setTimeout(() => btn.classList.remove('text-yellow-500'), 200); }
+
+    // Feedback Visual no Botão
+    const btn = getEl('cart-btn');
+    if (btn) {
+        btn.classList.add('text-yellow-500');
+        setTimeout(() => btn.classList.remove('text-yellow-500'), 200);
+    }
 }
 
 if (els.btnAddCat) {
@@ -725,12 +811,51 @@ function setupEventListeners() {
     if (els.adminSortProd) els.adminSortProd.addEventListener('change', renderAdminProducts);
 
     // Ações em Massa
+    // --- AÇÕES EM MASSA (CORRIGIDO PARA LIMPAR SELEÇÃO) ---
+
+    // 1. Excluir em Massa
     const btnBulkDel = getEl('btn-bulk-delete');
-    if (btnBulkDel) btnBulkDel.onclick = async () => { if (!confirm(`Excluir ${state.selectedProducts.size} produtos?`)) return; const promises = Array.from(state.selectedProducts).map(id => deleteDoc(doc(db, `sites/${state.siteId}/products`, id))); await Promise.all(promises); state.selectedProducts.clear(); updateBulkActionBar(); };
+    if (btnBulkDel) btnBulkDel.onclick = async () => {
+        if (!confirm(`Excluir ${state.selectedProducts.size} produtos selecionados?`)) return;
 
+        try {
+            const promises = Array.from(state.selectedProducts).map(id => deleteDoc(doc(db, `sites/${state.siteId}/products`, id)));
+            await Promise.all(promises);
+
+            // >>> LIMPEZA DA SELEÇÃO <<<
+            state.selectedProducts.clear(); // Limpa a memória
+            updateBulkActionBar(); // Esconde a barra preta
+            // A lista recarrega automaticamente pelo onSnapshot, e virá sem os itens excluídos
+
+        } catch (error) {
+            alert("Erro ao excluir: " + error.message);
+        }
+    };
+
+    // 2. Mover Categoria em Massa
     const btnBulkMove = getEl('btn-bulk-move');
-    if (btnBulkMove) btnBulkMove.onclick = async () => { const targetCat = els.bulkCategorySelect.value; if (!targetCat) return alert("Selecione uma categoria"); const promises = Array.from(state.selectedProducts).map(id => updateDoc(doc(db, `sites/${state.siteId}/products`, id), { category: targetCat })); await Promise.all(promises); state.selectedProducts.clear(); updateBulkActionBar(); alert("Produtos movidos!"); };
+    if (btnBulkMove) btnBulkMove.onclick = async () => {
+        const targetCat = els.bulkCategorySelect.value;
+        if (!targetCat) return alert("Selecione uma categoria de destino.");
 
+        try {
+            const promises = Array.from(state.selectedProducts).map(id => updateDoc(doc(db, `sites/${state.siteId}/products`, id), { category: targetCat }));
+            await Promise.all(promises);
+
+            // >>> LIMPEZA DA SELEÇÃO <<<
+            state.selectedProducts.clear(); // Limpa a memória
+            updateBulkActionBar(); // Esconde a barra preta
+
+            // Como o produto ainda existe (só mudou o texto), forçamos uma atualização visual
+            // para garantir que os checkboxes desmarquem imediatamente
+            renderAdminProducts();
+
+            alert("Produtos movidos com sucesso!");
+
+        } catch (error) {
+            alert("Erro ao mover: " + error.message);
+        }
+    };
     // Filtros Vitrine
     if (els.searchInput) els.searchInput.addEventListener('input', (e) => { const term = e.target.value.toLowerCase(); const filtered = state.products.filter(p => p.name.toLowerCase().includes(term) || p.description.toLowerCase().includes(term)); renderCatalog(filtered); });
     if (els.catFilter) els.catFilter.addEventListener('change', (e) => { const cat = e.target.value; if (!cat) return renderCatalog(state.products); const filtered = state.products.filter(p => p.category === cat || p.category.startsWith(cat + ' -')); renderCatalog(filtered); });
