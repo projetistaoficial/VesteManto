@@ -16,7 +16,8 @@ const state = {
     globalSettings: { allowNoStock: false },
     selectedCategoryParent: null,
     dashDate: new Date(),
-    dashViewMode: 'month'
+    dashViewMode: 'month',
+    cardSelections: {}
 };
 
 // --- DOM ELEMENTS ---
@@ -203,47 +204,90 @@ function loadCoupons() {
 
 // --- RENDERIZADORES ---
 
-// --- RENDER VITRINE (Corrigido para Estoque Negativo) ---
+// --- RENDER VITRINE (DESIGN NOVO + CONTROLE DE QUANTIDADE) ---
 function renderCatalog(products) {
-    if (!els.grid) return;
+    if(!els.grid) return;
     els.grid.innerHTML = '';
-
+    
     products.forEach(p => {
-        // 1. Verifica permissão (Global OU Produto)
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-
-        // 2. Define se está ESGOTADO
-        // Só é esgotado se estoque for <= 0 E a opção de negativo estiver DESATIVADA.
         const isOut = p.stock <= 0 && !allowNegative;
+        
+        const firstSize = p.sizes && p.sizes.length > 0 ? p.sizes[0] : 'U';
+        const selectedSize = state.cardSelections[p.id] || firstSize;
+        const cartItem = state.cart.find(i => i.id === p.id && i.size === selectedSize);
+        const qtyInCart = cartItem ? cartItem.qty : 0;
 
         const priceDisplay = p.promoPrice ?
-            `<span class="text-gray-500 line-through text-xs">${formatCurrency(p.price)}</span> <span class="text-green-600 font-bold">${formatCurrency(p.promoPrice)}</span>` :
-            `<span class="text-green-500 font-bold">${formatCurrency(p.price)}</span>`;
+            `<div class="flex flex-col">
+                <span class="text-green-500 font-bold text-xl">${formatCurrency(p.promoPrice)}</span>
+                <span class="text-gray-400 line-through text-xs font-normal">${formatCurrency(p.price)}</span>
+             </div>` :
+            `<span class="text-green-500 font-bold text-xl">${formatCurrency(p.price)}</span>`;
+
+        let sizesHtml = '';
+        if (p.sizes && p.sizes.length > 0) {
+            sizesHtml = `<div class="flex gap-2 mb-3 overflow-x-auto pb-1 custom-scrollbar" onclick="event.stopPropagation()">`;
+            p.sizes.forEach(s => {
+                const isSel = s === selectedSize;
+                const sizeClass = isSel 
+                    ? "bg-gray-300 text-black font-bold ring-2 ring-white" 
+                    : "bg-gray-600 text-gray-300 hover:bg-gray-500";
+                
+                sizesHtml += `<button onclick="selectSizeCard('${p.id}', '${s}')" class="${sizeClass} w-5 h-5 rounded flex items-center justify-center text-xs transition shadow-sm shrink-0">${s}</button>`;
+            });
+            sizesHtml += `</div>`;
+        }
+
+        let actionButtonHtml = '';
+        if (isOut) {
+             actionButtonHtml = `<div class="bg-gray-800 text-red-500 font-bold px-4 py-2 rounded text-sm uppercase w-full text-center border border-gray-700">Esgotado</div>`;
+        } else if (qtyInCart > 0) {
+            actionButtonHtml = `
+                <div class="flex items-center bg-gray-700 rounded overflow-hidden h-10 shadow-lg border border-gray-600" onclick="event.stopPropagation()">
+                    <button onclick="updateCartQtyCard('${p.id}', '${selectedSize}', -1)" class="w-10 h-full text-white hover:bg-red-600 transition flex items-center justify-center text-lg font-bold">-</button>
+                    <span class="w-8 text-center text-white font-bold text-sm">${qtyInCart}</span>
+                    <button onclick="updateCartQtyCard('${p.id}', '${selectedSize}', 1)" class="w-10 h-full text-white hover:bg-green-600 transition flex items-center justify-center text-lg font-bold">+</button>
+                </div>`;
+        } else {
+            actionButtonHtml = `
+                <button onclick="event.stopPropagation(); addToCartCard('${p.id}', '${selectedSize}')" class="bg-green-500 hover:bg-green-600 text-white w-10 h-10 rounded flex items-center justify-center transition shadow-lg shadow-green-900/50 group">
+                    <i class="fas fa-plus group-hover:scale-125 transition-transform"></i>
+                </button>`;
+        }
 
         const card = document.createElement('div');
-        card.className = "product-card bg-gray-800 rounded-lg overflow-hidden shadow-lg card-hover cursor-pointer relative group transition-colors duration-300";
+        // Adicionado o onclick para abrir o modal e cursor-pointer
+        card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-xl hover:shadow-2xl hover:border-gray-600 transition duration-300 flex flex-col cursor-pointer";
+        // Passamos o ID, não o objeto inteiro, para evitar erro de aspas no HTML
+        card.setAttribute('onclick', `openProductModal('${p.id}')`);
+        
         card.innerHTML = `
-            <div class="relative pb-[100%] bg-gray-200">
-                <img src="${p.images ? p.images[0] : 'https://placehold.co/400x400/111/FFF?text=Sem+Foto'}" class="absolute h-full w-full object-cover">
-                
-                ${isOut ? '<div class="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center text-white font-bold z-10">ESGOTADO</div>' : ''}
-            </div>
-            <div class="p-3">
-                <h3 class="text-white font-bold truncate transition-colors">${p.name}</h3>
-                <p class="text-gray-500 text-xs truncate mb-2">${p.description}</p>
-                <div class="flex justify-between items-center">
-                    ${priceDisplay}
-                    <span class="text-xs bg-gray-700 text-gray-200 px-2 py-1 rounded">${p.sizes ? p.sizes[0] : 'U'}</span>
+            <div class="relative w-full pt-[100%] bg-gray-900 group overflow-hidden" onclick="event.stopPropagation(); openImageViewer('${p.images ? p.images[0] : ''}')">
+                <img src="${p.images ? p.images[0] : 'https://placehold.co/400'}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                ${isOut ? '<div class="absolute inset-0 bg-black/80 flex items-center justify-center text-white font-bold tracking-widest border-2 border-red-600 m-4 rounded">ESGOTADO</div>' : ''}
+                <div class="absolute top-2 right-2 bg-black/50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition duration-300">
+                    <i class="fas fa-expand-alt"></i>
                 </div>
-            </div>`;
+            </div>
 
-        card.onclick = () => openProductModal(p);
+            <div class="p-4 flex flex-col flex-1">
+                <h3 class="text-white font-bold text-lg leading-tight mb-1 truncate">${p.name}</h3>
+                <p class="text-gray-400 text-xs mb-3 line-clamp-2 min-h-[2.5em]">${p.description}</p>
+                
+                ${sizesHtml}
+                
+                <div class="mt-auto flex justify-between items-end border-t border-gray-800 pt-3">
+                    ${priceDisplay}
+                    ${actionButtonHtml}
+                </div>
+            </div>
+        `;
         els.grid.appendChild(card);
     });
-
+    
     if (!state.isDarkMode) updateCardStyles(true);
 }
-
 // Lógica de Categorias (Sidebar Recursiva + Selects)
 function renderCategories() {
     const catNames = state.categories.map(c => c.name);
@@ -559,6 +603,82 @@ window.updateStatus = async (orderId, newStatus, oldStatus) => {
     }
 };
 
+// --- VISUALIZADOR DE IMAGEM ---
+window.openImageViewer = (src) => {
+    const viewer = getEl('image-viewer');
+    const img = getEl('image-viewer-src');
+    img.src = src;
+    viewer.classList.remove('hidden');
+    viewer.classList.add('flex');
+    // Fecha ao clicar fora
+    viewer.onclick = (e) => {
+        if(e.target === viewer) closeImageViewer();
+    };
+};
+
+// --- HELPERS DO NOVO CARD ---
+
+// 1. Selecionar Tamanho no Card
+window.selectSizeCard = (prodId, size) => {
+    // Salva a seleção no estado
+    state.cardSelections[prodId] = size;
+    // Redesenha a vitrine para atualizar os botões (Branco/Cinza) e o estado do botão Adicionar
+    renderCatalog(state.products);
+};
+
+// 2. Adicionar ao Carrinho (Botão Verde +)
+window.addToCartCard = (prodId, size) => {
+    const product = state.products.find(p => p.id === prodId);
+    if (!product) return;
+    
+    // Usa a função original de adicionar (que já tem a validação de estoque)
+    addToCart(product, size);
+    
+    // Redesenha para transformar o botão "+" em contador "- 1 +"
+    renderCatalog(state.products);
+};
+
+// 3. Atualizar Quantidade (Botões - e + do contador)
+window.updateCartQtyCard = (prodId, size, delta) => {
+    const product = state.products.find(p => p.id === prodId);
+    if (!product) return;
+
+    // Encontra o index no carrinho
+    const index = state.cart.findIndex(i => i.id === prodId && i.size === size);
+    
+    if (index === -1) return; // Segurança
+
+    const currentQty = state.cart[index].qty;
+    
+    // Validação de Estoque Positivo ao Aumentar
+    if (delta > 0) {
+        const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
+        if (!allowNegative && currentQty >= product.stock) {
+            alert("Estoque máximo atingido.");
+            return;
+        }
+    }
+
+    // Aplica mudança
+    state.cart[index].qty += delta;
+
+    // Remove se for zero
+    if (state.cart[index].qty <= 0) {
+        state.cart.splice(index, 1);
+    }
+
+    saveCart();
+    
+    // Redesenha para atualizar o número ou voltar ao botão verde
+    renderCatalog(state.products);
+};
+
+window.closeImageViewer = () => {
+    const viewer = getEl('image-viewer');
+    viewer.classList.add('hidden');
+    viewer.classList.remove('flex');
+};
+
 // --- DEMAIS FUNÇÕES ---
 function renderAdminCoupons() {
     if (!els.couponListAdmin) return;
@@ -651,31 +771,110 @@ window.updateCartUI = () => {
     }
 };
 
-window.openProductModal = (p) => {
-    if (!els.modalProduct) return;
-    els.modalProduct.classList.remove('hidden');
-    document.getElementById('modal-img').src = p.images ? p.images[0] : 'https://placehold.co/600';
-    document.getElementById('modal-title').innerText = p.name;
-    document.getElementById('modal-desc').innerText = p.description;
+// --- ABRIR MODAL DO PRODUTO (Corrigido para ID e Ocultar Tamanhos) ---
+window.openProductModal = (productId) => {
+    // Busca o produto pelo ID no estado global
+    const p = state.products.find(x => x.id === productId);
+    if (!p) return;
+
+    const modal = getEl('product-modal');
+    const backdrop = getEl('modal-backdrop');
+    const card = getEl('modal-card');
+    if(!modal) return;
+
+    // Popula os dados
+    getEl('modal-img').src = p.images ? p.images[0] : 'https://placehold.co/600';
+    getEl('modal-title').innerText = p.name;
+    getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
+    
     const price = p.promoPrice || p.price;
-    document.getElementById('modal-price').innerText = formatCurrency(price);
-    const sizesDiv = document.getElementById('modal-sizes');
+    getEl('modal-price').innerHTML = formatCurrency(price);
+    
+    // Lógica de Tamanhos (Esconder ou Mostrar)
+    const sizesDiv = getEl('modal-sizes');
+    const sizesWrapper = getEl('modal-sizes-wrapper'); // Pega o container pai
+    
     sizesDiv.innerHTML = '';
-    if (p.sizes) {
+    
+    // Define tamanho selecionado padrão
+    let selectedSizeInModal = 'U';
+
+    if (p.sizes && p.sizes.length > 0) {
+        // Se TEM tamanhos, mostra o wrapper e cria os botões
+        if(sizesWrapper) sizesWrapper.classList.remove('hidden');
+        
+        selectedSizeInModal = p.sizes[0]; // Pega o primeiro
+        
         p.sizes.forEach(s => {
             const btn = document.createElement('button');
-            btn.className = "border border-gray-600 px-3 py-1 text-white hover:bg-yellow-500 hover:text-black transition";
+            btn.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center";
             btn.innerText = s;
-            btn.onclick = () => { document.querySelectorAll('#modal-sizes button').forEach(b => b.classList.remove('bg-yellow-500', 'text-black')); btn.classList.add('bg-yellow-500', 'text-black'); btn.dataset.selected = true; };
+            
+            if(s === selectedSizeInModal) {
+                 btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
+                 btn.classList.remove('text-gray-300', 'border-gray-600');
+            }
+
+            btn.onclick = () => { 
+                selectedSizeInModal = s;
+                document.querySelectorAll('#modal-sizes button').forEach(b => {
+                    b.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center";
+                });
+                btn.classList.remove('text-gray-300', 'border-gray-600');
+                btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
+            };
             sizesDiv.appendChild(btn);
         });
+    } else {
+        // Se NÃO tem tamanhos, esconde o bloco inteiro (Título + Botões)
+        if(sizesWrapper) sizesWrapper.classList.add('hidden');
+        selectedSizeInModal = 'U'; // Mantém U por padrão para o carrinho
     }
-    document.getElementById('modal-add-cart').onclick = () => {
-        const selectedSizeBtn = sizesDiv.querySelector('[data-selected]');
-        const size = selectedSizeBtn ? selectedSizeBtn.innerText : (p.sizes ? p.sizes[0] : 'U');
-        addToCart(p, size);
-        els.modalProduct.classList.add('hidden');
-    };
+
+    // Ação do Botão Adicionar
+    const btnAdd = getEl('modal-add-cart');
+    const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
+    const isOut = p.stock <= 0 && !allowNegative;
+
+    if (isOut) {
+        btnAdd.disabled = true;
+        btnAdd.innerHTML = "ESGOTADO";
+        btnAdd.className = "w-full bg-gray-700 text-gray-500 font-bold text-lg py-4 rounded-xl cursor-not-allowed";
+    } else {
+        btnAdd.disabled = false;
+        btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i> ADICIONAR AO CARRINHO`;
+        btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center";
+        
+        btnAdd.onclick = () => { 
+            addToCartCard(p.id, selectedSizeInModal); 
+            closeProductModal();
+        };
+    }
+
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        backdrop.classList.remove('opacity-0');
+        card.classList.remove('opacity-0', 'scale-95');
+        card.classList.add('scale-100');
+    }, 10);
+};
+
+// Função para Fechar Modal com Animação Reversa
+window.closeProductModal = () => {
+    const modal = getEl('product-modal');
+    const backdrop = getEl('modal-backdrop');
+    const card = getEl('modal-card');
+
+    if(!modal) return;
+
+    backdrop.classList.add('opacity-0');
+    card.classList.remove('scale-100');
+    card.classList.add('opacity-0', 'scale-95');
+
+    // Espera a animação (300ms) acabar para esconder
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 300);
 };
 
 function addToCart(product, size) {
@@ -798,7 +997,12 @@ window.deleteCoupon = async (id) => { if (!confirm('Excluir cupom?')) return; aw
 window.filterByCat = (cat) => { els.catFilter.value = cat; if (!cat) return renderCatalog(state.products); const filtered = state.products.filter(p => p.category === cat || p.category.startsWith(cat + ' -')); renderCatalog(filtered); };
 window.toggleSidebar = () => { const isOpen = !els.sidebar.classList.contains('-translate-x-full'); if (isOpen) { els.sidebar.classList.add('-translate-x-full'); els.sidebarOverlay.classList.add('hidden'); } else { els.sidebar.classList.remove('-translate-x-full'); els.sidebarOverlay.classList.remove('hidden'); } };
 window.changeQty = (index, delta) => { state.cart[index].qty += delta; if (state.cart[index].qty <= 0) state.cart.splice(index, 1); saveCart(); };
-function saveCart() { localStorage.setItem('cart', JSON.stringify(state.cart)); updateCartUI(); }
+function saveCart() { 
+    localStorage.setItem('cart', JSON.stringify(state.cart)); 
+    updateCartUI(); 
+    // ADICIONE ISSO para que se remover item pelo carrinho, o card na vitrine volte a ser botão verde
+    renderCatalog(state.products); 
+}
 
 function setupEventListeners() {
     // UI - Acordeões
@@ -892,9 +1096,24 @@ function setupEventListeners() {
     const btnToggleFilters = getEl('btn-toggle-filters'); const filtersBody = getEl('filters-body'); const iconFilter = getEl('icon-filter-arrow');
     if (btnToggleFilters && filtersBody) { btnToggleFilters.onclick = () => { filtersBody.classList.toggle('hidden'); if (iconFilter) { iconFilter.style.transform = filtersBody.classList.contains('hidden') ? 'rotate(180deg)' : 'rotate(0deg)'; } }; }
 
-    // Modais Produto
-    const btnCloseModal = getEl('close-modal'); if (btnCloseModal) btnCloseModal.onclick = () => els.modalProduct.classList.add('hidden');
-    if (els.modalProduct) els.modalProduct.onclick = (e) => { if (e.target === els.modalProduct) els.modalProduct.classList.add('hidden'); };
+    // --- MODAL PRODUTO LISTENERS ---
+    
+    // 1. Botão X (Fechar)
+    const btnCloseModal = getEl('close-modal-btn'); // Note o ID novo 'close-modal-btn'
+    if(btnCloseModal) btnCloseModal.onclick = closeProductModal;
+
+    // 2. Clicar fora (Backdrop)
+    const backdrop = getEl('modal-backdrop');
+    if(backdrop) {
+        backdrop.onclick = closeProductModal;
+    }
+    
+    // Tecla ESC para fechar
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !getEl('product-modal').classList.contains('hidden')) {
+            closeProductModal();
+        }
+    });
 
     // --- FORMULÁRIO DE PRODUTO (CORRIGIDO) ---
     const btnAddProd = getEl('btn-add-product');

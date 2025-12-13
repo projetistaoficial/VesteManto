@@ -101,9 +101,6 @@
             <div class="max-w-7xl mx-auto flex gap-2">
                 <input type="text" id="search-input" placeholder="Buscar produto..."
                     class="w-full bg-black border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-500">
-                <select id="category-filter" class="bg-black border border-gray-700 rounded px-3 py-2 text-white">
-                    <option value="">Todas</option>
-                </select>
             </div>
         </div>
     </nav>
@@ -140,8 +137,8 @@
                     <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 relative z-10">
                         <div class="flex items-center gap-6">
                             <button id="dash-prev-date"
-                                class="text-white hover:text-yellow-500 transition text-3xl font-bold"><
-                                </button>
+                                class="text-white hover:text-yellow-500 transition text-3xl font-bold">
+                                < </button>
                                     <h2 id="dash-date-display" class="text-3xl font-bold text-white tracking-widest">
                                         --/----</h2>
                                     <button id="dash-next-date"
@@ -376,9 +373,9 @@
                             <div class="flex items-center h-10 bg-gray-800 border border-gray-700 rounded px-3 cursor-pointer"
                                 onclick="document.getElementById('coupon-is-percent').click()">
                                 <input type="checkbox" id="coupon-is-percent"
-                                    class="w-5 h-5 text-yellow-500 rounded bg-gray-700 border-gray-600 focus:ring-yellow-500 cursor-pointer"
+                                    class="w-full h-5 text-yellow-500 rounded bg-gray-700 border-gray-600 focus:ring-yellow-500 cursor-pointer"
                                     checked>
-                                <label class="ml-2 text-white font-bold cursor-pointer">%</label>
+                                <label class="ml-2 text-white font-bold cursor-pointer w-full">%</label>
                             </div>
 
                             <div class="w-full md:w-48">
@@ -418,33 +415,64 @@
 
     </main>
 
-    <div id="product-modal"
-        class="fixed inset-0 z-50 hidden bg-black bg-opacity-90 flex items-center justify-center p-4">
-        <div
-            class="bg-gray-900 w-full max-w-4xl rounded-lg overflow-hidden shadow-xl flex flex-col md:flex-row relative max-h-[90vh]">
-            <button id="close-modal"
-                class="absolute top-2 right-2 text-white bg-gray-800 rounded-full w-8 h-8 z-10">X</button>
+    <div id="product-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog"
+        aria-modal="true">
 
-            <div class="w-full md:w-1/2 bg-black relative flex items-center justify-center h-64 md:h-auto">
-                <img id="modal-img" src="" class="max-h-full max-w-full object-contain">
-                <button class="absolute left-2 text-white text-2xl nav-gallery" data-dir="-1">
-                    <button class="absolute right-2 text-white text-2xl nav-gallery" data-dir="1">></button>
-            </div>
+        <div id="modal-backdrop" class="absolute inset-0 bg-black/90 backdrop-blur-sm transition-opacity opacity-0">
+        </div>
 
-            <div class="w-full md:w-1/2 p-6 overflow-y-auto">
-                <h2 id="modal-title" class="text-2xl font-bold text-white mb-2"></h2>
-                <p id="modal-price" class="text-xl text-green-500 font-bold mb-4"></p>
-                <p id="modal-desc" class="text-gray-400 mb-4 text-sm"></p>
+        <div class="relative w-full h-full flex items-center justify-center p-4 pointer-events-none">
 
-                <div class="mb-4">
-                    <span class="text-gray-500 text-sm">Tamanhos:</span>
-                    <div id="modal-sizes" class="flex gap-2 mt-1"></div>
+            <div id="modal-card"
+                class="bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform scale-95 opacity-0 transition-all duration-300 pointer-events-auto relative">
+
+                <button id="close-modal-btn"
+                    class="absolute top-4 right-4 z-20 bg-black/50 hover:bg-red-600 text-white w-10 h-10 rounded-full flex items-center justify-center transition duration-300 group">
+                    <i class="fas fa-times text-lg group-hover:rotate-90 transition-transform"></i>
+                </button>
+
+                <div
+                    class="w-full md:w-1/2 bg-black flex items-center justify-center p-6 relative overflow-hidden group">
+                    <div class="absolute inset-0 bg-gradient-to-br from-gray-800/20 to-transparent"></div>
+                    <img id="modal-img" src=""
+                        class="max-h-[40vh] md:max-h-[70vh] w-auto object-contain drop-shadow-2xl transition-transform duration-500 hover:scale-105 z-10">
                 </div>
 
-                <button id="modal-add-cart"
-                    class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded">
-                    ADICIONAR AO CARRINHO
-                </button>
+                <div class="w-full md:w-1/2 flex flex-col h-full bg-gray-900">
+
+                    <div class="p-6 md:p-8 border-b border-gray-800 pb-4">
+                        <h2 id="modal-title" class="text-2xl md:text-3xl font-extrabold text-white tracking-tight mb-2">
+                            Nome do Produto</h2>
+                        <p id="modal-price" class="text-3xl font-bold text-green-500">R$ 0,00</p>
+                    </div>
+
+                    <div class="p-6 md:p-8 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+
+                        <div>
+                            <h3 class="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-2">Sobre o Produto
+                            </h3>
+                            <p id="modal-desc"
+                                class="text-gray-300 text-sm leading-relaxed text-justify whitespace-pre-line">
+                            </p>
+                        </div>
+
+                        <div id="modal-sizes-wrapper">
+                            <h3 class="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">Escolha o
+                                Tamanho</h3>
+                            <div id="modal-sizes" class="flex flex-wrap gap-3">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-6 md:p-8 border-t border-gray-800 bg-gray-900 z-10">
+                        <button id="modal-add-cart"
+                            class="w-full bg-green-600 hover:bg-green-500 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-3">
+                            <i class="fas fa-shopping-bag"></i>
+                            <span>ADICIONAR AO CARRINHO</span>
+                        </button>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
@@ -571,6 +599,17 @@
                 </div>
             </form>
         </div>
+    </div>
+
+    <div id="image-viewer"
+        class="fixed inset-0 z-[60] hidden bg-black bg-opacity-95 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <button onclick="closeImageViewer()"
+            class="absolute top-6 right-6 text-white hover:text-red-500 transition transform hover:scale-110">
+            <i class="fas fa-times text-4xl"></i>
+        </button>
+
+        <img id="image-viewer-src" class="max-h-[90vh] max-w-full rounded-lg shadow-2xl object-contain cursor-zoom-out"
+            onclick="closeImageViewer()">
     </div>
 
     <script type="module" src="js/firebase-config.js"></script>
