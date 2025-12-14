@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, setDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
@@ -12,13 +12,18 @@ const firebaseConfig = {
   appId: "1:340174016008:web:301a01750404af8b5a8bbd"
 };
 
-// Inicializa o app
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
-// Função auxiliar para evitar erros de importação
+// Helper para compatibilidade
 const getDocsCheck = getDocs;
 
-export { db, auth, storage, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, setDoc, signInWithEmailAndPassword, onAuthStateChanged, signOut, ref, uploadBytes, getDownloadURL, getDocsCheck };
+export { 
+    db, auth, storage, 
+    collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, setDoc, getDoc, 
+    signInWithEmailAndPassword, onAuthStateChanged, signOut, 
+    ref, uploadBytes, getDownloadURL, 
+    getDocsCheck 
+};

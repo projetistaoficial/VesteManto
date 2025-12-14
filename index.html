@@ -398,19 +398,126 @@
 
             </div>
 
-            <div id="tab-stats" class="tab-content hidden">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-gray-800 p-4 rounded text-center">
-                        <h4 class="text-gray-400">Vendas Totais</h4>
-                        <p id="stat-total-sales" class="text-2xl font-bold text-green-500">R$ 0,00</p>
-                    </div>
-                    <div class="bg-gray-800 p-4 rounded text-center">
-                        <h4 class="text-gray-400">Lucro Estimado</h4>
-                        <p id="stat-profit" class="text-2xl font-bold text-yellow-500">R$ 0,00</p>
-                    </div>
-                </div>
-                <canvas id="salesChart" width="400" height="200"></canvas>
+            <div id="tab-stats" class="tab-content hidden space-y-6 animate-fade-in">
+
+    <div class="flex flex-col md:flex-row justify-between items-center gap-4 border-b border-gray-800 pb-4">
+        <div class="flex items-center gap-4">
+            <h2 class="text-2xl font-bold text-yellow-500">Visão Geral</h2>
+            
+            <div class="bg-gray-800 p-1 rounded-lg flex items-center">
+                <button id="stats-filter-all" class="px-4 py-1 rounded-md text-sm font-bold bg-white text-black transition">Tudo</button>
+                <button id="stats-filter-period" class="px-4 py-1 rounded-md text-sm font-bold text-gray-400 hover:text-white transition">Períodos</button>
             </div>
+        </div>
+
+        <div id="stats-date-controls" class="hidden flex-col items-end gap-2 opacity-0 transition-opacity duration-300">
+            <div class="flex gap-2 mb-1">
+                <div class="flex items-center gap-2">
+                    <div id="stats-check-day" class="w-4 h-4 rounded-full border border-white cursor-pointer"></div>
+                    <span id="stats-view-day" class="text-xs text-white cursor-pointer hover:text-yellow-500">Dia</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div id="stats-check-month" class="w-4 h-4 rounded-full bg-green-500 border-none cursor-pointer"></div>
+                    <span id="stats-view-month" class="text-xs text-white cursor-pointer hover:text-yellow-500">Mês</span>
+                </div>
+                <div class="flex items-center gap-2 opacity-50 cursor-not-allowed">
+                    <div class="w-4 h-4 rounded-full border border-white"></div>
+                    <span class="text-xs text-white">Ano</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4 bg-gray-800 px-3 py-1 rounded text-xl font-bold text-white">
+                <button id="stats-prev-date" class="hover:text-yellow-500 transition"><i class="fas fa-chevron-left"></i></button>
+                <span id="stats-date-display">12/2025</span>
+                <button id="stats-next-date" class="hover:text-yellow-500 transition"><i class="fas fa-chevron-right"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-black border border-gray-800 rounded-xl p-4 text-center shadow-lg relative overflow-hidden group">
+            <h4 class="text-yellow-500 font-bold text-sm uppercase mb-1">Visitas</h4>
+            <p id="stat-visits" class="text-2xl font-bold text-green-500">0 Usuários</p>
+            <div class="absolute inset-0 bg-green-500/5 opacity-0 group-hover:opacity-100 transition"></div>
+        </div>
+
+        <div class="bg-black border border-gray-800 rounded-xl p-4 text-center shadow-lg relative overflow-hidden group">
+            <h4 class="text-yellow-500 font-bold text-sm uppercase mb-1">Compartilhamentos</h4>
+            <p id="stat-shares" class="text-2xl font-bold text-green-500">0</p>
+            <div class="absolute inset-0 bg-green-500/5 opacity-0 group-hover:opacity-100 transition"></div>
+        </div>
+
+        <div class="bg-black border border-gray-800 rounded-xl p-0 text-center shadow-lg relative overflow-hidden group cursor-pointer" onclick="shareStoreLink()">
+            <div class="h-full w-full flex flex-col items-center justify-center p-4 hover:bg-gray-900 transition">
+                <h4 class="text-yellow-500 font-bold text-sm uppercase mb-2">Enviar</h4>
+                <i class="fas fa-paper-plane text-3xl text-white transform group-hover:translate-x-1 group-hover:-translate-y-1 transition"></i>
+            </div>
+        </div>
+    </div>
+
+    <h3 class="text-yellow-500 font-bold border-b border-gray-800 pb-1 mt-4">Financeiro</h3>
+
+    <div class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg relative">
+        <h4 class="text-yellow-500 font-bold text-sm uppercase mb-2">Capital de Giro</h4>
+        <p id="stat-capital-giro" class="text-4xl font-bold text-green-500">R$ 0,00</p>
+        <span class="absolute bottom-2 right-4 text-gray-600 font-bold text-sm uppercase">Fixo - Atualmente</span>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg">
+            <h4 class="text-yellow-500 font-bold text-sm uppercase mb-2">Vendas Totais (Confirmadas)</h4>
+            <p id="stat-sales-count" class="text-3xl font-bold text-green-500">0</p>
+        </div>
+        <div class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg">
+            <h4 class="text-yellow-500 font-bold text-sm uppercase mb-2">Valor Total de Vendas</h4>
+            <p id="stat-sales-total" class="text-3xl font-bold text-green-500">R$ 0,00</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg">
+            <h4 class="text-yellow-500 font-bold text-sm uppercase mb-2">Custo Total</h4>
+            <p id="stat-cost-total" class="text-3xl font-bold text-green-500">R$ 0,00</p>
+        </div>
+        <div class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg">
+            <h4 class="text-yellow-500 font-bold text-sm uppercase mb-2">Lucro Total</h4>
+            <p id="stat-profit-total" class="text-3xl font-bold text-green-500">R$ 0,00</p>
+        </div>
+    </div>
+
+    <h3 class="text-yellow-500 font-bold border-b border-gray-800 pb-1 mt-4">Vendas</h3>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg">
+            <h4 class="text-yellow-500 font-bold text-sm uppercase mb-2">Vendas Reembolsadas</h4>
+            <p id="stat-refunded" class="text-3xl font-bold text-green-500">0</p>
+        </div>
+        <div class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg">
+            <h4 class="text-yellow-500 font-bold text-sm uppercase mb-2">Vendas Canceladas</h4>
+            <p id="stat-cancelled" class="text-3xl font-bold text-green-500">0</p>
+        </div>
+        <div class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg">
+            <h4 class="text-yellow-500 font-bold text-sm uppercase mb-2">Vendas Pendentes</h4>
+            <p id="stat-pending" class="text-3xl font-bold text-green-500">0</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg">
+            <h4 class="text-yellow-500 font-bold text-sm uppercase mb-2">Taxa de aprovação de vendas</h4>
+            <p id="stat-rate-approval" class="text-3xl font-bold text-green-500">0%</p>
+        </div>
+        <div class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg">
+            <h4 class="text-yellow-500 font-bold text-sm uppercase mb-2">Taxa de reembolso</h4>
+            <p id="stat-rate-refund" class="text-3xl font-bold text-green-500">0%</p>
+        </div>
+        <div class="bg-black border border-gray-800 rounded-xl p-4 text-center shadow-lg flex flex-col justify-center">
+            <h4 class="text-yellow-500 font-bold text-sm uppercase mb-1">Estatística</h4>
+            <p id="stat-trend-30" class="text-3xl font-bold text-green-500">0% +</p>
+            <span class="text-xs text-white font-bold uppercase mt-1">Nos últimos 30 dias</span>
+        </div>
+    </div>
+</div>
         </div>
 
     </main>
