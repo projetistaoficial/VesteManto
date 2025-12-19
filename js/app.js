@@ -14,7 +14,7 @@ function setupAccordion(btnId, contentId, arrowId) {
     const btn = getEl(btnId);
     const content = getEl(contentId);
     const arrow = getEl(arrowId);
-    
+
     if (btn && content && arrow) {
         btn.onclick = () => {
             content.classList.toggle('hidden');
@@ -23,6 +23,32 @@ function setupAccordion(btnId, contentId, arrowId) {
     }
 }
 
+// Adicione junto com os outros helpers (getEl, formatCurrency...)
+function showToast(message, type = 'success') {
+    // Cria o elemento se não existir
+    let toast = document.getElementById('toast-notification');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast-notification';
+        toast.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded shadow-2xl z-[100] transition-all duration-300 opacity-0 translate-y-[-20px] border border-gray-700 font-bold flex items-center gap-2';
+        document.body.appendChild(toast);
+    }
+
+    // Ícone baseado no tipo
+    const icon = type === 'success' ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="fas fa-info-circle text-yellow-500"></i>';
+
+    toast.innerHTML = `${icon} <span>${message}</span>`;
+
+    // Animação de entrada
+    requestAnimationFrame(() => {
+        toast.classList.remove('opacity-0', 'translate-y-[-20px]');
+    });
+
+    // Remove depois de 1.5s
+    setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-[-20px]');
+    }, 1500);
+}
 // =================================================================
 // 2. ESTADO GLOBAL E DOM
 // =================================================================
@@ -37,6 +63,8 @@ const state = {
     user: null,
     currentCoupon: null,
     isDarkMode: true,
+    editingCouponId: null,
+    focusedCouponIndex: -1, // -1 significa nenhum selecionado
     selectedProducts: new Set(),
     focusedProductId: null,
     globalSettings: { allowNoStock: false },
@@ -48,7 +76,17 @@ const state = {
     statsDate: new Date(),
     statsViewMode: 'month', // 'day' ou 'month'
     statsFilterType: 'all', // 'all' ou 'period'
-    siteStats: { visits: 0, shares: 0 }
+    siteStats: { visits: 0, shares: 0 },
+
+    storeProfile: {
+        name: 'Veste Manto',
+        logo: '',
+        whatsapp: '',
+        instagram: '',
+        facebook: '',
+        address: '',
+        description: 'Sua loja de camisas.'
+    }
 };
 
 const els = {
@@ -60,6 +98,7 @@ const els = {
     modalProduct: getEl('product-modal'),
     searchInput: getEl('search-input'),
     catFilter: getEl('category-filter'),
+    pageTitle: getEl('page-title'),
     sidebar: getEl('sidebar'),
     sidebarOverlay: getEl('sidebar-overlay'),
     sidebarCategories: getEl('sidebar-categories'),
@@ -123,7 +162,26 @@ const els = {
     statPending: getEl('stat-pending'),
     statRateApproval: getEl('stat-rate-approval'),
     statRateRefund: getEl('stat-rate-refund'),
-    statTrend30: getEl('stat-trend-30')
+    statTrend30: getEl('stat-trend-30'),
+
+    // Sidebar Perfil
+    sidebarStoreLogo: getEl('sidebar-store-logo'),
+    sidebarStoreName: getEl('sidebar-store-name'),
+    sidebarStoreDesc: getEl('sidebar-store-desc'),
+    linkWhatsapp: getEl('link-whatsapp'),
+    linkInstagram: getEl('link-instagram'),
+    linkFacebook: getEl('link-facebook'),
+    btnShowAddress: getEl('btn-show-address'),
+
+    // Configurações Inputs
+    confStoreName: getEl('conf-store-name'),
+    confStoreLogo: getEl('conf-store-logo'),
+    confStoreWpp: getEl('conf-store-wpp'),
+    confStoreInsta: getEl('conf-store-insta'),
+    confStoreFace: getEl('conf-store-face'),
+    confStoreAddress: getEl('conf-store-address'),
+    confStoreDesc: getEl('conf-store-desc'),
+    btnSaveProfile: getEl('btn-save-profile')
 };
 
 // =================================================================
@@ -141,33 +199,54 @@ function initApp() {
     loadCategories();
     loadProducts();
     loadCoupons();
-    
+
     updateCartUI();
     updateDashboardUI();
-    
+
     // Inicia Carregamento de Estatísticas
     loadSiteStats();
     incrementVisitsCounter();
+
+    loadSettings();
+    loadCategories();
+    // ...
+    loadStoreProfile(); // <--- ADICIONE ISSO
 
     if (localStorage.getItem('theme') === 'light') toggleTheme(false);
 
     onAuthStateChanged(auth, (user) => {
         state.user = user;
         const btnText = user ? 'Painel' : 'Área Admin';
+
+        // --- BLOCO ALTERADO ---
+        // Atualiza o botão do rodapé mantendo o novo estilo (Negrito/Maiúsculo)
+        if (els.menuBtnAdmin) {
+            els.menuBtnAdmin.innerHTML = `
+                <i class="fas fa-user-shield text-yellow-500 group-hover:text-white transition"></i>
+                <span class="font-bold uppercase text-sm tracking-wide">${btnText}</span>
+            `;
+        }
+        // ----------------------
+
+        // Mantém compatibilidade caso o botão antigo do topo ainda exista no cache
         const btnLoginNav = getEl('btn-admin-login');
         if (btnLoginNav) btnLoginNav.innerText = btnText;
 
-        if (els.menuBtnAdmin) {
-            els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield w-6 text-yellow-500 group-hover:text-white transition"></i><span class="font-medium">${btnText}</span>`;
-        }
-        
-        if (user) { 
-            renderAdminProducts(); 
-            loadAdminSales(); // Carrega vendas para Dashboard e Estatísticas
-        } else { 
-            showView('catalog'); 
+        if (user) {
+            renderAdminProducts();
+            loadAdminSales();
+        } else {
+            showView('catalog');
         }
     });
+
+    // Atualiza a lista a cada 10 segundos para checar validade "ao vivo"
+    setInterval(() => {
+        // Só renderiza se estiver na aba de admin, para economizar recursos
+        if (state.coupons.length > 0 && !getEl('view-admin').classList.contains('hidden')) {
+            renderAdminCoupons();
+        }
+    }, 10000);
 }
 
 // =================================================================
@@ -194,7 +273,7 @@ function loadProducts() {
         state.products = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         renderCatalog(state.products);
         if (state.user) renderAdminProducts();
-        
+
         // Recalcula Capital de Giro sempre que produtos mudarem
         calculateStatsMetrics();
     });
@@ -234,8 +313,8 @@ function loadSiteStats() {
     onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
             state.siteStats = docSnap.data();
-            if(els.statVisits) els.statVisits.innerText = `${state.siteStats.visits || 0} Usuários`;
-            if(els.statShares) els.statShares.innerText = state.siteStats.shares || 0;
+            if (els.statVisits) els.statVisits.innerText = `${state.siteStats.visits || 0} Usuários`;
+            if (els.statShares) els.statShares.innerText = state.siteStats.shares || 0;
         } else {
             setDoc(docRef, { visits: 0, shares: 0 });
         }
@@ -245,7 +324,7 @@ function loadSiteStats() {
 // Incrementa Visitas (Seguro: Não conta Admin)
 async function incrementVisitsCounter() {
     // Se o usuário já estiver autenticado (Admin), não conta
-    if(auth.currentUser) return; 
+    if (auth.currentUser) return;
 
     const docRef = doc(db, `sites/${state.siteId}/stats`, 'general');
     try {
@@ -256,7 +335,7 @@ async function incrementVisitsCounter() {
         } else {
             await setDoc(docRef, { visits: 1, shares: 0 });
         }
-    } catch(e) { console.log("Erro contador visitas (Adblock?):", e); }
+    } catch (e) { console.log("Erro contador visitas (Adblock?):", e); }
 }
 
 // =================================================================
@@ -266,28 +345,28 @@ async function incrementVisitsCounter() {
 function updateStatsUI() {
     // Alternância Visual dos Botões (Tudo vs Períodos)
     if (state.statsFilterType === 'all') {
-        if(els.statsFilterAll) {
+        if (els.statsFilterAll) {
             els.statsFilterAll.classList.replace('text-black', 'text-black'); // Garante estilo
             els.statsFilterAll.classList.replace('bg-white', 'bg-white');
             els.statsFilterAll.className = "px-4 py-1 rounded-md text-sm font-bold bg-white text-black transition";
         }
-        if(els.statsFilterPeriod) {
+        if (els.statsFilterPeriod) {
             els.statsFilterPeriod.className = "px-4 py-1 rounded-md text-sm font-bold text-gray-400 hover:text-white transition";
         }
-        
-        if(els.statsDateControls) {
+
+        if (els.statsDateControls) {
             els.statsDateControls.classList.add('hidden', 'opacity-0');
             els.statsDateControls.classList.remove('flex');
         }
     } else {
-        if(els.statsFilterPeriod) {
+        if (els.statsFilterPeriod) {
             els.statsFilterPeriod.className = "px-4 py-1 rounded-md text-sm font-bold bg-white text-black transition";
         }
-        if(els.statsFilterAll) {
+        if (els.statsFilterAll) {
             els.statsFilterAll.className = "px-4 py-1 rounded-md text-sm font-bold text-gray-400 hover:text-white transition";
         }
 
-        if(els.statsDateControls) {
+        if (els.statsDateControls) {
             els.statsDateControls.classList.remove('hidden');
             setTimeout(() => els.statsDateControls.classList.remove('opacity-0'), 10);
             els.statsDateControls.classList.add('flex');
@@ -299,15 +378,15 @@ function updateStatsUI() {
     if (els.statsDateDisplay) {
         if (state.statsViewMode === 'day') {
             els.statsDateDisplay.innerText = date.toLocaleDateString('pt-BR');
-            if(els.statsCheckDay) els.statsCheckDay.classList.add('bg-green-500', 'border-none');
-            if(els.statsCheckMonth) {
+            if (els.statsCheckDay) els.statsCheckDay.classList.add('bg-green-500', 'border-none');
+            if (els.statsCheckMonth) {
                 els.statsCheckMonth.classList.remove('bg-green-500', 'border-none');
                 els.statsCheckMonth.classList.add('border-white');
             }
         } else {
             els.statsDateDisplay.innerText = date.toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' });
-            if(els.statsCheckMonth) els.statsCheckMonth.classList.add('bg-green-500', 'border-none');
-            if(els.statsCheckDay) {
+            if (els.statsCheckMonth) els.statsCheckMonth.classList.add('bg-green-500', 'border-none');
+            if (els.statsCheckDay) {
                 els.statsCheckDay.classList.remove('bg-green-500', 'border-none');
                 els.statsCheckDay.classList.add('border-white');
             }
@@ -329,7 +408,7 @@ function calculateStatsMetrics() {
             }
         });
     }
-    if(els.statCapitalGiro) els.statCapitalGiro.innerText = formatCurrency(capitalGiro);
+    if (els.statCapitalGiro) els.statCapitalGiro.innerText = formatCurrency(capitalGiro);
 
     // --- 2. FILTRAGEM DE PEDIDOS ---
     if (!state.orders) return;
@@ -352,14 +431,14 @@ function calculateStatsMetrics() {
     }
 
     // --- 3. CÁLCULOS FINANCEIROS E KPIS ---
-    let totalSalesCount = 0; 
-    let totalSalesValue = 0; 
-    let totalCost = 0;  
-    
+    let totalSalesCount = 0;
+    let totalSalesValue = 0;
+    let totalCost = 0;
+
     let countRefunded = 0;
     let countCancelled = 0;
     let countPending = 0;
-    
+
     // Para KPIs
     let totalPaidOrders = 0; // Confirmado + Reembolsado (pedidos que foram pagos um dia)
     let totalCreatedOrders = filteredOrders.length; // Todos gerados
@@ -373,7 +452,7 @@ function calculateStatsMetrics() {
         if (o.status === 'Pendente') countPending++;
 
         if (o.status === 'Confirmado') {
-            totalSalesCount++; 
+            totalSalesCount++;
             totalPaidOrders++;
             totalSalesValue += o.total;
 
@@ -396,23 +475,23 @@ function calculateStatsMetrics() {
     const totalProfit = totalSalesValue - totalCost;
 
     // Renderização no DOM
-    if(els.statSalesCount) els.statSalesCount.innerText = totalSalesCount;
-    if(els.statSalesTotal) els.statSalesTotal.innerText = formatCurrency(totalSalesValue);
-    if(els.statCostTotal) els.statCostTotal.innerText = formatCurrency(totalCost);
-    if(els.statProfitTotal) els.statProfitTotal.innerText = formatCurrency(totalProfit);
-    
-    if(els.statRefunded) els.statRefunded.innerText = countRefunded;
-    if(els.statCancelled) els.statCancelled.innerText = countCancelled;
-    if(els.statPending) els.statPending.innerText = countPending;
+    if (els.statSalesCount) els.statSalesCount.innerText = totalSalesCount;
+    if (els.statSalesTotal) els.statSalesTotal.innerText = formatCurrency(totalSalesValue);
+    if (els.statCostTotal) els.statCostTotal.innerText = formatCurrency(totalCost);
+    if (els.statProfitTotal) els.statProfitTotal.innerText = formatCurrency(totalProfit);
+
+    if (els.statRefunded) els.statRefunded.innerText = countRefunded;
+    if (els.statCancelled) els.statCancelled.innerText = countCancelled;
+    if (els.statPending) els.statPending.innerText = countPending;
 
     // KPIs Percentuais
     const approvalRate = totalCreatedOrders > 0 ? (totalSalesCount / totalCreatedOrders) * 100 : 0;
-    if(els.statRateApproval) els.statRateApproval.innerText = Math.round(approvalRate) + '%';
-    
-    const refundRate = totalPaidOrders > 0 ? (countRefunded / totalPaidOrders) * 100 : 0;
-    if(els.statRateRefund) els.statRateRefund.innerText = Math.round(refundRate) + '%';
+    if (els.statRateApproval) els.statRateApproval.innerText = Math.round(approvalRate) + '%';
 
-    calculateTrend30(); 
+    const refundRate = totalPaidOrders > 0 ? (countRefunded / totalPaidOrders) * 100 : 0;
+    if (els.statRateRefund) els.statRateRefund.innerText = Math.round(refundRate) + '%';
+
+    calculateTrend30();
 }
 
 function calculateTrend30() {
@@ -427,11 +506,11 @@ function calculateTrend30() {
     state.orders.forEach(o => {
         if (o.status !== 'Confirmado') return;
         const d = new Date(o.date);
-        
+
         // Vendas dos últimos 30 dias
         if (d >= last30 && d <= now) {
             salesLast30 += o.total;
-        } 
+        }
         // Vendas dos 30 dias anteriores a isso (para comparar)
         else if (d >= prior30 && d < last30) {
             salesPrior30 += o.total;
@@ -447,8 +526,8 @@ function calculateTrend30() {
 
     const symbol = trend >= 0 ? '+' : '';
     const colorClass = trend >= 0 ? 'text-green-500' : 'text-red-500';
-    
-    if(els.statTrend30) {
+
+    if (els.statTrend30) {
         els.statTrend30.innerText = `${Math.round(Math.abs(trend))}% ${symbol}`;
         els.statTrend30.className = `text-3xl font-bold ${colorClass}`;
     }
@@ -459,13 +538,13 @@ function calculateTrend30() {
 // =================================================================
 
 function renderCatalog(products) {
-    if(!els.grid) return;
+    if (!els.grid) return;
     els.grid.innerHTML = '';
-    
+
     products.forEach(p => {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
         const isOut = p.stock <= 0 && !allowNegative;
-        
+
         const firstSize = p.sizes && p.sizes.length > 0 ? p.sizes[0] : 'U';
         const selectedSize = state.cardSelections[p.id] || firstSize;
         const cartItem = state.cart.find(i => i.id === p.id && i.size === selectedSize);
@@ -483,10 +562,10 @@ function renderCatalog(products) {
             sizesHtml = `<div class="flex gap-2 mb-3 overflow-x-auto pb-1 custom-scrollbar" onclick="event.stopPropagation()">`;
             p.sizes.forEach(s => {
                 const isSel = s === selectedSize;
-                const sizeClass = isSel 
-                    ? "bg-gray-300 text-black font-bold ring-2 ring-white" 
+                const sizeClass = isSel
+                    ? "bg-gray-300 text-black font-bold ring-2 ring-white"
                     : "bg-gray-600 text-gray-300 hover:bg-gray-500";
-                
+
                 sizesHtml += `<button onclick="selectSizeCard('${p.id}', '${s}')" class="${sizeClass} w-5 h-5 rounded flex items-center justify-center text-xs transition shadow-sm shrink-0">${s}</button>`;
             });
             sizesHtml += `</div>`;
@@ -494,7 +573,7 @@ function renderCatalog(products) {
 
         let actionButtonHtml = '';
         if (isOut) {
-             actionButtonHtml = `<div class="bg-gray-800 text-red-500 font-bold px-4 py-2 rounded text-sm uppercase w-full text-center border border-gray-700">Esgotado</div>`;
+            actionButtonHtml = `<div class="bg-gray-800 text-red-500 font-bold px-4 py-2 rounded text-sm uppercase w-full text-center border border-gray-700">Esgotado</div>`;
         } else if (qtyInCart > 0) {
             actionButtonHtml = `
                 <div class="flex items-center bg-gray-700 rounded overflow-hidden h-10 shadow-lg border border-gray-600" onclick="event.stopPropagation()">
@@ -512,7 +591,7 @@ function renderCatalog(products) {
         const card = document.createElement('div');
         card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-xl hover:shadow-2xl hover:border-gray-600 transition duration-300 flex flex-col cursor-pointer";
         card.setAttribute('onclick', `openProductModal('${p.id}')`);
-        
+
         card.innerHTML = `
             <div class="relative w-full pt-[100%] bg-gray-900 group overflow-hidden" onclick="event.stopPropagation(); openImageViewer('${p.images ? p.images[0] : ''}')">
                 <img src="${p.images ? p.images[0] : 'https://placehold.co/400'}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
@@ -539,6 +618,8 @@ function renderCatalog(products) {
 
 function renderCategories() {
     const catNames = state.categories.map(c => c.name);
+
+    // 1. Preenche Selects (Filtros e Formulário)
     const populateSelect = (selectEl) => {
         if (!selectEl) return;
         const currentVal = selectEl.value;
@@ -554,8 +635,11 @@ function renderCategories() {
     populateSelect(els.bulkCategorySelect);
     populateSelect(getEl('prod-cat-select'));
 
+    // 2. Sidebar Hierárquica (Menu Lateral)
     if (els.sidebarCategories) {
         const tree = {};
+
+        // Monta a árvore de categorias
         catNames.forEach(name => {
             const parts = name.split(' - ');
             let currentLevel = tree;
@@ -568,20 +652,31 @@ function renderCategories() {
             });
         });
 
+        // Função recursiva para gerar HTML
         const buildHtml = (node, level = 0) => {
             let html = '';
             const keys = Object.keys(node).sort();
+
             keys.forEach(key => {
                 const item = node[key];
                 const hasChildren = Object.keys(item._children).length > 0;
                 const indent = level * 10;
-                const textStyle = level === 0 ? 'font-bold text-yellow-500 text-sm uppercase' : 'text-gray-400 text-sm hover:text-white';
+                // Escapa aspas simples para não quebrar o onclick
+                const safePath = item._path.replace(/'/g, "\\'");
+
+                const textStyle = level === 0
+                    ? 'font-bold text-yellow-500 text-sm uppercase'
+                    : 'text-gray-400 text-sm hover:text-white';
+
                 if (hasChildren) {
                     html += `
                         <details class="group mb-1">
                             <summary class="list-none flex items-center cursor-pointer p-1 rounded hover:bg-gray-800 transition" style="margin-left:${indent}px">
                                 <span class="transition-transform duration-300 group-open:rotate-90 text-gray-500 mr-2 text-xs">▶</span>
-                                <span class="${textStyle}" onclick="filterByCat('${item._path}'); event.preventDefault();">${key}</span>
+                                
+                                <span class="${textStyle}" onclick="event.preventDefault(); filterByCat('${safePath}')">
+                                    ${key}
+                                </span>
                             </summary>
                             <div class="border-l border-gray-800 ml-2">
                                 ${buildHtml(item._children, level + 1)}
@@ -592,7 +687,7 @@ function renderCategories() {
                     html += `
                         <button class="w-full text-left py-1 p-1 mb-1 rounded hover:bg-gray-800 transition ${textStyle}" 
                                 style="margin-left:${indent + (level > 0 ? 12 : 0)}px"
-                                onclick="filterByCat('${item._path}')">
+                                onclick="filterByCat('${safePath}')">
                             ${level > 0 ? '↳ ' : ''}${key}
                         </button>
                     `;
@@ -685,21 +780,47 @@ function renderAdminProducts() {
 
 function renderAdminCoupons() {
     if (!els.couponListAdmin) return;
-    els.couponListAdmin.innerHTML = state.coupons.map(c => {
+
+    els.couponListAdmin.innerHTML = state.coupons.map((c, index) => {
+        // ... (código de formatação de valores e datas mantém igual) ...
         const typeDisplay = c.type === 'percent' ? `<span class="text-green-400 font-bold">${c.val}%</span>` : `<span class="text-green-400 font-bold">${formatCurrency(c.val)}</span>`;
-        const expiryDisplay = c.expiryDate ?
-            `<span class="text-xs text-white">Expira em: <span class="font-bold">${new Date(c.expiryDate).toLocaleString()}</span></span>` :
-            `<span class="text-xs text-green-500 font-bold">∞ Permanente</span>`;
+
+        let isExpired = false;
+        let expiryDisplay = `<span class="text-xs text-green-500 font-bold">∞ Permanente</span>`;
+
+        if (c.expiryDate) {
+            const expiryDate = new Date(c.expiryDate);
+            const now = new Date();
+            if (now > expiryDate) {
+                isExpired = true;
+                expiryDisplay = `<span class="text-xs text-red-500 font-bold bg-red-900/30 px-2 py-0.5 rounded">EXPIRADO: ${expiryDate.toLocaleString()}</span>`;
+            } else {
+                expiryDisplay = `<span class="text-xs text-white">Expira em: <span class="font-bold">${expiryDate.toLocaleString()}</span></span>`;
+            }
+        }
+
+        const borderClass = isExpired ? 'border-red-600 opacity-75' : 'border-green-500';
+        const isFocused = index === state.focusedCouponIndex;
+        const bgClass = isFocused ? 'bg-gray-700 ring-2 ring-yellow-500 z-10' : 'bg-gray-800';
+
+        // --- A MUDANÇA ESTÁ AQUI EMBAIXO (onclick="selectCoupon") ---
         return `
-            <div class="bg-gray-800 border-l-4 border-green-500 p-3 rounded flex justify-between items-center shadow-sm">
-                <div class="flex flex-col">
-                    <span class="text-yellow-500 font-bold text-lg tracking-wider">${c.code}</span>
-                    <div class="flex gap-2 items-center">
+            <div id="coupon-item-${index}" 
+                 onclick="selectCoupon(${index})" 
+                 ondblclick="editCoupon('${c.id}')" 
+                 class="${bgClass} border-l-4 ${borderClass} p-3 rounded flex justify-between items-center shadow-sm mb-2 cursor-pointer transition select-none group relative">
+                
+                ${isFocused ? '<div class="absolute -left-2 top-1/2 -translate-y-1/2 text-yellow-500"><i class="fas fa-caret-right"></i></div>' : ''}
+
+                <div class="flex flex-col pointer-events-none">
+                    <span class="text-yellow-500 font-bold text-lg tracking-wider group-hover:text-white transition">${c.code}</span>
+                    <div class="flex gap-2 items-center flex-wrap">
                         ${typeDisplay}
                         ${expiryDisplay}
                     </div>
                 </div>
-                <button onclick="deleteCoupon('${c.id}')" class="w-8 h-8 flex items-center justify-center bg-red-600 hover:bg-red-700 rounded text-white transition">
+                
+                <button onclick="event.stopPropagation(); deleteCoupon('${c.id}')" class="w-8 h-8 flex items-center justify-center bg-red-600 hover:bg-red-700 rounded text-white transition z-20">
                     <i class="fas fa-trash-alt text-xs"></i>
                 </button>
             </div>
@@ -833,8 +954,8 @@ function setupEventListeners() {
         try {
             const promises = Array.from(state.selectedProducts).map(id => deleteDoc(doc(db, `sites/${state.siteId}/products`, id)));
             await Promise.all(promises);
-            state.selectedProducts.clear(); 
-            updateBulkActionBar(); 
+            state.selectedProducts.clear();
+            updateBulkActionBar();
         } catch (error) { alert("Erro ao excluir: " + error.message); }
     };
 
@@ -845,13 +966,13 @@ function setupEventListeners() {
         try {
             const promises = Array.from(state.selectedProducts).map(id => updateDoc(doc(db, `sites/${state.siteId}/products`, id), { category: targetCat }));
             await Promise.all(promises);
-            state.selectedProducts.clear(); 
-            updateBulkActionBar(); 
+            state.selectedProducts.clear();
+            updateBulkActionBar();
             renderAdminProducts();
             alert("Produtos movidos!");
         } catch (error) { alert("Erro ao mover: " + error.message); }
     };
-    
+
     // Filtros Vitrine
     if (els.searchInput) els.searchInput.addEventListener('input', (e) => { const term = e.target.value.toLowerCase(); const filtered = state.products.filter(p => p.name.toLowerCase().includes(term) || p.description.toLowerCase().includes(term)); renderCatalog(filtered); });
     if (els.catFilter) els.catFilter.addEventListener('change', (e) => { const cat = e.target.value; if (!cat) return renderCatalog(state.products); const filtered = state.products.filter(p => p.category === cat || p.category.startsWith(cat + ' -')); renderCatalog(filtered); });
@@ -870,21 +991,21 @@ function setupEventListeners() {
     if (els.btnViewMonth) els.btnViewMonth.onclick = () => { state.dashViewMode = 'month'; updateDashboardUI(); };
 
     // --- CONTROLES ESTATÍSTICAS AVANÇADAS (NOVO) ---
-    if(els.statsFilterAll) els.statsFilterAll.onclick = () => { state.statsFilterType = 'all'; updateStatsUI(); };
-    if(els.statsFilterPeriod) els.statsFilterPeriod.onclick = () => { state.statsFilterType = 'period'; updateStatsUI(); };
-    
-    if(els.statsPrevDate) els.statsPrevDate.onclick = () => {
-        if(state.statsViewMode === 'day') state.statsDate.setDate(state.statsDate.getDate() - 1);
+    if (els.statsFilterAll) els.statsFilterAll.onclick = () => { state.statsFilterType = 'all'; updateStatsUI(); };
+    if (els.statsFilterPeriod) els.statsFilterPeriod.onclick = () => { state.statsFilterType = 'period'; updateStatsUI(); };
+
+    if (els.statsPrevDate) els.statsPrevDate.onclick = () => {
+        if (state.statsViewMode === 'day') state.statsDate.setDate(state.statsDate.getDate() - 1);
         else state.statsDate.setMonth(state.statsDate.getMonth() - 1);
         updateStatsUI();
     };
-    if(els.statsNextDate) els.statsNextDate.onclick = () => {
-        if(state.statsViewMode === 'day') state.statsDate.setDate(state.statsDate.getDate() + 1);
+    if (els.statsNextDate) els.statsNextDate.onclick = () => {
+        if (state.statsViewMode === 'day') state.statsDate.setDate(state.statsDate.getDate() + 1);
         else state.statsDate.setMonth(state.statsDate.getMonth() + 1);
         updateStatsUI();
     };
-    if(els.statsViewDay) els.statsViewDay.onclick = () => { state.statsViewMode = 'day'; updateStatsUI(); };
-    if(els.statsViewMonth) els.statsViewMonth.onclick = () => { state.statsViewMode = 'month'; updateStatsUI(); };
+    if (els.statsViewDay) els.statsViewDay.onclick = () => { state.statsViewMode = 'day'; updateStatsUI(); };
+    if (els.statsViewMonth) els.statsViewMonth.onclick = () => { state.statsViewMode = 'month'; updateStatsUI(); };
 
 
     // Carrinho
@@ -912,8 +1033,8 @@ function setupEventListeners() {
     if (btnToggleFilters && filtersBody) { btnToggleFilters.onclick = () => { filtersBody.classList.toggle('hidden'); if (iconFilter) { iconFilter.style.transform = filtersBody.classList.contains('hidden') ? 'rotate(180deg)' : 'rotate(0deg)'; } }; }
 
     // Modais
-    const btnCloseModal = getEl('close-modal-btn'); if(btnCloseModal) btnCloseModal.onclick = closeProductModal;
-    const backdrop = getEl('modal-backdrop'); if(backdrop) backdrop.onclick = closeProductModal;
+    const btnCloseModal = getEl('close-modal-btn'); if (btnCloseModal) btnCloseModal.onclick = closeProductModal;
+    const backdrop = getEl('modal-backdrop'); if (backdrop) backdrop.onclick = closeProductModal;
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && !getEl('product-modal').classList.contains('hidden')) closeProductModal();
     });
@@ -932,8 +1053,18 @@ function setupEventListeners() {
                 renderAdminCategoryList();
             } catch (error) { alert("Erro: " + error.message); }
         };
+
+        // Configurações da Loja
+        setupAccordion('btn-acc-profile', 'content-acc-profile', 'arrow-acc-profile');
+
+        if (els.btnSaveProfile) {
+            els.btnSaveProfile.onclick = saveStoreProfile;
+        }
     }
 
+    // Dentro de setupEventListeners...
+
+    // Dentro de setupEventListeners...
     const btnAddCoupon = getEl('btn-add-coupon');
     if (btnAddCoupon) {
         btnAddCoupon.onclick = async () => {
@@ -941,11 +1072,46 @@ function setupEventListeners() {
             const val = parseFloat(getEl('coupon-val').value);
             const isPercent = getEl('coupon-is-percent').checked;
             const expiry = getEl('coupon-expiry').value;
-            if (!code || isNaN(val)) return alert("Preencha Código e Valor");
+
+            if (!code || isNaN(val)) {
+                return showToast("Preencha Código e Valor.", 'error');
+            }
+
+            const data = {
+                code: code,
+                val: val,
+                type: isPercent ? 'percent' : 'fixed',
+                expiryDate: expiry || null
+            };
+
             try {
-                await addDoc(collection(db, `sites/${state.siteId}/coupons`), { code: code, val: val, type: isPercent ? 'percent' : 'fixed', expiryDate: expiry || null });
-                getEl('coupon-code').value = ''; getEl('coupon-val').value = ''; getEl('coupon-expiry').value = '';
-            } catch (error) { alert("Erro: " + error.message); }
+                if (state.editingCouponId) {
+                    // Tenta atualizar
+                    await updateDoc(doc(db, `sites/${state.siteId}/coupons`, state.editingCouponId), data);
+                    showToast('Cupom atualizado!');
+                } else {
+                    // Cria novo
+                    const exists = state.coupons.some(c => c.code === code);
+                    if (exists) return alert("Já existe um cupom com este código.");
+
+                    await addDoc(collection(db, `sites/${state.siteId}/coupons`), data);
+                    showToast('Cupom criado!');
+                }
+
+                // Usa a nova função para limpar tudo corretamente
+                resetCouponForm();
+
+            } catch (error) {
+                console.error("Erro no cupom:", error);
+
+                // Se o erro for "Não encontrado", significa que o cupom sumiu enquanto editava
+                if (error.code === 'not-found' || error.message.includes('No document to update')) {
+                    alert("Atenção: O cupom que você estava editando não existe mais (talvez foi excluído). Tente criar como um novo.");
+                    state.editingCouponId = null; // Força reset para permitir criar de novo
+                } else {
+                    alert("Erro ao salvar: " + error.message);
+                }
+            }
         };
     }
 
@@ -1006,7 +1172,7 @@ function setupEventListeners() {
                 if (data.code === undefined) delete data.code;
                 const id = idEl ? idEl.value : '';
 
-                if (id) { await updateDoc(doc(db, `sites/${state.siteId}/products`, id), data); } 
+                if (id) { await updateDoc(doc(db, `sites/${state.siteId}/products`, id), data); }
                 else { await addDoc(collection(db, `sites/${state.siteId}/products`), data); }
                 if (els.productFormModal) els.productFormModal.classList.add('hidden');
                 e.target.reset();
@@ -1015,6 +1181,17 @@ function setupEventListeners() {
     }
 
     const btnApplyCoupon = getEl('btn-apply-coupon'); if (btnApplyCoupon) { btnApplyCoupon.onclick = () => { const input = getEl('cart-coupon-input'); const code = input.value.trim().toUpperCase(); if (!code) { state.currentCoupon = null; updateCartUI(); return; } const coupon = state.coupons.find(c => c.code === code); if (coupon) { if (coupon.expiryDate) { const expiry = new Date(coupon.expiryDate); if (expiry < new Date()) { state.currentCoupon = null; alert("Cupom expirado!"); updateCartUI(); return; } } state.currentCoupon = coupon; alert(`Cupom ${code} aplicado!`); } else { state.currentCoupon = null; alert("Cupom inválido"); } updateCartUI(); }; }
+    const cartCouponInput = getEl('cart-coupon-input');
+    if (cartCouponInput) {
+        cartCouponInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Impede que a página recarregue
+                // Simula o clique no botão de aplicar
+                const btn = getEl('btn-apply-coupon');
+                if (btn) btn.click();
+            }
+        });
+    }
     const btnLogout = getEl('btn-logout'); if (btnLogout) btnLogout.onclick = () => signOut(auth);
 
     document.querySelectorAll('.tab-btn').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); const target = getEl(btn.dataset.tab); if (target) target.classList.remove('hidden'); document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500'); b.classList.add('text-gray-400'); }); btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500'); btn.classList.remove('text-gray-400'); }; });
@@ -1024,7 +1201,7 @@ function setupEventListeners() {
         btnCheckout.onclick = async () => {
             if (state.cart.length === 0) return alert('Carrinho vazio');
             const totalText = document.getElementById('cart-total').innerText.replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
-            
+
             // ATENÇÃO: Adicionando Custo ao Pedido para Relatórios Futuros
             const cartItemsWithCost = state.cart.map(item => {
                 const product = state.products.find(p => p.id === item.id);
@@ -1034,15 +1211,15 @@ function setupEventListeners() {
                 };
             });
 
-            const orderData = { 
-                items: cartItemsWithCost, 
-                total: parseFloat(totalText), 
-                cupom: state.currentCoupon ? state.currentCoupon.code : null, 
-                date: new Date().toISOString(), 
-                status: 'Pendente', 
-                code: Math.floor(10000 + Math.random() * 90000) 
+            const orderData = {
+                items: cartItemsWithCost,
+                total: parseFloat(totalText),
+                cupom: state.currentCoupon ? state.currentCoupon.code : null,
+                date: new Date().toISOString(),
+                status: 'Pendente',
+                code: Math.floor(10000 + Math.random() * 90000)
             };
-            
+
             try { await addDoc(collection(db, `sites/${state.siteId}/sales`), orderData); } catch (e) { console.log("Erro pedido:", e); }
             let msg = `*NOVO PEDIDO - ${orderData.code}*\n\n`;
             state.cart.forEach(i => { msg += `▪ ${i.qty}x ${i.name} (${i.size}) - ${formatCurrency(i.price)}\n`; });
@@ -1106,36 +1283,92 @@ function showView(viewName) {
     }
 }
 
-function setupKeyboardListeners() { 
-    document.addEventListener('keydown', (e) => { 
-        if (e.key === 'Delete' && state.focusedProductId) { 
-            e.preventDefault(); 
-            confirmDeleteProduct(state.focusedProductId); 
-        } 
-    }); 
+function setupKeyboardListeners() {
+    document.addEventListener('keydown', (e) => {
+        // Verifica bloqueios (Carrinho aberto, digitando, etc)
+        const isCartOpen = !getEl('cart-modal').classList.contains('hidden');
+        const isProductModalOpen = !getEl('product-modal').classList.contains('hidden');
+        const isTyping = document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA';
+
+        // Se estiver digitando ou com modais abertos, ignora atalhos globais
+        if (isTyping || isCartOpen || isProductModalOpen) return;
+
+        // --- 1. Lógica DELETE (Produtos e Cupons) ---
+        if (e.key === 'Delete') {
+
+            // Caso A: Deletar Produto da Tabela
+            if (state.focusedProductId) {
+                e.preventDefault();
+                confirmDeleteProduct(state.focusedProductId);
+                return;
+            }
+
+            // Caso B: Deletar Cupom Selecionado
+            // Verifica se a aba de cupons está visível
+            const isCouponTabVisible = !getEl('tab-loja').classList.contains('hidden') && !getEl('view-admin').classList.contains('hidden');
+
+            if (isCouponTabVisible && state.focusedCouponIndex >= 0 && state.coupons[state.focusedCouponIndex]) {
+                e.preventDefault();
+                const couponId = state.coupons[state.focusedCouponIndex].id;
+                deleteCoupon(couponId);
+                return;
+            }
+        }
+
+        // --- 2. Navegação CUPONS (Setas e Enter) ---
+        const isCouponTabVisible = !getEl('tab-loja').classList.contains('hidden') && !getEl('view-admin').classList.contains('hidden');
+
+        if (isCouponTabVisible && state.coupons.length > 0) {
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                state.focusedCouponIndex = Math.min(state.focusedCouponIndex + 1, state.coupons.length - 1);
+                renderAdminCoupons();
+                // Garante que o item apareça na tela
+                const el = document.getElementById(`coupon-item-${state.focusedCouponIndex}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                state.focusedCouponIndex = Math.max(state.focusedCouponIndex - 1, 0);
+                renderAdminCoupons();
+                const el = document.getElementById(`coupon-item-${state.focusedCouponIndex}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (state.focusedCouponIndex >= 0) {
+                    const coupon = state.coupons[state.focusedCouponIndex];
+                    if (coupon) editCoupon(coupon.id);
+                }
+            }
+        }
+    });
 }
 
-function updateBulkActionBar() { 
-    if (!els.bulkActionsBar) return; 
-    const count = state.selectedProducts.size; 
-    els.selectedCount.innerText = count; 
-    if (count > 0) { 
-        els.bulkActionsBar.classList.remove('hidden'); 
-        els.bulkActionsBar.classList.add('flex'); 
-    } else { 
-        els.bulkActionsBar.classList.add('hidden'); 
-        els.bulkActionsBar.classList.remove('flex'); 
-    } 
+function updateBulkActionBar() {
+    if (!els.bulkActionsBar) return;
+    const count = state.selectedProducts.size;
+    els.selectedCount.innerText = count;
+    if (count > 0) {
+        els.bulkActionsBar.classList.remove('hidden');
+        els.bulkActionsBar.classList.add('flex');
+    } else {
+        els.bulkActionsBar.classList.add('hidden');
+        els.bulkActionsBar.classList.remove('flex');
+    }
 }
 
-function setupSwipe(element) { 
-    if (!element) return; 
-    let startX = 0; 
-    let currentX = 0; 
-    let isSwiping = false; 
-    element.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; isSwiping = true; element.style.transition = 'none'; }, { passive: true }); 
-    element.addEventListener('touchmove', (e) => { if (!isSwiping) return; currentX = e.touches[0].clientX; let diff = currentX - startX; if (diff < 0 && diff > -100) { element.style.transform = `translateX(${diff}px)`; } }, { passive: true }); 
-    element.addEventListener('touchend', () => { isSwiping = false; element.style.transition = 'transform 0.2s ease-out'; const diff = currentX - startX; if (diff < -50) { element.style.transform = `translateX(-100px)`; } else { element.style.transform = `translateX(0)`; } }); 
+function setupSwipe(element) {
+    if (!element) return;
+    let startX = 0;
+    let currentX = 0;
+    let isSwiping = false;
+    element.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; isSwiping = true; element.style.transition = 'none'; }, { passive: true });
+    element.addEventListener('touchmove', (e) => { if (!isSwiping) return; currentX = e.touches[0].clientX; let diff = currentX - startX; if (diff < 0 && diff > -100) { element.style.transform = `translateX(${diff}px)`; } }, { passive: true });
+    element.addEventListener('touchend', () => { isSwiping = false; element.style.transition = 'transform 0.2s ease-out'; const diff = currentX - startX; if (diff < -50) { element.style.transform = `translateX(-100px)`; } else { element.style.transform = `translateX(0)`; } });
 }
 
 // =================================================================
@@ -1180,33 +1413,33 @@ window.openProductModal = (productId) => {
     const modal = getEl('product-modal');
     const backdrop = getEl('modal-backdrop');
     const card = getEl('modal-card');
-    if(!modal) return;
+    if (!modal) return;
 
     getEl('modal-img').src = p.images ? p.images[0] : 'https://placehold.co/600';
     getEl('modal-title').innerText = p.name;
     getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
-    
+
     const price = p.promoPrice || p.price;
     getEl('modal-price').innerHTML = formatCurrency(price);
-    
+
     const sizesDiv = getEl('modal-sizes');
-    const sizesWrapper = getEl('modal-sizes-wrapper'); 
+    const sizesWrapper = getEl('modal-sizes-wrapper');
     sizesDiv.innerHTML = '';
-    
+
     let selectedSizeInModal = 'U';
 
     if (p.sizes && p.sizes.length > 0) {
-        if(sizesWrapper) sizesWrapper.classList.remove('hidden');
-        selectedSizeInModal = p.sizes[0]; 
+        if (sizesWrapper) sizesWrapper.classList.remove('hidden');
+        selectedSizeInModal = p.sizes[0];
         p.sizes.forEach(s => {
             const btn = document.createElement('button');
             btn.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center";
             btn.innerText = s;
-            if(s === selectedSizeInModal) {
-                 btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
-                 btn.classList.remove('text-gray-300', 'border-gray-600');
+            if (s === selectedSizeInModal) {
+                btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
+                btn.classList.remove('text-gray-300', 'border-gray-600');
             }
-            btn.onclick = () => { 
+            btn.onclick = () => {
                 selectedSizeInModal = s;
                 document.querySelectorAll('#modal-sizes button').forEach(b => {
                     b.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center";
@@ -1217,7 +1450,7 @@ window.openProductModal = (productId) => {
             sizesDiv.appendChild(btn);
         });
     } else {
-        if(sizesWrapper) sizesWrapper.classList.add('hidden');
+        if (sizesWrapper) sizesWrapper.classList.add('hidden');
     }
 
     const btnAdd = getEl('modal-add-cart');
@@ -1232,9 +1465,9 @@ window.openProductModal = (productId) => {
         btnAdd.disabled = false;
         btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i> ADICIONAR AO CARRINHO`;
         btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center";
-        
-        btnAdd.onclick = () => { 
-            addToCart(p, selectedSizeInModal); 
+
+        btnAdd.onclick = () => {
+            addToCart(p, selectedSizeInModal);
             closeProductModal();
         };
     }
@@ -1251,7 +1484,7 @@ window.closeProductModal = () => {
     const modal = getEl('product-modal');
     const backdrop = getEl('modal-backdrop');
     const card = getEl('modal-card');
-    if(!modal) return;
+    if (!modal) return;
     backdrop.classList.add('opacity-0');
     card.classList.remove('scale-100');
     card.classList.add('opacity-0', 'scale-95');
@@ -1264,7 +1497,7 @@ window.openImageViewer = (src) => {
     img.src = src;
     viewer.classList.remove('hidden');
     viewer.classList.add('flex');
-    viewer.onclick = (e) => { if(e.target === viewer) closeImageViewer(); };
+    viewer.onclick = (e) => { if (e.target === viewer) closeImageViewer(); };
 };
 
 window.closeImageViewer = () => {
@@ -1272,7 +1505,7 @@ window.closeImageViewer = () => {
     const viewerSrc = getEl('image-viewer-src');
     viewer.classList.add('hidden');
     viewer.classList.remove('flex');
-    if(viewerSrc) viewerSrc.src = ''; 
+    if (viewerSrc) viewerSrc.src = '';
 };
 
 window.selectSizeCard = (prodId, size) => {
@@ -1289,17 +1522,25 @@ window.addToCartCard = (prodId, size) => {
 window.updateCartQtyCard = (prodId, size, delta) => {
     const product = state.products.find(p => p.id === prodId);
     if (!product) return;
-    const index = state.cart.findIndex(i => i.id === prodId && i.size === size);
-    if (index === -1) return; 
 
-    const currentQty = state.cart[index].qty;
+    const index = state.cart.findIndex(i => i.id === prodId && i.size === size);
+    if (index === -1) return;
+
+    // Se estiver adicionando (+), verifica o estoque TOTAL do produto
     if (delta > 0) {
         const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
-        if (!allowNegative && currentQty >= product.stock) {
-            alert("Estoque máximo atingido.");
+
+        // Conta quantos desse produto (qualquer tamanho) já existem no carrinho
+        const currentTotalQty = state.cart.reduce((total, item) => {
+            return item.id === prodId ? total + item.qty : total;
+        }, 0);
+
+        if (!allowNegative && (currentTotalQty + 1 > product.stock)) {
+            alert("Estoque máximo atingido para este produto.");
             return;
         }
     }
+
     state.cart[index].qty += delta;
     if (state.cart[index].qty <= 0) {
         state.cart.splice(index, 1);
@@ -1307,14 +1548,32 @@ window.updateCartQtyCard = (prodId, size, delta) => {
     saveCart();
 };
 
-window.changeQty = (index, delta) => { 
-    state.cart[index].qty += delta; 
-    if (state.cart[index].qty <= 0) state.cart.splice(index, 1); 
-    saveCart(); 
+window.changeQty = (index, delta) => {
+    const item = state.cart[index];
+    const product = state.products.find(p => p.id === item.id);
+
+    // Se estiver aumentando a quantidade
+    if (delta > 0 && product) {
+        const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
+
+        // Conta total no carrinho
+        const currentTotalQty = state.cart.reduce((total, cartItem) => {
+            return cartItem.id === item.id ? total + cartItem.qty : total;
+        }, 0);
+
+        if (!allowNegative && (currentTotalQty + 1 > product.stock)) {
+            alert("Limite de estoque atingido.");
+            return;
+        }
+    }
+
+    state.cart[index].qty += delta;
+    if (state.cart[index].qty <= 0) state.cart.splice(index, 1);
+    saveCart();
 };
 
-window.confirmDeleteProduct = async (id) => { 
-    if (confirm('Excluir este produto?')) { await deleteDoc(doc(db, `sites/${state.siteId}/products`, id)); } 
+window.confirmDeleteProduct = async (id) => {
+    if (confirm('Excluir este produto?')) { await deleteDoc(doc(db, `sites/${state.siteId}/products`, id)); }
 };
 
 window.editProduct = (id) => {
@@ -1329,28 +1588,74 @@ window.editProduct = (id) => {
     if (els.productFormModal) els.productFormModal.classList.remove('hidden');
 };
 
-window.deleteCoupon = async (id) => { 
-    if (!confirm('Excluir cupom?')) return; 
-    await deleteDoc(doc(db, `sites/${state.siteId}/coupons`, id)); 
+window.deleteCoupon = async (id) => {
+    if (!confirm('Excluir cupom?')) return;
+
+    try {
+        await deleteDoc(doc(db, `sites/${state.siteId}/coupons`, id));
+
+        // CORREÇÃO DO ERRO:
+        // Se o cupom excluído for o que está sendo editado agora, limpa o formulário
+        if (state.editingCouponId === id) {
+            resetCouponForm();
+            showToast('Cupom excluído e edição cancelada.', 'info');
+        } else {
+            showToast('Cupom excluído!');
+        }
+
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao excluir: " + error.message);
+    }
+};
+window.filterByCat = (cat) => {
+    // 1. Atualiza o Título da Página
+    if (els.pageTitle) {
+        // Se tem categoria, mostra o nome dela. Se não, volta para 'Vitrine'
+        els.pageTitle.innerText = cat ? cat : 'Vitrine';
+    }
+
+    // 2. Sincroniza o Select visualmente
+    if (els.catFilter) els.catFilter.value = cat;
+
+    // 3. Se vazio, recarrega todos
+    if (!cat) return renderCatalog(state.products);
+
+    // 4. Normaliza para evitar erro de maiúsculas/minúsculas
+    const term = cat.toLowerCase();
+
+    // 5. Filtra os produtos
+    const filtered = state.products.filter(p => {
+        if (!p.category) return false;
+        const prodCat = p.category.toLowerCase();
+
+        // Aceita categoria EXATA ou SUBCATEGORIA (Ex: "Roupas" mostra "Roupas - Camisetas")
+        return prodCat === term || prodCat.startsWith(term + ' -');
+    });
+
+    renderCatalog(filtered);
+
+    // 6. Fecha sidebar no mobile
+    if (window.innerWidth < 768) {
+        if (els.sidebar && !els.sidebar.classList.contains('-translate-x-full')) {
+            window.toggleSidebar();
+        }
+    }
+
+    // 7. Rola para o topo
+    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
-window.filterByCat = (cat) => { 
-    els.catFilter.value = cat; 
-    if (!cat) return renderCatalog(state.products); 
-    const filtered = state.products.filter(p => p.category === cat || p.category.startsWith(cat + ' -')); 
-    renderCatalog(filtered); 
+window.toggleSidebar = () => {
+    const isOpen = !els.sidebar.classList.contains('-translate-x-full');
+    if (isOpen) { els.sidebar.classList.add('-translate-x-full'); els.sidebarOverlay.classList.add('hidden'); }
+    else { els.sidebar.classList.remove('-translate-x-full'); els.sidebarOverlay.classList.remove('hidden'); }
 };
 
-window.toggleSidebar = () => { 
-    const isOpen = !els.sidebar.classList.contains('-translate-x-full'); 
-    if (isOpen) { els.sidebar.classList.add('-translate-x-full'); els.sidebarOverlay.classList.add('hidden'); } 
-    else { els.sidebar.classList.remove('-translate-x-full'); els.sidebarOverlay.classList.remove('hidden'); } 
-};
-
-window.toggleProductSelection = (id) => { 
-    if (state.selectedProducts.has(id)) { state.selectedProducts.delete(id); } 
-    else { state.selectedProducts.add(id); } 
-    updateBulkActionBar(); 
+window.toggleProductSelection = (id) => {
+    if (state.selectedProducts.has(id)) { state.selectedProducts.delete(id); }
+    else { state.selectedProducts.add(id); }
+    updateBulkActionBar();
 };
 
 window.shareStoreLink = () => {
@@ -1360,14 +1665,14 @@ window.shareStoreLink = () => {
     const text = `Confira nossa loja: ${url}`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(whatsappUrl, '_blank');
-    
+
     // Incrementa contador (apenas se não for admin)
     if (!auth.currentUser) {
-         // Lógica simplificada de incremento sem leitura prévia pesada (usando a que já temos carregada)
-         // Para precisão, seria ideal usar increment() do Firestore, mas aqui usamos leitura simples
-         const docRef = doc(db, `sites/${state.siteId}/stats`, 'general');
-         const currentShares = state.siteStats.shares || 0;
-         updateDoc(docRef, { shares: currentShares + 1 }).catch(e => console.log(e));
+        // Lógica simplificada de incremento sem leitura prévia pesada (usando a que já temos carregada)
+        // Para precisão, seria ideal usar increment() do Firestore, mas aqui usamos leitura simples
+        const docRef = doc(db, `sites/${state.siteId}/stats`, 'general');
+        const currentShares = state.siteStats.shares || 0;
+        updateDoc(docRef, { shares: currentShares + 1 }).catch(e => console.log(e));
     }
 };
 
@@ -1378,19 +1683,24 @@ window.shareStoreLink = () => {
 function addToCart(product, size) {
     const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
 
+    // 1. Calcula o TOTAL deste produto no carrinho (somando todos os tamanhos: P + M + G...)
+    const currentTotalQty = state.cart.reduce((total, item) => {
+        return item.id === product.id ? total + item.qty : total;
+    }, 0);
+
+    // 2. Valida Estoque Geral
     if (!allowNegative && product.stock <= 0) {
-        alert('Este produto está esgotado e não aceita encomendas.');
+        alert('Este produto está esgotado.');
+        return;
+    }
+
+    // 3. Valida se adicionar +1 vai estourar o estoque total
+    if (!allowNegative && (currentTotalQty + 1 > product.stock)) {
+        alert(`Limite de estoque atingido! Você já tem ${currentTotalQty} unidades deste produto (soma de tamanhos) e o estoque total é ${product.stock}.`);
         return;
     }
 
     const existing = state.cart.find(i => i.id === product.id && i.size === size);
-
-    if (existing && !allowNegative) {
-        if (existing.qty + 1 > product.stock) {
-            alert(`Limite de estoque atingido! Você já tem ${existing.qty} unidades no carrinho.`);
-            return;
-        }
-    }
 
     if (existing) {
         existing.qty++;
@@ -1399,13 +1709,15 @@ function addToCart(product, size) {
             id: product.id,
             name: product.name,
             price: parseFloat(product.promoPrice || product.price),
-            cost: parseFloat(product.cost || 0), // Salva o custo no momento da adição
+            cost: parseFloat(product.cost || 0),
             size: size,
             qty: 1,
             code: product.code || '00000'
         });
     }
     saveCart();
+
+    // Efeito visual no botão do carrinho
     const btn = getEl('cart-btn');
     if (btn) {
         btn.classList.add('text-yellow-500');
@@ -1413,10 +1725,10 @@ function addToCart(product, size) {
     }
 }
 
-function saveCart() { 
-    localStorage.setItem('cart', JSON.stringify(state.cart)); 
-    updateCartUI(); 
-    renderCatalog(state.products); 
+function saveCart() {
+    localStorage.setItem('cart', JSON.stringify(state.cart));
+    updateCartUI();
+    renderCatalog(state.products);
 }
 
 function updateCartUI() {
@@ -1447,5 +1759,178 @@ function updateCartUI() {
         document.getElementById('cart-subtotal').innerText = formatCurrency(subtotal);
         document.getElementById('cart-discount').innerText = `- ${formatCurrency(discount)}`;
         document.getElementById('cart-total').innerText = formatCurrency(total);
+    }
+}
+window.deleteCategory = async (id, name) => {
+    // 1. VERIFICAÇÃO DE VÍNCULO (NOVO)
+    // Filtra produtos que são desta categoria exata OU de subcategorias (ex: "Roupas" e "Roupas - Camisas")
+    const linkedProducts = state.products.filter(p =>
+        p.category === name || (p.category && p.category.startsWith(name + ' -'))
+    );
+
+    // Se encontrar produtos, bloqueia e avisa
+    if (linkedProducts.length > 0) {
+        alert(`❌ AÇÃO BLOQUEADA\n\nNão é possível excluir a categoria "${name}".\n\nExistem ${linkedProducts.length} produto(s) vinculados a ela.\nPor favor, mova ou exclua esses produtos antes de apagar a categoria.`);
+        return; // Interrompe a função aqui
+    }
+
+    // 2. Confirmação padrão
+    if (!confirm(`Tem certeza que deseja excluir a categoria "${name}"?`)) return;
+
+    try {
+        await deleteDoc(doc(db, `sites/${state.siteId}/categories`, id));
+
+        // Limpa seleção se for a categoria atual
+        if (state.selectedCategoryParent === name) {
+            state.selectedCategoryParent = null;
+            if (els.newCatName) els.newCatName.placeholder = "Nome da Categoria Principal...";
+        }
+
+        alert('Categoria excluída com sucesso!');
+    } catch (error) {
+        console.error(error);
+        alert('Erro ao excluir: ' + error.message);
+    }
+};
+
+window.editCoupon = (id) => {
+    const c = state.coupons.find(x => x.id === id);
+    if (!c) return;
+
+    getEl('coupon-code').value = c.code;
+    getEl('coupon-val').value = c.val;
+    getEl('coupon-is-percent').checked = (c.type === 'percent');
+
+    if (c.expiryDate) {
+        const d = new Date(c.expiryDate);
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        getEl('coupon-expiry').value = d.toISOString().slice(0, 16);
+    } else {
+        getEl('coupon-expiry').value = '';
+    }
+
+    state.editingCouponId = id;
+
+    const btn = getEl('btn-add-coupon');
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-save mr-2"></i> SALVAR';
+        btn.classList.replace('bg-green-600', 'bg-blue-600');
+        btn.classList.replace('hover:bg-green-700', 'hover:bg-blue-700');
+    }
+
+    getEl('coupon-code').focus();
+    // Mensagem discreta
+    showToast(`Editando: ${c.code}`, 'info');
+    state.editingCouponId = id;
+};
+
+window.resetCouponForm = () => {
+    // Limpa os campos
+    getEl('coupon-code').value = '';
+    getEl('coupon-val').value = '';
+    getEl('coupon-expiry').value = '';
+
+    // Reseta o ID de edição para NULL (Isso é o mais importante para evitar o erro)
+    state.editingCouponId = null;
+
+    // Volta o botão para o visual "Adicionar" (Verde)
+    const btn = getEl('btn-add-coupon');
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-plus"></i>';
+        btn.classList.replace('bg-blue-600', 'bg-green-600');
+        btn.classList.replace('hover:bg-blue-700', 'hover:bg-green-700');
+    }
+};
+
+// Função global para lidar com o clique de seleção
+window.selectCoupon = (index) => {
+    state.focusedCouponIndex = index;
+    renderAdminCoupons();
+};
+
+// --- PERFIL DA LOJA ---
+
+function loadStoreProfile() {
+    const docRef = doc(db, `sites/${state.siteId}/settings`, 'profile');
+    onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+            state.storeProfile = docSnap.data();
+        }
+        renderStoreProfile(); // Atualiza a Sidebar
+        fillProfileForm();    // Preenche o form do Admin se estiver aberto
+    });
+}
+
+function renderStoreProfile() {
+    const p = state.storeProfile;
+
+    // 1. Sidebar
+    if (els.sidebarStoreName) els.sidebarStoreName.innerText = p.name || 'Veste Manto';
+    if (els.sidebarStoreDesc) els.sidebarStoreDesc.innerText = p.description || '';
+
+    // Logo
+    if (els.sidebarStoreLogo) {
+        if (p.logo) {
+            els.sidebarStoreLogo.src = p.logo;
+            els.sidebarStoreLogo.classList.remove('hidden');
+        } else {
+            els.sidebarStoreLogo.classList.add('hidden');
+        }
+    }
+
+    // Redes Sociais
+    const updateLink = (el, val, prefix = '') => {
+        if (!el) return;
+        if (val) {
+            el.href = val.startsWith('http') ? val : prefix + val;
+            el.classList.remove('hidden');
+        } else {
+            el.classList.add('hidden');
+        }
+    };
+
+    updateLink(els.linkWhatsapp, p.whatsapp, 'https://wa.me/');
+    updateLink(els.linkInstagram, p.instagram, 'https://instagram.com/');
+    updateLink(els.linkFacebook, p.facebook);
+
+    // Endereço (Botão com Alert ou Modal Simples)
+    if (els.btnShowAddress) {
+        if (p.address) {
+            els.btnShowAddress.classList.remove('hidden');
+            els.btnShowAddress.onclick = () => alert(`📍 Endereço da Loja:\n\n${p.address}`);
+        } else {
+            els.btnShowAddress.classList.add('hidden');
+        }
+    }
+}
+
+function fillProfileForm() {
+    const p = state.storeProfile;
+    if (els.confStoreName) els.confStoreName.value = p.name || '';
+    if (els.confStoreLogo) els.confStoreLogo.value = p.logo || '';
+    if (els.confStoreWpp) els.confStoreWpp.value = p.whatsapp || '';
+    if (els.confStoreInsta) els.confStoreInsta.value = p.instagram || '';
+    if (els.confStoreFace) els.confStoreFace.value = p.facebook || '';
+    if (els.confStoreAddress) els.confStoreAddress.value = p.address || '';
+    if (els.confStoreDesc) els.confStoreDesc.value = p.description || '';
+}
+
+async function saveStoreProfile() {
+    const data = {
+        name: els.confStoreName.value.trim(),
+        logo: els.confStoreLogo.value.trim(),
+        whatsapp: els.confStoreWpp.value.trim().replace(/\D/g, ''), // Salva só números
+        instagram: els.confStoreInsta.value.trim(),
+        facebook: els.confStoreFace.value.trim(),
+        address: els.confStoreAddress.value.trim(),
+        description: els.confStoreDesc.value.trim()
+    };
+
+    try {
+        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), data);
+        showToast('Perfil da loja atualizado!', 'success');
+    } catch (error) {
+        console.error(error);
+        showToast('Erro ao salvar perfil.', 'error');
     }
 }
