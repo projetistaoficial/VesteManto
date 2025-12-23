@@ -23,7 +23,141 @@ function setupAccordion(btnId, contentId, arrowId) {
     }
 }
 
-// Adicione junto com os outros helpers (getEl, formatCurrency...)
+// --- FUNÇÕES DE IMAGEM ---
+
+// 1. Converte e Comprime Imagem
+async function processImageFile(file) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (e) => {
+            const img = new Image();
+            img.src = e.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                // Redimensiona para no máximo 800px de largura (mantendo proporção)
+                const scale = 800 / Math.max(img.width, img.height, 800);
+                canvas.width = img.width * scale;
+                canvas.height = img.height * scale;
+
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                // Converte para JPEG com 70% de qualidade
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+        };
+    });
+}
+
+// --- CARROSSEL DE IMAGENS ---
+
+window.changeViewerImage = (delta) => {
+    // Reutiliza a lógica do modal para manter tudo sincronizado
+    // Ao mudar a imagem aqui, mudamos no modal de fundo também
+    changeModalImage(delta);
+
+    // Atualiza a fonte da imagem do visualizador
+    const p = state.products.find(x => x.id === state.focusedProductId);
+    if (p && p.images) {
+        const img = getEl('image-viewer-src');
+
+        // Pequeno efeito de fade para transição suave
+        img.style.opacity = '0.5';
+        setTimeout(() => {
+            img.src = p.images[state.currentImgIndex];
+            img.style.opacity = '1';
+
+            // Se estiver com zoom, reseta ao trocar de foto
+            if (isZoomed) {
+                isZoomed = false;
+                img.style.transform = "scale(1)";
+                img.style.cursor = "zoom-in";
+                // Garante que as setas voltem a aparecer
+                getEl('viewer-prev').classList.remove('hidden');
+                getEl('viewer-next').classList.remove('hidden');
+            }
+        }, 150);
+    }
+};
+
+window.changeModalImage = (delta) => {
+    const p = state.products.find(x => x.id === state.focusedProductId);
+    if (!p || !p.images || p.images.length <= 1) return;
+
+    let newIndex = state.currentImgIndex + delta;
+
+    // Lógica de loop infinito (se passar do último, volta pro primeiro)
+    if (newIndex < 0) newIndex = p.images.length - 1;
+    if (newIndex >= p.images.length) newIndex = 0;
+
+    state.currentImgIndex = newIndex;
+    updateCarouselUI(p.images);
+};
+
+window.setModalImage = (index) => {
+    state.currentImgIndex = index;
+    const p = state.products.find(x => x.id === state.focusedProductId);
+    if (p) updateCarouselUI(p.images);
+};
+
+function updateCarouselUI(images) {
+    const imgEl = getEl('modal-img');
+    const thumbnailsEl = getEl('modal-thumbnails');
+
+    // 1. Atualiza Imagem Principal com efeito de fade rápido
+    imgEl.style.opacity = '0.5';
+    setTimeout(() => {
+        imgEl.src = images[state.currentImgIndex];
+        imgEl.style.opacity = '1';
+    }, 150);
+
+    // 2. Atualiza Thumbnails
+    if (images.length > 1) {
+        thumbnailsEl.innerHTML = images.map((src, idx) => {
+            const isActive = idx === state.currentImgIndex;
+            const border = isActive ? 'border-yellow-500 scale-110' : 'border-gray-600 opacity-60 hover:opacity-100';
+            return `
+                <img src="${src}" onclick="event.stopPropagation(); setModalImage(${idx})" 
+                     class="w-12 h-12 object-cover rounded border-2 ${border} cursor-pointer transition-all duration-200 shadow-lg bg-black">
+            `;
+        }).join('');
+    } else {
+        thumbnailsEl.innerHTML = '';
+    }
+}
+
+// 2. Renderiza as miniaturas no formulário
+function renderImagePreviews() {
+    const container = getEl('prod-imgs-preview');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (state.tempImages.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada</p>';
+        return;
+    }
+
+    state.tempImages.forEach((imgSrc, index) => {
+        const div = document.createElement('div');
+        div.className = "relative w-16 h-16 group border border-gray-600 rounded overflow-hidden";
+        div.innerHTML = `
+            <img src="${imgSrc}" class="w-full h-full object-cover">
+            <button type="button" onclick="removeTempImage(${index})" class="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                <i class="fas fa-trash text-red-500"></i>
+            </button>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// 3. Remove imagem da lista temporária
+window.removeTempImage = (index) => {
+    state.tempImages.splice(index, 1);
+    renderImagePreviews();
+};
+
 function showToast(message, type = 'success') {
     // Cria o elemento se não existir
     let toast = document.getElementById('toast-notification');
@@ -65,6 +199,8 @@ const state = {
     isDarkMode: true,
     editingCouponId: null,
     focusedCouponIndex: -1, // -1 significa nenhum selecionado
+    tempImages: [], // Array temporário para imagens do formulário
+    currentImgIndex: 0,
     selectedProducts: new Set(),
     focusedProductId: null,
     globalSettings: { allowNoStock: false },
@@ -86,7 +222,24 @@ const state = {
         facebook: '',
         address: '',
         description: 'Sua loja de camisas.'
-    }
+    },
+
+    // Configurações
+    confStoreCep: getEl('conf-store-cep'),
+    confMaxDist: getEl('conf-max-dist'),
+
+    // Checkout
+    checkoutModal: getEl('checkout-modal'),
+    checkoutCep: getEl('checkout-cep'),
+    checkoutNumber: getEl('checkout-number'),
+    checkoutComp: getEl('checkout-comp'),
+    addressDetails: getEl('address-details'),
+    addrText: getEl('addr-text'),
+    deliveryError: getEl('delivery-error'),
+    paymentSection: getEl('payment-section'),
+    btnFinishOrder: getEl('btn-finish-order'),
+    checkoutTotalDisplay: getEl('checkout-total-display'),
+    labelPixDiscount: getEl('label-pix-discount')
 };
 
 const els = {
@@ -181,7 +334,39 @@ const els = {
     confStoreFace: getEl('conf-store-face'),
     confStoreAddress: getEl('conf-store-address'),
     confStoreDesc: getEl('conf-store-desc'),
-    btnSaveProfile: getEl('btn-save-profile')
+    btnSaveProfile: getEl('btn-save-profile'),
+
+    // Configurações
+    confStoreCep: getEl('conf-store-cep'),
+    confMaxDist: getEl('conf-max-dist'),
+
+    // Checkout
+    checkoutModal: getEl('checkout-modal'),
+    checkoutCep: getEl('checkout-cep'),
+    checkoutNumber: getEl('checkout-number'),
+    checkoutComp: getEl('checkout-comp'),
+    addressDetails: getEl('address-details'),
+    addrText: getEl('addr-text'),
+    deliveryError: getEl('delivery-error'),
+    paymentSection: getEl('payment-section'),
+    btnFinishOrder: getEl('btn-finish-order'),
+    checkoutTotalDisplay: getEl('checkout-total-display'),
+    labelPixDiscount: getEl('label-pix-discount'),
+
+    // Configs Parcelamento
+    btnAccInstallments: getEl('btn-acc-installments'),
+    contentAccInstallments: getEl('content-acc-installments'),
+    arrowAccInstallments: getEl('arrow-acc-installments'),
+    confCardActive: getEl('conf-card-active'),
+    confCardDetails: getEl('conf-card-details'),
+    confCardMax: getEl('conf-card-max'),
+    confCardFree: getEl('conf-card-free'),
+    confCardRate: getEl('conf-card-rate'),
+
+    // Checkout Novos
+    checkoutInstallments: getEl('checkout-installments'),
+    installmentsArea: getEl('installments-area'),
+    installmentObs: getEl('installment-obs'),
 };
 
 // =================================================================
@@ -545,75 +730,105 @@ function renderCatalog(products) {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
         const isOut = p.stock <= 0 && !allowNegative;
 
-        const firstSize = p.sizes && p.sizes.length > 0 ? p.sizes[0] : 'U';
-        const selectedSize = state.cardSelections[p.id] || firstSize;
-        const cartItem = state.cart.find(i => i.id === p.id && i.size === selectedSize);
-        const qtyInCart = cartItem ? cartItem.qty : 0;
+        // Pega o primeiro tamanho disponível apenas para a lógica de adicionar ao carrinho
+        // (Mas NÃO mostra na tela, conforme pedido)
+        const firstSize = (p.sizes && p.sizes.length > 0) ? p.sizes[0] : 'U';
+        const qtyInCart = state.cart.reduce((acc, item) => item.id === p.id ? acc + item.qty : acc, 0);
 
-        const priceDisplay = p.promoPrice ?
-            `<div class="flex flex-col">
-                <span class="text-green-500 font-bold text-xl">${formatCurrency(p.promoPrice)}</span>
-                <span class="text-gray-400 line-through text-xs font-normal">${formatCurrency(p.price)}</span>
-             </div>` :
-            `<span class="text-green-500 font-bold text-xl">${formatCurrency(p.price)}</span>`;
-
-        let sizesHtml = '';
-        if (p.sizes && p.sizes.length > 0) {
-            sizesHtml = `<div class="flex gap-2 mb-3 overflow-x-auto pb-1 custom-scrollbar" onclick="event.stopPropagation()">`;
-            p.sizes.forEach(s => {
-                const isSel = s === selectedSize;
-                const sizeClass = isSel
-                    ? "bg-gray-300 text-black font-bold ring-2 ring-white"
-                    : "bg-gray-600 text-gray-300 hover:bg-gray-500";
-
-                sizesHtml += `<button onclick="selectSizeCard('${p.id}', '${s}')" class="${sizeClass} w-5 h-5 rounded flex items-center justify-center text-xs transition shadow-sm shrink-0">${s}</button>`;
-            });
-            sizesHtml += `</div>`;
+        // Lógica do Cartão (Agora Global)
+        // Pega config global do state
+        const instConfig = state.storeProfile.installments || { active: false };
+        
+        if (instConfig.active) {
+            // Se tiver configuração global ativa, exibe
+            const freeText = instConfig.freeUntil > instConfig.max ? 'sem Juros' : (instConfig.freeUntil > 1 ? `até ${instConfig.freeUntil-1}x s/ juros` : 'c/ juros');
+            paymentInfoHtml += `<p class="text-gray-300 text-xs mt-0.5">Ou até ${instConfig.max}x no cartão <span class="text-gray-500 text-[10px]">(${freeText})</span></p>`;
         }
 
-        let actionButtonHtml = '';
+        // --- PREÇO E PROMOÇÃO ---
+        const currentPrice = p.promoPrice || p.price;
+        const priceHtml = p.promoPrice ?
+            `<div class="flex items-baseline gap-2 mb-1">
+                <span class="text-gray-400 line-through text-xs font-normal">R$ ${p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            </div>
+            <div class="text-green-500 font-bold text-2xl tracking-tighter leading-none">
+                R$ ${p.promoPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </div>` :
+            `<div class="flex items-baseline gap-2 mb-1 opacity-0"><span class="text-xs">.</span></div>
+             <div class="text-green-500 font-bold text-2xl tracking-tighter leading-none">
+                R$ ${p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+             </div>`;
+
+        // --- INFORMAÇÕES DE PAGAMENTO (PIX / CARTÃO) ---
+        let paymentInfoHtml = '';
+        const pay = p.paymentOptions || { pix: {}, card: {} };
+
+        // Lógica do Pix
+        if (pay.pix && pay.pix.active) {
+            let pixText = '';
+            if (pay.pix.type === 'percent') {
+                pixText = `${pay.pix.val}% Off no Pix`;
+            } else {
+                pixText = `R$ ${pay.pix.val} Off no Pix`;
+            }
+            paymentInfoHtml += `<p class="text-green-500 text-xs font-medium mt-1">${pixText}</p>`;
+        }
+
+        // Lógica do Cartão
+        if (pay.card && pay.card.active) {
+            paymentInfoHtml += `<p class="text-gray-300 text-xs mt-0.5">Ou ${pay.card.installments}x no cartão sem Juros</p>`;
+        }
+
+        // --- BOTÃO DE AÇÃO (Quadrado Verde ou Badge Esgotado) ---
+        let actionBtn;
         if (isOut) {
-            actionButtonHtml = `<div class="bg-gray-800 text-red-500 font-bold px-4 py-2 rounded text-sm uppercase w-full text-center border border-gray-700">Esgotado</div>`;
-        } else if (qtyInCart > 0) {
-            actionButtonHtml = `
-                <div class="flex items-center bg-gray-700 rounded overflow-hidden h-10 shadow-lg border border-gray-600" onclick="event.stopPropagation()">
-                    <button onclick="updateCartQtyCard('${p.id}', '${selectedSize}', -1)" class="w-10 h-full text-white hover:bg-red-600 transition flex items-center justify-center text-lg font-bold">-</button>
-                    <span class="w-8 text-center text-white font-bold text-sm">${qtyInCart}</span>
-                    <button onclick="updateCartQtyCard('${p.id}', '${selectedSize}', 1)" class="w-10 h-full text-white hover:bg-green-600 transition flex items-center justify-center text-lg font-bold">+</button>
-                </div>`;
+            actionBtn = `<div class="bg-red-900/40 border border-red-500 text-red-500 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Esgotado</div>`;
         } else {
-            actionButtonHtml = `
-                <button onclick="event.stopPropagation(); addToCartCard('${p.id}', '${selectedSize}')" class="bg-green-500 hover:bg-green-600 text-white w-10 h-10 rounded flex items-center justify-center transition shadow-lg shadow-green-900/50 group">
-                    <i class="fas fa-plus group-hover:scale-125 transition-transform"></i>
-                </button>`;
+            // Botão Verde Quadrado com "+"
+            actionBtn = `
+                <button onclick="event.stopPropagation(); addToCartCard('${p.id}', '${firstSize}')" 
+                    class="w-10 h-10 bg-green-500 hover:bg-green-400 text-white rounded-lg flex items-center justify-center shadow-lg shadow-green-900/50 transition active:scale-95 group">
+                    <i class="fas fa-plus text-lg group-hover:scale-110 transition-transform"></i>
+                </button>
+            `;
         }
 
+        // --- MONTAGEM DO CARD ---
         const card = document.createElement('div');
-        card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-xl hover:shadow-2xl hover:border-gray-600 transition duration-300 flex flex-col cursor-pointer";
+        // bg-black, bordas arredondadas, layout flexível
+        card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-lg hover:border-gray-600 transition duration-300 flex flex-col group h-full";
         card.setAttribute('onclick', `openProductModal('${p.id}')`);
 
+        const imgUrl = p.images && p.images.length > 0 ? p.images[0] : 'https://placehold.co/400?text=Sem+Foto';
+
         card.innerHTML = `
-            <div class="relative w-full pt-[100%] bg-gray-900 group overflow-hidden" onclick="event.stopPropagation(); openImageViewer('${p.images ? p.images[0] : ''}')">
-                <img src="${p.images ? p.images[0] : 'https://placehold.co/400'}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
-                ${isOut ? '<div class="absolute inset-0 bg-black/80 flex items-center justify-center text-white font-bold tracking-widest border-2 border-red-600 m-4 rounded">ESGOTADO</div>' : ''}
-                <div class="absolute top-2 right-2 bg-black/50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition duration-300">
-                    <i class="fas fa-expand-alt"></i>
-                </div>
+            <div class="relative w-full aspect-[4/5] bg-gray-900 overflow-hidden">
+                <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                
+                ${isOut ? `<div class="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-[1px]"><span class="text-white font-bold border-2 border-red-500 px-4 py-1 rounded transform -rotate-6">ESGOTADO</span></div>` : ''}
             </div>
 
-            <div class="p-4 flex flex-col flex-1">
-                <h3 class="text-white font-bold text-lg leading-tight mb-1 truncate">${p.name}</h3>
-                <p class="text-gray-400 text-xs mb-3 line-clamp-2 min-h-[2.5em]">${p.description}</p>
-                ${sizesHtml}
-                <div class="mt-auto flex justify-between items-end border-t border-gray-800 pt-3">
-                    ${priceDisplay}
-                    ${actionButtonHtml}
+            <div class="p-4 flex flex-col flex-1 bg-black relative">
+                
+                <div class="mb-3">
+                    <h3 class="text-white font-bold text-xl leading-tight mb-1">${p.name}</h3>
+                    <p class="text-gray-500 text-sm line-clamp-2 leading-snug">${p.description || ''}</p>
+                </div>
+
+                <div class="mt-auto">
+                    ${priceHtml}
+                    
+                    <div class="min-h-[2.5rem]"> ${paymentInfoHtml}
+                    </div>
+                </div>
+
+                <div class="absolute bottom-4 right-4">
+                    ${actionBtn}
                 </div>
             </div>
         `;
         els.grid.appendChild(card);
     });
-    if (!state.isDarkMode) updateCardStyles(true);
 }
 
 function renderCategories() {
@@ -1039,6 +1254,23 @@ function setupEventListeners() {
         if (e.key === 'Escape' && !getEl('product-modal').classList.contains('hidden')) closeProductModal();
     });
 
+
+    // Acordeão Parcelamento
+    setupAccordion('btn-acc-installments', 'content-acc-installments', 'arrow-acc-installments');
+
+    // Toggle Checkbox Parcelamento
+    if (els.confCardActive) {
+        els.confCardActive.addEventListener('change', (e) => toggleCardConfig(e.target.checked));
+    }
+
+    // Função auxiliar para ativar/desativar visualmente
+    window.toggleCardConfig = (isActive) => {
+        if (isActive) {
+            els.confCardDetails.classList.remove('opacity-50', 'pointer-events-none');
+        } else {
+            els.confCardDetails.classList.add('opacity-50', 'pointer-events-none');
+        }
+    };
     // Forms e Botões de Ação
     if (els.btnAddCat) {
         els.btnAddCat.onclick = async () => {
@@ -1063,6 +1295,55 @@ function setupEventListeners() {
     }
 
     // Dentro de setupEventListeners...
+    // --- LÓGICA DO FORMULÁRIO DE PRODUTO (NOVO) ---
+
+    // Toggle Pix
+    const checkPix = getEl('prod-pix-active');
+    const settingsPix = getEl('pix-settings');
+    if (checkPix && settingsPix) {
+        checkPix.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                settingsPix.classList.remove('opacity-50', 'pointer-events-none');
+                getEl('prod-pix-val').focus();
+            } else {
+                settingsPix.classList.add('opacity-50', 'pointer-events-none');
+            }
+        });
+    }
+
+    // Toggle Tipo Pix (% vs R$)
+    const btnPixPercent = getEl('btn-pix-percent');
+    const btnPixFixed = getEl('btn-pix-fixed');
+    const inputPixType = getEl('prod-pix-type');
+
+    if (btnPixPercent && btnPixFixed) {
+        btnPixPercent.onclick = () => {
+            inputPixType.value = 'percent';
+            btnPixPercent.className = "px-3 py-1 bg-green-600 text-white text-xs font-bold transition";
+            btnPixFixed.className = "px-3 py-1 bg-black text-gray-400 text-xs font-bold hover:text-white transition";
+        };
+        btnPixFixed.onclick = () => {
+            inputPixType.value = 'fixed';
+            btnPixFixed.className = "px-3 py-1 bg-green-600 text-white text-xs font-bold transition";
+            btnPixPercent.className = "px-3 py-1 bg-black text-gray-400 text-xs font-bold hover:text-white transition";
+        };
+    }
+
+    // Toggle Cartão
+    const checkCard = getEl('prod-card-active');
+    const settingsCard = getEl('card-settings');
+    if (checkCard && settingsCard) {
+        checkCard.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                settingsCard.classList.remove('opacity-50', 'pointer-events-none');
+                getEl('prod-card-installments').focus();
+            } else {
+                settingsCard.classList.add('opacity-50', 'pointer-events-none');
+            }
+        });
+    }
+
+
 
     // Dentro de setupEventListeners...
     const btnAddCoupon = getEl('btn-add-coupon');
@@ -1125,11 +1406,38 @@ function setupEventListeners() {
         });
     }
 
+    // 1. Listener para o Input de Arquivo (Quando seleciona fotos)
+    const fileInput = getEl('prod-imgs-input');
+    if (fileInput) {
+        fileInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            // Processa cada arquivo
+            for (const file of files) {
+                try {
+                    const base64 = await processImageFile(file);
+                    state.tempImages.push(base64);
+                } catch (err) {
+                    console.error("Erro ao processar imagem", err);
+                }
+            }
+            renderImagePreviews();
+            fileInput.value = ''; // Limpa input para permitir selecionar a mesma foto se quiser
+        });
+    }
+
+    // 2. Botão Novo Produto (Resetar imagens)
     const btnAddProd = getEl('btn-add-product');
     if (btnAddProd) {
         btnAddProd.onclick = () => {
             getEl('form-product').reset();
             getEl('edit-prod-id').value = '';
+
+            // RESET DAS IMAGENS
+            state.tempImages = [];
+            renderImagePreviews();
+
             const checkNoStock = getEl('prod-allow-no-stock');
             if (checkNoStock) checkNoStock.checked = false;
             if (els.productFormModal) els.productFormModal.classList.remove('hidden');
@@ -1137,11 +1445,13 @@ function setupEventListeners() {
     }
     const btnCancelProd = getEl('btn-cancel-prod'); if (btnCancelProd) btnCancelProd.onclick = () => { if (els.productFormModal) els.productFormModal.classList.add('hidden'); };
 
+    // Dentro de setupEventListeners (Substitua o formProd.onsubmit antigo)
     const formProd = getEl('form-product');
     if (formProd) {
         formProd.onsubmit = async (e) => {
             e.preventDefault();
             try {
+                // ... (Captura dos outros inputs mantém igual) ...
                 const idEl = getEl('edit-prod-id');
                 const nameEl = getEl('prod-name');
                 const catEl = getEl('prod-cat-select');
@@ -1151,9 +1461,19 @@ function setupEventListeners() {
                 const stockEl = getEl('prod-stock');
                 const costEl = getEl('prod-cost');
                 const sizesEl = getEl('prod-sizes');
-                const imgEl = getEl('prod-img');
                 const noStockEl = getEl('prod-allow-no-stock');
                 const parseVal = (val) => val ? parseFloat(val.replace(/\./g, '').replace(',', '.')) : 0;
+                const pixActive = getEl('prod-pix-active').checked;
+                const pixVal = parseFloat(getEl('prod-pix-val').value) || 0;
+                const pixType = getEl('prod-pix-type').value;
+
+                const cardActive = getEl('prod-card-active').checked;
+                const cardInstallments = parseInt(getEl('prod-card-installments').value) || 1;
+
+                // VERIFICA SE TEM IMAGEM
+                if (state.tempImages.length === 0) {
+                    return alert("Adicione pelo menos uma imagem!");
+                }
 
                 const data = {
                     name: nameEl ? nameEl.value : 'Sem Nome',
@@ -1164,7 +1484,15 @@ function setupEventListeners() {
                     stock: stockEl ? parseInt(stockEl.value) : 0,
                     cost: costEl ? parseVal(costEl.value) : 0,
                     sizes: sizesEl ? sizesEl.value.split(',').map(s => s.trim()) : [],
-                    images: imgEl ? [imgEl.value] : [],
+                    paymentOptions: {
+                        pix: { active: pixActive, val: pixVal, type: pixType },
+                        card: { active: cardActive, installments: cardInstallments }
+                    },
+
+
+                    // AQUI ESTÁ A MUDANÇA: Salvamos o array de imagens processadas
+                    images: state.tempImages,
+
                     allowNoStock: noStockEl ? noStockEl.checked : false,
                     code: idEl && idEl.value ? undefined : Math.floor(10000 + Math.random() * 90000).toString()
                 };
@@ -1174,9 +1502,14 @@ function setupEventListeners() {
 
                 if (id) { await updateDoc(doc(db, `sites/${state.siteId}/products`, id), data); }
                 else { await addDoc(collection(db, `sites/${state.siteId}/products`), data); }
+
                 if (els.productFormModal) els.productFormModal.classList.add('hidden');
                 e.target.reset();
+                state.tempImages = []; // Limpa memória
+
             } catch (err) { alert("Erro ao salvar produto: " + err.message); }
+
+
         };
     }
 
@@ -1196,41 +1529,11 @@ function setupEventListeners() {
 
     document.querySelectorAll('.tab-btn').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); const target = getEl(btn.dataset.tab); if (target) target.classList.remove('hidden'); document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500'); b.classList.add('text-gray-400'); }); btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500'); btn.classList.remove('text-gray-400'); }; });
 
+    // Dentro de initApp ou setupEventListeners
     const btnCheckout = getEl('btn-checkout');
     if (btnCheckout) {
-        btnCheckout.onclick = async () => {
-            if (state.cart.length === 0) return alert('Carrinho vazio');
-            const totalText = document.getElementById('cart-total').innerText.replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
-
-            // ATENÇÃO: Adicionando Custo ao Pedido para Relatórios Futuros
-            const cartItemsWithCost = state.cart.map(item => {
-                const product = state.products.find(p => p.id === item.id);
-                return {
-                    ...item,
-                    cost: product ? parseFloat(product.cost || 0) : 0
-                };
-            });
-
-            const orderData = {
-                items: cartItemsWithCost,
-                total: parseFloat(totalText),
-                cupom: state.currentCoupon ? state.currentCoupon.code : null,
-                date: new Date().toISOString(),
-                status: 'Pendente',
-                code: Math.floor(10000 + Math.random() * 90000)
-            };
-
-            try { await addDoc(collection(db, `sites/${state.siteId}/sales`), orderData); } catch (e) { console.log("Erro pedido:", e); }
-            let msg = `*NOVO PEDIDO - ${orderData.code}*\n\n`;
-            state.cart.forEach(i => { msg += `▪ ${i.qty}x ${i.name} (${i.size}) - ${formatCurrency(i.price)}\n`; });
-            msg += `\nSubtotal: ${document.getElementById('cart-subtotal').innerText}`;
-            if (state.currentCoupon) msg += `\nCupom: ${state.currentCoupon.code}`;
-            msg += `\n*TOTAL: ${document.getElementById('cart-total').innerText}*`;
-            msg += `\n\nAguardo link de pagamento!`;
-            const sellerPhone = "5511941936976";
-            window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-            state.cart = []; state.currentCoupon = null; saveCart();
-            els.cartModal.classList.add('hidden');
+        btnCheckout.onclick = () => {
+            openCheckoutModal(); // AGORA ABRE O NOVO MODAL
         };
     }
 }
@@ -1285,6 +1588,29 @@ function showView(viewName) {
 
 function setupKeyboardListeners() {
     document.addEventListener('keydown', (e) => {
+        // --- 1. TECLA ESC (Fechar Modais) ---
+        if (e.key === 'Escape') {
+            // Se o visualizador de imagem estiver aberto, fecha ele primeiro
+            const viewer = getEl('image-viewer');
+            if (!viewer.classList.contains('hidden')) {
+                closeImageViewer();
+                return; // Para aqui para não fechar o modal do produto junto
+            }
+
+            // Se o modal de produto estiver aberto, fecha ele
+            const prodModal = getEl('product-modal');
+            if (!prodModal.classList.contains('hidden')) {
+                closeProductModal();
+                return;
+            }
+
+            // Se o carrinho estiver aberto, fecha ele
+            const cartModal = getEl('cart-modal');
+            if (!cartModal.classList.contains('hidden')) {
+                cartModal.classList.add('hidden');
+                return;
+            }
+        }
         // Verifica bloqueios (Carrinho aberto, digitando, etc)
         const isCartOpen = !getEl('cart-modal').classList.contains('hidden');
         const isProductModalOpen = !getEl('product-modal').classList.contains('hidden');
@@ -1410,24 +1736,48 @@ window.openProductModal = (productId) => {
     const p = state.products.find(x => x.id === productId);
     if (!p) return;
 
+    // Salva o ID no estado para o carrossel usar
+    state.focusedProductId = productId;
+    state.currentImgIndex = 0; // Reseta para a primeira foto
+
     const modal = getEl('product-modal');
     const backdrop = getEl('modal-backdrop');
     const card = getEl('modal-card');
     if (!modal) return;
 
-    getEl('modal-img').src = p.images ? p.images[0] : 'https://placehold.co/600';
+    // PREPARAÇÃO DAS IMAGENS
+    // Garante que images seja um array (mesmo se for produto antigo)
+    let images = p.images || [];
+    if (images.length === 0) images = ['https://placehold.co/600']; // Fallback
+
+    // Configura botões do carrossel
+    const btnPrev = getEl('btn-prev-img');
+    const btnNext = getEl('btn-next-img');
+
+    if (images.length > 1) {
+        btnPrev.classList.remove('hidden');
+        btnNext.classList.remove('hidden');
+    } else {
+        btnPrev.classList.add('hidden');
+        btnNext.classList.add('hidden');
+    }
+
+    // Renderiza a primeira imagem e as miniaturas
+    updateCarouselUI(images);
+
+    // Preenche textos
     getEl('modal-title').innerText = p.name;
     getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
-
     const price = p.promoPrice || p.price;
     getEl('modal-price').innerHTML = formatCurrency(price);
 
+    // ... (O RESTO DO CÓDIGO DA FUNÇÃO MANTÉM IGUAL: Sizes, Botão Add Cart, etc.) ...
+
+    // Parte dos tamanhos (Copie do seu código anterior ou mantenha o que estava lá)
     const sizesDiv = getEl('modal-sizes');
     const sizesWrapper = getEl('modal-sizes-wrapper');
     sizesDiv.innerHTML = '';
-
     let selectedSizeInModal = 'U';
-
     if (p.sizes && p.sizes.length > 0) {
         if (sizesWrapper) sizesWrapper.classList.remove('hidden');
         selectedSizeInModal = p.sizes[0];
@@ -1435,15 +1785,10 @@ window.openProductModal = (productId) => {
             const btn = document.createElement('button');
             btn.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center";
             btn.innerText = s;
-            if (s === selectedSizeInModal) {
-                btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
-                btn.classList.remove('text-gray-300', 'border-gray-600');
-            }
+            if (s === selectedSizeInModal) btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
             btn.onclick = () => {
                 selectedSizeInModal = s;
-                document.querySelectorAll('#modal-sizes button').forEach(b => {
-                    b.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center";
-                });
+                document.querySelectorAll('#modal-sizes button').forEach(b => b.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center");
                 btn.classList.remove('text-gray-300', 'border-gray-600');
                 btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
             };
@@ -1453,6 +1798,7 @@ window.openProductModal = (productId) => {
         if (sizesWrapper) sizesWrapper.classList.add('hidden');
     }
 
+    // Configura Botão Adicionar (Mantém igual)
     const btnAdd = getEl('modal-add-cart');
     const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
     const isOut = p.stock <= 0 && !allowNegative;
@@ -1465,13 +1811,10 @@ window.openProductModal = (productId) => {
         btnAdd.disabled = false;
         btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i> ADICIONAR AO CARRINHO`;
         btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center";
-
-        btnAdd.onclick = () => {
-            addToCart(p, selectedSizeInModal);
-            closeProductModal();
-        };
+        btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
     }
 
+    // Exibe o modal
     modal.classList.remove('hidden');
     setTimeout(() => {
         backdrop.classList.remove('opacity-0');
@@ -1491,13 +1834,65 @@ window.closeProductModal = () => {
     setTimeout(() => { modal.classList.add('hidden'); }, 300);
 };
 
-window.openImageViewer = (src) => {
+// Variável para controlar zoom
+// Variável para controlar zoom
+let isZoomed = false;
+
+window.openImageViewer = () => {
+    const p = state.products.find(x => x.id === state.focusedProductId);
+    if (!p) return;
+
     const viewer = getEl('image-viewer');
     const img = getEl('image-viewer-src');
-    img.src = src;
+    const images = p.images && p.images.length > 0 ? p.images : ['https://placehold.co/600'];
+
+    // Define a imagem atual baseada no índice do modal
+    img.src = images[state.currentImgIndex];
+
+    // Reseta zoom e cursor
+    isZoomed = false;
+    img.style.transform = "scale(1)";
+    img.style.cursor = "zoom-in";
+
+    // Mostra/Esconde setas baseado na quantidade de fotos
+    const btnPrev = getEl('viewer-prev');
+    const btnNext = getEl('viewer-next');
+    if (images.length > 1) {
+        btnPrev.classList.remove('hidden');
+        btnNext.classList.remove('hidden');
+    } else {
+        btnPrev.classList.add('hidden');
+        btnNext.classList.add('hidden');
+    }
+
     viewer.classList.remove('hidden');
     viewer.classList.add('flex');
-    viewer.onclick = (e) => { if (e.target === viewer) closeImageViewer(); };
+
+    // Lógica de Zoom ao clicar na imagem
+    img.onclick = (e) => {
+        e.stopPropagation();
+        isZoomed = !isZoomed;
+        if (isZoomed) {
+            img.style.transform = "scale(2.5)";
+            img.style.cursor = "zoom-out";
+            // Esconde setas durante o zoom para não atrapalhar
+            btnPrev.classList.add('hidden');
+            btnNext.classList.add('hidden');
+        } else {
+            img.style.transform = "scale(1)";
+            img.style.cursor = "zoom-in";
+            // Mostra setas de volta (se tiver mais de 1 foto)
+            if (images.length > 1) {
+                btnPrev.classList.remove('hidden');
+                btnNext.classList.remove('hidden');
+            }
+        }
+    };
+
+    // Clique fora fecha
+    viewer.onclick = (e) => {
+        if (e.target === viewer) closeImageViewer();
+    };
 };
 
 window.closeImageViewer = () => {
@@ -1578,14 +1973,61 @@ window.confirmDeleteProduct = async (id) => {
 
 window.editProduct = (id) => {
     const p = state.products.find(x => x.id === id); if (!p) return;
-    getEl('edit-prod-id').value = p.id; getEl('prod-name').value = p.name;
-    const catSelect = getEl('prod-cat-select'); if (catSelect && p.category) catSelect.value = p.category;
-    getEl('prod-desc').value = p.description; getEl('prod-price').value = p.price;
-    getEl('prod-promo').value = p.promoPrice || ''; getEl('prod-stock').value = p.stock;
-    getEl('prod-cost').value = p.cost || ''; getEl('prod-sizes').value = p.sizes ? p.sizes.join(',') : '';
-    getEl('prod-img').value = p.images ? p.images[0] : '';
-    const checkNoStock = getEl('prod-allow-no-stock'); if (checkNoStock) checkNoStock.checked = p.allowNoStock || false;
+
+    getEl('edit-prod-id').value = p.id;
+    getEl('prod-name').value = p.name;
+
+    const catSelect = getEl('prod-cat-select');
+    if (catSelect && p.category) catSelect.value = p.category;
+
+    getEl('prod-desc').value = p.description;
+    getEl('prod-price').value = p.price;
+    getEl('prod-promo').value = p.promoPrice || '';
+    getEl('prod-stock').value = p.stock;
+    getEl('prod-cost').value = p.cost || '';
+    getEl('prod-sizes').value = p.sizes ? p.sizes.join(',') : '';
+
+    // CARREGAR DADOS DE PAGAMENTO
+    const pay = p.paymentOptions || { pix: {}, card: {} };
+
+    // Pix
+    const checkPix = getEl('prod-pix-active');
+    const inputPixVal = getEl('prod-pix-val');
+    const inputPixType = getEl('prod-pix-type');
+
+    if (checkPix) {
+        checkPix.checked = pay.pix.active || false;
+        checkPix.dispatchEvent(new Event('change')); // Força atualização visual
+    }
+    if (inputPixVal) inputPixVal.value = pay.pix.val || '';
+
+    // Configura botões de tipo (% ou R$)
+    if (pay.pix.type === 'fixed') {
+        if (getEl('btn-pix-fixed')) getEl('btn-pix-fixed').click();
+    } else {
+        if (getEl('btn-pix-percent')) getEl('btn-pix-percent').click();
+    }
+
+    // Cartão
+    const checkCard = getEl('prod-card-active');
+    const inputCardInst = getEl('prod-card-installments');
+
+    if (checkCard) {
+        checkCard.checked = pay.card.active || false;
+        checkCard.dispatchEvent(new Event('change'));
+    }
+    if (inputCardInst) inputCardInst.value = pay.card.installments || '';
+
+    // CARREGA IMAGENS EXISTENTES NO STATE TEMPORÁRIO
+    state.tempImages = p.images ? [...p.images] : [];
+    renderImagePreviews();
+
+    const checkNoStock = getEl('prod-allow-no-stock');
+    if (checkNoStock) checkNoStock.checked = p.allowNoStock || false;
+
     if (els.productFormModal) els.productFormModal.classList.remove('hidden');
+
+
 };
 
 window.deleteCoupon = async (id) => {
@@ -1913,6 +2355,18 @@ function fillProfileForm() {
     if (els.confStoreFace) els.confStoreFace.value = p.facebook || '';
     if (els.confStoreAddress) els.confStoreAddress.value = p.address || '';
     if (els.confStoreDesc) els.confStoreDesc.value = p.description || '';
+    if (els.confStoreCep) els.confStoreCep.value = p.cep || '';
+    if (els.confMaxDist) els.confMaxDist.value = p.maxDistance || '';
+
+    // Parcelamento
+    const inst = p.installments || { active: false, max: 12, freeUntil: 4, rate: 4.0 };
+    if (els.confCardActive) {
+        els.confCardActive.checked = inst.active;
+        toggleCardConfig(inst.active);
+    }
+    if (els.confCardMax) els.confCardMax.value = inst.max;
+    if (els.confCardFree) els.confCardFree.value = inst.freeUntil;
+    if (els.confCardRate) els.confCardRate.value = inst.rate;
 }
 
 async function saveStoreProfile() {
@@ -1923,7 +2377,19 @@ async function saveStoreProfile() {
         instagram: els.confStoreInsta.value.trim(),
         facebook: els.confStoreFace.value.trim(),
         address: els.confStoreAddress.value.trim(),
-        description: els.confStoreDesc.value.trim()
+        description: els.confStoreDesc.value.trim(),
+
+        // CORREÇÃO: Garante que os nomes batam com o state
+        cep: els.confStoreCep.value.trim().replace(/\D/g, ''),
+        maxDistance: parseFloat(els.confMaxDist.value) || 0,
+
+        // Novo objeto de parcelamento
+        installments: {
+            active: els.confCardActive.checked,
+            max: parseInt(els.confCardMax.value) || 12,
+            freeUntil: parseInt(els.confCardFree.value) || 4,
+            rate: parseFloat(els.confCardRate.value) || 0
+        }
     };
 
     try {
@@ -1934,3 +2400,473 @@ async function saveStoreProfile() {
         showToast('Erro ao salvar perfil.', 'error');
     }
 }
+
+// =================================================================
+// 11. CHECKOUT, GEOLOCALIZAÇÃO E PAGAMENTO
+// =================================================================
+
+// Variáveis temporárias do checkout
+let checkoutState = {
+    address: null,
+    distance: 0,
+    isValidDelivery: false
+};
+
+window.openCheckoutModal = () => {
+    if (state.cart.length === 0) return alert("Carrinho vazio!");
+
+    // Reseta o modal
+    getEl('checkout-cep').value = '';
+    getEl('checkout-number').value = '';
+    getEl('checkout-comp').value = '';
+    els.addressDetails.classList.add('hidden');
+    els.deliveryError.classList.add('hidden');
+    els.paymentSection.classList.add('hidden');
+    els.paymentSection.classList.remove('opacity-100', 'pointer-events-auto');
+    els.paymentSection.classList.add('opacity-50', 'pointer-events-none');
+    els.btnFinishOrder.disabled = true;
+
+    // Seleciona WhatsApp por padrão e reseta total
+    const radios = document.getElementsByName('payment-method');
+    if (radios[0]) radios[0].checked = true;
+    updateCheckoutTotal();
+
+    els.checkoutModal.classList.remove('hidden');
+    els.checkoutModal.classList.add('flex');
+};
+
+window.closeCheckoutModal = () => {
+    els.checkoutModal.classList.add('hidden');
+    els.checkoutModal.classList.remove('flex');
+};
+
+// --- BUSCA DE CEP E DISTÂNCIA ---
+
+window.handleCheckoutCep = async () => {
+    const cep = getEl('checkout-cep').value.replace(/\D/g, '');
+    if (cep.length !== 8) return;
+
+    const loading = getEl('cep-loading');
+    loading.classList.remove('hidden');
+    els.deliveryError.classList.add('hidden');
+    els.addressDetails.classList.add('hidden');
+
+    try {
+        // 1. Busca dados do endereço (Rua, Bairro...)
+        const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await resp.json();
+
+        if (data.erro) throw new Error("CEP não encontrado.");
+
+        checkoutState.address = data;
+        els.addrText.innerHTML = `<strong>${data.logradouro}</strong><br>${data.bairro} - ${data.localidade}/${data.uf}`;
+        els.addressDetails.classList.remove('hidden');
+        getEl('checkout-number').focus();
+
+        // 2. Validação de Distância (Se configurado na loja)
+        const storeCep = state.storeProfile.cep;
+        const maxDist = state.storeProfile.maxDistance;
+
+        if (storeCep && maxDist > 0) {
+            // Usa API Nominatim (OpenStreetMap) para pegar Lat/Lon
+            // Nota: Em produção, o ideal é Google Maps API, mas é paga. Nominatim é free mas tem limites.
+            const dist = await calculateDistanceByCEP(storeCep, cep);
+
+            checkoutState.distance = dist;
+
+            if (dist > maxDist) {
+                checkoutState.isValidDelivery = false;
+                els.deliveryError.classList.remove('hidden');
+                els.deliveryError.querySelector('p').innerText = `Distância: ${dist.toFixed(1)}km (Máximo: ${maxDist}km)`;
+                // Esconde pagamento
+                els.paymentSection.classList.add('opacity-50', 'pointer-events-none');
+                els.btnFinishOrder.disabled = true;
+            } else {
+                checkoutState.isValidDelivery = true;
+                showPaymentSection();
+            }
+        } else {
+            // Se loja não configurou distância, libera sempre
+            checkoutState.isValidDelivery = true;
+            showPaymentSection();
+        }
+
+    } catch (err) {
+        alert("Erro no CEP: " + err.message);
+    } finally {
+        loading.classList.add('hidden');
+    }
+};
+
+function showPaymentSection() {
+    els.paymentSection.classList.remove('hidden');
+    // Pequeno delay para animação
+    setTimeout(() => {
+        els.paymentSection.classList.remove('opacity-50', 'pointer-events-none');
+        els.paymentSection.classList.add('opacity-100', 'pointer-events-auto');
+        els.btnFinishOrder.disabled = false;
+        updateCheckoutTotal();
+    }, 100);
+}
+
+// Função Auxiliar: Calcula distância entre dois CEPs usando Nominatim
+async function calculateDistanceByCEP(cepOrigin, cepDest) {
+    const getCoords = async (c) => {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&country=Brazil&postalcode=${c}`);
+        const d = await r.json();
+        if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+        throw new Error("Coordenadas não encontradas para o CEP " + c);
+    };
+
+    const [coords1, coords2] = await Promise.all([getCoords(cepOrigin), getCoords(cepDest)]);
+    return getDistanceFromLatLonInKm(coords1.lat, coords1.lon, coords2.lat, coords2.lon);
+}
+
+// Fórmula de Haversine (Matemática para calcular km entre coords)
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Raio da terra em km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+function deg2rad(deg) { return deg * (Math.PI / 180); }
+
+
+// --- CÁLCULO DE TOTAIS E PAGAMENTO ---
+
+window.updateCheckoutTotal = () => {
+    const method = document.querySelector('input[name="payment-method"]:checked').value;
+
+    // Calcula subtotal normal (com cupom se tiver)
+    let cartTotal = 0;
+
+    // 1. Calcula base
+    state.cart.forEach(item => { cartTotal += item.price * item.qty; });
+
+    // 2. Aplica Cupom Global
+    let discountCoupon = 0;
+    if (state.currentCoupon) {
+        if (state.currentCoupon.type === 'percent') discountCoupon = cartTotal * (state.currentCoupon.val / 100);
+        else discountCoupon = state.currentCoupon.val;
+    }
+
+    let finalTotal = Math.max(0, cartTotal - discountCoupon);
+    let pixDiscountTotal = 0;
+
+    // 3. SE FOR PIX: Recalcula item a item procurando descontos específicos
+    if (method === 'pix') {
+        let totalWithPixDiscount = 0;
+
+        state.cart.forEach(item => {
+            const product = state.products.find(p => p.id === item.id);
+            let itemPrice = item.price; // Preço base (já é o promo se tiver)
+
+            // Verifica se o produto tem config de Pix
+            if (product && product.paymentOptions && product.paymentOptions.pix && product.paymentOptions.pix.active) {
+                const pixConfig = product.paymentOptions.pix;
+                let discountVal = 0;
+
+                if (pixConfig.type === 'percent') {
+                    discountVal = itemPrice * (pixConfig.val / 100);
+                } else {
+                    discountVal = pixConfig.val;
+                }
+                itemPrice = Math.max(0, itemPrice - discountVal);
+            }
+
+            totalWithPixDiscount += itemPrice * item.qty;
+        });
+
+        // Aplica o cupom global sobre o novo total com desconto pix
+        let discountCouponOnPix = 0;
+        if (state.currentCoupon) {
+            if (state.currentCoupon.type === 'percent') discountCouponOnPix = totalWithPixDiscount * (state.currentCoupon.val / 100);
+            else discountCouponOnPix = state.currentCoupon.val;
+        }
+
+        finalTotal = Math.max(0, totalWithPixDiscount - discountCouponOnPix);
+
+        // Atualiza label visual
+        const diff = (Math.max(0, cartTotal - discountCoupon) - finalTotal);
+        if (diff > 0) {
+            getEl('label-pix-discount').innerText = `Economia de ${formatCurrency(diff)}`;
+        } else {
+            getEl('label-pix-discount').innerText = `Sem descontos extras`;
+        }
+    } else {
+        getEl('label-pix-discount').innerText = `Selecione para ver descontos`;
+    }
+
+    els.checkoutTotalDisplay.innerText = formatCurrency(finalTotal);
+    els.btnFinishOrder.innerText = method === 'whatsapp' ? 'Enviar Pedido no Zap' : 'Ir para Pagamento';
+};
+
+window.finalizeOrder = async () => {
+    const cep = getEl('checkout-cep').value;
+    const num = getEl('checkout-number').value;
+    const comp = getEl('checkout-comp').value;
+    const method = document.querySelector('input[name="payment-method"]:checked').value;
+    const totalText = els.checkoutTotalDisplay.innerText;
+
+    if (!num) return alert("Por favor, informe o número do endereço.");
+
+    // Monta texto do endereço
+    const addressStr = `${checkoutState.address.logradouro}, ${num} ${comp ? '(' + comp + ')' : ''} - ${checkoutState.address.bairro}, ${checkoutState.address.localidade}/${checkoutState.address.uf} (CEP: ${cep})`;
+
+    // Salva venda no Firebase
+    // Nota: Em produção real, calcularia valores no backend por segurança
+    const totalVal = parseFloat(totalText.replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
+
+    const orderData = {
+        items: state.cart,
+        total: totalVal,
+        cupom: state.currentCoupon ? state.currentCoupon.code : null,
+        date: new Date().toISOString(),
+        status: 'Pendente',
+        paymentMethod: method,
+        address: addressStr,
+        code: Math.floor(10000 + Math.random() * 90000)
+    };
+
+    try { await addDoc(collection(db, `sites/${state.siteId}/sales`), orderData); } catch (e) { console.log(e); }
+
+    // GERA MENSAGEM WHATSAPP
+    let msg = `*NOVO PEDIDO #${orderData.code}*\n`;
+    msg += `--------------------------------\n`;
+    state.cart.forEach(i => { msg += `▪ ${i.qty}x ${i.name} (${i.size})\n`; });
+    msg += `--------------------------------\n`;
+    msg += `*Endereço de Entrega:*\n${addressStr}\n\n`;
+    msg += `*Método de Pagamento:* ${method.toUpperCase()}\n`;
+    msg += `*TOTAL FINAL: ${totalText}*\n`;
+
+    if (method === 'pix') {
+        msg += `\n💡 *Pagar com Pix:* Solicito a chave Pix para pagamento com desconto aplicado.`;
+    } else if (method === 'card') {
+        msg += `\n💳 *Pagar com Cartão:* Solicito link de pagamento do Mercado Pago.`;
+    }
+
+    const sellerPhone = state.storeProfile.whatsapp || "5511999999999";
+    window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+
+    // Limpa carrinho e fecha
+    state.cart = []; state.currentCoupon = null;
+    saveCart();
+    closeCheckoutModal();
+    getEl('cart-modal').classList.add('hidden');
+    showToast('Pedido realizado! Verifique o WhatsApp.');
+};
+
+// Função chamada ao clicar nos radio buttons de pagamento
+window.handlePaymentSelection = (method) => {
+    // Esconde área de parcelas se não for cartão
+    if (method === 'card') {
+        const instConfig = state.storeProfile.installments || { active: false };
+        if (instConfig.active) {
+            els.installmentsArea.classList.remove('hidden');
+            populateInstallmentsSelect(); // Preenche as opções
+        } else {
+            // Se parcelamento estiver desativado na loja, esconde
+             els.installmentsArea.classList.add('hidden');
+        }
+    } else {
+        els.installmentsArea.classList.add('hidden');
+    }
+    updateCheckoutTotal();
+};
+
+function populateInstallmentsSelect() {
+    const instConfig = state.storeProfile.installments;
+    const select = els.checkoutInstallments;
+    select.innerHTML = ''; // Limpa
+
+    // Pega o valor base (sem desconto pix)
+    let cartTotal = 0;
+    state.cart.forEach(item => { cartTotal += item.price * item.qty; });
+    // Aplica cupom global se não for pix
+    let discountCoupon = 0;
+    if (state.currentCoupon) {
+        if (state.currentCoupon.type === 'percent') discountCoupon = cartTotal * (state.currentCoupon.val / 100);
+        else discountCoupon = state.currentCoupon.val;
+    }
+    const baseValue = Math.max(0, cartTotal - discountCoupon);
+
+    // Gera opções
+    for (let i = 1; i <= instConfig.max; i++) {
+        let label = '';
+        let finalVal = baseValue;
+        
+        // Lógica de Juros
+        if (i >= instConfig.freeUntil) {
+            // Juros Simples para facilitar (ou Composto se preferir: baseValue * Math.pow(1 + rate/100, i))
+            // Usando Simples aqui conforme padrão comum de mercado pequeno:
+            // Valor + (Taxa * Parcelas)
+            const rateDecimal = instConfig.rate / 100;
+            // Cálculo de coeficiente de financiamento (Price) é mais correto para cartão
+            // CF = rate / (1 - (1 + rate)^-n)
+            // Mas vamos usar um multiplicador simples se quiser: Valor * (1 + rate * i)
+            
+            // Vamos usar Juros Compostos (Padrão Cartão)
+            // M = C * (1 + i)^n
+            finalVal = baseValue * Math.pow(1 + rateDecimal, i);
+            
+            label = `${i}x de ${formatCurrency(finalVal / i)} (Total: ${formatCurrency(finalVal)})`;
+        } else {
+            label = `${i}x de ${formatCurrency(baseValue / i)} Sem Juros`;
+        }
+        
+        const option = document.createElement('option');
+        option.value = i;
+        option.text = label;
+        // Guarda o valor total dessa opção num atributo para facilitar
+        option.dataset.total = finalVal;
+        select.appendChild(option);
+    }
+}
+
+// Atualize o updateCheckoutTotal para ler o select do cartão
+window.updateCheckoutTotal = () => {
+    // 1. Identifica o método de pagamento selecionado
+    const methodEl = document.querySelector('input[name="payment-method"]:checked');
+    if (!methodEl) return;
+    const method = methodEl.value;
+
+    // 2. Calcula o Total Base do Carrinho (Soma simples: Preço * Qtd)
+    let cartTotal = 0;
+    state.cart.forEach(item => { cartTotal += item.price * item.qty; });
+
+    // 3. Calcula desconto do Cupom Global (se houver)
+    let discountCoupon = 0;
+    if (state.currentCoupon) {
+        if (state.currentCoupon.type === 'percent') {
+            discountCoupon = cartTotal * (state.currentCoupon.val / 100);
+        } else {
+            discountCoupon = state.currentCoupon.val;
+        }
+    }
+
+    // Define o finalTotal inicial (Base - Cupom)
+    // Essa é a variável que estava faltando!
+    let finalTotal = Math.max(0, cartTotal - discountCoupon);
+
+    // --- LÓGICA ESPECÍFICA POR MÉTODO ---
+
+    if (method === 'pix') {
+        // === MODO PIX ===
+        // Recalcula item a item procurando descontos de PIX cadastrados no produto
+        let totalWithPixDiscount = 0;
+
+        state.cart.forEach(item => {
+            const product = state.products.find(p => p.id === item.id);
+            let itemPrice = item.price;
+
+            // Verifica configuração de Pix do produto
+            if (product && product.paymentOptions && product.paymentOptions.pix && product.paymentOptions.pix.active) {
+                const pixConfig = product.paymentOptions.pix;
+                let discountVal = 0;
+
+                if (pixConfig.type === 'percent') {
+                    discountVal = itemPrice * (pixConfig.val / 100);
+                } else {
+                    discountVal = pixConfig.val;
+                }
+                itemPrice = Math.max(0, itemPrice - discountVal);
+            }
+            totalWithPixDiscount += itemPrice * item.qty;
+        });
+
+        // Reaplica o cupom global sobre o novo total com desconto pix
+        let discountCouponOnPix = 0;
+        if (state.currentCoupon) {
+            if (state.currentCoupon.type === 'percent') {
+                discountCouponOnPix = totalWithPixDiscount * (state.currentCoupon.val / 100);
+            } else {
+                discountCouponOnPix = state.currentCoupon.val;
+            }
+        }
+
+        finalTotal = Math.max(0, totalWithPixDiscount - discountCouponOnPix);
+
+        // Atualiza label visual de economia
+        const diff = (Math.max(0, cartTotal - discountCoupon) - finalTotal);
+        if (els.labelPixDiscount) {
+            if (diff > 0) els.labelPixDiscount.innerText = `Economia de ${formatCurrency(diff)}`;
+            else els.labelPixDiscount.innerText = `Sem descontos extras`;
+        }
+
+    } else if (method === 'card') {
+        // === MODO CARTÃO ===
+        // Pega o valor total diretamente da opção selecionada no <select>
+        // (Lembre-se: calculamos os juros na função populateInstallmentsSelect e salvamos no dataset)
+        const select = els.checkoutInstallments;
+        
+        if (select && select.options.length > 0) {
+            const selectedOption = select.options[select.selectedIndex];
+            
+            if (selectedOption && selectedOption.dataset.total) {
+                finalTotal = parseFloat(selectedOption.dataset.total);
+            }
+
+            // Exibe observação de Juros se necessário
+            const instConfig = state.storeProfile.installments;
+            const parcelas = parseInt(select.value);
+            
+            if (instConfig && parcelas >= instConfig.freeUntil) {
+                if (els.installmentObs) els.installmentObs.innerText = `* Inclui juros de ${instConfig.rate}% a.m.`;
+            } else {
+                if (els.installmentObs) els.installmentObs.innerText = '';
+            }
+        }
+        
+        // Limpa texto do pix
+        if (els.labelPixDiscount) els.labelPixDiscount.innerText = '';
+
+    } else {
+        // === MODO WHATSAPP (Padrão) ===
+        // Apenas limpa as observações extras
+        if (els.labelPixDiscount) els.labelPixDiscount.innerText = '';
+        if (els.installmentObs) els.installmentObs.innerText = '';
+    }
+
+    // 4. Atualiza o Valor na Tela
+    if (els.checkoutTotalDisplay) {
+        els.checkoutTotalDisplay.innerText = formatCurrency(finalTotal);
+    }
+
+    // 5. Atualiza o Texto do Botão Final
+    if (els.btnFinishOrder) {
+        if (method === 'whatsapp') els.btnFinishOrder.innerText = 'Enviar Pedido no Zap';
+        else if (method === 'pix') els.btnFinishOrder.innerText = 'Gerar Chave Pix';
+        else els.btnFinishOrder.innerText = 'Gerar Link Cartão';
+    }
+};
+
+// Atualize o finalizeOrder para enviar o detalhe das parcelas
+window.finalizeOrder = async () => {
+    // ... (validações anteriores) ...
+    const method = document.querySelector('input[name="payment-method"]:checked').value;
+    
+    // Captura info extra do cartão
+    let paymentDetails = method.toUpperCase();
+    if (method === 'card') {
+        const select = els.checkoutInstallments;
+        const parcelas = select.value;
+        const totalComJuros = els.checkoutTotalDisplay.innerText;
+        paymentDetails = `CARTÃO EM ${parcelas}x (${totalComJuros})`;
+    }
+
+    // ... (Salva no Firebase igual antes, mas passa paymentDetails no campo paymentMethod se quiser) ...
+
+    // Mensagem WhatsApp
+    let msg = `*NOVO PEDIDO #${Math.floor(Math.random()*90000)}*\n`;
+    // ...
+    msg += `*Pagamento:* ${paymentDetails}\n`;
+    // ...
+    
+    // Redireciona
+    const sellerPhone = state.storeProfile.whatsapp || "5511999999999";
+    window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+    
+    // ... (Limpeza final) ...
+};
