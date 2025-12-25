@@ -669,7 +669,7 @@
 
                 <div class="md:col-span-2 border-t border-gray-800 pt-4 mt-2">
                     <div id="btn-acc-installments" class="flex justify-between items-center cursor-pointer mb-2">
-                        <h4 class="text-yellow-500 font-bold">Parcelamento (Cartão)</h4>
+                        <h4 class="text-yellow-500 font-bold">Parcelamento Global (Cartão)</h4>
                         <i id="arrow-acc-installments" class="fas fa-chevron-down text-gray-500"></i>
                     </div>
 
@@ -691,18 +691,18 @@
                                     class="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded text-center focus:border-blue-500">
                             </div>
                             <div>
-                                <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Juros a partir
-                                    da:</label>
+                                <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Sem juros
+                                    até:</label>
                                 <select id="conf-card-free"
                                     class="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded focus:border-blue-500">
-                                    <option value="1">Todas tem juros</option>
-                                    <option value="2">2ª parcela</option>
-                                    <option value="3">3ª parcela</option>
-                                    <option value="4" selected>4ª parcela</option>
-                                    <option value="5">5ª parcela</option>
-                                    <option value="7">7ª parcela</option>
-                                    <option value="11">11ª parcela</option>
-                                    <option value="13">Sem juros (Nunca)</option>
+                                    <option value="1">Nunca (Sempre com juros)</option>
+                                    <option value="2">2x</option>
+                                    <option value="3" selected>3x</option>
+                                    <option value="4">4x</option>
+                                    <option value="5">5x</option>
+                                    <option value="6">6x</option>
+                                    <option value="10">10x</option>
+                                    <option value="12">12x (Tudo sem juros)</option>
                                 </select>
                             </div>
                             <div>
@@ -898,7 +898,7 @@
                         <input type="number" id="prod-stock" placeholder="0"
                             class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
                     </div>
-                    
+
                     <div>
                         <label class="text-gray-500 text-xs font-bold uppercase mb-1 block">Preço de Custo (Visível só
                             p/ Admin)</label>

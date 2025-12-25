@@ -222,27 +222,11 @@ const state = {
         facebook: '',
         address: '',
         description: 'Sua loja de camisas.'
-    },
-
-    // Configurações
-    confStoreCep: getEl('conf-store-cep'),
-    confMaxDist: getEl('conf-max-dist'),
-
-    // Checkout
-    checkoutModal: getEl('checkout-modal'),
-    checkoutCep: getEl('checkout-cep'),
-    checkoutNumber: getEl('checkout-number'),
-    checkoutComp: getEl('checkout-comp'),
-    addressDetails: getEl('address-details'),
-    addrText: getEl('addr-text'),
-    deliveryError: getEl('delivery-error'),
-    paymentSection: getEl('payment-section'),
-    btnFinishOrder: getEl('btn-finish-order'),
-    checkoutTotalDisplay: getEl('checkout-total-display'),
-    labelPixDiscount: getEl('label-pix-discount')
+    }
 };
 
 const els = {
+    // ... (Mantenha os existentes: grid, cartCount, etc.) ...
     grid: getEl('product-grid'),
     cartCount: getEl('cart-count'),
     cartCountMobile: getEl('cart-count-mobile'),
@@ -264,6 +248,8 @@ const els = {
     ordersCount: getEl('orders-count'),
     productListAdmin: getEl('admin-product-list'),
     couponListAdmin: getEl('admin-coupon-list'),
+
+    // Filtros Admin e Bulk
     filterOrderId: getEl('filter-order-id'),
     filterStatus: getEl('filter-order-status'),
     filterDateStart: getEl('filter-date-start'),
@@ -275,12 +261,13 @@ const els = {
     bulkActionsBar: getEl('bulk-actions-bar'),
     selectedCount: getEl('selected-count'),
     bulkCategorySelect: getEl('bulk-category-select'),
+
+    // Forms e Dashboard
     productFormModal: getEl('product-form-modal'),
     toggleStockGlobal: getEl('toggle-stock-global'),
     catListAdmin: getEl('admin-cat-list'),
     newCatName: getEl('new-cat-name'),
     btnAddCat: getEl('btn-add-cat'),
-    // Dashboard Simples
     dashDateDisplay: getEl('dash-date-display'),
     dashTotalItems: getEl('dash-total-items'),
     dashConfirmedCount: getEl('dash-confirmed-count'),
@@ -292,7 +279,8 @@ const els = {
     dashPrevDate: getEl('dash-prev-date'),
     dashNextDate: getEl('dash-next-date'),
     ordersSummaryBar: getEl('orders-summary-bar'),
-    // --- ELEMENTOS ESTATÍSTICAS AVANÇADAS ---
+
+    // Estatísticas Avançadas
     statsFilterAll: getEl('stats-filter-all'),
     statsFilterPeriod: getEl('stats-filter-period'),
     statsDateControls: getEl('stats-date-controls'),
@@ -326,7 +314,7 @@ const els = {
     linkFacebook: getEl('link-facebook'),
     btnShowAddress: getEl('btn-show-address'),
 
-    // Configurações Inputs
+    // --- CONFIGURAÇÕES DA LOJA (ATUALIZADO) ---
     confStoreName: getEl('conf-store-name'),
     confStoreLogo: getEl('conf-store-logo'),
     confStoreWpp: getEl('conf-store-wpp'),
@@ -336,11 +324,22 @@ const els = {
     confStoreDesc: getEl('conf-store-desc'),
     btnSaveProfile: getEl('btn-save-profile'),
 
-    // Configurações
+    // Novos campos de Logística
     confStoreCep: getEl('conf-store-cep'),
     confMaxDist: getEl('conf-max-dist'),
 
-    // Checkout
+    // Configurações de Parcelamento Global
+    btnAccInstallments: getEl('btn-acc-installments'),
+    contentAccInstallments: getEl('content-acc-installments'),
+    arrowAccInstallments: getEl('arrow-acc-installments'),
+
+    confCardActive: getEl('conf-card-active'),
+    confCardDetails: getEl('conf-card-details'),
+    confCardMax: getEl('conf-card-max'),
+    confCardFree: getEl('conf-card-free'),
+    confCardRate: getEl('conf-card-rate'),
+
+    // --- CHECKOUT MODAL (NOVO) ---
     checkoutModal: getEl('checkout-modal'),
     checkoutCep: getEl('checkout-cep'),
     checkoutNumber: getEl('checkout-number'),
@@ -352,21 +351,11 @@ const els = {
     btnFinishOrder: getEl('btn-finish-order'),
     checkoutTotalDisplay: getEl('checkout-total-display'),
     labelPixDiscount: getEl('label-pix-discount'),
-
-    // Configs Parcelamento
-    btnAccInstallments: getEl('btn-acc-installments'),
-    contentAccInstallments: getEl('content-acc-installments'),
-    arrowAccInstallments: getEl('arrow-acc-installments'),
-    confCardActive: getEl('conf-card-active'),
-    confCardDetails: getEl('conf-card-details'),
-    confCardMax: getEl('conf-card-max'),
-    confCardFree: getEl('conf-card-free'),
-    confCardRate: getEl('conf-card-rate'),
-
-    // Checkout Novos
     checkoutInstallments: getEl('checkout-installments'),
     installmentsArea: getEl('installments-area'),
     installmentObs: getEl('installment-obs'),
+    btnCheckout: getEl('btn-checkout'), // Botão no carrinho
+
 };
 
 // =================================================================
@@ -726,105 +715,81 @@ function renderCatalog(products) {
     if (!els.grid) return;
     els.grid.innerHTML = '';
 
+    // Pega configuração global de parcelamento
+    const globalInst = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3 };
+
     products.forEach(p => {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
         const isOut = p.stock <= 0 && !allowNegative;
 
-        // Pega o primeiro tamanho disponível apenas para a lógica de adicionar ao carrinho
-        // (Mas NÃO mostra na tela, conforme pedido)
-        const firstSize = (p.sizes && p.sizes.length > 0) ? p.sizes[0] : 'U';
-        const qtyInCart = state.cart.reduce((acc, item) => item.id === p.id ? acc + item.qty : acc, 0);
-
-        // Lógica do Cartão (Agora Global)
-        // Pega config global do state
-        const instConfig = state.storeProfile.installments || { active: false };
-        
-        if (instConfig.active) {
-            // Se tiver configuração global ativa, exibe
-            const freeText = instConfig.freeUntil > instConfig.max ? 'sem Juros' : (instConfig.freeUntil > 1 ? `até ${instConfig.freeUntil-1}x s/ juros` : 'c/ juros');
-            paymentInfoHtml += `<p class="text-gray-300 text-xs mt-0.5">Ou até ${instConfig.max}x no cartão <span class="text-gray-500 text-[10px]">(${freeText})</span></p>`;
+        // --- LÓGICA DO PIX (Específica do Produto) ---
+        let pixHtml = '';
+        if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
+            const pix = p.paymentOptions.pix;
+            const valDisplay = pix.type === 'percent' ? `${pix.val}%` : `R$ ${pix.val}`;
+            pixHtml = `<p class="text-green-500 text-xs font-bold mt-1"><i class="brands fa-pix"></i> ${valDisplay} OFF no Pix</p>`;
         }
 
-        // --- PREÇO E PROMOÇÃO ---
-        const currentPrice = p.promoPrice || p.price;
-        const priceHtml = p.promoPrice ?
-            `<div class="flex items-baseline gap-2 mb-1">
-                <span class="text-gray-400 line-through text-xs font-normal">R$ ${p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            </div>
-            <div class="text-green-500 font-bold text-2xl tracking-tighter leading-none">
-                R$ ${p.promoPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </div>` :
-            `<div class="flex items-baseline gap-2 mb-1 opacity-0"><span class="text-xs">.</span></div>
-             <div class="text-green-500 font-bold text-2xl tracking-tighter leading-none">
-                R$ ${p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-             </div>`;
+        // --- LÓGICA DO PARCELAMENTO (Global) ---
+        let installmentHtml = '';
+        if (globalInst.active) {
+            const price = p.promoPrice || p.price;
+            // Se "freeUntil" for maior que 1, mostra a opção "X vezes sem juros"
+            // Mostramos o máximo de parcelas sem juros permitidas ou o máximo do cartão
 
-        // --- INFORMAÇÕES DE PAGAMENTO (PIX / CARTÃO) ---
-        let paymentInfoHtml = '';
-        const pay = p.paymentOptions || { pix: {}, card: {} };
+            let showInstallments = 1;
+            let label = "";
 
-        // Lógica do Pix
-        if (pay.pix && pay.pix.active) {
-            let pixText = '';
-            if (pay.pix.type === 'percent') {
-                pixText = `${pay.pix.val}% Off no Pix`;
+            // Lógica: Mostrar a melhor condição (Maior qtd de parcelas sem juros)
+            // Se freeUntil for 3, e max for 12. Mostramos "3x sem juros" (ou calculado).
+            // Para simplificar na vitrine, mostramos até quantas vezes é sem juros.
+
+            if (globalInst.freeUntil > 1) {
+                // Calcula valor da parcela sem juros
+                const parcVal = price / globalInst.freeUntil;
+                installmentHtml = `<p class="text-gray-400 text-xs mt-0.5">Ou ${globalInst.freeUntil}x de ${formatCurrency(parcVal)} sem juros</p>`;
             } else {
-                pixText = `R$ ${pay.pix.val} Off no Pix`;
+                // Se tudo tem juros, mostra o máximo possível (com texto genérico ou calculado se quiser complexidade)
+                installmentHtml = `<p class="text-gray-400 text-xs mt-0.5">Em até ${globalInst.max}x no cartão</p>`;
             }
-            paymentInfoHtml += `<p class="text-green-500 text-xs font-medium mt-1">${pixText}</p>`;
-        }
-
-        // Lógica do Cartão
-        if (pay.card && pay.card.active) {
-            paymentInfoHtml += `<p class="text-gray-300 text-xs mt-0.5">Ou ${pay.card.installments}x no cartão sem Juros</p>`;
-        }
-
-        // --- BOTÃO DE AÇÃO (Quadrado Verde ou Badge Esgotado) ---
-        let actionBtn;
-        if (isOut) {
-            actionBtn = `<div class="bg-red-900/40 border border-red-500 text-red-500 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Esgotado</div>`;
-        } else {
-            // Botão Verde Quadrado com "+"
-            actionBtn = `
-                <button onclick="event.stopPropagation(); addToCartCard('${p.id}', '${firstSize}')" 
-                    class="w-10 h-10 bg-green-500 hover:bg-green-400 text-white rounded-lg flex items-center justify-center shadow-lg shadow-green-900/50 transition active:scale-95 group">
-                    <i class="fas fa-plus text-lg group-hover:scale-110 transition-transform"></i>
-                </button>
-            `;
         }
 
         // --- MONTAGEM DO CARD ---
-        const card = document.createElement('div');
-        // bg-black, bordas arredondadas, layout flexível
-        card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-lg hover:border-gray-600 transition duration-300 flex flex-col group h-full";
-        card.setAttribute('onclick', `openProductModal('${p.id}')`);
-
         const imgUrl = p.images && p.images.length > 0 ? p.images[0] : 'https://placehold.co/400?text=Sem+Foto';
+
+        // Exibição de Preço
+        const priceDisplay = p.promoPrice ?
+            `<div class="flex flex-col">
+                <span class="text-gray-500 line-through text-xs">${formatCurrency(p.price)}</span>
+                <span class="text-white font-bold text-lg">${formatCurrency(p.promoPrice)}</span>
+             </div>` :
+            `<div class="flex flex-col">
+                <span class="text-white font-bold text-lg">${formatCurrency(p.price)}</span>
+             </div>`;
+
+        const card = document.createElement('div');
+        card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative";
+        card.onclick = () => openProductModal(p.id);
 
         card.innerHTML = `
             <div class="relative w-full aspect-[4/5] bg-gray-900 overflow-hidden">
-                <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
-                
-                ${isOut ? `<div class="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-[1px]"><span class="text-white font-bold border-2 border-red-500 px-4 py-1 rounded transform -rotate-6">ESGOTADO</span></div>` : ''}
+                <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                ${isOut ? `<div class="absolute inset-0 bg-black/70 flex items-center justify-center z-10"><span class="text-red-500 font-bold border-2 border-red-500 px-2 py-1 transform -rotate-12">ESGOTADO</span></div>` : ''}
             </div>
 
-            <div class="p-4 flex flex-col flex-1 bg-black relative">
+            <div class="p-3 flex flex-col flex-1">
+                <h3 class="text-white font-bold text-sm leading-tight line-clamp-2 mb-1">${p.name}</h3>
+                <p class="text-gray-500 text-xs line-clamp-2 mb-2">${p.description || ''}</p>
                 
-                <div class="mb-3">
-                    <h3 class="text-white font-bold text-xl leading-tight mb-1">${p.name}</h3>
-                    <p class="text-gray-500 text-sm line-clamp-2 leading-snug">${p.description || ''}</p>
+                <div class="mt-auto pt-2 border-t border-gray-800">
+                    ${priceDisplay}
+                    ${pixHtml}
+                    ${installmentHtml}
                 </div>
-
-                <div class="mt-auto">
-                    ${priceHtml}
-                    
-                    <div class="min-h-[2.5rem]"> ${paymentInfoHtml}
-                    </div>
-                </div>
-
-                <div class="absolute bottom-4 right-4">
-                    ${actionBtn}
-                </div>
+                
+                <button class="mt-3 w-full bg-gray-800 hover:bg-yellow-500 hover:text-black text-white py-2 rounded font-bold text-sm transition">
+                    VER DETALHES
+                </button>
             </div>
         `;
         els.grid.appendChild(card);
@@ -1162,6 +1127,17 @@ function setupEventListeners() {
     if (els.adminFilterCat) els.adminFilterCat.addEventListener('change', renderAdminProducts);
     if (els.adminSortProd) els.adminSortProd.addEventListener('change', renderAdminProducts);
 
+
+    // No setupEventListeners:
+    if (els.confCardActive) {
+        els.confCardActive.addEventListener('change', (e) => {
+            if (e.target.checked) els.confCardDetails.classList.remove('opacity-50', 'pointer-events-none');
+            else els.confCardDetails.classList.add('opacity-50', 'pointer-events-none');
+        });
+    }
+    setupAccordion('btn-acc-installments', 'content-acc-installments', 'arrow-acc-installments');
+
+
     // Ações em Massa
     const btnBulkDel = getEl('btn-bulk-delete');
     if (btnBulkDel) btnBulkDel.onclick = async () => {
@@ -1254,23 +1230,6 @@ function setupEventListeners() {
         if (e.key === 'Escape' && !getEl('product-modal').classList.contains('hidden')) closeProductModal();
     });
 
-
-    // Acordeão Parcelamento
-    setupAccordion('btn-acc-installments', 'content-acc-installments', 'arrow-acc-installments');
-
-    // Toggle Checkbox Parcelamento
-    if (els.confCardActive) {
-        els.confCardActive.addEventListener('change', (e) => toggleCardConfig(e.target.checked));
-    }
-
-    // Função auxiliar para ativar/desativar visualmente
-    window.toggleCardConfig = (isActive) => {
-        if (isActive) {
-            els.confCardDetails.classList.remove('opacity-50', 'pointer-events-none');
-        } else {
-            els.confCardDetails.classList.add('opacity-50', 'pointer-events-none');
-        }
-    };
     // Forms e Botões de Ação
     if (els.btnAddCat) {
         els.btnAddCat.onclick = async () => {
@@ -1445,13 +1404,36 @@ function setupEventListeners() {
     }
     const btnCancelProd = getEl('btn-cancel-prod'); if (btnCancelProd) btnCancelProd.onclick = () => { if (els.productFormModal) els.productFormModal.classList.add('hidden'); };
 
+    setupAccordion('btn-acc-installments', 'content-acc-installments', 'arrow-acc-installments');
+
+    if (els.confCardActive) {
+        els.confCardActive.addEventListener('change', (e) => {
+            const details = els.confCardDetails;
+            if (details) {
+                if (e.target.checked) details.classList.remove('opacity-50', 'pointer-events-none');
+                else details.classList.add('opacity-50', 'pointer-events-none');
+            }
+        });
+    }
+
+    // --- ATUALIZADO: Botão de Finalizar no Carrinho ---
+    // Removemos a lógica antiga de mandar direto pro zap e abrimos o modal
+    if (els.btnCheckout) {
+        els.btnCheckout.onclick = () => {
+            if (state.cart.length === 0) return alert('Carrinho vazio');
+            // Fecha carrinho e abre checkout
+            els.cartModal.classList.add('hidden');
+            openCheckoutModal();
+        };
+    }
+
     // Dentro de setupEventListeners (Substitua o formProd.onsubmit antigo)
+    // No setupEventListeners...
     const formProd = getEl('form-product');
     if (formProd) {
         formProd.onsubmit = async (e) => {
             e.preventDefault();
             try {
-                // ... (Captura dos outros inputs mantém igual) ...
                 const idEl = getEl('edit-prod-id');
                 const nameEl = getEl('prod-name');
                 const catEl = getEl('prod-cat-select');
@@ -1462,19 +1444,20 @@ function setupEventListeners() {
                 const costEl = getEl('prod-cost');
                 const sizesEl = getEl('prod-sizes');
                 const noStockEl = getEl('prod-allow-no-stock');
+
                 const parseVal = (val) => val ? parseFloat(val.replace(/\./g, '').replace(',', '.')) : 0;
-                const pixActive = getEl('prod-pix-active').checked;
-                const pixVal = parseFloat(getEl('prod-pix-val').value) || 0;
-                const pixType = getEl('prod-pix-type').value;
 
-                const cardActive = getEl('prod-card-active').checked;
-                const cardInstallments = parseInt(getEl('prod-card-installments').value) || 1;
-
-                // VERIFICA SE TEM IMAGEM
+                // Validação de Imagem
                 if (state.tempImages.length === 0) {
                     return alert("Adicione pelo menos uma imagem!");
                 }
 
+                // --- CORREÇÃO: Captura dos Dados do PIX ---
+                const pixActive = getEl('prod-pix-active').checked;
+                const pixVal = parseFloat(getEl('prod-pix-val').value) || 0;
+                const pixType = getEl('prod-pix-type').value || 'percent';
+
+                // --- Captura Dados Básicos ---
                 const data = {
                     name: nameEl ? nameEl.value : 'Sem Nome',
                     category: catEl ? catEl.value : "Geral",
@@ -1483,33 +1466,44 @@ function setupEventListeners() {
                     promoPrice: promoEl && promoEl.value ? parseVal(promoEl.value) : null,
                     stock: stockEl ? parseInt(stockEl.value) : 0,
                     cost: costEl ? parseVal(costEl.value) : 0,
-                    sizes: sizesEl ? sizesEl.value.split(',').map(s => s.trim()) : [],
-                    paymentOptions: {
-                        pix: { active: pixActive, val: pixVal, type: pixType },
-                        card: { active: cardActive, installments: cardInstallments }
-                    },
-
-
-                    // AQUI ESTÁ A MUDANÇA: Salvamos o array de imagens processadas
-                    images: state.tempImages,
-
+                    sizes: sizesEl ? sizesEl.value.split(',').map(s => s.trim()).filter(s => s !== '') : [],
+                    images: state.tempImages, // Usa as imagens processadas
                     allowNoStock: noStockEl ? noStockEl.checked : false,
-                    code: idEl && idEl.value ? undefined : Math.floor(10000 + Math.random() * 90000).toString()
+
+                    // --- CORREÇÃO: Objeto de Pagamento Inserido Corretamente ---
+                    paymentOptions: {
+                        pix: {
+                            active: pixActive,
+                            val: pixVal,
+                            type: pixType
+                        }
+                        // Futuramente pode adicionar 'card' aqui se for configuração individual
+                    }
                 };
 
-                if (data.code === undefined) delete data.code;
-                const id = idEl ? idEl.value : '';
+                // Gera código se for novo produto
+                if (!idEl.value) {
+                    data.code = Math.floor(10000 + Math.random() * 90000).toString();
+                }
 
-                if (id) { await updateDoc(doc(db, `sites/${state.siteId}/products`, id), data); }
-                else { await addDoc(collection(db, `sites/${state.siteId}/products`), data); }
+                const id = idEl.value;
+
+                if (id) {
+                    await updateDoc(doc(db, `sites/${state.siteId}/products`, id), data);
+                    showToast('Produto atualizado!');
+                } else {
+                    await addDoc(collection(db, `sites/${state.siteId}/products`), data);
+                    showToast('Produto criado!');
+                }
 
                 if (els.productFormModal) els.productFormModal.classList.add('hidden');
                 e.target.reset();
-                state.tempImages = []; // Limpa memória
+                state.tempImages = [];
 
-            } catch (err) { alert("Erro ao salvar produto: " + err.message); }
-
-
+            } catch (err) {
+                console.error(err);
+                alert("Erro ao salvar produto: " + err.message);
+            }
         };
     }
 
@@ -1529,13 +1523,88 @@ function setupEventListeners() {
 
     document.querySelectorAll('.tab-btn').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); const target = getEl(btn.dataset.tab); if (target) target.classList.remove('hidden'); document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500'); b.classList.add('text-gray-400'); }); btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500'); btn.classList.remove('text-gray-400'); }; });
 
-    // Dentro de initApp ou setupEventListeners
     const btnCheckout = getEl('btn-checkout');
     if (btnCheckout) {
-        btnCheckout.onclick = () => {
-            openCheckoutModal(); // AGORA ABRE O NOVO MODAL
+        btnCheckout.onclick = async () => {
+            if (state.cart.length === 0) return alert('Carrinho vazio');
+            const totalText = document.getElementById('cart-total').innerText.replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+
+            // ATENÇÃO: Adicionando Custo ao Pedido para Relatórios Futuros
+            const cartItemsWithCost = state.cart.map(item => {
+                const product = state.products.find(p => p.id === item.id);
+                return {
+                    ...item,
+                    cost: product ? parseFloat(product.cost || 0) : 0
+                };
+            });
+
+            const orderData = {
+                items: cartItemsWithCost,
+                total: parseFloat(totalText),
+                cupom: state.currentCoupon ? state.currentCoupon.code : null,
+                date: new Date().toISOString(),
+                status: 'Pendente',
+                code: Math.floor(10000 + Math.random() * 90000)
+            };
+
+            try { await addDoc(collection(db, `sites/${state.siteId}/sales`), orderData); } catch (e) { console.log("Erro pedido:", e); }
+            let msg = `*NOVO PEDIDO - ${orderData.code}*\n\n`;
+            state.cart.forEach(i => { msg += `▪ ${i.qty}x ${i.name} (${i.size}) - ${formatCurrency(i.price)}\n`; });
+            msg += `\nSubtotal: ${document.getElementById('cart-subtotal').innerText}`;
+            if (state.currentCoupon) msg += `\nCupom: ${state.currentCoupon.code}`;
+            msg += `\n*TOTAL: ${document.getElementById('cart-total').innerText}*`;
+            msg += `\n\nAguardo link de pagamento!`;
+            const sellerPhone = "5511941936976";
+            window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+            state.cart = []; state.currentCoupon = null; saveCart();
+            els.cartModal.classList.add('hidden');
         };
     }
+
+    // Adicione isso no final do setupEventListeners se não tiver
+    const elCheck = document.getElementById('conf-card-active');
+    if (elCheck) {
+        elCheck.addEventListener('change', (e) => {
+            const details = document.getElementById('conf-card-details');
+            if (details) {
+                if (e.target.checked) details.classList.remove('opacity-50', 'pointer-events-none');
+                else details.classList.add('opacity-50', 'pointer-events-none');
+            }
+        });
+    }
+
+    // --- AUTOSALVAMENTO: LOGÍSTICA (CEP) ---
+    const elCep = document.getElementById('conf-store-cep');
+    const elDist = document.getElementById('conf-max-dist');
+
+    // Usa 'blur' (quando clica fora do campo) para não salvar enquanto digita cada letra
+    if (elCep) elCep.addEventListener('blur', () => autoSaveSettings('logistics'));
+    if (elDist) elDist.addEventListener('blur', () => autoSaveSettings('logistics'));
+
+    // --- AUTOSALVAMENTO: PARCELAMENTO ---
+    const elCardActive = document.getElementById('conf-card-active');
+    const elCardMax = document.getElementById('conf-card-max');
+    const elCardFree = document.getElementById('conf-card-free');
+    const elCardRate = document.getElementById('conf-card-rate');
+
+    // Para o Checkbox, usamos 'change' (salva assim que clica)
+    if (elCardActive) {
+        elCardActive.addEventListener('change', (e) => {
+            // Controle visual da opacidade
+            const details = document.getElementById('conf-card-details');
+            if (details) {
+                if (e.target.checked) details.classList.remove('opacity-50', 'pointer-events-none');
+                else details.classList.add('opacity-50', 'pointer-events-none');
+            }
+            // Chama o salvamento automático
+            autoSaveSettings('installments');
+        });
+    }
+
+    // Para os outros campos de parcelamento, usamos 'change' ou 'blur'
+    if (elCardMax) elCardMax.addEventListener('change', () => autoSaveSettings('installments'));
+    if (elCardFree) elCardFree.addEventListener('change', () => autoSaveSettings('installments'));
+    if (elCardRate) elCardRate.addEventListener('blur', () => autoSaveSettings('installments'));
 }
 
 function updateCardStyles(isLight) {
@@ -1987,37 +2056,6 @@ window.editProduct = (id) => {
     getEl('prod-cost').value = p.cost || '';
     getEl('prod-sizes').value = p.sizes ? p.sizes.join(',') : '';
 
-    // CARREGAR DADOS DE PAGAMENTO
-    const pay = p.paymentOptions || { pix: {}, card: {} };
-
-    // Pix
-    const checkPix = getEl('prod-pix-active');
-    const inputPixVal = getEl('prod-pix-val');
-    const inputPixType = getEl('prod-pix-type');
-
-    if (checkPix) {
-        checkPix.checked = pay.pix.active || false;
-        checkPix.dispatchEvent(new Event('change')); // Força atualização visual
-    }
-    if (inputPixVal) inputPixVal.value = pay.pix.val || '';
-
-    // Configura botões de tipo (% ou R$)
-    if (pay.pix.type === 'fixed') {
-        if (getEl('btn-pix-fixed')) getEl('btn-pix-fixed').click();
-    } else {
-        if (getEl('btn-pix-percent')) getEl('btn-pix-percent').click();
-    }
-
-    // Cartão
-    const checkCard = getEl('prod-card-active');
-    const inputCardInst = getEl('prod-card-installments');
-
-    if (checkCard) {
-        checkCard.checked = pay.card.active || false;
-        checkCard.dispatchEvent(new Event('change'));
-    }
-    if (inputCardInst) inputCardInst.value = pay.card.installments || '';
-
     // CARREGA IMAGENS EXISTENTES NO STATE TEMPORÁRIO
     state.tempImages = p.images ? [...p.images] : [];
     renderImagePreviews();
@@ -2027,7 +2065,39 @@ window.editProduct = (id) => {
 
     if (els.productFormModal) els.productFormModal.classList.remove('hidden');
 
+    // --- CORREÇÃO: CARREGAMENTO DO PIX ---
+    const pixOptions = (p.paymentOptions && p.paymentOptions.pix) ? p.paymentOptions.pix : { active: false, val: 0, type: 'percent' };
 
+    const checkPix = getEl('prod-pix-active');
+    const inputPixVal = getEl('prod-pix-val');
+    const inputPixType = getEl('prod-pix-type');
+    const settingsPix = getEl('pix-settings');
+
+    if (checkPix) {
+        checkPix.checked = pixOptions.active;
+        // Ativa visualmente a área se estiver marcado
+        if (pixOptions.active) settingsPix.classList.remove('opacity-50', 'pointer-events-none');
+        else settingsPix.classList.add('opacity-50', 'pointer-events-none');
+    }
+
+    if (inputPixVal) inputPixVal.value = pixOptions.val;
+    if (inputPixType) inputPixType.value = pixOptions.type;
+
+    // Atualiza visual dos botões % / R$
+    const btnPercent = getEl('btn-pix-percent');
+    const btnFixed = getEl('btn-pix-fixed');
+    if (btnPercent && btnFixed) {
+        if (pixOptions.type === 'fixed') {
+            btnFixed.className = "px-3 py-1 bg-green-600 text-white text-xs font-bold transition";
+            btnPercent.className = "px-3 py-1 bg-black text-gray-400 text-xs font-bold hover:text-white transition";
+        } else {
+            btnPercent.className = "px-3 py-1 bg-green-600 text-white text-xs font-bold transition";
+            btnFixed.className = "px-3 py-1 bg-black text-gray-400 text-xs font-bold hover:text-white transition";
+        }
+    }
+
+    // Exibe Modal
+    if (els.productFormModal) els.productFormModal.classList.remove('hidden');
 };
 
 window.deleteCoupon = async (id) => {
@@ -2297,9 +2367,17 @@ function loadStoreProfile() {
     onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
             state.storeProfile = docSnap.data();
+        } else {
+            // Define padrão se não existir
+            state.storeProfile = { installments: { active: false } };
         }
-        renderStoreProfile(); // Atualiza a Sidebar
-        fillProfileForm();    // Preenche o form do Admin se estiver aberto
+
+        renderStoreProfile(); // Atualiza Sidebar
+        fillProfileForm();    // Atualiza Inputs do Admin
+
+        // --- ADIÇÃO CRÍTICA: ---
+        // Força a vitrine a se redesenhar com as novas regras de parcelamento
+        renderCatalog(state.products);
     });
 }
 
@@ -2346,8 +2424,12 @@ function renderStoreProfile() {
     }
 }
 
+// Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
-    const p = state.storeProfile;
+    // Garante que existe um objeto, mesmo vazio
+    const p = state.storeProfile || {};
+
+    // Preenche campos de texto básicos
     if (els.confStoreName) els.confStoreName.value = p.name || '';
     if (els.confStoreLogo) els.confStoreLogo.value = p.logo || '';
     if (els.confStoreWpp) els.confStoreWpp.value = p.whatsapp || '';
@@ -2355,57 +2437,145 @@ function fillProfileForm() {
     if (els.confStoreFace) els.confStoreFace.value = p.facebook || '';
     if (els.confStoreAddress) els.confStoreAddress.value = p.address || '';
     if (els.confStoreDesc) els.confStoreDesc.value = p.description || '';
+
+    // CORREÇÃO DO CEP (Preencher o input)
     if (els.confStoreCep) els.confStoreCep.value = p.cep || '';
     if (els.confMaxDist) els.confMaxDist.value = p.maxDistance || '';
 
-    // Parcelamento
-    const inst = p.installments || { active: false, max: 12, freeUntil: 4, rate: 4.0 };
+    // CORREÇÃO DO PARCELAMENTO
+    // Se não tiver dados salvos ainda, cria um padrão
+    const inst = p.installments || { active: false, max: 12, freeUntil: 3, rate: 4.0 };
+
     if (els.confCardActive) {
-        els.confCardActive.checked = inst.active;
-        toggleCardConfig(inst.active);
+        // Marca ou desmarca o checkbox visualmente
+        els.confCardActive.checked = (inst.active === true);
+
+        // Libera ou bloqueia a opacidade da área de detalhes
+        if (els.confCardDetails) {
+            if (inst.active) {
+                els.confCardDetails.classList.remove('opacity-50', 'pointer-events-none');
+            } else {
+                els.confCardDetails.classList.add('opacity-50', 'pointer-events-none');
+            }
+        }
     }
+
     if (els.confCardMax) els.confCardMax.value = inst.max;
     if (els.confCardFree) els.confCardFree.value = inst.freeUntil;
     if (els.confCardRate) els.confCardRate.value = inst.rate;
 }
 
+// Função para salvar no Firebase
 async function saveStoreProfile() {
+    // Helper para pegar valor de texto com segurança
+    const getVal = (el) => el ? el.value.trim() : '';
+
+    // Helper ESPECÍFICO para Checkbox (O segredo está aqui)
+    const getCheck = (el) => el ? el.checked : false;
+
+    // Monta o objeto com os dados
     const data = {
-        name: els.confStoreName.value.trim(),
-        logo: els.confStoreLogo.value.trim(),
-        whatsapp: els.confStoreWpp.value.trim().replace(/\D/g, ''), // Salva só números
-        instagram: els.confStoreInsta.value.trim(),
-        facebook: els.confStoreFace.value.trim(),
-        address: els.confStoreAddress.value.trim(),
-        description: els.confStoreDesc.value.trim(),
+        name: getVal(els.confStoreName),
+        logo: getVal(els.confStoreLogo),
+        whatsapp: getVal(els.confStoreWpp).replace(/\D/g, ''),
+        instagram: getVal(els.confStoreInsta),
+        facebook: getVal(els.confStoreFace),
+        address: getVal(els.confStoreAddress),
+        description: getVal(els.confStoreDesc),
 
-        // CORREÇÃO: Garante que os nomes batam com o state
-        cep: els.confStoreCep.value.trim().replace(/\D/g, ''),
-        maxDistance: parseFloat(els.confMaxDist.value) || 0,
+        // CORREÇÃO DO CEP: Salvando string limpa
+        cep: getVal(els.confStoreCep).replace(/\D/g, ''),
+        maxDistance: parseFloat(getVal(els.confMaxDist)) || 0,
 
-        // Novo objeto de parcelamento
+        // CORREÇÃO DO PARCELAMENTO: Criando o objeto installments corretamente
         installments: {
-            active: els.confCardActive.checked,
-            max: parseInt(els.confCardMax.value) || 12,
-            freeUntil: parseInt(els.confCardFree.value) || 4,
-            rate: parseFloat(els.confCardRate.value) || 0
+            active: getCheck(els.confCardActive), // <--- AQUI ESTAVA O ERRO (Usar checked)
+            max: parseInt(getVal(els.confCardMax)) || 12,
+            freeUntil: parseInt(getVal(els.confCardFree)) || 3,
+            rate: parseFloat(getVal(els.confCardRate).replace(',', '.')) || 0
         }
     };
 
     try {
         await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), data);
-        showToast('Perfil da loja atualizado!', 'success');
+
+        // Atualiza a memória local imediatamente
+        state.storeProfile = data;
+
+        // Atualiza a vitrine para mostrar/esconder o parcelamento nos cards
+        renderCatalog(state.products);
+
+        showToast('Perfil salvo com sucesso!', 'success');
     } catch (error) {
         console.error(error);
-        showToast('Erro ao salvar perfil.', 'error');
+        showToast('Erro ao salvar: ' + error.message, 'error');
+    }
+}
+
+// --- FUNÇÃO DE AUTOSALVAMENTO (LOGÍSTICA E PARCELAMENTO) ---
+async function autoSaveSettings(type) {
+    console.log(`Autosalvando: ${type}...`);
+
+    // Referência ao documento
+    const docRef = doc(db, `sites/${state.siteId}/settings`, 'profile');
+
+    let dataToUpdate = {};
+    let message = '';
+
+    if (type === 'logistics') {
+        // Pega CEP e Distância
+        const cep = document.getElementById('conf-store-cep').value.replace(/\D/g, '');
+        const dist = parseFloat(document.getElementById('conf-max-dist').value) || 0;
+
+        dataToUpdate = {
+            cep: cep,
+            maxDistance: dist
+        };
+        message = 'CEP/Logística salvo!';
+    }
+    else if (type === 'installments') {
+        // Pega toda a configuração de parcelamento
+        const active = document.getElementById('conf-card-active').checked;
+        const max = parseInt(document.getElementById('conf-card-max').value) || 12;
+        const free = parseInt(document.getElementById('conf-card-free').value) || 3;
+        const rate = parseFloat(document.getElementById('conf-card-rate').value.replace(',', '.')) || 0;
+
+        // Reconstrói o objeto installments completo para salvar
+        dataToUpdate = {
+            installments: {
+                active: active,
+                max: max,
+                freeUntil: free,
+                rate: rate
+            }
+        };
+        message = active ? 'Parcelamento ATIVADO e salvo!' : 'Parcelamento DESATIVADO.';
+    }
+
+    try {
+        // Usa setDoc com { merge: true } para atualizar só o que mudou sem apagar o resto (Nome, Logo, etc)
+        await setDoc(docRef, dataToUpdate, { merge: true });
+
+        // Atualiza estado local
+        if (state.storeProfile) {
+            state.storeProfile = { ...state.storeProfile, ...dataToUpdate };
+        }
+
+        // Atualiza a vitrine imediatamente (para mostrar/esconder parcelamento nos cards)
+        renderCatalog(state.products);
+
+        showToast(message, 'success');
+
+    } catch (error) {
+        console.error("Erro no autosave:", error);
+        showToast('Erro ao salvar alteração.', 'error');
     }
 }
 
 // =================================================================
-// 11. CHECKOUT, GEOLOCALIZAÇÃO E PAGAMENTO
+// 11. CHECKOUT, GEOLOCALIZAÇÃO E PAGAMENTO (NOVO)
 // =================================================================
 
-// Variáveis temporárias do checkout
 let checkoutState = {
     address: null,
     distance: 0,
@@ -2413,23 +2583,20 @@ let checkoutState = {
 };
 
 window.openCheckoutModal = () => {
-    if (state.cart.length === 0) return alert("Carrinho vazio!");
-
-    // Reseta o modal
+    // Reseta estado visual
     getEl('checkout-cep').value = '';
     getEl('checkout-number').value = '';
     getEl('checkout-comp').value = '';
     els.addressDetails.classList.add('hidden');
     els.deliveryError.classList.add('hidden');
-    els.paymentSection.classList.add('hidden');
-    els.paymentSection.classList.remove('opacity-100', 'pointer-events-auto');
+    els.paymentSection.classList.add('hidden'); // Começa oculto até validar CEP
     els.paymentSection.classList.add('opacity-50', 'pointer-events-none');
     els.btnFinishOrder.disabled = true;
 
-    // Seleciona WhatsApp por padrão e reseta total
+    // Reseta opção de pagamento para WhatsApp
     const radios = document.getElementsByName('payment-method');
     if (radios[0]) radios[0].checked = true;
-    updateCheckoutTotal();
+    handlePaymentSelection('whatsapp');
 
     els.checkoutModal.classList.remove('hidden');
     els.checkoutModal.classList.add('flex');
@@ -2440,8 +2607,7 @@ window.closeCheckoutModal = () => {
     els.checkoutModal.classList.remove('flex');
 };
 
-// --- BUSCA DE CEP E DISTÂNCIA ---
-
+// --- LÓGICA DE CEP E DISTÂNCIA ---
 window.handleCheckoutCep = async () => {
     const cep = getEl('checkout-cep').value.replace(/\D/g, '');
     if (cep.length !== 8) return;
@@ -2452,10 +2618,9 @@ window.handleCheckoutCep = async () => {
     els.addressDetails.classList.add('hidden');
 
     try {
-        // 1. Busca dados do endereço (Rua, Bairro...)
+        // 1. Busca Endereço (ViaCEP)
         const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
         const data = await resp.json();
-
         if (data.erro) throw new Error("CEP não encontrado.");
 
         checkoutState.address = data;
@@ -2463,68 +2628,70 @@ window.handleCheckoutCep = async () => {
         els.addressDetails.classList.remove('hidden');
         getEl('checkout-number').focus();
 
-        // 2. Validação de Distância (Se configurado na loja)
+        // 2. Validação de Distância (Se configurado)
         const storeCep = state.storeProfile.cep;
         const maxDist = state.storeProfile.maxDistance;
 
         if (storeCep && maxDist > 0) {
-            // Usa API Nominatim (OpenStreetMap) para pegar Lat/Lon
-            // Nota: Em produção, o ideal é Google Maps API, mas é paga. Nominatim é free mas tem limites.
             const dist = await calculateDistanceByCEP(storeCep, cep);
-
             checkoutState.distance = dist;
 
             if (dist > maxDist) {
                 checkoutState.isValidDelivery = false;
                 els.deliveryError.classList.remove('hidden');
-                els.deliveryError.querySelector('p').innerText = `Distância: ${dist.toFixed(1)}km (Máximo: ${maxDist}km)`;
-                // Esconde pagamento
-                els.paymentSection.classList.add('opacity-50', 'pointer-events-none');
+                els.deliveryError.querySelector('p').innerText = `Distância: ${dist.toFixed(1)}km (Máximo: ${maxDist}km).`;
+
+                // Bloqueia pagamento
+                els.paymentSection.classList.add('hidden');
                 els.btnFinishOrder.disabled = true;
             } else {
                 checkoutState.isValidDelivery = true;
-                showPaymentSection();
+                enablePaymentSection();
             }
         } else {
-            // Se loja não configurou distância, libera sempre
+            // Sem restrição configurada
             checkoutState.isValidDelivery = true;
-            showPaymentSection();
+            enablePaymentSection();
         }
 
     } catch (err) {
-        alert("Erro no CEP: " + err.message);
+        alert("Erro: " + err.message);
     } finally {
         loading.classList.add('hidden');
     }
 };
 
-function showPaymentSection() {
+function enablePaymentSection() {
     els.paymentSection.classList.remove('hidden');
-    // Pequeno delay para animação
     setTimeout(() => {
         els.paymentSection.classList.remove('opacity-50', 'pointer-events-none');
-        els.paymentSection.classList.add('opacity-100', 'pointer-events-auto');
-        els.btnFinishOrder.disabled = false;
         updateCheckoutTotal();
+        els.btnFinishOrder.disabled = false;
     }, 100);
 }
 
-// Função Auxiliar: Calcula distância entre dois CEPs usando Nominatim
+// API OpenStreetMap (Nominatim) para Lat/Lon
 async function calculateDistanceByCEP(cepOrigin, cepDest) {
     const getCoords = async (c) => {
+        // Delay aleatório para evitar rate limit do Nominatim gratuito
+        await new Promise(r => setTimeout(r, Math.random() * 500));
         const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&country=Brazil&postalcode=${c}`);
         const d = await r.json();
         if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
-        throw new Error("Coordenadas não encontradas para o CEP " + c);
+        throw new Error("Não foi possível geolocalizar o CEP " + c);
     };
 
-    const [coords1, coords2] = await Promise.all([getCoords(cepOrigin), getCoords(cepDest)]);
-    return getDistanceFromLatLonInKm(coords1.lat, coords1.lon, coords2.lat, coords2.lon);
+    try {
+        const [c1, c2] = await Promise.all([getCoords(cepOrigin), getCoords(cepDest)]);
+        return getDistanceFromLatLonInKm(c1.lat, c1.lon, c2.lat, c2.lon);
+    } catch (e) {
+        console.error(e);
+        return 0; // Se falhar API, libera (fallback)
+    }
 }
 
-// Fórmula de Haversine (Matemática para calcular km entre coords)
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Raio da terra em km
+    const R = 6371; // Raio da terra
     const dLat = deg2rad(lat2 - lat1);
     const dLon = deg2rad(lon2 - lon1);
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
@@ -2533,142 +2700,17 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
 }
 function deg2rad(deg) { return deg * (Math.PI / 180); }
 
+// --- LÓGICA DE PAGAMENTO ---
 
-// --- CÁLCULO DE TOTAIS E PAGAMENTO ---
-
-window.updateCheckoutTotal = () => {
-    const method = document.querySelector('input[name="payment-method"]:checked').value;
-
-    // Calcula subtotal normal (com cupom se tiver)
-    let cartTotal = 0;
-
-    // 1. Calcula base
-    state.cart.forEach(item => { cartTotal += item.price * item.qty; });
-
-    // 2. Aplica Cupom Global
-    let discountCoupon = 0;
-    if (state.currentCoupon) {
-        if (state.currentCoupon.type === 'percent') discountCoupon = cartTotal * (state.currentCoupon.val / 100);
-        else discountCoupon = state.currentCoupon.val;
-    }
-
-    let finalTotal = Math.max(0, cartTotal - discountCoupon);
-    let pixDiscountTotal = 0;
-
-    // 3. SE FOR PIX: Recalcula item a item procurando descontos específicos
-    if (method === 'pix') {
-        let totalWithPixDiscount = 0;
-
-        state.cart.forEach(item => {
-            const product = state.products.find(p => p.id === item.id);
-            let itemPrice = item.price; // Preço base (já é o promo se tiver)
-
-            // Verifica se o produto tem config de Pix
-            if (product && product.paymentOptions && product.paymentOptions.pix && product.paymentOptions.pix.active) {
-                const pixConfig = product.paymentOptions.pix;
-                let discountVal = 0;
-
-                if (pixConfig.type === 'percent') {
-                    discountVal = itemPrice * (pixConfig.val / 100);
-                } else {
-                    discountVal = pixConfig.val;
-                }
-                itemPrice = Math.max(0, itemPrice - discountVal);
-            }
-
-            totalWithPixDiscount += itemPrice * item.qty;
-        });
-
-        // Aplica o cupom global sobre o novo total com desconto pix
-        let discountCouponOnPix = 0;
-        if (state.currentCoupon) {
-            if (state.currentCoupon.type === 'percent') discountCouponOnPix = totalWithPixDiscount * (state.currentCoupon.val / 100);
-            else discountCouponOnPix = state.currentCoupon.val;
-        }
-
-        finalTotal = Math.max(0, totalWithPixDiscount - discountCouponOnPix);
-
-        // Atualiza label visual
-        const diff = (Math.max(0, cartTotal - discountCoupon) - finalTotal);
-        if (diff > 0) {
-            getEl('label-pix-discount').innerText = `Economia de ${formatCurrency(diff)}`;
-        } else {
-            getEl('label-pix-discount').innerText = `Sem descontos extras`;
-        }
-    } else {
-        getEl('label-pix-discount').innerText = `Selecione para ver descontos`;
-    }
-
-    els.checkoutTotalDisplay.innerText = formatCurrency(finalTotal);
-    els.btnFinishOrder.innerText = method === 'whatsapp' ? 'Enviar Pedido no Zap' : 'Ir para Pagamento';
-};
-
-window.finalizeOrder = async () => {
-    const cep = getEl('checkout-cep').value;
-    const num = getEl('checkout-number').value;
-    const comp = getEl('checkout-comp').value;
-    const method = document.querySelector('input[name="payment-method"]:checked').value;
-    const totalText = els.checkoutTotalDisplay.innerText;
-
-    if (!num) return alert("Por favor, informe o número do endereço.");
-
-    // Monta texto do endereço
-    const addressStr = `${checkoutState.address.logradouro}, ${num} ${comp ? '(' + comp + ')' : ''} - ${checkoutState.address.bairro}, ${checkoutState.address.localidade}/${checkoutState.address.uf} (CEP: ${cep})`;
-
-    // Salva venda no Firebase
-    // Nota: Em produção real, calcularia valores no backend por segurança
-    const totalVal = parseFloat(totalText.replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
-
-    const orderData = {
-        items: state.cart,
-        total: totalVal,
-        cupom: state.currentCoupon ? state.currentCoupon.code : null,
-        date: new Date().toISOString(),
-        status: 'Pendente',
-        paymentMethod: method,
-        address: addressStr,
-        code: Math.floor(10000 + Math.random() * 90000)
-    };
-
-    try { await addDoc(collection(db, `sites/${state.siteId}/sales`), orderData); } catch (e) { console.log(e); }
-
-    // GERA MENSAGEM WHATSAPP
-    let msg = `*NOVO PEDIDO #${orderData.code}*\n`;
-    msg += `--------------------------------\n`;
-    state.cart.forEach(i => { msg += `▪ ${i.qty}x ${i.name} (${i.size})\n`; });
-    msg += `--------------------------------\n`;
-    msg += `*Endereço de Entrega:*\n${addressStr}\n\n`;
-    msg += `*Método de Pagamento:* ${method.toUpperCase()}\n`;
-    msg += `*TOTAL FINAL: ${totalText}*\n`;
-
-    if (method === 'pix') {
-        msg += `\n💡 *Pagar com Pix:* Solicito a chave Pix para pagamento com desconto aplicado.`;
-    } else if (method === 'card') {
-        msg += `\n💳 *Pagar com Cartão:* Solicito link de pagamento do Mercado Pago.`;
-    }
-
-    const sellerPhone = state.storeProfile.whatsapp || "5511999999999";
-    window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-
-    // Limpa carrinho e fecha
-    state.cart = []; state.currentCoupon = null;
-    saveCart();
-    closeCheckoutModal();
-    getEl('cart-modal').classList.add('hidden');
-    showToast('Pedido realizado! Verifique o WhatsApp.');
-};
-
-// Função chamada ao clicar nos radio buttons de pagamento
 window.handlePaymentSelection = (method) => {
-    // Esconde área de parcelas se não for cartão
+    // Exibe ou oculta área de parcelas
     if (method === 'card') {
         const instConfig = state.storeProfile.installments || { active: false };
         if (instConfig.active) {
             els.installmentsArea.classList.remove('hidden');
-            populateInstallmentsSelect(); // Preenche as opções
+            populateInstallmentsSelect();
         } else {
-            // Se parcelamento estiver desativado na loja, esconde
-             els.installmentsArea.classList.add('hidden');
+            els.installmentsArea.classList.add('hidden');
         }
     } else {
         els.installmentsArea.classList.add('hidden');
@@ -2679,12 +2721,12 @@ window.handlePaymentSelection = (method) => {
 function populateInstallmentsSelect() {
     const instConfig = state.storeProfile.installments;
     const select = els.checkoutInstallments;
-    select.innerHTML = ''; // Limpa
+    select.innerHTML = '';
 
-    // Pega o valor base (sem desconto pix)
+    // 1. Calcula Valor Base (Produtos * Qtd - Cupom Global)
     let cartTotal = 0;
     state.cart.forEach(item => { cartTotal += item.price * item.qty; });
-    // Aplica cupom global se não for pix
+
     let discountCoupon = 0;
     if (state.currentCoupon) {
         if (state.currentCoupon.type === 'percent') discountCoupon = cartTotal * (state.currentCoupon.val / 100);
@@ -2692,181 +2734,171 @@ function populateInstallmentsSelect() {
     }
     const baseValue = Math.max(0, cartTotal - discountCoupon);
 
-    // Gera opções
+    // 2. Gera Opções
     for (let i = 1; i <= instConfig.max; i++) {
         let label = '';
         let finalVal = baseValue;
-        
-        // Lógica de Juros
+
+        // Juros Composto: M = C * (1 + i)^n
+        // Taxa deve ser decimal (4% = 0.04)
         if (i >= instConfig.freeUntil) {
-            // Juros Simples para facilitar (ou Composto se preferir: baseValue * Math.pow(1 + rate/100, i))
-            // Usando Simples aqui conforme padrão comum de mercado pequeno:
-            // Valor + (Taxa * Parcelas)
-            const rateDecimal = instConfig.rate / 100;
-            // Cálculo de coeficiente de financiamento (Price) é mais correto para cartão
-            // CF = rate / (1 - (1 + rate)^-n)
-            // Mas vamos usar um multiplicador simples se quiser: Valor * (1 + rate * i)
-            
-            // Vamos usar Juros Compostos (Padrão Cartão)
-            // M = C * (1 + i)^n
-            finalVal = baseValue * Math.pow(1 + rateDecimal, i);
-            
-            label = `${i}x de ${formatCurrency(finalVal / i)} (Total: ${formatCurrency(finalVal)})`;
+            const rate = instConfig.rate / 100;
+            finalVal = baseValue * Math.pow((1 + rate), i);
+            const parcVal = finalVal / i;
+            label = `${i}x de ${formatCurrency(parcVal)} (Total: ${formatCurrency(finalVal)})`;
         } else {
             label = `${i}x de ${formatCurrency(baseValue / i)} Sem Juros`;
         }
-        
+
         const option = document.createElement('option');
         option.value = i;
         option.text = label;
-        // Guarda o valor total dessa opção num atributo para facilitar
-        option.dataset.total = finalVal;
+        option.dataset.total = finalVal; // Guarda o total calculado
         select.appendChild(option);
     }
 }
 
-// Atualize o updateCheckoutTotal para ler o select do cartão
 window.updateCheckoutTotal = () => {
-    // 1. Identifica o método de pagamento selecionado
     const methodEl = document.querySelector('input[name="payment-method"]:checked');
     if (!methodEl) return;
     const method = methodEl.value;
 
-    // 2. Calcula o Total Base do Carrinho (Soma simples: Preço * Qtd)
     let cartTotal = 0;
     state.cart.forEach(item => { cartTotal += item.price * item.qty; });
 
-    // 3. Calcula desconto do Cupom Global (se houver)
     let discountCoupon = 0;
     if (state.currentCoupon) {
-        if (state.currentCoupon.type === 'percent') {
-            discountCoupon = cartTotal * (state.currentCoupon.val / 100);
-        } else {
-            discountCoupon = state.currentCoupon.val;
-        }
+        if (state.currentCoupon.type === 'percent') discountCoupon = cartTotal * (state.currentCoupon.val / 100);
+        else discountCoupon = state.currentCoupon.val;
     }
 
-    // Define o finalTotal inicial (Base - Cupom)
-    // Essa é a variável que estava faltando!
+    // Valor Inicial
     let finalTotal = Math.max(0, cartTotal - discountCoupon);
 
-    // --- LÓGICA ESPECÍFICA POR MÉTODO ---
+    // Reseta textos
+    if (els.labelPixDiscount) els.labelPixDiscount.innerText = '';
+    if (els.installmentObs) els.installmentObs.innerText = '';
 
+    // --- CASO PIX (Desconto por Produto) ---
     if (method === 'pix') {
-        // === MODO PIX ===
-        // Recalcula item a item procurando descontos de PIX cadastrados no produto
         let totalWithPixDiscount = 0;
-
         state.cart.forEach(item => {
             const product = state.products.find(p => p.id === item.id);
             let itemPrice = item.price;
 
-            // Verifica configuração de Pix do produto
+            // Verifica desconto específico
             if (product && product.paymentOptions && product.paymentOptions.pix && product.paymentOptions.pix.active) {
                 const pixConfig = product.paymentOptions.pix;
                 let discountVal = 0;
+                if (pixConfig.type === 'percent') discountVal = itemPrice * (pixConfig.val / 100);
+                else discountVal = pixConfig.val;
 
-                if (pixConfig.type === 'percent') {
-                    discountVal = itemPrice * (pixConfig.val / 100);
-                } else {
-                    discountVal = pixConfig.val;
-                }
                 itemPrice = Math.max(0, itemPrice - discountVal);
             }
             totalWithPixDiscount += itemPrice * item.qty;
         });
 
-        // Reaplica o cupom global sobre o novo total com desconto pix
-        let discountCouponOnPix = 0;
+        // Reaplica cupom sobre novo total
+        let discountOnPix = 0;
         if (state.currentCoupon) {
-            if (state.currentCoupon.type === 'percent') {
-                discountCouponOnPix = totalWithPixDiscount * (state.currentCoupon.val / 100);
-            } else {
-                discountCouponOnPix = state.currentCoupon.val;
-            }
+            if (state.currentCoupon.type === 'percent') discountOnPix = totalWithPixDiscount * (state.currentCoupon.val / 100);
+            else discountOnPix = state.currentCoupon.val;
         }
 
-        finalTotal = Math.max(0, totalWithPixDiscount - discountCouponOnPix);
+        const oldTotal = finalTotal;
+        finalTotal = Math.max(0, totalWithPixDiscount - discountOnPix);
 
-        // Atualiza label visual de economia
-        const diff = (Math.max(0, cartTotal - discountCoupon) - finalTotal);
-        if (els.labelPixDiscount) {
-            if (diff > 0) els.labelPixDiscount.innerText = `Economia de ${formatCurrency(diff)}`;
-            else els.labelPixDiscount.innerText = `Sem descontos extras`;
+        const saved = oldTotal - finalTotal;
+        if (saved > 0 && els.labelPixDiscount) {
+            els.labelPixDiscount.innerText = `Economia de ${formatCurrency(saved)}`;
         }
-
-    } else if (method === 'card') {
-        // === MODO CARTÃO ===
-        // Pega o valor total diretamente da opção selecionada no <select>
-        // (Lembre-se: calculamos os juros na função populateInstallmentsSelect e salvamos no dataset)
+    }
+    // --- CASO CARTÃO (Juros) ---
+    else if (method === 'card') {
         const select = els.checkoutInstallments;
-        
         if (select && select.options.length > 0) {
             const selectedOption = select.options[select.selectedIndex];
-            
             if (selectedOption && selectedOption.dataset.total) {
                 finalTotal = parseFloat(selectedOption.dataset.total);
             }
 
-            // Exibe observação de Juros se necessário
+            // Texto de Obs
             const instConfig = state.storeProfile.installments;
             const parcelas = parseInt(select.value);
-            
             if (instConfig && parcelas >= instConfig.freeUntil) {
                 if (els.installmentObs) els.installmentObs.innerText = `* Inclui juros de ${instConfig.rate}% a.m.`;
-            } else {
-                if (els.installmentObs) els.installmentObs.innerText = '';
             }
         }
-        
-        // Limpa texto do pix
-        if (els.labelPixDiscount) els.labelPixDiscount.innerText = '';
-
-    } else {
-        // === MODO WHATSAPP (Padrão) ===
-        // Apenas limpa as observações extras
-        if (els.labelPixDiscount) els.labelPixDiscount.innerText = '';
-        if (els.installmentObs) els.installmentObs.innerText = '';
     }
 
-    // 4. Atualiza o Valor na Tela
-    if (els.checkoutTotalDisplay) {
-        els.checkoutTotalDisplay.innerText = formatCurrency(finalTotal);
-    }
+    // Atualiza Display
+    els.checkoutTotalDisplay.innerText = formatCurrency(finalTotal);
 
-    // 5. Atualiza o Texto do Botão Final
-    if (els.btnFinishOrder) {
-        if (method === 'whatsapp') els.btnFinishOrder.innerText = 'Enviar Pedido no Zap';
-        else if (method === 'pix') els.btnFinishOrder.innerText = 'Gerar Chave Pix';
-        else els.btnFinishOrder.innerText = 'Gerar Link Cartão';
-    }
+    // Atualiza Botão
+    if (method === 'whatsapp') els.btnFinishOrder.innerText = 'Enviar Pedido no Zap';
+    else if (method === 'pix') els.btnFinishOrder.innerText = 'Gerar Chave Pix';
+    else els.btnFinishOrder.innerText = 'Gerar Link Cartão';
 };
 
-// Atualize o finalizeOrder para enviar o detalhe das parcelas
 window.finalizeOrder = async () => {
-    // ... (validações anteriores) ...
-    const method = document.querySelector('input[name="payment-method"]:checked').value;
-    
-    // Captura info extra do cartão
+    const cep = getEl('checkout-cep').value;
+    const num = getEl('checkout-number').value;
+    const comp = getEl('checkout-comp').value;
+
+    if (!num) return alert("Informe o número do endereço.");
+
+    const methodEl = document.querySelector('input[name="payment-method"]:checked');
+    const method = methodEl ? methodEl.value : 'whatsapp';
+    const totalText = els.checkoutTotalDisplay.innerText;
+
+    // Monta Endereço
+    const addr = checkoutState.address;
+    const addressStr = `${addr.logradouro}, ${num} ${comp ? '(' + comp + ')' : ''} - ${addr.bairro}, ${addr.localidade}/${addr.uf} (CEP: ${cep})`;
+
+    // Detalhes Pagamento
     let paymentDetails = method.toUpperCase();
     if (method === 'card') {
         const select = els.checkoutInstallments;
-        const parcelas = select.value;
-        const totalComJuros = els.checkoutTotalDisplay.innerText;
-        paymentDetails = `CARTÃO EM ${parcelas}x (${totalComJuros})`;
+        const txt = select.options[select.selectedIndex].text;
+        paymentDetails = `CARTÃO: ${txt}`;
+    } else if (method === 'pix') {
+        paymentDetails = `PIX (Valor com desconto)`;
     }
 
-    // ... (Salva no Firebase igual antes, mas passa paymentDetails no campo paymentMethod se quiser) ...
+    // Salva Firebase
+    const orderData = {
+        items: state.cart,
+        total: parseFloat(totalText.replace('R$', '').replace(/\./g, '').replace(',', '.').trim()),
+        cupom: state.currentCoupon ? state.currentCoupon.code : null,
+        date: new Date().toISOString(),
+        status: 'Pendente',
+        paymentMethod: method,
+        address: addressStr,
+        paymentDetails: paymentDetails,
+        code: Math.floor(10000 + Math.random() * 90000)
+    };
+
+    try { await addDoc(collection(db, `sites/${state.siteId}/sales`), orderData); } catch (e) { console.log(e); }
 
     // Mensagem WhatsApp
-    let msg = `*NOVO PEDIDO #${Math.floor(Math.random()*90000)}*\n`;
-    // ...
-    msg += `*Pagamento:* ${paymentDetails}\n`;
-    // ...
-    
-    // Redireciona
+    let msg = `*NOVO PEDIDO #${orderData.code}*\n`;
+    msg += `--------------------------------\n`;
+    state.cart.forEach(i => { msg += `▪ ${i.qty}x ${i.name} (${i.size})\n`; });
+    msg += `--------------------------------\n`;
+    msg += `📍 *Endereço:* \n${addressStr}\n\n`;
+    msg += `💳 *Pagamento:* ${paymentDetails}\n`;
+    msg += `💰 *TOTAL FINAL: ${totalText}*\n`;
+
+    if (method === 'card') msg += `\n(Solicito link de pagamento)`;
+    if (method === 'pix') msg += `\n(Solicito chave Pix)`;
+
     const sellerPhone = state.storeProfile.whatsapp || "5511999999999";
     window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-    
-    // ... (Limpeza final) ...
+
+    // Limpa tudo
+    state.cart = [];
+    state.currentCoupon = null;
+    saveCart();
+    closeCheckoutModal();
+    showToast('Pedido realizado!');
 };
