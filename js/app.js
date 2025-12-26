@@ -192,37 +192,47 @@ const state = {
     products: [],
     categories: [],
     coupons: [],
-    orders: [],
+    orders: [], // Vendas do admin
+
+    // Carrinho e Usuário
     cart: JSON.parse(localStorage.getItem('cart')) || [],
     user: null,
+
+    // Histórico de Pedidos do Cliente (Chave Corrigida)
+    myOrders: JSON.parse(localStorage.getItem('site_orders_history')) || [],
+    activeOrder: null, // Mantido apenas para compatibilidade de detalhes
+
+    // Configurações e UI
     currentCoupon: null,
     isDarkMode: true,
-    editingCouponId: null,
-    focusedCouponIndex: -1, // -1 significa nenhum selecionado
-    tempImages: [], // Array temporário para imagens do formulário
-    currentImgIndex: 0,
+    tempImages: [],
     selectedProducts: new Set(),
-    focusedProductId: null,
-    globalSettings: { allowNoStock: false },
-    selectedCategoryParent: null,
-    dashDate: new Date(),
-    dashViewMode: 'month',
-    cardSelections: {},
-    // --- ESTADO DAS ESTATÍSTICAS ---
-    statsDate: new Date(),
-    statsViewMode: 'month', // 'day' ou 'month'
-    statsFilterType: 'all', // 'all' ou 'period'
-    siteStats: { visits: 0, shares: 0 },
 
+    // Perfil da Loja (Inicial)
     storeProfile: {
         name: 'Veste Manto',
         logo: '',
         whatsapp: '',
-        instagram: '',
-        facebook: '',
-        address: '',
-        description: 'Sua loja de camisas.'
-    }
+        description: '',
+        installments: { active: false },
+        deliveryConfig: { ownDelivery: false, cancelTimeMin: 5 }
+    },
+
+    // Variáveis de Dashboard/Stats
+    dashDate: new Date(),
+    dashViewMode: 'month',
+    statsDate: new Date(),
+    statsViewMode: 'month',
+    statsFilterType: 'all',
+    siteStats: { visits: 0, shares: 0 },
+
+    // UI Helpers
+    editingCouponId: null,
+    focusedCouponIndex: -1,
+    focusedProductId: null,
+    selectedCategoryParent: null,
+    globalSettings: { allowNoStock: false },
+    cardSelections: {}
 };
 
 const els = {
@@ -369,58 +379,63 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initApp() {
+    // 1. Carregamentos Iniciais (Mantenha apenas uma vez)
+    loadSiteStats();
+    incrementVisitsCounter();
+    
     loadSettings();
     loadCategories();
     loadProducts();
-    loadCoupons();
+    loadStoreProfile(); // <--- Importante
+    loadCoupons();      // <--- Faltava carregar cupons aqui no início
 
     updateCartUI();
-    updateDashboardUI();
+    // updateDashboardUI(); <--- Pode remover, pois o listener de loadAdminSales já vai chamar isso
 
-    // Inicia Carregamento de Estatísticas
-    loadSiteStats();
-    incrementVisitsCounter();
+    startBackgroundListeners(); // <--- Inicia o monitoramento em tempo real
 
-    loadSettings();
-    loadCategories();
-    // ...
-    loadStoreProfile(); // <--- ADICIONE ISSO
-
+    // 2. Tema
     if (localStorage.getItem('theme') === 'light') toggleTheme(false);
 
+    // 3. Auth Listener
     onAuthStateChanged(auth, (user) => {
         state.user = user;
         const btnText = user ? 'Painel' : 'Área Admin';
 
-        // --- BLOCO ALTERADO ---
-        // Atualiza o botão do rodapé mantendo o novo estilo (Negrito/Maiúsculo)
         if (els.menuBtnAdmin) {
             els.menuBtnAdmin.innerHTML = `
                 <i class="fas fa-user-shield text-yellow-500 group-hover:text-white transition"></i>
                 <span class="font-bold uppercase text-sm tracking-wide">${btnText}</span>
             `;
         }
-        // ----------------------
-
-        // Mantém compatibilidade caso o botão antigo do topo ainda exista no cache
+        
+        // Compatibilidade
         const btnLoginNav = getEl('btn-admin-login');
         if (btnLoginNav) btnLoginNav.innerText = btnText;
 
         if (user) {
             renderAdminProducts();
-            loadAdminSales();
+            loadAdminSales(); // Carrega vendas apenas se for admin
         } else {
             showView('catalog');
+            // Se não é admin, não precisamos carregar todas as vendas do site, economiza dados
         }
     });
 
-    // Atualiza a lista a cada 10 segundos para checar validade "ao vivo"
+    // 4. Timer de atualização de cupons (mantém)
     setInterval(() => {
-        // Só renderiza se estiver na aba de admin, para economizar recursos
         if (state.coupons.length > 0 && !getEl('view-admin').classList.contains('hidden')) {
             renderAdminCoupons();
         }
     }, 10000);
+
+    // 5. Verifica Pedidos Ativos (Motoquinha)
+    // Recupera do LocalStorage para mostrar a bolinha vermelha se tiver pedido pendente
+    const savedHistory = localStorage.getItem('site_orders_history');
+    if (savedHistory) {
+        state.myOrders = JSON.parse(savedHistory);
+    }
+    checkActiveOrders();
 }
 
 // =================================================================
@@ -727,7 +742,7 @@ function renderCatalog(products) {
         if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
             const pix = p.paymentOptions.pix;
             const valDisplay = pix.type === 'percent' ? `${pix.val}%` : `R$ ${pix.val}`;
-            pixHtml = `<p class="text-green-500 text-xs font-bold mt-1"><i class="brands fa-pix"></i> ${valDisplay} OFF no Pix</p>`;
+            pixHtml = `<p class="text-green-500 text-xs font-bold mt-1">${valDisplay} OFF no Pix</p>`;
         }
 
         // --- LÓGICA DO PARCELAMENTO (Global) ---
@@ -786,10 +801,6 @@ function renderCatalog(products) {
                     ${pixHtml}
                     ${installmentHtml}
                 </div>
-                
-                <button class="mt-3 w-full bg-gray-800 hover:bg-yellow-500 hover:text-black text-white py-2 rounded font-bold text-sm transition">
-                    VER DETALHES
-                </button>
             </div>
         `;
         els.grid.appendChild(card);
@@ -1068,49 +1079,147 @@ function filterAndRenderSales() {
 }
 
 function renderSalesList(orders) {
-    if (!els.ordersList) return;
-    els.ordersList.innerHTML = '';
-    els.ordersCount.innerText = orders.length;
-    const summary = orders.reduce((acc, o) => {
-        if (!acc[o.status]) acc[o.status] = { count: 0, total: 0 };
-        acc[o.status].count++;
-        acc[o.status].total += o.total;
-        return acc;
-    }, {});
-    if (els.ordersSummaryBar) {
-        els.ordersSummaryBar.innerHTML = '';
-        Object.keys(summary).forEach(status => {
-            let color = 'bg-gray-200 text-gray-800';
-            if (status === 'Confirmado') color = 'bg-green-200 text-green-900';
-            if (status === 'Cancelado') color = 'bg-red-200 text-red-900';
-            if (status === 'Pendente') color = 'bg-yellow-200 text-yellow-900';
-            els.ordersSummaryBar.innerHTML += `
-                <div class="${color} px-2 py-1 rounded shadow-sm border border-gray-300">
-                    ${summary[status].count} ${status} (${formatCurrency(summary[status].total)})
+    const listEl = document.getElementById('orders-list');
+    if (!listEl) return;
+
+    listEl.innerHTML = '';
+
+    // Ordena: Mais recentes primeiro
+    orders.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    if (orders.length === 0) {
+        listEl.innerHTML = '<div class="text-center py-8 text-gray-500"><i class="fas fa-inbox text-4xl mb-2 opacity-50"></i><p>Nenhum pedido encontrado.</p></div>';
+        return;
+    }
+
+    orders.forEach(o => {
+        // 1. Extração de Dados e Cores
+        let statusBadgeColor = 'text-yellow-500 border-yellow-500';
+        if (o.status === 'Aprovado' || o.status === 'Preparando pedido') statusBadgeColor = 'text-blue-400 border-blue-400';
+        if (o.status === 'Saiu para entrega') statusBadgeColor = 'text-purple-400 border-purple-400';
+        if (o.status === 'Entregue') statusBadgeColor = 'text-green-400 border-green-400';
+        if (o.status === 'Concluído') statusBadgeColor = 'text-gray-400 border-gray-400 bg-gray-800';
+        
+        // ALTERAÇÃO 1: Usa includes para pegar "Cancelado" e "Cancelado pelo Cliente"
+        if (o.status.includes('Cancelado')) statusBadgeColor = 'text-red-500 border-red-500';
+
+        // 2. Extrair Troco (Se houver)
+        let trocoHtml = '';
+        if (o.paymentMethod && o.paymentMethod.includes('Dinheiro') && o.paymentMethod.includes('Troco para:')) {
+            const match = o.paymentMethod.match(/Troco para:\s*(.+?)\)/);
+            const valorTroco = match ? match[1] : '';
+            if (valorTroco) {
+                trocoHtml = `<div class="text-right"><span class="text-white font-bold text-sm">Troco para:</span> <span class="bg-gray-700 text-white px-2 py-1 rounded text-xs ml-1">${valorTroco}</span></div>`;
+            }
+        }
+
+        // 3. HTML dos Itens
+        let itemsHtml = o.items.map(i => `
+            <div class="bg-gray-800/50 p-2 rounded mb-1 border border-gray-700 flex justify-between items-center">
+                <span class="text-gray-300 text-sm font-medium">${i.qty}x ${i.name} <span class="text-gray-500 text-xs">(${i.size})</span></span>
+                </div>
+        `).join('');
+
+        // 4. Lógica de Controles (ALTERADA AQUI)
+        let controlsHtml = '';
+
+        // CASO 1: CANCELADO (Qualquer tipo) -> NÃO TEM BOTÕES DE AÇÃO
+        if (o.status.includes('Cancelado')) {
+             controlsHtml = `
+                <div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700">
+                    <span class="bg-red-600 text-white px-4 py-2 rounded font-bold text-xs cursor-default">CANCELADO</span>
                 </div>
             `;
-        });
-    }
-    if (orders.length === 0) { els.ordersList.innerHTML = '<p class="text-gray-500 text-center py-4">Nenhum pedido encontrado.</p>'; return; }
-    orders.forEach(o => {
-        let statusColor = 'text-yellow-500'; if (o.status === 'Confirmado') statusColor = 'text-green-500'; if (o.status === 'Cancelado' || o.status === 'Reembolsado') statusColor = 'text-red-600';
-        let itemsHtml = o.items.map(i => `${i.qty}x ${i.name} (${i.size})`).join(', ');
+        } 
+        // CASO 2: CONCLUÍDO -> Tem botão de Estornar
+        else if (o.status === 'Concluído') {
+            controlsHtml = `
+                <div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700">
+                    <span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs cursor-default">FINALIZADO</span>
+                    <button onclick="adminRevertStatus('${o.id}')" class="border border-gray-500 text-gray-400 hover:text-white px-3 py-2 rounded text-xs transition">Estornar / Reabrir</button>
+                </div>
+            `;
+        } 
+        // CASO 3: ATIVO (Em andamento) -> Select + Botões
+        else {
+            controlsHtml = `
+                <div class="flex flex-col md:flex-row gap-4 justify-end items-center mt-4 border-t border-gray-700 pt-4">
+                    <div class="flex items-center gap-2">
+                        <label class="text-gray-500 text-xs uppercase font-bold">Status:</label>
+                        <select onchange="handleStatusChange(this, '${o.id}')" class="bg-gray-900 text-white text-xs border border-gray-600 rounded p-2 focus:border-yellow-500 outline-none">
+                            <option value="Aguardando aprovação" ${o.status === 'Aguardando aprovação' ? 'selected' : ''}>Aguardando aprovação</option>
+                            <option value="Aprovado" ${o.status === 'Aprovado' ? 'selected' : ''}>Aprovado</option>
+                            <option value="Preparando pedido" ${o.status === 'Preparando pedido' ? 'selected' : ''}>Preparando</option>
+                            <option value="Saiu para entrega" ${o.status === 'Saiu para entrega' ? 'selected' : ''}>Saiu para entrega</option>
+                            <option value="Entregue" ${o.status === 'Entregue' ? 'selected' : ''}>Entregue</option>
+                        </select>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="adminCancelOrder('${o.id}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-xs font-bold transition">Cancelar</button>
+                        <button onclick="adminFinalizeOrder('${o.id}')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-xs font-bold transition">Finalizado</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 5. Montagem do Card
         const card = document.createElement('div');
-        card.className = "bg-gray-800 border border-gray-700 rounded p-4 shadow-sm";
+        card.className = "bg-[#0f172a] border border-gray-700 rounded-lg overflow-hidden shadow-lg mb-4 p-4"; // Fundo bem escuro
+
         card.innerHTML = `
-            <div class="flex justify-between items-start mb-2"><div><span class="text-yellow-500 font-bold text-lg">PEDIDO #${o.code}</span><p class="text-gray-500 text-xs">Data: ${new Date(o.date).toLocaleString()}</p></div><div class="text-right"><span class="${statusColor} font-bold text-sm uppercase tracking-wide">${o.status}</span></div></div>
-            <div class="bg-gray-900 p-2 rounded text-gray-300 text-sm mb-2 border border-gray-700">${itemsHtml}</div>
-            <div class="flex justify-between items-end"><div><span class="text-gray-400 text-xs block">Valor Total:</span><span class="text-white font-bold text-xl">${formatCurrency(o.total)}</span>${o.cupom ? `<span class="block text-green-500 text-xs">Cupom: ${o.cupom}</span>` : ''}</div>
-            <div class="flex gap-2">
-                ${o.status === 'Pendente' ? `
-                    <button onclick="updateStatus('${o.id}', 'Confirmado', 'Pendente')" class="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1 rounded">Aprovar</button>
-                    <button onclick="updateStatus('${o.id}', 'Cancelado', 'Pendente')" class="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1 rounded">Cancelar</button>
-                ` : ''}
-                ${o.status === 'Confirmado' ? `
-                    <button onclick="updateStatus('${o.id}', 'Reembolsado', 'Confirmado')" class="border border-red-500 text-red-500 hover:bg-red-900 text-xs px-3 py-1 rounded">Estornar</button>
-                ` : ''}
-            </div></div>`;
-        els.ordersList.appendChild(card);
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-yellow-500 font-bold text-lg">PEDIDO #${o.code}</h3>
+                    <p class="text-gray-500 text-xs">Data: ${new Date(o.date).toLocaleDateString('pt-BR')} ${new Date(o.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+                
+                <div class="flex flex-col items-end gap-1">
+                    <div class="${statusBadgeColor} border px-3 py-1 rounded text-xs uppercase font-bold tracking-wider">
+                        ${o.status}
+                    </div>
+                    ${trocoHtml}
+                </div>
+            </div>
+
+            <div class="mb-4">
+                ${itemsHtml}
+            </div>
+
+            <div class="mb-4">
+                <span class="text-gray-400 text-xs block">Valor Total:</span>
+                <span class="text-white font-bold text-2xl">${formatCurrency(o.total)}</span>
+            </div>
+
+            <div class="bg-gray-900 p-3 rounded border border-gray-800 grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+                
+                <div>
+                    <span class="text-gray-500 font-bold block mb-1">Cliente:</span>
+                    <span class="bg-gray-800 text-white px-2 py-1 rounded border border-gray-700 block text-center truncate">${o.customer?.name || '-'}</span>
+                </div>
+                
+                <div>
+                    <span class="text-gray-500 font-bold block mb-1">Telefone:</span>
+                    <span class="bg-gray-800 text-white px-2 py-1 rounded border border-gray-700 block text-center">${o.customer?.phone || '-'}</span>
+                </div>
+
+                <div>
+                    <span class="text-gray-500 font-bold block mb-1">Forma de pagamento:</span>
+                    <span class="bg-gray-800 text-white px-2 py-1 rounded border border-gray-700 block text-center truncate" title="${o.paymentMethod}">${o.paymentMethod?.split('[')[0] || '-'}</span>
+                </div>
+
+                <div>
+                    <span class="text-gray-500 font-bold block mb-1">Endereço:</span>
+                    <button onclick="alert('${o.customer?.addressNum}, CEP: ${o.customer?.cep}')" class="bg-gray-800 hover:bg-gray-700 text-white px-2 py-1 rounded border border-gray-700 w-full text-center transition">
+                        Clique para ver
+                    </button>
+                </div>
+            </div>
+
+            ${controlsHtml}
+        `;
+
+        listEl.appendChild(card);
     });
 }
 
@@ -1127,8 +1236,6 @@ function setupEventListeners() {
     if (els.adminFilterCat) els.adminFilterCat.addEventListener('change', renderAdminProducts);
     if (els.adminSortProd) els.adminSortProd.addEventListener('change', renderAdminProducts);
 
-
-    // No setupEventListeners:
     if (els.confCardActive) {
         els.confCardActive.addEventListener('change', (e) => {
             if (e.target.checked) els.confCardDetails.classList.remove('opacity-50', 'pointer-events-none');
@@ -1200,10 +1307,19 @@ function setupEventListeners() {
 
 
     // Carrinho
-    const toggleCart = () => els.cartModal.classList.toggle('hidden');
-    const btnCart = getEl('cart-btn'); if (btnCart) btnCart.onclick = toggleCart;
-    const btnCartMob = getEl('cart-btn-mobile'); if (btnCartMob) btnCartMob.onclick = toggleCart;
-    const btnCloseCart = getEl('close-cart'); if (btnCloseCart) btnCloseCart.onclick = toggleCart;
+    // Carrinho Desktop
+    const btnCart = document.getElementById('cart-btn');
+    if (btnCart) {
+        // btnCart.onclick = toggleCart;  <-- SE TIVER ASSIM, APAGUE!
+        btnCart.onclick = window.openCart; // <-- TEM QUE SER ASSIM
+    }
+
+    // Carrinho Mobile
+    const btnCartMob = document.getElementById('cart-btn-mobile');
+    if (btnCartMob) {
+        // btnCartMob.onclick = toggleCart; <-- SE TIVER ASSIM, APAGUE!
+        btnCartMob.onclick = window.openCart; // <-- TEM QUE SER ASSIM
+    }
 
     // Login
     const btnAdminLogin = getEl('btn-admin-login'); if (btnAdminLogin) { btnAdminLogin.onclick = () => { if (state.user) { showView('admin'); } else { getEl('login-modal').showModal(); } }; }
@@ -1253,9 +1369,7 @@ function setupEventListeners() {
         }
     }
 
-    // Dentro de setupEventListeners...
     // --- LÓGICA DO FORMULÁRIO DE PRODUTO (NOVO) ---
-
     // Toggle Pix
     const checkPix = getEl('prod-pix-active');
     const settingsPix = getEl('pix-settings');
@@ -1303,8 +1417,6 @@ function setupEventListeners() {
     }
 
 
-
-    // Dentro de setupEventListeners...
     const btnAddCoupon = getEl('btn-add-coupon');
     if (btnAddCoupon) {
         btnAddCoupon.onclick = async () => {
@@ -1427,8 +1539,6 @@ function setupEventListeners() {
         };
     }
 
-    // Dentro de setupEventListeners (Substitua o formProd.onsubmit antigo)
-    // No setupEventListeners...
     const formProd = getEl('form-product');
     if (formProd) {
         formProd.onsubmit = async (e) => {
@@ -1561,7 +1671,6 @@ function setupEventListeners() {
         };
     }
 
-    // Adicione isso no final do setupEventListeners se não tiver
     const elCheck = document.getElementById('conf-card-active');
     if (elCheck) {
         elCheck.addEventListener('change', (e) => {
@@ -1573,6 +1682,8 @@ function setupEventListeners() {
         });
     }
 
+    //==============================================================   
+    //LÓGICA DA ABA CONFIGURAÇÕES:
     // --- AUTOSALVAMENTO: LOGÍSTICA (CEP) ---
     const elCep = document.getElementById('conf-store-cep');
     const elDist = document.getElementById('conf-max-dist');
@@ -1605,6 +1716,87 @@ function setupEventListeners() {
     if (elCardMax) elCardMax.addEventListener('change', () => autoSaveSettings('installments'));
     if (elCardFree) elCardFree.addEventListener('change', () => autoSaveSettings('installments'));
     if (elCardRate) elCardRate.addEventListener('blur', () => autoSaveSettings('installments'));
+
+
+    // 1. Lógica Admin: Dependência dos Checkboxes de Entrega
+    const checkOwnDelivery = document.getElementById('conf-own-delivery');
+    const checkReqCode = document.getElementById('conf-req-code');
+    const inputCancelTime = document.getElementById('conf-cancel-time');
+
+    if (checkOwnDelivery && checkReqCode) {
+        // Estado inicial
+        toggleReqCodeState(checkOwnDelivery.checked);
+
+        // Ao mudar "Entrega Própria"
+        checkOwnDelivery.addEventListener('change', (e) => {
+            const isActive = e.target.checked;
+            toggleReqCodeState(isActive);
+
+            // Se desativou a entrega, desativa o código obrigatoriamente
+            if (!isActive) {
+                checkReqCode.checked = false;
+            }
+
+            // Salva
+            autoSaveSettings('orders');
+        });
+
+        // Ao mudar "Solicitar Código"
+        checkReqCode.addEventListener('change', () => autoSaveSettings('orders'));
+
+        // Ao mudar Tempo de Cancelamento
+        if (inputCancelTime) {
+            inputCancelTime.addEventListener('blur', () => autoSaveSettings('orders'));
+        }
+    }
+
+    // Função visual para travar/destravar o checkbox dependente
+    function toggleReqCodeState(isActive) {
+        if (!checkReqCode) return;
+        const parentLabel = checkReqCode.closest('label');
+
+        if (isActive) {
+            checkReqCode.disabled = false;
+            if (parentLabel) parentLabel.classList.remove('opacity-50', 'pointer-events-none');
+        } else {
+            checkReqCode.disabled = true;
+            if (parentLabel) parentLabel.classList.add('opacity-50', 'pointer-events-none');
+        }
+    }
+
+    // 2. Lógica do Modal de Carrinho (Botões de Navegação)
+    const btnGoCheckout = document.getElementById('btn-go-checkout');
+    const btnFinishPayment = document.getElementById('btn-finish-payment');
+    const btnCloseCart = document.getElementById('close-cart');
+
+    if (btnGoCheckout) btnGoCheckout.onclick = goToCheckoutView;
+    if (btnFinishPayment) {
+        btnFinishPayment.onclick = window.submitOrder;
+    }
+    if (btnCloseCart) btnCloseCart.onclick = closeCartModal;
+
+    // 1. Troca Online / Entrega (Radio Principal)
+    const radiosPayMode = document.getElementsByName('pay-mode');
+    radiosPayMode.forEach(r => r.addEventListener('change', togglePaymentMode));
+
+    // 2. Troca Pix / Cartão / Dinheiro (Radio Secundário)
+    const radiosMethod = document.getElementsByName('payment-method-selection');
+    radiosMethod.forEach(r => r.addEventListener('change', toggleMethodSelection));
+
+    // 3. Troca de Parcelas
+    const selectInst = document.getElementById('checkout-installments');
+    if (selectInst) selectInst.addEventListener('change', calcCheckoutTotal);
+
+
+    // --- DENTRO DE setupEventListeners ---
+
+    const btnTrack = document.getElementById('btn-track-icon');
+    if (btnTrack) {
+        btnTrack.onclick = () => {
+            // Chama a função que abre a LISTA e verifica se tem pedidos
+            openTrackModal();
+        };
+    }
 }
 
 function updateCardStyles(isLight) {
@@ -2426,43 +2618,63 @@ function renderStoreProfile() {
 
 // Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
-    // Garante que existe um objeto, mesmo vazio
+    // Garante que existe um objeto
     const p = state.storeProfile || {};
 
-    // Preenche campos de texto básicos
-    if (els.confStoreName) els.confStoreName.value = p.name || '';
-    if (els.confStoreLogo) els.confStoreLogo.value = p.logo || '';
-    if (els.confStoreWpp) els.confStoreWpp.value = p.whatsapp || '';
-    if (els.confStoreInsta) els.confStoreInsta.value = p.instagram || '';
-    if (els.confStoreFace) els.confStoreFace.value = p.facebook || '';
-    if (els.confStoreAddress) els.confStoreAddress.value = p.address || '';
-    if (els.confStoreDesc) els.confStoreDesc.value = p.description || '';
+    // --- Parte antiga (Nome, Logo, etc...) ---
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    setVal('conf-store-name', p.name);
+    setVal('conf-store-logo', p.logo);
+    setVal('conf-store-wpp', p.whatsapp);
+    setVal('conf-store-insta', p.instagram);
+    setVal('conf-store-face', p.facebook);
+    setVal('conf-store-address', p.address);
+    setVal('conf-store-desc', p.description);
+    setVal('conf-store-cep', p.cep);
+    setVal('conf-max-dist', p.maxDistance);
 
-    // CORREÇÃO DO CEP (Preencher o input)
-    if (els.confStoreCep) els.confStoreCep.value = p.cep || '';
-    if (els.confMaxDist) els.confMaxDist.value = p.maxDistance || '';
-
-    // CORREÇÃO DO PARCELAMENTO
-    // Se não tiver dados salvos ainda, cria um padrão
+    // --- Parcelamento ---
     const inst = p.installments || { active: false, max: 12, freeUntil: 3, rate: 4.0 };
+    const elCardCheck = document.getElementById('conf-card-active');
+    const elCardDetails = document.getElementById('conf-card-details');
 
-    if (els.confCardActive) {
-        // Marca ou desmarca o checkbox visualmente
-        els.confCardActive.checked = (inst.active === true);
+    if (elCardCheck) elCardCheck.checked = (inst.active === true);
+    if (elCardDetails) {
+        if (inst.active) elCardDetails.classList.remove('opacity-50', 'pointer-events-none');
+        else elCardDetails.classList.add('opacity-50', 'pointer-events-none');
+    }
+    setVal('conf-card-max', inst.max);
+    setVal('conf-card-free', inst.freeUntil);
+    setVal('conf-card-rate', inst.rate);
 
-        // Libera ou bloqueia a opacidade da área de detalhes
-        if (els.confCardDetails) {
-            if (inst.active) {
-                els.confCardDetails.classList.remove('opacity-50', 'pointer-events-none');
-            } else {
-                els.confCardDetails.classList.add('opacity-50', 'pointer-events-none');
-            }
+    // --- CORREÇÃO AQUI: CONFIGURAÇÕES DE PEDIDO (ENTREGA/TEMPO) ---
+    const dConfig = p.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
+
+    const elOwn = document.getElementById('conf-own-delivery');
+    const elReq = document.getElementById('conf-req-code');
+    const elTime = document.getElementById('conf-cancel-time');
+
+    // 1. Aplica os valores (Checked/Value)
+    if (elOwn) elOwn.checked = (dConfig.ownDelivery === true);
+    if (elReq) elReq.checked = (dConfig.reqCustomerCode === true);
+
+    // CORREÇÃO DO TEMPO: Garante que se for 0 ou null, use 5
+    if (elTime) elTime.value = dConfig.cancelTimeMin || 5;
+
+    // 2. CORREÇÃO DO TRAVAMENTO: Aplica o estado visual imediatamente
+    if (elOwn && elReq) {
+        const parentLabel = elReq.closest('label'); // Pega o pai do checkbox
+
+        if (dConfig.ownDelivery === true) {
+            // Se entrega está ativa, libera o código
+            elReq.disabled = false;
+            if (parentLabel) parentLabel.classList.remove('opacity-50', 'pointer-events-none');
+        } else {
+            // Se entrega está inativa, trava o código
+            elReq.disabled = true;
+            if (parentLabel) parentLabel.classList.add('opacity-50', 'pointer-events-none');
         }
     }
-
-    if (els.confCardMax) els.confCardMax.value = inst.max;
-    if (els.confCardFree) els.confCardFree.value = inst.freeUntil;
-    if (els.confCardRate) els.confCardRate.value = inst.rate;
 }
 
 // Função para salvar no Firebase
@@ -2518,7 +2730,6 @@ async function autoSaveSettings(type) {
 
     // Referência ao documento
     const docRef = doc(db, `sites/${state.siteId}/settings`, 'profile');
-
     let dataToUpdate = {};
     let message = '';
 
@@ -2570,6 +2781,35 @@ async function autoSaveSettings(type) {
         console.error("Erro no autosave:", error);
         showToast('Erro ao salvar alteração.', 'error');
     }
+
+    // NOVO BLOCO: Configurações de Pedidos
+    if (type === 'orders') {
+        const ownDelivery = document.getElementById('conf-own-delivery').checked;
+        const reqCode = document.getElementById('conf-req-code').checked;
+        const cancelTime = parseInt(document.getElementById('conf-cancel-time').value) || 5;
+
+        dataToUpdate = {
+            deliveryConfig: {
+                ownDelivery: ownDelivery,
+                reqCustomerCode: reqCode,
+                cancelTimeMin: cancelTime
+            }
+        };
+        message = 'Configurações de pedidos salvas!';
+    }
+
+    try {
+        await setDoc(docRef, dataToUpdate, { merge: true });
+
+        // Atualiza memória local
+        if (state.storeProfile) {
+            state.storeProfile = { ...state.storeProfile, ...dataToUpdate };
+        }
+        showToast(message, 'success');
+    } catch (error) {
+        console.error(error);
+        showToast('Erro ao salvar.', 'error');
+    }
 }
 
 // =================================================================
@@ -2609,57 +2849,103 @@ window.closeCheckoutModal = () => {
 
 // --- LÓGICA DE CEP E DISTÂNCIA ---
 window.handleCheckoutCep = async () => {
-    const cep = getEl('checkout-cep').value.replace(/\D/g, '');
+    const cepInput = document.getElementById('checkout-cep');
+    const cep = cepInput.value.replace(/\D/g, '');
+
+    // Elementos de UI
+    const loading = document.getElementById('cep-loading');
+    const errorBox = document.getElementById('delivery-error');
+    const errorMsg = document.getElementById('delivery-error-msg');
+    const addrFields = document.getElementById('address-fields');
+    const distDisplay = document.getElementById('distance-display');
+    const btnFinish = document.getElementById('btn-finish-payment');
+
     if (cep.length !== 8) return;
 
-    const loading = getEl('cep-loading');
+    // Reset Visual
     loading.classList.remove('hidden');
-    els.deliveryError.classList.add('hidden');
-    els.addressDetails.classList.add('hidden');
+    errorBox.classList.add('hidden');
+    addrFields.classList.add('opacity-50', 'pointer-events-none'); // Trava campos
+    if (distDisplay) distDisplay.classList.add('hidden');
+    if (btnFinish) btnFinish.disabled = true;
 
     try {
         // 1. Busca Endereço (ViaCEP)
         const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
         const data = await resp.json();
+
         if (data.erro) throw new Error("CEP não encontrado.");
 
-        checkoutState.address = data;
-        els.addrText.innerHTML = `<strong>${data.logradouro}</strong><br>${data.bairro} - ${data.localidade}/${data.uf}`;
-        els.addressDetails.classList.remove('hidden');
-        getEl('checkout-number').focus();
+        // 2. Preenche Campos Automaticamente
+        document.getElementById('checkout-street').value = data.logradouro || '';
+        document.getElementById('checkout-district').value = data.bairro || '';
+        document.getElementById('checkout-city').value = `${data.localidade} - ${data.uf}`;
 
-        // 2. Validação de Distância (Se configurado)
-        const storeCep = state.storeProfile.cep;
-        const maxDist = state.storeProfile.maxDistance;
+        // Destrava para digitar número
+        addrFields.classList.remove('opacity-50', 'pointer-events-none');
+        document.getElementById('checkout-number').focus();
 
+        // 3. Validação de Distância
+        const storeCep = state.storeProfile.cep; // CEP da loja configurado no Admin
+        const maxDist = parseFloat(state.storeProfile.maxDistance) || 0; // 0 = Sem limite
+
+        // Se a loja tem configuração de limite
         if (storeCep && maxDist > 0) {
+            if (distDisplay) {
+                distDisplay.innerText = "Calculando frete...";
+                distDisplay.classList.remove('hidden');
+            }
+
             const dist = await calculateDistanceByCEP(storeCep, cep);
-            checkoutState.distance = dist;
+
+            if (distDisplay) distDisplay.innerText = `${dist.toFixed(1)} km da loja`;
 
             if (dist > maxDist) {
-                checkoutState.isValidDelivery = false;
-                els.deliveryError.classList.remove('hidden');
-                els.deliveryError.querySelector('p').innerText = `Distância: ${dist.toFixed(1)}km (Máximo: ${maxDist}km).`;
-
-                // Bloqueia pagamento
-                els.paymentSection.classList.add('hidden');
-                els.btnFinishOrder.disabled = true;
-            } else {
-                checkoutState.isValidDelivery = true;
-                enablePaymentSection();
+                // BLOQUEIA A VENDA
+                throw new Error(`Infelizmente não entregamos neste local.<br>Distância: ${dist.toFixed(1)}km (Máximo: ${maxDist}km)`);
             }
-        } else {
-            // Sem restrição configurada
-            checkoutState.isValidDelivery = true;
-            enablePaymentSection();
+        }
+
+        // Se chegou aqui, libera o botão de finalizar
+        if (btnFinish) {
+            btnFinish.disabled = false;
+            // Se for online, já recalcula totais
+            if (typeof updateCheckoutTotal === 'function') updateCheckoutTotal();
         }
 
     } catch (err) {
-        alert("Erro: " + err.message);
+        // Exibe erro e mantém bloqueado
+        errorMsg.innerHTML = err.message;
+        errorBox.classList.remove('hidden');
+        addrFields.classList.add('opacity-50', 'pointer-events-none'); // Mantém travado
+        if (distDisplay) distDisplay.classList.add('hidden');
     } finally {
         loading.classList.add('hidden');
     }
 };
+
+// API OpenStreetMap (Nominatim) para Lat/Lon (Mantenha ou adicione se não tiver)
+async function calculateDistanceByCEP(cepOrigin, cepDest) {
+    const getCoords = async (c) => {
+        // Pequeno delay para evitar bloqueio da API gratuita
+        await new Promise(r => setTimeout(r, 300));
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&country=Brazil&postalcode=${c}`);
+        const d = await r.json();
+        if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+        throw new Error("Não foi possível calcular a rota para este CEP.");
+    };
+
+    try {
+        const [c1, c2] = await Promise.all([getCoords(cepOrigin), getCoords(cepDest)]);
+        return getDistanceFromLatLonInKm(c1.lat, c1.lon, c2.lat, c2.lon);
+    } catch (e) {
+        console.error(e);
+        // Em caso de erro na API de mapas, decidimos se bloqueamos ou liberamos.
+        // Aqui vou liberar retornando 0, mas avisando no console.
+        return 0;
+    }
+}
+
 
 function enablePaymentSection() {
     els.paymentSection.classList.remove('hidden');
@@ -2670,25 +2956,6 @@ function enablePaymentSection() {
     }, 100);
 }
 
-// API OpenStreetMap (Nominatim) para Lat/Lon
-async function calculateDistanceByCEP(cepOrigin, cepDest) {
-    const getCoords = async (c) => {
-        // Delay aleatório para evitar rate limit do Nominatim gratuito
-        await new Promise(r => setTimeout(r, Math.random() * 500));
-        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&country=Brazil&postalcode=${c}`);
-        const d = await r.json();
-        if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
-        throw new Error("Não foi possível geolocalizar o CEP " + c);
-    };
-
-    try {
-        const [c1, c2] = await Promise.all([getCoords(cepOrigin), getCoords(cepDest)]);
-        return getDistanceFromLatLonInKm(c1.lat, c1.lon, c2.lat, c2.lon);
-    } catch (e) {
-        console.error(e);
-        return 0; // Se falhar API, libera (fallback)
-    }
-}
 
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
     const R = 6371; // Raio da terra
@@ -2840,65 +3107,1057 @@ window.updateCheckoutTotal = () => {
     else els.btnFinishOrder.innerText = 'Gerar Link Cartão';
 };
 
-window.finalizeOrder = async () => {
-    const cep = getEl('checkout-cep').value;
-    const num = getEl('checkout-number').value;
-    const comp = getEl('checkout-comp').value;
 
-    if (!num) return alert("Informe o número do endereço.");
 
-    const methodEl = document.querySelector('input[name="payment-method"]:checked');
-    const method = methodEl ? methodEl.value : 'whatsapp';
-    const totalText = els.checkoutTotalDisplay.innerText;
+// --- ACCORDION CONFIGURAÇÕES DE PEDIDOS ---
+const btnAccOrders = document.getElementById('btn-acc-orders');
+const contentAccOrders = document.getElementById('content-acc-orders');
+const arrowAccOrders = document.getElementById('arrow-acc-orders');
 
-    // Monta Endereço
-    const addr = checkoutState.address;
-    const addressStr = `${addr.logradouro}, ${num} ${comp ? '(' + comp + ')' : ''} - ${addr.bairro}, ${addr.localidade}/${addr.uf} (CEP: ${cep})`;
+if (btnAccOrders && contentAccOrders && arrowAccOrders) {
+    btnAccOrders.onclick = () => {
+        contentAccOrders.classList.toggle('hidden');
+        arrowAccOrders.style.transform = contentAccOrders.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+    };
+}
 
-    // Detalhes Pagamento
-    let paymentDetails = method.toUpperCase();
-    if (method === 'card') {
-        const select = els.checkoutInstallments;
-        const txt = select.options[select.selectedIndex].text;
-        paymentDetails = `CARTÃO: ${txt}`;
-    } else if (method === 'pix') {
-        paymentDetails = `PIX (Valor com desconto)`;
+// --- NAVEGAÇÃO DO MODAL ---
+
+// --- CORREÇÃO: ABRE APENAS O CARRINHO ---
+function hideAllViews() {
+    // Lista de todas as telas possíveis dentro do modal
+    const views = [
+        'view-cart-list',
+        'view-checkout',
+        'view-order-list',
+        'view-order-status'
+    ];
+
+    // Percorre e esconde todas
+    views.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.classList.add('hidden');
+            // Remove flex caso tenha sido adicionado em algum momento
+            el.classList.remove('flex');
+        }
+    });
+
+    // Esconde botão de voltar
+    const btnBack = document.getElementById('btn-modal-back');
+    if (btnBack) btnBack.classList.add('hidden');
+}
+
+window.openCart = () => {
+    const modal = document.getElementById('cart-modal');
+    if (!modal) return;
+
+    // Abre o Modal
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    // OBRIGATÓRIO: Reseta a visualização para a lista de compras
+    showCartListView();
+};
+
+window.closeCartModal = () => {
+    const modal = document.getElementById('cart-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+};
+
+// Certifique-se que showCartListView também esconde as outras telas:
+window.showCartListView = () => {
+    // 1. FAXINA: Esconde todas as outras telas
+    hideAllViews();
+
+    // 2. MOSTRA O CARRINHO
+    const viewCart = document.getElementById('view-cart-list');
+    if (viewCart) viewCart.classList.remove('hidden');
+
+    // 3. Reseta Textos e Botões
+    const title = document.getElementById('cart-modal-title');
+    if (title) title.innerText = "SEU CARRINHO";
+
+    const footer = document.getElementById('cart-footer-actions');
+    if (footer) footer.classList.remove('hidden');
+
+    const btnGo = document.getElementById('btn-go-checkout');
+    if (btnGo) btnGo.classList.remove('hidden'); // Mostra "Ir para Pagamento"
+
+    const btnFinish = document.getElementById('btn-finish-payment');
+    if (btnFinish) btnFinish.classList.add('hidden'); // Esconde "Confirmar"
+};
+
+window.goToCheckoutView = () => {
+    if (state.cart.length === 0) return alert("Carrinho vazio!");
+
+    hideAllViews();
+    document.getElementById('view-checkout').classList.remove('hidden');
+
+    document.getElementById('cart-modal-title').innerText = "PAGAMENTO";
+    document.getElementById('cart-footer-actions').classList.remove('hidden');
+    document.getElementById('btn-go-checkout').classList.add('hidden');
+    document.getElementById('btn-finish-payment').classList.remove('hidden');
+
+    // Inicia lógica de pagamento
+    if (typeof togglePaymentMode === 'function') togglePaymentMode();
+    if (typeof calcCheckoutTotal === 'function') calcCheckoutTotal();
+};
+
+// --- INTERATIVIDADE DO CHECKOUT ---
+// Função auxiliar para formatar campo de troco (R$)
+window.formatMoneyInput = (el) => {
+    let v = el.value.replace(/\D/g, '');
+    v = (v / 100).toFixed(2) + '';
+    v = v.replace(".", ",");
+    v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+    el.value = 'R$ ' + v;
+};
+
+// 1. Controla o Modo Principal (Online vs Entrega)
+window.togglePaymentMode = () => {
+    const mode = document.querySelector('input[name="pay-mode"]:checked')?.value;
+    const cashContainer = document.getElementById('container-cash-option');
+    const lblMethod = document.getElementById('lbl-payment-method');
+    const optionsDiv = document.getElementById('checkout-payment-options');
+
+    // Remove opacidade (as opções são visíveis em ambos os modos agora)
+    if (optionsDiv) optionsDiv.classList.remove('opacity-50', 'pointer-events-none');
+
+    if (mode === 'delivery') {
+        // Mostra opção Dinheiro
+        if (cashContainer) cashContainer.classList.remove('hidden');
+        if (lblMethod) lblMethod.innerText = "Pagarei na entrega com:";
+    } else {
+        // Esconde opção Dinheiro
+        if (cashContainer) cashContainer.classList.add('hidden');
+        if (lblMethod) lblMethod.innerText = "Pagar agora com:";
+
+        // Se estava em Dinheiro, volta para Pix
+        const currentMethod = document.querySelector('input[name="payment-method-selection"]:checked')?.value;
+        if (currentMethod === 'cash') {
+            const pixRadio = document.querySelector('input[name="payment-method-selection"][value="pix"]');
+            if (pixRadio) pixRadio.checked = true;
+        }
     }
 
-    // Salva Firebase
-    const orderData = {
-        items: state.cart,
-        total: parseFloat(totalText.replace('R$', '').replace(/\./g, '').replace(',', '.').trim()),
-        cupom: state.currentCoupon ? state.currentCoupon.code : null,
-        date: new Date().toISOString(),
-        status: 'Pendente',
-        paymentMethod: method,
-        address: addressStr,
-        paymentDetails: paymentDetails,
-        code: Math.floor(10000 + Math.random() * 90000)
+    // IMPORTANTE: Chama o toggleMethodSelection para esconder/mostrar as parcelas baseado no novo modo
+    toggleMethodSelection();
+};
+
+// 2. Controla a Seleção Específica (Pix vs Cartão vs Dinheiro)
+window.toggleMethodSelection = () => {
+    // Verifica o Modo Principal (Online ou Entrega)
+    const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value;
+    // Verifica o Método Específico (Pix, Cartão, Dinheiro)
+    const method = document.querySelector('input[name="payment-method-selection"]:checked')?.value;
+
+    const cardContainer = document.getElementById('card-installments-container');
+    const cashChangeContainer = document.getElementById('cash-change-container');
+
+    // 1. Reseta visibilidades (Esconde tudo primeiro)
+    if (cardContainer) cardContainer.classList.add('hidden');
+    if (cashChangeContainer) cashChangeContainer.classList.add('hidden');
+
+    // 2. Lógica para CARTÃO
+    if (method === 'card') {
+        // SÓ mostra parcelas se for pagamento ONLINE
+        if (payMode === 'online') {
+            if (cardContainer) cardContainer.classList.remove('hidden');
+            populateInstallments(); // Gera as parcelas
+        }
+        // Se for ENTREGA, mantém o container hidden (apenas o radio fica marcado)
+    }
+    // 3. Lógica para DINHEIRO
+    else if (method === 'cash') {
+        if (cashChangeContainer) cashChangeContainer.classList.remove('hidden');
+        setTimeout(() => {
+            const inputTroco = document.getElementById('checkout-change-for');
+            if (inputTroco) inputTroco.focus();
+        }, 100);
+    }
+
+    // Recalcula totais
+    calcCheckoutTotal();
+};
+
+
+// --- FUNÇÃO DE PARCELAMENTO (TABELA PRICE) ---
+function populateInstallments() {
+    const instConfig = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3, rate: 0 };
+    const select = document.getElementById('checkout-installments');
+
+    if (!select) return;
+
+    select.innerHTML = '';
+
+    // 1. Calcula o Total Base
+    let totalBase = 0;
+    state.cart.forEach(i => totalBase += i.price * i.qty);
+
+    if (state.currentCoupon) {
+        if (state.currentCoupon.type === 'percent') {
+            totalBase -= totalBase * (state.currentCoupon.val / 100);
+        } else {
+            totalBase -= state.currentCoupon.val;
+        }
+    }
+    totalBase = Math.max(0, totalBase);
+
+    // 2. Define Máximo de Parcelas
+    const maxParcelas = (instConfig.active && totalBase > 0) ? instConfig.max : 1;
+
+    for (let i = 1; i <= maxParcelas; i++) {
+        let finalVal = totalBase;
+        let valorParcela = totalBase / i;
+        let label = `${i}x Sem Juros`;
+
+        // Aplica Juros (Tabela Price) se aplicável
+        if (instConfig.active && i > instConfig.freeUntil && instConfig.rate > 0) {
+            const taxa = instConfig.rate / 100; // Ex: 2% vira 0.02
+
+            // Fórmula PRICE: PMT = PV * [ i * (1+i)^n ] / [ (1+i)^n - 1 ]
+            // PV = Valor Presente (totalBase)
+            // n = Número de parcelas (i)
+            // i = taxa
+
+            const fator = Math.pow(1 + taxa, i);
+            valorParcela = totalBase * ((taxa * fator) / (fator - 1));
+
+            finalVal = valorParcela * i; // Total final é a soma das parcelas
+
+            label = `${i}x (c/ juros)`;
+        }
+
+        const option = document.createElement('option');
+        option.value = i;
+
+        // Armazena o valor TOTAL FINAL desta opção
+        option.dataset.total = finalVal.toFixed(2);
+
+        option.text = `${label} de ${formatCurrency(valorParcela)}`;
+        select.appendChild(option);
+    }
+}
+
+// --- FUNÇÃO ÚNICA: CALCULAR TOTAL DO CHECKOUT ---
+window.calcCheckoutTotal = () => {
+    // 1. Identifica Modo e Método
+    const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value || 'online';
+    const method = document.querySelector('input[name="payment-method-selection"]:checked')?.value || 'pix';
+
+    let finalTotal = 0;
+    let savingsMsg = '';
+
+    // 2. Calcula Base (Soma Itens - Cupom Global)
+    let itemsTotal = 0;
+    state.cart.forEach(item => itemsTotal += item.price * item.qty);
+
+    let discountCoupon = 0;
+    if (state.currentCoupon) {
+        discountCoupon = state.currentCoupon.type === 'percent'
+            ? itemsTotal * (state.currentCoupon.val / 100)
+            : state.currentCoupon.val;
+    }
+    let baseTotal = Math.max(0, itemsTotal - discountCoupon);
+
+    // --- CÁLCULO ESPECÍFICO POR MÉTODO ---
+
+    // A. PIX (Com desconto configurado no produto)
+    if (method === 'pix') {
+        let totalWithPixDesc = 0;
+        state.cart.forEach(item => {
+            const prod = state.products.find(p => p.id === item.id);
+            let price = item.price;
+            // Aplica desconto do produto se existir
+            if (prod && prod.paymentOptions?.pix?.active) {
+                const descVal = prod.paymentOptions.pix.type === 'percent'
+                    ? price * (prod.paymentOptions.pix.val / 100)
+                    : prod.paymentOptions.pix.val;
+                price = Math.max(0, price - descVal);
+            }
+            totalWithPixDesc += price * item.qty;
+        });
+
+        // Reaplica cupom sobre total Pix
+        let cupomPix = state.currentCoupon?.type === 'percent'
+            ? totalWithPixDesc * (state.currentCoupon.val / 100)
+            : discountCoupon;
+
+        finalTotal = Math.max(0, totalWithPixDesc - cupomPix);
+
+        const saved = (baseTotal - finalTotal);
+        if (saved > 0.01) savingsMsg = `Economia de ${formatCurrency(saved)} no Pix!`;
+    }
+
+    // B. CARTÃO
+    else if (method === 'card') {
+        // Se for ONLINE, pega o valor do Select (pode ter juros)
+        if (payMode === 'online') {
+            const select = document.getElementById('checkout-installments');
+            if (select && select.options.length > 0) {
+                const selectedOpt = select.options[select.selectedIndex];
+                if (selectedOpt && selectedOpt.dataset.total) {
+                    finalTotal = parseFloat(selectedOpt.dataset.total);
+                } else {
+                    finalTotal = baseTotal;
+                }
+            } else {
+                finalTotal = baseTotal;
+            }
+        }
+        // Se for ENTREGA, usa o valor base (sem juros do site)
+        else {
+            finalTotal = baseTotal;
+        }
+    }
+
+    // C. DINHEIRO ou Padrão
+    else {
+        finalTotal = baseTotal;
+        savingsMsg = '';
+    }
+
+    // Atualiza Interface
+    const elTotal = document.getElementById('checkout-final-total');
+    if (elTotal) elTotal.innerText = formatCurrency(finalTotal);
+
+    const msgEl = document.getElementById('checkout-pix-discount-msg');
+    if (msgEl) {
+        msgEl.innerText = savingsMsg;
+        if (savingsMsg) msgEl.classList.remove('hidden');
+        else msgEl.classList.add('hidden');
+    }
+};
+
+// --- ENVIAR PEDIDO (ATUALIZADO COM TROCO) ---
+// --- FUNÇÃO FINALIZAR PEDIDO (BLINDADA) ---
+window.submitOrder = async () => {
+    console.log("!!! CLIQUE RECEBIDO: submitOrder !!!");
+
+    // 1. Verificação de Segurança e Coleta de Dados
+    try {
+        const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
+
+        // --- DADOS DO CLIENTE ---
+        const name = getVal('checkout-name');
+        const phone = getVal('checkout-phone');
+
+        // --- DADOS DO ENDEREÇO (Atualizado para o novo HTML) ---
+        const cep = getVal('checkout-cep');
+        const street = getVal('checkout-street');     // Rua (vinda do ViaCEP)
+        const district = getVal('checkout-district'); // Bairro (vindo do ViaCEP)
+        const number = getVal('checkout-number');     // Número (digitado)
+        const comp = getVal('checkout-comp');         // Complemento (digitado)
+
+        // Validação: Garante que nome, telefone, rua e número existem
+        if (!name || !phone || !cep || !number || !street) {
+            alert("⚠️ Por favor, preencha NOME, TELEFONE e o ENDEREÇO completo (O Número é obrigatório).");
+            return;
+        }
+
+        // --- DADOS DE PAGAMENTO ---
+        const payModeEl = document.querySelector('input[name="pay-mode"]:checked');
+        const methodEl = document.querySelector('input[name="payment-method-selection"]:checked');
+
+        if (!payModeEl || !methodEl) {
+            alert("⚠️ Selecione uma forma de pagamento.");
+            return;
+        }
+
+        const payMode = payModeEl.value;
+        const method = methodEl.value;
+        let paymentDetails = "";
+
+        if (method === 'pix') {
+            paymentDetails = "Pix";
+        }
+        else if (method === 'card') {
+            const select = document.getElementById('checkout-installments');
+            let parcelas = "Crédito/Débito";
+            if (payMode === 'online' && select && select.selectedIndex >= 0) {
+                parcelas = select.options[select.selectedIndex].text;
+            }
+            paymentDetails = `Cartão (${parcelas})`;
+        }
+        else if (method === 'cash') {
+            const trocoVal = getVal('checkout-change-for');
+            paymentDetails = `Dinheiro (Troco para: ${trocoVal || 'Não precisa'})`;
+        }
+
+        paymentDetails += (payMode === 'online') ? " [Pago Online]" : " [Pagar na Entrega]";
+
+        // --- VALORES ---
+        const totalEl = document.getElementById('checkout-final-total');
+        let finalValue = 0;
+        if (totalEl) {
+            finalValue = parseFloat(totalEl.innerText.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+        }
+
+        // --- CONFIGURAÇÕES LOJA ---
+        const deliveryConfig = state.storeProfile?.deliveryConfig || {};
+        const cancelMinutes = deliveryConfig.cancelTimeMin || 5;
+
+        // --- MONTA ENDEREÇO COMPLETO FORMATADO ---
+        const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
+
+        // --- OBJETO DO PEDIDO ---
+        const order = {
+            code: Math.floor(10000 + Math.random() * 90000),
+            date: new Date().toISOString(),
+            customer: {
+                name: name,
+                phone: phone,
+                address: fullAddress, // Endereço completo formatado
+                addressNum: number,
+                cep: cep,
+                district: district,
+                street: street
+            },
+            items: state.cart || [],
+            total: finalValue,
+            status: 'Aguardando aprovação',
+            paymentMethod: paymentDetails,
+            // Gera código de entrega SE configurado e SE for entrega própria
+            securityCode: (deliveryConfig.reqCustomerCode && deliveryConfig.ownDelivery) ? Math.floor(1000 + Math.random() * 9000) : null,
+            cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
+        };
+
+        // Feedback visual
+        const btnSubmit = document.getElementById('btn-finish-payment');
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.innerText = "⏳ Processando...";
+        }
+
+        // 5. Envio ao Firebase
+        const docRef = await addDoc(collection(db, `sites/${state.siteId}/sales`), order);
+        console.log("Pedido salvo ID:", docRef.id);
+
+        // --- CORREÇÃO DE PERSISTÊNCIA E LISTA ---
+        const newOrderLocal = { id: docRef.id, ...order };
+
+        // Adiciona ao Histórico
+        if (!Array.isArray(state.myOrders)) state.myOrders = [];
+        state.myOrders.push(newOrderLocal);
+
+        // Salva na chave correta
+        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+        startBackgroundListeners(); // <--- Reinicia ouvintes para incluir o pedido novo
+
+        checkActiveOrders();
+
+        // Limpa Carrinho
+        state.cart = [];
+        localStorage.setItem('cart', JSON.stringify([]));
+        updateCartUI();
+
+        const cartItemsContainer = document.getElementById('cart-items');
+        if (cartItemsContainer) cartItemsContainer.innerHTML = '';
+
+        // Redirecionamento e Feedback
+        if (payMode === 'online') {
+            sendOrderToWhatsapp(newOrderLocal);
+        } else {
+            setTimeout(() => alert("✅ Pedido Realizado com Sucesso!"), 300);
+        }
+
+        // Abre a LISTA de pedidos (Acompanhamento)
+        openTrackModal();
+
+    } catch (e) {
+        console.error("ERRO GRAVE NO SUBMIT:", e);
+        alert("❌ Erro ao enviar pedido: " + e.message);
+    } finally {
+        const btnSubmit = document.getElementById('btn-finish-payment');
+        if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerText = "Confirmar Pedido";
+        }
+    }
+};
+
+window.sendOrderToWhatsapp = (order) => {
+    console.log("Gerando link do WhatsApp...");
+
+    // 1. Cabeçalho
+    let msg = `*NOVO PEDIDO - ${order.code}*\n`;
+    msg += `Aguardo link de pagamento!\n\n`;
+
+    // 2. Itens
+    order.items.forEach(i => {
+        msg += `📦 ${i.qty}x ${i.name} (${i.size}) - ${formatCurrency(i.price)}\n`;
+    });
+
+    // 3. Totais
+    msg += `\n💰 *TOTAL: ${formatCurrency(order.total)}*`;
+
+    // 4. Detalhes
+    msg += `\n💳 Pagamento: ${order.paymentMethod}`;
+    msg += `\n📍 Entrega: ${order.customer.addressNum}, ${order.customer.cep}`;
+    msg += `\n👤 Cliente: ${order.customer.name}`;
+
+    msg += `\n\nAguardo confirmação!`;
+
+    // 5. Envio
+    const sellerPhone = state.storeProfile.whatsapp || "";
+    // Remove caracteres não numéricos do telefone para evitar erros no link
+    const cleanPhone = sellerPhone.replace(/\D/g, '');
+
+    if (cleanPhone) {
+        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+    } else {
+        alert("Número de WhatsApp da loja não configurado no Admin!");
+    }
+};
+
+
+
+function getStepIcon(step) {
+    return ["", "fa-clock", "fa-box-open", "fa-motorcycle", "fa-check"][step];
+}
+
+//Esta função configura o modal para exibir o status, inicia o "ouvinte" em tempo real do Firebase e ajusta a barra de progresso conforme seu design
+window.showOrderStatusView = () => {
+    // 1. Configura Visibilidade do Modal
+    const modal = document.getElementById('cart-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    document.getElementById('view-cart-list').classList.add('hidden');
+    document.getElementById('view-checkout').classList.add('hidden');
+    document.getElementById('view-order-status').classList.remove('hidden');
+
+    document.getElementById('cart-modal-title').innerText = "STATUS DE PEDIDO";
+    document.getElementById('cart-footer-actions').classList.add('hidden'); // Esconde botões de checkout
+
+    // Ativa o indicador no ícone da navbar
+    const indicator = document.getElementById('track-indicator');
+    if (indicator) indicator.classList.remove('hidden');
+
+    // 2. Inicia Listener em Tempo Real (Se já não tiver um rodando para esse ID)
+    if (state.activeOrder && state.activeOrder.id) {
+        // Cancela listener anterior se existir (boa prática)
+        if (window.currentOrderListener) window.currentOrderListener();
+
+        window.currentOrderListener = onSnapshot(doc(db, `sites/${state.siteId}/sales`, orderId), (snap) => {
+        if (snap.exists()) {
+            const data = snap.data();
+            const fullOrder = { id: snap.id, ...data }; 
+            
+            updateStatusUI(fullOrder);
+
+            // Atualiza array local
+            const idx = state.myOrders.findIndex(o => o.id === orderId);
+            if (idx > -1) {
+                state.myOrders[idx] = fullOrder;
+                localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+                
+                // --- ADICIONE ISTO AQUI ---
+                // Verifica a bolinha toda vez que o status mudar em tempo real
+                checkActiveOrders(); 
+            }
+        }
+    });
+    }
+};
+
+
+
+// --- LÓGICA DE STATUS DE PEDIDOS (ADMIN) ---
+// 1. Mudança via Dropdown (Select)
+window.handleStatusChange = async (selectEl, orderId) => {
+    const newStatus = selectEl.value;
+
+    // REGRA: Se selecionar "Entregue", pergunta se quer finalizar
+    if (newStatus === 'Entregue') {
+        const confirmFinalize = confirm("O pedido foi entregue. Deseja marcar como FINALIZADO (Concluído)?\n\nOK = Sim, Finalizar.\nCancelar = Não, manter apenas como 'Entregue'.");
+
+        if (confirmFinalize) {
+            // Marca direto como Concluído
+            await updateOrderStatusDB(orderId, 'Concluído');
+        } else {
+            // Marca apenas como Entregue
+            await updateOrderStatusDB(orderId, 'Entregue');
+        }
+    } else {
+        // Outros status (Aprovado, Preparando, etc) apenas atualizam
+        await updateOrderStatusDB(orderId, newStatus);
+    }
+};
+
+// 2. Botão Cancelar
+window.adminCancelOrder = async (orderId) => {
+    if (confirm("Tem certeza que deseja CANCELAR este pedido?")) {
+        await updateOrderStatusDB(orderId, 'Cancelado');
+    }
+};
+
+// 3. Botão Finalizado
+window.adminFinalizeOrder = async (orderId) => {
+    if (confirm("Confirmar finalização do pedido?\nIsso arquiva a venda como concluída.")) {
+        await updateOrderStatusDB(orderId, 'Concluído');
+    }
+};
+
+// 4. Botão Estornar (Reabrir pedido fechado)
+window.adminRevertStatus = async (orderId) => {
+    if (confirm("Deseja reabrir este pedido? Ele voltará para 'Aguardando aprovação'.")) {
+        await updateOrderStatusDB(orderId, 'Aguardando aprovação');
+    }
+};
+
+// Função auxiliar para atualizar no Firebase
+async function updateOrderStatusDB(orderId, status) {
+    try {
+        const updateData = { status: status };
+        // Se finalizou, salva data
+        if (status === 'Concluído') {
+            updateData.completedAt = new Date().toISOString();
+        }
+
+        await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), updateData);
+        showToast(`Status atualizado para: ${status}`);
+        // A lista atualiza sozinha via onSnapshot
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao atualizar status.");
+    }
+}
+
+
+// ÍCONE DE RASTREIO CHAMA ISSO:
+window.openTrackModal = async () => {
+    const modal = document.getElementById('cart-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    if (!state.myOrders || state.myOrders.length === 0) {
+        document.getElementById('view-cart-list').classList.add('hidden');
+        document.getElementById('view-checkout').classList.add('hidden');
+        document.getElementById('view-order-status').classList.add('hidden');
+        document.getElementById('view-order-list').classList.remove('hidden');
+        
+        const container = document.getElementById('orders-list-container');
+        container.innerHTML = '<div class="text-gray-500 text-center mt-10 p-4">Você ainda não fez pedidos.</div>';
+        
+        // Configura Header Básico
+        document.getElementById('cart-modal-title').innerText = "ACOMPANHAMENTO";
+        document.getElementById('cart-footer-actions').classList.add('hidden');
+        document.getElementById('btn-modal-back').classList.add('hidden');
+        return;
+    }
+
+    // --- CORREÇÃO DE SINCRONIA: ATUALIZA TUDO ANTES DE MOSTRAR ---
+    // Mostra um carregando simples se quiser, ou apenas atualiza rápido
+    const container = document.getElementById('orders-list-container');
+    container.innerHTML = '<div class="text-white text-center mt-10"><i class="fas fa-circle-notch fa-spin"></i> Atualizando pedidos...</div>';
+    
+    showOrderListView(); // Mostra a estrutura da tela
+
+    // Atualiza os dados de cada pedido no banco
+    const freshOrders = [];
+    for (const localOrder of state.myOrders) {
+        try {
+            // Busca o documento atualizado no Firebase
+            const docRef = doc(db, `sites/${state.siteId}/sales`, localOrder.id);
+            const docSnap = await getDoc(docRef);
+            
+            if (docSnap.exists()) {
+                // Se existe, usa os dados novos
+                freshOrders.push({ id: docSnap.id, ...docSnap.data() });
+            } else {
+                // Se não existe mais (foi deletado), mantém o antigo ou ignora
+                // Opção: Manter histórico para o cliente não achar que sumiu
+                freshOrders.push(localOrder); 
+            }
+        } catch (e) {
+            console.error("Erro ao atualizar pedido:", e);
+            freshOrders.push(localOrder); // Fallback para o local se der erro de rede
+        }
+    }
+
+    // Salva a lista atualizada e renderiza
+    state.myOrders = freshOrders;
+    localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+    
+    // Agora renderiza a lista com dados frescos
+    showOrderListView();
+};
+
+window.showOrderListView = () => {
+    // Esconde tudo, mostra Lista
+    document.getElementById('view-cart-list').classList.add('hidden');
+    document.getElementById('view-checkout').classList.add('hidden');
+    document.getElementById('view-order-status').classList.add('hidden');
+    document.getElementById('view-order-list').classList.remove('hidden');
+
+    // Configura Header
+    document.getElementById('cart-modal-title').innerText = "ACOMPANHAMENTO";
+    document.getElementById('cart-footer-actions').classList.add('hidden');
+    document.getElementById('btn-modal-back').classList.add('hidden');
+
+    const container = document.getElementById('orders-list-container');
+    container.innerHTML = '';
+
+    // Ordena: Mais recente em cima
+    const sortedList = [...state.myOrders].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    sortedList.forEach(order => {
+        // --- Definição de Cores e Status ---
+        let statusColor = 'bg-gray-400';
+        let statusLabel = 'Aguardando aprovação';
+
+        // Mapeamento
+        switch (order.status) {
+            case 'Aguardando aprovação':
+                statusColor = 'bg-gray-400';
+                statusLabel = 'Aguardando aprovação';
+                break;
+            case 'Aprovado':
+            case 'Preparando pedido':
+                statusColor = 'bg-yellow-400';
+                statusLabel = 'Preparando Pedido';
+                break;
+            case 'Saiu para entrega':
+                statusColor = 'bg-orange-500';
+                statusLabel = 'Entrega';
+                break;
+            case 'Entregue':
+            case 'Concluído':
+                statusColor = 'bg-green-500';
+                statusLabel = 'Concluído';
+                break;
+            case 'Cancelado':
+            case 'Cancelado pelo Cliente': // <--- ADICIONADO AQUI
+                statusColor = 'bg-red-600';
+                statusLabel = 'Cancelado / Recusado';
+                break;
+            default:
+                statusLabel = order.status; // Fallback
+        }
+
+        // --- Legenda Superior ---
+        let metaLabel = "Em andamento";
+        if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente'].includes(order.status)) {
+            metaLabel = "Finalizado";
+        }
+
+        const item = document.createElement('div');
+        item.className = "bg-[#0f111a] border border-gray-800 rounded-2xl p-4 flex justify-between items-center cursor-pointer hover:border-gray-600 transition mb-3 relative group";
+        item.onclick = () => showOrderDetail(order.id);
+
+        item.innerHTML = `
+            <div class="flex flex-col">
+                <span class="text-yellow-500 font-bold text-xs mb-1">Pedido ${order.code}</span>
+                <span class="text-white font-bold text-lg leading-tight">${statusLabel}</span>
+            </div>
+            
+            <div class="flex flex-col items-end gap-1">
+                <span class="text-[10px] text-gray-400 font-medium uppercase tracking-wide">${metaLabel}</span>
+                <div class="flex items-center gap-3">
+                    <div class="w-4 h-4 rounded-full ${statusColor} shadow-[0_0_8px_rgba(255,255,255,0.1)]"></div>
+                    <i class="fas fa-chevron-right text-white text-sm"></i>
+                </div>
+            </div>
+        `;
+        container.appendChild(item);
+    });
+};
+
+window.showOrderDetail = (orderId) => {
+    // Esconde as outras views
+    document.getElementById('view-cart-list').classList.add('hidden');
+    document.getElementById('view-checkout').classList.add('hidden');
+    document.getElementById('view-order-list').classList.add('hidden');
+    document.getElementById('view-order-status').classList.remove('hidden');
+
+    document.getElementById('cart-modal-title').innerText = "DETALHES";
+    document.getElementById('cart-footer-actions').classList.add('hidden');
+
+    // Botão Voltar para Lista
+    const btnBack = document.getElementById('btn-modal-back');
+    btnBack.classList.remove('hidden');
+    btnBack.onclick = () => {
+        // Ao voltar, atualiza a lista novamente para garantir sincronia
+        openTrackModal(); 
     };
 
-    try { await addDoc(collection(db, `sites/${state.siteId}/sales`), orderData); } catch (e) { console.log(e); }
+    // Renderiza inicial com o que tem na memória (pra não piscar tela branca)
+    const localOrder = state.myOrders.find(o => o.id === orderId);
+    if (localOrder) updateStatusUI(localOrder);
 
-    // Mensagem WhatsApp
-    let msg = `*NOVO PEDIDO #${orderData.code}*\n`;
-    msg += `--------------------------------\n`;
-    state.cart.forEach(i => { msg += `▪ ${i.qty}x ${i.name} (${i.size})\n`; });
-    msg += `--------------------------------\n`;
-    msg += `📍 *Endereço:* \n${addressStr}\n\n`;
-    msg += `💳 *Pagamento:* ${paymentDetails}\n`;
-    msg += `💰 *TOTAL FINAL: ${totalText}*\n`;
+    // --- LISTENER EM TEMPO REAL ---
+    if (window.currentOrderListener) window.currentOrderListener();
+    
+    // Listener no documento específico
+    window.currentOrderListener = onSnapshot(doc(db, `sites/${state.siteId}/sales`, orderId), (snap) => {
+        if (snap.exists()) {
+            const data = snap.data();
+            // --- CORREÇÃO CRÍTICA DO UNDEFINED ---
+            // O objeto 'data' do firebase NÃO tem o ID dentro dele por padrão.
+            // Precisamos criar um novo objeto com o ID e os dados.
+            const fullOrder = { id: snap.id, ...data }; 
+            
+            // Atualiza a UI de Detalhes
+            updateStatusUI(fullOrder);
 
-    if (method === 'card') msg += `\n(Solicito link de pagamento)`;
-    if (method === 'pix') msg += `\n(Solicito chave Pix)`;
-
-    const sellerPhone = state.storeProfile.whatsapp || "5511999999999";
-    window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-
-    // Limpa tudo
-    state.cart = [];
-    state.currentCoupon = null;
-    saveCart();
-    closeCheckoutModal();
-    showToast('Pedido realizado!');
+            // Atualiza também o array local para manter tudo sincronizado
+            const idx = state.myOrders.findIndex(o => o.id === orderId);
+            if (idx > -1) {
+                state.myOrders[idx] = fullOrder;
+                localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+            }
+        }
+    });
 };
+
+
+
+// Variável global para controlar o timer e não criar múltiplos intervalos
+window.cancelTimerInterval = null;
+
+window.updateStatusUI = (order) => {
+    // Limpa timer anterior se houver troca de visualização
+    if (window.cancelTimerInterval) clearInterval(window.cancelTimerInterval);
+
+    // --- RENDERIZAÇÃO DA TIMELINE (Mantida a lógica anterior, ajustada visualmente) ---
+    // Mapa de Progresso
+    const steps = {
+        'Aguardando aprovação': 1,
+        'Aprovado': 1,
+        'Preparando pedido': 2,
+        'Saiu para entrega': 3,
+        'Entregue': 4,
+        'Concluído': 4
+    };
+    
+    let currentStep = steps[order.status] || 1;
+    
+    // Se for QUALQUER tipo de cancelamento, o passo é 0 (falha)
+    if (order.status.includes('Cancelado')) currentStep = 0;
+
+    // Atualiza Barra e Ícones (usando a lógica que já existia, mas simplificada para focar no design)
+    let barWidth = 0;
+    if (currentStep > 1) barWidth = ((currentStep - 1) / 3) * 100;
+    const timelineLine = document.getElementById('status-timeline-line');
+    if(timelineLine) timelineLine.style.width = `${barWidth}%`;
+
+    for (let i = 1; i <= 4; i++) {
+        const iconBox = document.getElementById(`icon-step-${i}`);
+        if(!iconBox) continue; 
+        const icon = iconBox.querySelector('i');
+        
+        iconBox.className = "w-10 h-10 rounded-full flex items-center justify-center border-2 z-10 transition-all duration-300 bg-[#0f111a]"; 
+        
+        // Verifica se é cancelado
+        if (order.status.includes('Cancelado')) {
+             iconBox.classList.add('border-red-600', 'text-red-600');
+             icon.className = "fas fa-times";
+        } 
+        else if (i <= currentStep) {
+             // ... verde ...
+             iconBox.classList.add('bg-green-500', 'border-green-500', 'text-white');
+             icon.className = "fas fa-check";
+        } else {
+             // ... cinza ...
+             iconBox.classList.add('border-gray-700', 'text-gray-700');
+        }
+    }
+
+    // --- CONTEÚDO DOS DETALHES (Estilo image_a2255a.png) ---
+    // Precisamos de um container específico no HTML para injetar esses detalhes.
+    // Sugiro que no seu HTML, dentro de 'view-order-status', você tenha uma div com id="order-details-body"
+    
+    const detailsContainer = document.getElementById('order-details-body'); // <--- CRIE ESSE ID NO HTML se não existir
+    if (detailsContainer) {
+        let itemsHtml = order.items.map(i => `
+            <div class="flex justify-between text-sm text-gray-300 mb-1">
+                <span>${i.qty}x ${i.name} ${i.size !== 'U' ? `(${i.size})` : ''}</span>
+            </div>
+        `).join('');
+
+        // Formatação do Cupom
+        const cupomHtml = order.cupom ? `<div class="text-sm text-gray-400 mt-2">Cupom: <span class="text-white">${order.cupom}</span></div>` : '';
+
+        // Situação Atual (Texto Grande no Centro)
+        const statusDisplay = order.status === 'Concluído' ? 'CONCLUÍDO' : order.status.toUpperCase();
+
+        detailsContainer.innerHTML = `
+            <div class="bg-[#1a1d2d] rounded-xl p-4 mb-6 text-center border border-gray-700">
+                <span class="text-xs text-gray-500 uppercase tracking-widest block mb-1">Situação Atual</span>
+                <h2 class="text-2xl font-bold text-white">${statusDisplay}</h2>
+            </div>
+
+            <div class="mb-6">
+                <h3 class="text-white font-bold text-lg mb-2">Itens:</h3>
+                ${itemsHtml}
+                ${cupomHtml}
+                <div class="mt-3 pt-3 border-t border-gray-800 flex justify-between items-center">
+                    <span class="text-white font-bold text-lg">Total:</span>
+                    <span class="text-green-400 font-bold text-lg">${formatCurrency(order.total)}</span>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <h3 class="text-white font-bold text-lg mb-2">Endereço</h3>
+                <p class="text-gray-400 text-sm leading-relaxed">
+                    ${order.customer.street}, ${order.customer.addressNum}<br>
+                    ${order.customer.district} - ${order.customer.cep}
+                </p>
+            </div>
+            
+            <div id="cancel-btn-area" class="mt-auto"></div>
+        `;
+    }
+
+    // --- LÓGICA DO BOTÃO CANCELAR COM TIMER ---
+    const btnArea = document.getElementById('cancel-btn-area');
+    if (!btnArea) return;
+
+    // Só mostra botão se o status for inicial
+    if (order.status === 'Aguardando aprovação' || order.status === 'Pendente') {
+        
+        // Calcula tempo restante
+        const checkTimer = () => {
+            const now = new Date().getTime();
+            const limit = new Date(order.cancelLimit).getTime(); // cancelLimit foi salvo na criação do pedido
+            const distance = limit - now;
+
+            if (distance < 0) {
+                // Tempo acabou
+                btnArea.innerHTML = `
+                    <button disabled class="w-full bg-gray-800 text-gray-500 font-bold py-3 rounded-xl cursor-not-allowed">
+                        Cancelamento indisponível
+                    </button>
+                `;
+                clearInterval(window.cancelTimerInterval);
+            } else {
+                // Tempo rodando
+                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                const fmtSec = seconds < 10 ? `0${seconds}` : seconds;
+
+                btnArea.innerHTML = `
+                    <button onclick="clientCancelOrder('${order.id}')" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl flex justify-between px-6 transition">
+                        <span>Cancelar</span>
+                        <span>${minutes}:${fmtSec}s</span>
+                    </button>
+                `;
+            }
+        };
+
+        checkTimer(); // Roda imediatamente
+        window.cancelTimerInterval = setInterval(checkTimer, 1000); // Atualiza a cada segundo
+
+    } else {
+        // Se já foi aprovado ou saiu para entrega, não pode cancelar
+        btnArea.innerHTML = '';
+    }
+};
+
+// Nova função helper para o cliente cancelar
+window.clientCancelOrder = async (orderId) => {
+    if(!confirm("Tem certeza que deseja cancelar seu pedido?")) return;
+    
+    try {
+        // --- AQUI MUDA O STATUS PARA O QUE VAI APARECER NO ADMIN ---
+        await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), { 
+            status: 'Cancelado pelo Cliente',
+            cancelReason: 'Cancelado pelo cliente no app'
+        });
+        
+        // Não precisa de alert, a UI vai atualizar sozinha pelo listener
+    } catch (e) {
+        console.error(e);
+        alert("Erro ao cancelar: " + e.message);
+    }
+};
+
+
+
+// Função Auxiliar: Controla a bolinha vermelha da moto
+function checkActiveOrders() {
+    const indicator = document.getElementById('track-indicator');
+    if (!indicator) return;
+
+    // Se não tiver lista ou estiver vazia, esconde a bolinha
+    if (!state.myOrders || state.myOrders.length === 0) {
+        indicator.classList.add('hidden');
+        return;
+    }
+
+    // Filtra para contar apenas os pedidos que AINDA estão ativos/vivos
+    const activeOrders = state.myOrders.filter(o => {
+        const s = o.status;
+        
+        // Verifica se o status é considerado "Finalizado"
+        // (Inclui: Concluído, Entregue, e qualquer tipo de Cancelado)
+        const isFinished = 
+            s === 'Concluído' || 
+            s === 'Entregue' || 
+            s.includes('Cancelado'); // Pega 'Cancelado' e 'Cancelado pelo Cliente'
+
+        // Retorna TRUE se o pedido NÃO estiver finalizado (ou seja, é um pedido ativo)
+        return !isFinished;
+    });
+
+    // Se tiver pelo menos 1 pedido ativo, mostra a bolinha. Senão, esconde.
+    if (activeOrders.length > 0) {
+        indicator.classList.remove('hidden');
+    } else {
+        indicator.classList.add('hidden');
+    }
+}
+
+// Variável para guardar os ouvintes e evitar duplicidade
+window.activeListeners = [];
+
+function startBackgroundListeners() {
+    // Se não tem histórico, não faz nada
+    if (!state.myOrders || state.myOrders.length === 0) {
+        checkActiveOrders();
+        return;
+    }
+
+    // Limpa ouvintes antigos para não duplicar se chamar a função de novo
+    window.activeListeners.forEach(unsubscribe => unsubscribe());
+    window.activeListeners = [];
+
+    // Para cada pedido no histórico local...
+    state.myOrders.forEach(localOrder => {
+        // ... cria um ouvinte em tempo real no Firebase
+        const unsub = onSnapshot(doc(db, `sites/${state.siteId}/sales`, localOrder.id), (docSnap) => {
+            if (docSnap.exists()) {
+                const freshData = docSnap.data();
+                
+                // 1. Atualiza os dados na memória local
+                const index = state.myOrders.findIndex(o => o.id === localOrder.id);
+                if (index !== -1) {
+                    // Mantém o ID e atualiza o resto
+                    state.myOrders[index] = { id: localOrder.id, ...freshData };
+                    
+                    // 2. Salva no LocalStorage para persistir
+                    localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+                    
+                    // 3. O MAIS IMPORTANTE: Verifica a bolinha imediatamente
+                    checkActiveOrders();
+                    
+                    // Se o modal de lista estiver aberto, atualiza a lista visualmente também
+                    const listModal = document.getElementById('view-order-list');
+                    if (listModal && !listModal.classList.contains('hidden')) {
+                        showOrderListView();
+                    }
+                }
+            }
+        });
+        
+        // Guarda o ouvinte para poder limpar depois se precisar
+        window.activeListeners.push(unsub);
+    });
+}
+
+// Digite isso no Console do navegador para limpar o estado travado:
+// localStorage.removeItem('activeOrder');
+// location.reload();

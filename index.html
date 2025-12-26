@@ -111,6 +111,16 @@
                         <i id="theme-icon" class="fas fa-sun fa-lg"></i>
                     </button>
 
+                    <button id="btn-track-icon" class="relative text-white hover:text-yellow-500 transition mr-4"
+                        title="Acompanhar Pedido">
+                        <i class="fas fa-motorcycle text-xl"></i>
+                        <span id="track-indicator" class="absolute -top-1 -right-2 flex h-3 w-3 hidden">
+                            <span
+                                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                        </span>
+                    </button>
+
                     <div class="relative cursor-pointer group" id="cart-btn">
                         <i class="fas fa-shopping-cart text-white fa-lg group-hover:text-yellow-500 transition"></i>
                         <span id="cart-count"
@@ -715,6 +725,75 @@
                     </div>
                 </div>
 
+                <div class="mt-4 bg-gray-900 rounded-lg overflow-hidden border border-gray-700">
+
+                    <button id="btn-acc-orders"
+                        class="w-full flex justify-between items-center p-4 bg-black hover:bg-gray-900 transition focus:outline-none border-b border-yellow-500/20">
+                        <h3 class="text-yellow-500 font-bold text-lg flex items-center gap-2">
+                            Pedidos
+                        </h3>
+                        <i id="arrow-acc-orders"
+                            class="fas fa-chevron-down text-yellow-500 transition-transform duration-300"></i>
+                    </button>
+
+                    <div id="content-acc-orders" class="hidden p-4 space-y-4 bg-[#1a1a1a]">
+
+                        <div class="bg-[#2a2a2a] p-4 rounded-lg border border-gray-700">
+                            <h4 class="text-yellow-500 font-bold text-sm mb-3 border-b border-gray-600 pb-1">Entrega
+                            </h4>
+
+                            <div class="flex flex-col md:flex-row justify-between gap-4">
+                                <label class="flex items-center gap-3 cursor-pointer group">
+                                    <div class="relative flex items-center">
+                                        <input type="checkbox" id="conf-own-delivery"
+                                            class="peer h-5 w-5 cursor-pointer appearance-none rounded border border-gray-500 bg-gray-800 transition-all checked:border-green-500 checked:bg-green-500 hover:shadow-md">
+                                        <span
+                                            class="absolute text-white opacity-0 peer-checked:opacity-100 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5"
+                                                viewBox="0 0 20 20" fill="currentColor">
+                                                <path
+                                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <span
+                                        class="text-white font-bold text-sm group-hover:text-gray-300 transition">Entrega
+                                        da Própria loja</span>
+                                </label>
+
+                                <label class="flex items-center gap-3 cursor-pointer group">
+                                    <div class="relative flex items-center">
+                                        <input type="checkbox" id="conf-req-code"
+                                            class="peer h-5 w-5 cursor-pointer appearance-none rounded border border-gray-500 bg-gray-800 transition-all checked:border-green-500 checked:bg-green-500 hover:shadow-md">
+                                        <span
+                                            class="absolute text-white opacity-0 peer-checked:opacity-100 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5"
+                                                viewBox="0 0 20 20" fill="currentColor">
+                                                <path
+                                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <span
+                                        class="text-white font-bold text-sm group-hover:text-gray-300 transition">Solicitar
+                                        código do cliente</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div
+                            class="bg-[#2a2a2a] p-4 rounded-lg border border-gray-700 flex items-center justify-between">
+                            <label class="text-yellow-500 font-bold text-sm">Tempo para cliente cancelar pedido</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="conf-cancel-time"
+                                    class="bg-white text-black font-bold rounded p-1 w-16 text-center focus:ring-2 focus:ring-yellow-500 outline-none"
+                                    value="5">
+                                <span class="text-white text-sm font-bold">Minutos</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="text-center text-gray-500 text-sm mt-8">
                     Mais configurações em breve...
                 </div>
@@ -806,31 +885,202 @@
         </div>
     </div>
 
-    <div id="cart-modal" class="fixed inset-0 z-50 hidden bg-black bg-opacity-80 justify-end flex">
-        <div class="bg-gray-900 w-full max-w-md h-full shadow-2xl p-6 overflow-y-auto flex flex-col">
-            <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-2">
-                <h2 class="text-xl font-bold text-white">Seu Carrinho</h2>
-                <button id="close-cart" class="text-gray-400">Fechar</button>
+    <div id="cart-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-[60] backdrop-blur-sm">
+        <div
+            class="bg-[#0f172a] w-full max-w-md h-[95vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-gray-700 relative">
+
+            <div class="bg-black p-4 flex justify-between items-center border-b border-gray-800 z-20">
+                <button id="btn-modal-back" class="hidden text-white hover:text-yellow-500 mr-3"
+                    onclick="backToOrderList()">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+
+                <h2 id="cart-modal-title" class="text-yellow-500 font-bold text-xl uppercase tracking-wider flex-1">SEU
+                    CARRINHO</h2>
+
+                <button onclick="closeCartModal()" class="text-gray-400 hover:text-red-500 transition"><i
+                        class="fas fa-times text-xl"></i></button>
             </div>
 
-            <div id="cart-items" class="flex-1 space-y-4"></div>
+            <div class="flex-1 overflow-y-auto p-4 custom-scrollbar relative bg-[#0f172a]">
 
-            <div class="border-t border-gray-700 pt-4 mt-4">
-                <div class="flex gap-2 mb-4">
-                    <input type="text" id="cart-coupon-input" placeholder="Cupom"
-                        class="bg-black border border-gray-600 text-white p-2 w-full text-sm">
-                    <button id="btn-apply-coupon" class="bg-gray-700 px-3 text-sm">Aplicar</button>
+                <div id="view-cart-list">
+                    <div id="cart-items" class="space-y-2 mb-4"></div>
+                    <div class="bg-gray-800 p-4 rounded-lg space-y-2 text-sm border border-gray-700">
+                        <div class="flex justify-between text-gray-400"><span>Subtotal:</span> <span
+                                id="cart-subtotal">R$ 0,00</span></div>
+                        <div class="flex justify-between text-green-400 font-bold"><span
+                                id="cart-discount-label">Descontos:</span> <span id="cart-discount">R$ 0,00</span></div>
+                        <div
+                            class="border-t border-gray-700 my-2 pt-2 flex justify-between text-white text-xl font-bold">
+                            <span>Total:</span> <span id="cart-total">R$ 0,00</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex gap-2">
+                        <input type="text" id="cart-coupon-input" placeholder="CUPOM"
+                            class="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white uppercase outline-none">
+                        <button id="btn-apply-coupon" class="bg-gray-700 text-white px-4 rounded"><i
+                                class="fas fa-tag"></i></button>
+                    </div>
                 </div>
-                <div class="flex justify-between text-gray-400 text-sm"><span>Subtotal</span><span id="cart-subtotal">R$
-                        0,00</span></div>
-                <div class="flex justify-between text-yellow-500 text-sm"><span>Desconto</span><span
-                        id="cart-discount">- R$ 0,00</span></div>
-                <div class="flex justify-between text-white text-xl font-bold mt-2"><span>Total</span><span
-                        id="cart-total">R$ 0,00</span></div>
 
-                <button id="btn-checkout"
-                    class="w-full bg-green-600 text-white font-bold py-3 rounded mt-4 flex items-center justify-center gap-2">
-                    <i class="fab fa-whatsapp"></i> FINALIZAR PEDIDO
+                <div id="view-checkout" class="hidden space-y-4">
+
+                    <div class="space-y-2">
+                        <label class="text-gray-300 text-xs font-bold uppercase ml-1">Pagamento</label>
+                        <label
+                            class="flex items-center justify-between p-3 bg-gray-200 rounded cursor-pointer border-2 border-transparent has-[:checked]:border-green-500 has-[:checked]:bg-gray-300 transition">
+                            <span class="font-bold text-gray-800">Pagar Online</span>
+                            <input type="radio" name="pay-mode" value="online" class="accent-green-600 w-5 h-5" checked>
+                        </label>
+                        <div id="container-pay-delivery">
+                            <label
+                                class="flex items-center justify-between p-3 bg-gray-200 rounded cursor-pointer border-2 border-transparent has-[:checked]:border-green-500 has-[:checked]:bg-gray-300 transition">
+                                <span class="font-bold text-gray-800">Pagar na Entrega</span>
+                                <input type="radio" name="pay-mode" value="delivery" class="accent-green-600 w-5 h-5">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-700 my-2"></div>
+
+                    <div id="checkout-payment-options" class="space-y-3">
+                        <p class="text-gray-300 text-xs font-bold uppercase ml-1" id="lbl-payment-method">Forma de
+                            Pagamento:</p>
+
+                        <label
+                            class="flex items-center gap-3 p-3 bg-white rounded cursor-pointer border-2 border-transparent has-[:checked]:border-green-500 shadow-sm">
+                            <i class="fab fa-pix text-green-600 text-xl"></i>
+                            <div class="flex-1">
+                                <span class="font-bold text-gray-800 text-sm block">Pix</span>
+                                <span id="checkout-pix-discount-msg"
+                                    class="text-[10px] text-green-600 font-bold hidden">Desconto disponível</span>
+                            </div>
+                            <input type="radio" name="payment-method-selection" value="pix"
+                                class="accent-green-600 w-4 h-4" checked>
+                        </label>
+
+                        <div class="bg-white rounded overflow-hidden shadow-sm group">
+                            <label
+                                class="flex items-center gap-3 p-3 cursor-pointer border-2 border-transparent has-[:checked]:border-green-500 relative z-10">
+                                <i class="far fa-credit-card text-green-600 text-xl"></i>
+                                <span class="font-bold text-gray-800 text-sm flex-1">Cartão Crédito/Débito</span>
+                                <input type="radio" name="payment-method-selection" value="card"
+                                    class="accent-green-600 w-4 h-4">
+                            </label>
+                            <div id="card-installments-container"
+                                class="p-2 bg-gray-100 hidden border-t border-gray-200">
+                                <select id="checkout-installments"
+                                    class="w-full bg-white border border-gray-300 text-gray-800 text-sm rounded p-2 outline-none font-bold"></select>
+                            </div>
+                        </div>
+
+                        <div id="container-cash-option" class="hidden">
+                            <div class="bg-white rounded overflow-hidden shadow-sm">
+                                <label
+                                    class="flex items-center gap-3 p-3 cursor-pointer border-2 border-transparent has-[:checked]:border-green-500">
+                                    <i class="fas fa-money-bill-wave text-green-600 text-xl"></i>
+                                    <span class="font-bold text-gray-800 text-sm flex-1">Dinheiro</span>
+                                    <input type="radio" name="payment-method-selection" value="cash"
+                                        class="accent-green-600 w-4 h-4">
+                                </label>
+                                <div id="cash-change-container"
+                                    class="p-2 bg-gray-100 hidden border-t border-gray-200 flex items-center gap-2">
+                                    <span class="text-xs font-bold text-gray-600">Troco para:</span>
+                                    <input type="tel" id="checkout-change-for" placeholder="R$ 0,00"
+                                        class="flex-1 bg-white border border-gray-300 rounded p-1 text-sm font-bold text-gray-900 outline-none focus:border-green-500"
+                                        oninput="formatMoneyInput(this)">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 pt-2 border-t border-gray-700 mt-2">
+                        <p class="text-yellow-500 text-xs font-bold uppercase ml-1 flex justify-between">
+                            <span>Entrega</span>
+                            <span id="distance-display" class="text-gray-400 font-normal hidden">Calculando...</span>
+                        </p>
+
+                        <div class="relative">
+                            <input type="tel" id="checkout-cep" placeholder="CEP (00000-000)" maxlength="9"
+                                class="w-full bg-white text-gray-900 font-bold border-none rounded p-3 text-sm focus:ring-2 focus:ring-yellow-500"
+                                onblur="handleCheckoutCep()">
+                            <div id="cep-loading" class="hidden absolute right-3 top-3 text-gray-500">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+
+                        <div id="delivery-error"
+                            class="hidden bg-red-900/50 border border-red-500 text-red-200 text-xs p-3 rounded font-bold text-center">
+                            <i class="fas fa-ban mr-1"></i> <span id="delivery-error-msg">Entrega indisponível para esta
+                                região.</span>
+                        </div>
+
+                        <div id="address-fields"
+                            class="space-y-2 opacity-50 pointer-events-none transition-all duration-300">
+                            <div class="grid grid-cols-3 gap-2">
+                                <input type="text" id="checkout-street" placeholder="Rua" readonly
+                                    class="col-span-2 w-full bg-gray-200 text-gray-600 font-bold border-none rounded p-3 text-xs cursor-not-allowed">
+
+                                <input type="text" id="checkout-district" placeholder="Bairro" readonly
+                                    class="col-span-1 w-full bg-gray-200 text-gray-600 font-bold border-none rounded p-3 text-xs cursor-not-allowed">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="tel" id="checkout-number" placeholder="Número"
+                                    class="w-full bg-white text-gray-900 font-bold border-none rounded p-3 text-sm focus:ring-2 focus:ring-yellow-500 shadow-md">
+
+                                <input type="text" id="checkout-comp" placeholder="Complemento (Opcional)"
+                                    class="w-full bg-white text-gray-900 font-bold border-none rounded p-3 text-sm focus:ring-2 focus:ring-yellow-500">
+                            </div>
+
+                            <input type="text" id="checkout-city" placeholder="Cidade/UF" readonly
+                                class="w-full bg-transparent text-gray-400 text-xs px-1 border-none outline-none">
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-2 mt-2">
+                            <input type="text" id="checkout-name" placeholder="Seu Nome Completo"
+                                class="w-full bg-white text-gray-900 font-bold border-none rounded p-3 text-sm">
+                            <input type="tel" id="checkout-phone" placeholder="WhatsApp / Telefone"
+                                class="w-full bg-white text-gray-900 font-bold border-none rounded p-3 text-sm">
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="bg-white rounded p-3 flex justify-between items-center mt-4">
+                            <span class="text-gray-600 text-xs font-bold">TOTAL A PAGAR:</span>
+                            <span id="checkout-final-total" class="text-gray-900 text-xl font-bold">R$ 0,00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-order-list" class="hidden space-y-4">
+                    <p class="text-gray-400 text-center text-sm mb-2">Histórico recente:</p>
+                    <div id="orders-list-container" class="space-y-3 pb-4">
+                    </div>
+                </div>
+
+                <div id="view-order-status" class="hidden flex-col w-full h-full p-4 overflow-y-auto">
+                    <div class="mb-6 relative px-4 pt-4">
+                    </div>
+
+                    <div id="order-details-body" class="flex-1 flex flex-col">
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="p-4 bg-[#0f172a] border-t border-gray-800 z-20" id="cart-footer-actions">
+                <button id="btn-go-checkout"
+                    class="w-full bg-[#00d65f] hover:bg-green-500 text-white font-bold py-3 rounded text-xl shadow-lg transition"
+                    onclick="goToCheckoutView()">
+                    Ir para Pagamento
+                </button>
+
+                <button id="btn-finish-payment"
+                    class="hidden w-full bg-[#00d65f] hover:bg-green-500 text-white font-bold py-3 rounded text-xl shadow-lg transition"
+                    onclick="submitOrder()">
+                    Confirmar Pedido
                 </button>
             </div>
         </div>
