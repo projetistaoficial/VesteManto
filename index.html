@@ -166,7 +166,7 @@
                     data-tab="tab-vendas">Vendas</button>
                 <button class="tab-btn px-4 py-2 text-gray-400 hover:text-white"
                     data-tab="tab-produtos">Produtos</button>
-                <button class="tab-btn px-4 py-2 text-gray-400 hover:text-white" data-tab="tab-loja">Loja &
+                <button class="tab-btn px-4 py-2 text-gray-400 hover:text-white" data-tab="tab-loja">Categorias &
                     Cupons</button>
                 <button class="tab-btn px-4 py-2 text-gray-400 hover:text-white"
                     data-tab="tab-stats">Estatísticas</button>
@@ -176,97 +176,84 @@
 
             <div id="tab-vendas" class="tab-content">
 
-                <div class="bg-black rounded-3xl p-6 mb-6 shadow-2xl border border-gray-800 relative overflow-hidden">
-                    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 relative z-10">
-                        <div class="flex items-center gap-6">
-                            <button id="dash-prev-date"
-                                class="text-white hover:text-yellow-500 transition text-3xl font-bold">
-                                < </button>
-                                    <h2 id="dash-date-display" class="text-3xl font-bold text-white tracking-widest">
-                                        --/----</h2>
-                                    <button id="dash-next-date"
-                                        class="text-white hover:text-yellow-500 transition text-3xl font-bold">></button>
-                        </div>
-                        <div class="flex gap-4">
-                            <div class="flex items-center gap-2 cursor-pointer" id="btn-view-day">
-                                <span class="text-white text-sm font-bold">Dia</span>
-                                <div id="check-day"
-                                    class="w-5 h-5 border-2 border-white rounded flex items-center justify-center">
-                                </div>
-                            </div>
-                            <div class="flex items-center gap-2 cursor-pointer" id="btn-view-month">
-                                <span class="text-white text-sm font-bold">Mês</span>
-                                <div id="check-month"
-                                    class="w-5 h-5 border-2 border-white rounded bg-green-500 border-none flex items-center justify-center">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center relative z-10">
-                        <div>
-                            <h4 class="text-yellow-500 font-bold mb-2 text-sm uppercase tracking-wider">Quantidade de
-                                Itens vendidos</h4>
-                            <p id="dash-total-items" class="text-5xl font-bold text-green-500">0</p>
-                        </div>
-                        <div>
-                            <h4 class="text-yellow-500 font-bold mb-2 text-sm uppercase tracking-wider">Vendas
-                                Confirmadas</h4>
-                            <p id="dash-confirmed-count" class="text-5xl font-bold text-green-500">0</p>
-                        </div>
-                        <div>
-                            <h4 class="text-yellow-500 font-bold mb-2 text-sm uppercase tracking-wider">Valor de Vendas
-                                ( Aprovadas )</h4>
-                            <p id="dash-total-value" class="text-5xl font-bold text-green-500">R$ 0,00</p>
-                        </div>
-                    </div>
+                <div id="orders-summary-bar" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
                 </div>
 
-                <div class="bg-gray-900 border border-gray-700 rounded mb-6 p-4">
-                    <div id="btn-toggle-filters"
-                        class="flex justify-between items-center cursor-pointer border-b border-gray-800 pb-2 mb-4 group">
-                        <h3 class="text-yellow-500 font-bold group-hover:text-yellow-400 transition">Filtros de Pedido
-                        </h3>
-                        <i id="icon-filter-arrow"
-                            class="fas fa-chevron-up text-gray-400 group-hover:text-white transition-transform duration-300 rotate-180"></i>
-                    </div>
+                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
 
-                    <div id="filters-body" class="hidden grid gap-4 transition-all duration-300">
-                        <div>
-                            <label class="text-gray-400 text-xs mb-1 block">Buscar Ref. Pedido (Ex: 12345):</label>
-                            <input type="text" id="filter-order-id" placeholder="Digite o código..."
-                                class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 focus:border-yellow-500 outline-none">
+                        <div class="md:col-span-4">
+                            <label class="text-xs text-gray-500 uppercase font-bold ml-1">Busca Rápida</label>
+                            <div class="relative">
+                                <i
+                                    class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i>
+                                <input type="text" id="filter-search-general"
+                                    placeholder="Pesquise por Nº Pedido, Nome do Cliente ou Telefone..."
+                                    class="w-full bg-gray-900 text-white pl-10 pr-4 py-2 rounded border border-gray-600 focus:border-yellow-500 outline-none transition">
+                            </div>
                         </div>
+
                         <div>
-                            <label class="text-gray-400 text-xs mb-1 block">Status:</label>
-                            <select id="filter-order-status"
-                                class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 focus:border-yellow-500 outline-none">
-                                <option value="">Todas as Vendas</option>
-                                <option value="Pendente">Pendentes</option>
-                                <option value="Confirmado">Aprovados / Confirmados</option>
-                                <option value="Cancelado">Cancelados</option>
-                                <option value="Reembolsado">Estornados / Reembolsados</option>
+                            <label class="text-xs text-gray-500 uppercase font-bold ml-1">Status</label>
+                            <select id="filter-status"
+                                class="w-full bg-gray-900 text-white px-3 py-2 rounded border border-gray-600 focus:border-yellow-500 outline-none h-[42px]">
+                                <option value="">Todos os Status</option>
+                                <option value="Aguardando aprovação">Aguardando aprovação</option>
+                                <option value="Aprovado">Aprovado</option>
+                                <option value="Preparando pedido">Preparando</option>
+                                <option value="Saiu para entrega">Saiu para entrega</option>
+                                <option value="Entregue">Entregue</option>
+                                <option value="Concluído">Concluído</option>
+                                <option value="Cancelado_All">Cancelados (Todos)</option>
                             </select>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="text-gray-400 text-xs mb-1 block">Data Inicial:</label>
+
+                        <div>
+                            <label class="text-xs text-gray-500 uppercase font-bold ml-1">Pagamento</label>
+                            <select id="filter-payment"
+                                class="w-full bg-gray-900 text-white px-3 py-2 rounded border border-gray-600 focus:border-yellow-500 outline-none h-[42px]">
+                                <option value="">Todas as Formas</option>
+                                <option value="pix">Pix</option>
+                                <option value="card">Cartão</option>
+                                <option value="cash">Dinheiro</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs text-gray-500 uppercase font-bold ml-1">Ordenar por</label>
+                            <select id="filter-sort"
+                                class="w-full bg-gray-900 text-white px-3 py-2 rounded border border-gray-600 focus:border-yellow-500 outline-none h-[42px]">
+                                <option value="date_desc">Mais Recentes (Padrão)</option>
+                                <option value="date_asc">Mais Antigos</option>
+                                <option value="price_asc">Menor Valor (R$)</option>
+                                <option value="price_desc">Maior Valor (R$)</option>
+                                <option value="code_desc">Maior N.º Pedido</option>
+                                <option value="code_asc">Menor N.º Pedido</option>
+                            </select>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <div class="w-1/2">
+                                <label class="text-xs text-gray-500 uppercase font-bold ml-1">De:</label>
                                 <input type="date" id="filter-date-start"
-                                    class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 text-sm uppercase">
+                                    class="w-full bg-gray-900 text-white px-2 py-2 rounded border border-gray-600 focus:border-yellow-500 outline-none h-[42px] text-xs">
                             </div>
-                            <div>
-                                <label class="text-gray-400 text-xs mb-1 block">Data Final:</label>
+                            <div class="w-1/2">
+                                <label class="text-xs text-gray-500 uppercase font-bold ml-1">Até:</label>
                                 <input type="date" id="filter-date-end"
-                                    class="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 text-sm uppercase">
+                                    class="w-full bg-gray-900 text-white px-2 py-2 rounded border border-gray-600 focus:border-yellow-500 outline-none h-[42px] text-xs">
                             </div>
                         </div>
-                        <button id="btn-clear-filters"
-                            class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded text-sm transition">
-                            Limpar Filtros de Pedido
+
+                    </div>
+
+                    <div class="flex justify-end mt-3">
+                        <button id="btn-clear-filters" class="text-xs text-yellow-500 hover:text-white underline">
+                            Limpar Filtros
                         </button>
                     </div>
                 </div>
 
-                <div id="orders-summary-bar" class="flex flex-wrap gap-2 mb-4 text-xs font-bold text-black"></div>
 
                 <h3 class="text-yellow-500 font-bold mb-2">Lista de Pedidos (<span id="orders-count">0</span>
                     encontrados)</h3>
@@ -577,7 +564,7 @@
                             </div>
                         </label>
                         <div>
-                            <h3 class="text-xl font-bold text-white">Permitir Estoque Negativo</h3>
+                            <h3 class="text-xs font-bold text-white">Permitir Estoque Negativo</h3>
                             <p class="text-gray-400 text-xs">Vendas continuarão contabilizando abaixo de zero (ex: -1,
                                 -2)</p>
                         </div>
@@ -926,69 +913,78 @@
 
                 <div id="view-checkout" class="hidden space-y-4">
 
-                    <div class="space-y-2">
-                        <label class="text-gray-300 text-xs font-bold uppercase ml-1">Pagamento</label>
+                    <div class="space-y-2" id="checkout-payment-options">
+                        <label class="text-gray-300 text-xs font-bold uppercase ml-1">Modalidade de Pagamento</label>
+
                         <label
-                            class="flex items-center justify-between p-3 bg-gray-200 rounded cursor-pointer border-2 border-transparent has-[:checked]:border-green-500 has-[:checked]:bg-gray-300 transition">
-                            <span class="font-bold text-gray-800">Pagar Online</span>
-                            <input type="radio" name="pay-mode" value="online" class="accent-green-600 w-5 h-5" checked>
+                            class="flex items-center justify-between p-3 bg-gray-800 border border-gray-700 rounded cursor-pointer hover:border-yellow-500 transition group">
+                            <div class="flex items-center gap-3">
+                                <input type="radio" name="pay-mode" value="online" checked
+                                    class="accent-yellow-500 w-5 h-5 bg-gray-900 border-gray-600">
+                                <span class="font-bold text-white text-sm">Pagar Agora (Online)</span>
+                            </div>
+                            <i class="fas fa-credit-card text-gray-500 group-hover:text-yellow-500"></i>
                         </label>
-                        <div id="container-pay-delivery">
+
+                        <div id="container-delivery-option" class="w-full">
                             <label
-                                class="flex items-center justify-between p-3 bg-gray-200 rounded cursor-pointer border-2 border-transparent has-[:checked]:border-green-500 has-[:checked]:bg-gray-300 transition">
-                                <span class="font-bold text-gray-800">Pagar na Entrega</span>
-                                <input type="radio" name="pay-mode" value="delivery" class="accent-green-600 w-5 h-5">
+                                class="flex items-center justify-between p-3 bg-gray-800 border border-gray-700 rounded cursor-pointer hover:border-yellow-500 transition w-full group">
+                                <div class="flex items-center gap-3">
+                                    <input type="radio" name="pay-mode" value="delivery"
+                                        class="accent-yellow-500 w-5 h-5 bg-gray-900 border-gray-600">
+                                    <span class="font-bold text-white text-sm">Pagar na Entrega</span>
+                                </div>
+                                <i class="fas fa-motorcycle text-gray-500 group-hover:text-yellow-500"></i>
                             </label>
                         </div>
                     </div>
 
                     <div class="border-t border-gray-700 my-2"></div>
 
-                    <div id="checkout-payment-options" class="space-y-3">
-                        <p class="text-gray-300 text-xs font-bold uppercase ml-1" id="lbl-payment-method">Forma de
-                            Pagamento:</p>
+                    <div class="space-y-3">
+                        <p class="text-gray-300 text-xs font-bold uppercase ml-1">Forma de Pagamento:</p>
 
                         <label
-                            class="flex items-center gap-3 p-3 bg-white rounded cursor-pointer border-2 border-transparent has-[:checked]:border-green-500 shadow-sm">
-                            <i class="fab fa-pix text-green-600 text-xl"></i>
+                            class="flex items-center gap-3 p-3 bg-gray-800 border border-gray-700 rounded cursor-pointer has-[:checked]:border-green-500 transition">
+                            <i class="fab fa-pix text-green-500 text-xl"></i>
                             <div class="flex-1">
-                                <span class="font-bold text-gray-800 text-sm block">Pix</span>
+                                <span class="font-bold text-white text-sm block">Pix</span>
                                 <span id="checkout-pix-discount-msg"
-                                    class="text-[10px] text-green-600 font-bold hidden">Desconto disponível</span>
+                                    class="text-[10px] text-green-400 font-bold hidden">Desconto disponível</span>
                             </div>
                             <input type="radio" name="payment-method-selection" value="pix"
-                                class="accent-green-600 w-4 h-4" checked>
+                                class="accent-green-500 w-4 h-4" checked>
                         </label>
 
-                        <div class="bg-white rounded overflow-hidden shadow-sm group">
+                        <div class="bg-gray-800 rounded border border-gray-700 overflow-hidden">
                             <label
-                                class="flex items-center gap-3 p-3 cursor-pointer border-2 border-transparent has-[:checked]:border-green-500 relative z-10">
-                                <i class="far fa-credit-card text-green-600 text-xl"></i>
-                                <span class="font-bold text-gray-800 text-sm flex-1">Cartão Crédito/Débito</span>
+                                class="flex items-center gap-3 p-3 cursor-pointer has-[:checked]:border-green-500 relative z-10">
+                                <i class="far fa-credit-card text-white text-xl"></i>
+                                <span class="font-bold text-white text-sm flex-1">Cartão Crédito/Débito</span>
                                 <input type="radio" name="payment-method-selection" value="card"
-                                    class="accent-green-600 w-4 h-4">
+                                    class="accent-green-500 w-4 h-4">
                             </label>
                             <div id="card-installments-container"
-                                class="p-2 bg-gray-100 hidden border-t border-gray-200">
+                                class="p-2 bg-gray-900 hidden border-t border-gray-700">
                                 <select id="checkout-installments"
-                                    class="w-full bg-white border border-gray-300 text-gray-800 text-sm rounded p-2 outline-none font-bold"></select>
+                                    class="w-full bg-black border border-gray-600 text-white text-sm rounded p-2 outline-none font-bold"></select>
                             </div>
                         </div>
 
                         <div id="container-cash-option" class="hidden">
-                            <div class="bg-white rounded overflow-hidden shadow-sm">
+                            <div class="bg-gray-800 rounded border border-gray-700 overflow-hidden">
                                 <label
-                                    class="flex items-center gap-3 p-3 cursor-pointer border-2 border-transparent has-[:checked]:border-green-500">
-                                    <i class="fas fa-money-bill-wave text-green-600 text-xl"></i>
-                                    <span class="font-bold text-gray-800 text-sm flex-1">Dinheiro</span>
+                                    class="flex items-center gap-3 p-3 cursor-pointer has-[:checked]:border-green-500">
+                                    <i class="fas fa-money-bill-wave text-green-500 text-xl"></i>
+                                    <span class="font-bold text-white text-sm flex-1">Dinheiro</span>
                                     <input type="radio" name="payment-method-selection" value="cash"
-                                        class="accent-green-600 w-4 h-4">
+                                        class="accent-green-500 w-4 h-4">
                                 </label>
                                 <div id="cash-change-container"
-                                    class="p-2 bg-gray-100 hidden border-t border-gray-200 flex items-center gap-2">
-                                    <span class="text-xs font-bold text-gray-600">Troco para:</span>
+                                    class="p-2 bg-gray-900 hidden border-t border-gray-700 flex items-center gap-2">
+                                    <span class="text-xs font-bold text-gray-400">Troco para:</span>
                                     <input type="tel" id="checkout-change-for" placeholder="R$ 0,00"
-                                        class="flex-1 bg-white border border-gray-300 rounded p-1 text-sm font-bold text-gray-900 outline-none focus:border-green-500"
+                                        class="flex-1 bg-black border border-gray-600 rounded p-1 text-sm font-bold text-white outline-none focus:border-green-500"
                                         oninput="formatMoneyInput(this)">
                                 </div>
                             </div>
@@ -998,58 +994,56 @@
                     <div class="space-y-3 pt-2 border-t border-gray-700 mt-2">
                         <p class="text-yellow-500 text-xs font-bold uppercase ml-1 flex justify-between">
                             <span>Entrega</span>
-                            <span id="distance-display" class="text-gray-400 font-normal hidden">Calculando...</span>
+                            <span id="distance-display" class="text-gray-400 font-normal text-[10px] hidden"></span>
                         </p>
 
                         <div class="relative">
                             <input type="tel" id="checkout-cep" placeholder="CEP (00000-000)" maxlength="9"
-                                class="w-full bg-white text-gray-900 font-bold border-none rounded p-3 text-sm focus:ring-2 focus:ring-yellow-500"
+                                class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none transition-colors"
                                 onblur="handleCheckoutCep()">
-                            <div id="cep-loading" class="hidden absolute right-3 top-3 text-gray-500">
+                            <div id="cep-loading" class="hidden absolute right-3 top-3 text-yellow-500">
                                 <i class="fas fa-spinner fa-spin"></i>
                             </div>
                         </div>
 
                         <div id="delivery-error"
                             class="hidden bg-red-900/50 border border-red-500 text-red-200 text-xs p-3 rounded font-bold text-center">
-                            <i class="fas fa-ban mr-1"></i> <span id="delivery-error-msg">Entrega indisponível para esta
-                                região.</span>
+                            <i class="fas fa-ban mr-1"></i> <span id="delivery-error-msg">Entrega indisponível.</span>
                         </div>
 
                         <div id="address-fields"
                             class="space-y-2 opacity-50 pointer-events-none transition-all duration-300">
                             <div class="grid grid-cols-3 gap-2">
                                 <input type="text" id="checkout-street" placeholder="Rua" readonly
-                                    class="col-span-2 w-full bg-gray-200 text-gray-600 font-bold border-none rounded p-3 text-xs cursor-not-allowed">
-
+                                    class="col-span-2 w-full bg-gray-800 text-gray-400 font-bold border-none rounded p-3 text-xs cursor-not-allowed">
                                 <input type="text" id="checkout-district" placeholder="Bairro" readonly
-                                    class="col-span-1 w-full bg-gray-200 text-gray-600 font-bold border-none rounded p-3 text-xs cursor-not-allowed">
+                                    class="col-span-1 w-full bg-gray-800 text-gray-400 font-bold border-none rounded p-3 text-xs cursor-not-allowed">
                             </div>
 
                             <div class="grid grid-cols-2 gap-2">
                                 <input type="tel" id="checkout-number" placeholder="Número"
-                                    class="w-full bg-white text-gray-900 font-bold border-none rounded p-3 text-sm focus:ring-2 focus:ring-yellow-500 shadow-md">
-
-                                <input type="text" id="checkout-comp" placeholder="Complemento (Opcional)"
-                                    class="w-full bg-white text-gray-900 font-bold border-none rounded p-3 text-sm focus:ring-2 focus:ring-yellow-500">
+                                    class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none">
+                                <input type="text" id="checkout-comp" placeholder="Complem. (Opc)"
+                                    class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none">
                             </div>
 
                             <input type="text" id="checkout-city" placeholder="Cidade/UF" readonly
-                                class="w-full bg-transparent text-gray-400 text-xs px-1 border-none outline-none">
+                                class="w-full bg-transparent text-gray-500 text-xs px-1 border-none outline-none">
                         </div>
 
                         <div class="grid grid-cols-1 gap-2 mt-2">
                             <input type="text" id="checkout-name" placeholder="Seu Nome Completo"
-                                class="w-full bg-white text-gray-900 font-bold border-none rounded p-3 text-sm">
+                                class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none">
                             <input type="tel" id="checkout-phone" placeholder="WhatsApp / Telefone"
-                                class="w-full bg-white text-gray-900 font-bold border-none rounded p-3 text-sm">
+                                class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none">
                         </div>
                     </div>
 
                     <div>
-                        <div class="bg-white rounded p-3 flex justify-between items-center mt-4">
-                            <span class="text-gray-600 text-xs font-bold">TOTAL A PAGAR:</span>
-                            <span id="checkout-final-total" class="text-gray-900 text-xl font-bold">R$ 0,00</span>
+                        <div
+                            class="bg-gray-800 rounded p-4 flex justify-between items-center mt-4 border border-gray-700">
+                            <span class="text-gray-400 text-xs font-bold uppercase">TOTAL A PAGAR:</span>
+                            <span id="checkout-final-total" class="text-green-400 text-2xl font-bold">R$ 0,00</span>
                         </div>
                     </div>
                 </div>
@@ -1129,14 +1123,14 @@
                     <div>
                         <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço de Venda
                             (R$)</label>
-                        <input type="number" id="prod-price" placeholder="0.00"
+                        <input type="text" id="prod-price" placeholder="0.00"
                             class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
                             step="0.01" required>
                     </div>
                     <div>
                         <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço Promocional
                             (Opcional)</label>
-                        <input type="number" id="prod-promo" placeholder="0.00"
+                        <input type="text" id="prod-promo" placeholder="0.00"
                             class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
                             step="0.01">
                     </div>
@@ -1152,7 +1146,7 @@
                     <div>
                         <label class="text-gray-500 text-xs font-bold uppercase mb-1 block">Preço de Custo (Visível só
                             p/ Admin)</label>
-                        <input type="number" id="prod-cost" placeholder="0.00"
+                        <input type="text" id="prod-cost" placeholder="0.00"
                             class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
                             step="0.01">
                     </div>
@@ -1171,7 +1165,7 @@
                             <div id="pix-settings"
                                 class="flex items-center gap-2 opacity-50 pointer-events-none transition-opacity duration-200">
                                 <span class="text-gray-400 text-xs uppercase font-bold">Valor:</span>
-                                <input type="number" id="prod-pix-val" placeholder="0"
+                                <input type="text" id="prod-pix-val" placeholder="0"
                                     class="w-20 bg-black border border-gray-600 text-white p-1 rounded text-center focus:border-green-500 outline-none">
 
                                 <div class="flex bg-black rounded border border-gray-600 overflow-hidden">
@@ -1243,120 +1237,6 @@
         </button>
     </div>
 
-    <div id="checkout-modal"
-        class="fixed inset-0 bg-black/90 z-[80] hidden items-end sm:items-center justify-center backdrop-blur-sm p-4 animate-fade-in">
-        <div
-            class="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-xl overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh]">
-
-            <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-black">
-                <h3 class="text-yellow-500 font-bold text-lg">Finalizando Pedido</h3>
-                <button onclick="closeCheckoutModal()" class="text-gray-400 hover:text-white">
-                    <i class="fas fa-times fa-lg"></i>
-                </button>
-            </div>
-
-            <div class="p-5 overflow-y-auto space-y-6 custom-scrollbar">
-
-                <div>
-                    <h4 class="text-white font-bold text-sm mb-2 border-b border-gray-700 pb-1">Informar Endereço para
-                        entrega:</h4>
-
-                    <div class="flex gap-2 mb-2">
-                        <div class="w-1/2">
-                            <label class="text-gray-400 text-xs">CEP:</label>
-                            <input type="text" id="checkout-cep" placeholder="00000-000" maxlength="9"
-                                onblur="handleCheckoutCep()"
-                                class="w-full bg-black border border-gray-600 text-white p-2 rounded focus:border-yellow-500 outline-none">
-                        </div>
-                        <div class="w-1/2 flex items-end">
-                            <span id="cep-loading" class="text-yellow-500 text-xs hidden"><i
-                                    class="fas fa-spinner fa-spin"></i> Buscando...</span>
-                        </div>
-                    </div>
-
-                    <div id="address-details" class="hidden space-y-2 bg-gray-800 p-3 rounded border border-gray-700">
-                        <p id="addr-text" class="text-gray-300 text-sm font-medium"></p>
-
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="text-gray-500 text-xs">Número:</label>
-                                <input type="text" id="checkout-number"
-                                    class="w-full bg-black border border-gray-600 text-white p-1 rounded focus:border-yellow-500">
-                            </div>
-                            <div>
-                                <label class="text-gray-500 text-xs">Complemento:</label>
-                                <input type="text" id="checkout-comp"
-                                    class="w-full bg-black border border-gray-600 text-white p-1 rounded focus:border-yellow-500">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="delivery-error"
-                        class="hidden mt-2 bg-red-900/30 border border-red-500 text-red-400 p-3 rounded text-sm font-bold text-center">
-                        <i class="fas fa-exclamation-circle"></i> Área indisponível para entrega.
-                        <p class="text-xs font-normal mt-1">Estamos muito longe do seu endereço.</p>
-                    </div>
-                </div>
-
-                <div id="payment-section" class="hidden opacity-50 pointer-events-none transition-all duration-300">
-                    <h4 class="text-white font-bold text-sm mb-2 border-b border-gray-700 pb-1">Opções de Pagamento:
-                    </h4>
-
-                    <div class="space-y-2">
-                        <label
-                            class="flex items-center bg-white hover:bg-gray-100 p-3 rounded cursor-pointer transition border border-gray-300">
-                            <input type="radio" name="payment-method" value="whatsapp"
-                                class="form-radio text-green-600 h-5 w-5" checked onchange="updateCheckoutTotal()">
-                            <i class="fab fa-whatsapp text-green-600 text-xl mx-3"></i>
-                            <span class="text-gray-900 font-bold">Finalizar no WhatsApp</span>
-                        </label>
-
-                        <label
-                            class="flex items-center bg-white hover:bg-gray-100 p-3 rounded cursor-pointer transition border border-gray-300">
-                            <input type="radio" name="payment-method" value="pix"
-                                class="form-radio text-green-600 h-5 w-5" onchange="updateCheckoutTotal()">
-                            <i class="fas fa-qrcode text-green-600 text-xl mx-3"></i>
-                            <div class="flex flex-col">
-                                <span class="text-gray-900 font-bold">Pix (C/ Descontos)</span>
-                                <span class="text-xs text-green-600 font-bold" id="label-pix-discount">Verificando
-                                    descontos...</span>
-                            </div>
-                        </label>
-
-                        <div class="border border-gray-300 rounded bg-white overflow-hidden transition-all duration-300"
-                            id="card-option-container">
-                            <label class="flex items-center p-3 cursor-pointer hover:bg-gray-50">
-                                <input type="radio" name="payment-method" value="card"
-                                    class="form-radio text-blue-600 h-5 w-5" onchange="handlePaymentSelection('card')">
-                                <i class="far fa-credit-card text-blue-600 text-xl mx-3"></i>
-                                <span class="text-gray-900 font-bold">Cartão Crédito</span>
-                            </label>
-
-                            <div id="installments-area"
-                                class="hidden bg-gray-100 p-3 border-t border-gray-200 animate-fade-in">
-                                <label class="text-xs font-bold text-gray-600 uppercase block mb-1">Escolha o
-                                    parcelamento:</label>
-                                <select id="checkout-installments" onchange="updateCheckoutTotal()"
-                                    class="w-full p-2 border border-gray-300 rounded text-sm text-gray-900 focus:border-blue-500 outline-none">
-                                </select>
-                                <p id="installment-obs" class="text-[10px] text-gray-500 mt-1 text-right italic"></p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-4 bg-gray-800 p-3 rounded border border-gray-700 text-right">
-                        <p class="text-gray-400 text-xs">Total do Pedido:</p>
-                        <p id="checkout-total-display" class="text-yellow-500 font-bold text-2xl">R$ 0,00</p>
-                    </div>
-                </div>
-            </div>
-
-            <button id="btn-finish-order" onclick="finalizeOrder()" disabled
-                class="w-full bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold text-lg py-4 transition uppercase tracking-widest">
-                Confirmar Pedido
-            </button>
-        </div>
-    </div>
 
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/app.js"></script>

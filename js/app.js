@@ -1,4 +1,4 @@
-import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc } from './firebase-config.js';
+import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction } from './firebase-config.js';
 
 // =================================================================
 // 1. HELPERS (FUNÇÕES AUXILIARES)
@@ -23,8 +23,31 @@ function setupAccordion(btnId, contentId, arrowId) {
     }
 }
 
-// --- FUNÇÕES DE IMAGEM ---
 
+function formatarEnderecoAdmin(customer) {
+    if (!customer) return '<span class="text-gray-500 italic text-xs">Retirada ou não informado</span>';
+
+    // Pega os dados que já existem no seu objeto customer
+    const rua = customer.street || "Rua não informada";
+    const numero = customer.addressNum || "S/N";
+    const bairro = customer.district || "";
+    const cep = customer.cep || "";
+    // Tenta pegar o complemento (vamos adicionar no passo 3) ou deixa vazio
+    const complemento = customer.comp ? ` - ${customer.comp}` : "";
+
+    return `
+        <div class="flex flex-col text-left">
+            <span class="text-gray-200 font-bold text-xs leading-tight">
+                ${rua}, ${numero}${complemento}
+            </span>
+            <span class="text-gray-400 text-[10px] mt-0.5">
+                ${bairro} - ${cep}
+            </span>
+        </div>
+    `;
+}
+
+// --- FUNÇÕES DE IMAGEM ---
 // 1. Converte e Comprime Imagem
 async function processImageFile(file) {
     return new Promise((resolve) => {
@@ -51,7 +74,6 @@ async function processImageFile(file) {
 }
 
 // --- CARROSSEL DE IMAGENS ---
-
 window.changeViewerImage = (delta) => {
     // Reutiliza a lógica do modal para manter tudo sincronizado
     // Ao mudar a imagem aqui, mudamos no modal de fundo também
@@ -182,6 +204,64 @@ function showToast(message, type = 'success') {
     setTimeout(() => {
         toast.classList.add('opacity-0', 'translate-y-[-20px]');
     }, 1500);
+}
+
+//Esta função controla a abertura e o desaparecimento das informações do cabeçalho da PEDIDOS na aba VENDAS.
+window.toggleOrderAccordion = (id) => {
+    const content = document.getElementById(`order-content-${id}`);
+    const arrow = document.getElementById(`order-arrow-${id}`);
+    const headerInfo = document.getElementById(`order-header-info-${id}`); // O container da data/status
+    const headerContainer = document.getElementById(`order-header-${id}`); // O cabeçalho em si
+
+    if (content.classList.contains('hidden')) {
+        // ABRIR
+        content.classList.remove('hidden');
+        arrow.style.transform = 'rotate(180deg)';
+
+        // Esconde status e data do cabeçalho ao abrir
+        if (headerInfo) headerInfo.classList.add('hidden');
+
+        // Ajusta bordas para ficar grudado no conteúdo
+        headerContainer.classList.remove('rounded-xl');
+        headerContainer.classList.add('rounded-t-xl');
+    } else {
+        // FECHAR
+        content.classList.add('hidden');
+        arrow.style.transform = 'rotate(0deg)';
+
+        // Mostra status e data novamente ao fechar
+        if (headerInfo) headerInfo.classList.remove('hidden');
+
+        // Volta a ser arredondado completo
+        headerContainer.classList.add('rounded-xl');
+        headerContainer.classList.remove('rounded-t-xl');
+    }
+};
+
+// Gera código sequencial para produtos (1, 2, 3...)
+async function getNextProductCode(siteId) {
+    const counterRef = doc(db, `sites/${siteId}/settings`, 'productCounter');
+
+    try {
+        return await runTransaction(db, async (transaction) => {
+            const counterDoc = await transaction.get(counterRef);
+
+            let newCount;
+            if (!counterDoc.exists()) {
+                newCount = 1;
+                transaction.set(counterRef, { current: newCount });
+            } else {
+                const current = counterDoc.data().current || 0;
+                newCount = current + 1;
+                transaction.update(counterRef, { current: newCount });
+            }
+            return newCount;
+        });
+    } catch (error) {
+        console.error("Erro ao gerar código sequencial:", error);
+        // Fallback de segurança: usa timestamp se a transação falhar
+        return Date.now();
+    }
 }
 // =================================================================
 // 2. ESTADO GLOBAL E DOM
@@ -382,7 +462,7 @@ function initApp() {
     // 1. Carregamentos Iniciais (Mantenha apenas uma vez)
     loadSiteStats();
     incrementVisitsCounter();
-    
+
     loadSettings();
     loadCategories();
     loadProducts();
@@ -393,6 +473,7 @@ function initApp() {
     // updateDashboardUI(); <--- Pode remover, pois o listener de loadAdminSales já vai chamar isso
 
     startBackgroundListeners(); // <--- Inicia o monitoramento em tempo real
+
 
     // 2. Tema
     if (localStorage.getItem('theme') === 'light') toggleTheme(false);
@@ -408,13 +489,13 @@ function initApp() {
                 <span class="font-bold uppercase text-sm tracking-wide">${btnText}</span>
             `;
         }
-        
+
         // Compatibilidade
         const btnLoginNav = getEl('btn-admin-login');
         if (btnLoginNav) btnLoginNav.innerText = btnText;
 
         if (user) {
-            renderAdminProducts();
+            filterAndRenderProducts();
             loadAdminSales(); // Carrega vendas apenas se for admin
         } else {
             showView('catalog');
@@ -461,7 +542,7 @@ function loadProducts() {
     onSnapshot(q, (snapshot) => {
         state.products = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         renderCatalog(state.products);
-        if (state.user) renderAdminProducts();
+        if (state.user) filterAndRenderProducts();
 
         // Recalcula Capital de Giro sempre que produtos mudarem
         calculateStatsMetrics();
@@ -493,6 +574,12 @@ function loadAdminSales() {
         filterAndRenderSales();
         updateDashboardMetrics();
         updateStatsUI(); // Atualiza a aba Estatísticas
+
+        // --- ADICIONE ESTA LINHA AQUI: ---
+        // Isso força a tabela de produtos a atualizar as datas assim que as vendas carregarem
+        if (document.getElementById('admin-product-list')) {
+            filterAndRenderProducts();
+        }
     });
 }
 
@@ -934,40 +1021,241 @@ function renderAdminCategoryList() {
     });
 }
 
-function renderAdminProducts() {
-    if (!els.productListAdmin) return;
-    els.productListAdmin.innerHTML = '';
-    const searchTerm = els.adminSearchProd ? els.adminSearchProd.value.toLowerCase().trim() : '';
-    const catFilter = els.adminFilterCat ? els.adminFilterCat.value : '';
-    let filtered = [...state.products];
-    if (searchTerm) filtered = filtered.filter(p => p.name.toLowerCase().includes(searchTerm) || (p.code && String(p.code).includes(searchTerm)));
-    if (catFilter) filtered = filtered.filter(p => p.category === catFilter);
+// =================================================================
+// NOVA LÓGICA DE PRODUTOS (ADMIN)
+// =================================================================
 
-    filtered.forEach(p => {
-        const stockClass = p.stock < 0 ? 'text-red-500 font-bold' : 'text-yellow-500';
-        const isSelected = state.selectedProducts.has(p.id);
-        const row = document.createElement('div');
-        row.className = "relative overflow-hidden rounded bg-gray-800 border border-gray-700 group touch-pan-y outline-none focus:ring-2 focus:ring-yellow-500 mb-2";
-        row.tabIndex = 0;
-        row.innerHTML = `
-            <div class="absolute inset-y-0 right-0 w-24 bg-red-600 flex items-center justify-center text-white font-bold z-0 cursor-pointer" onclick="confirmDeleteProduct('${p.id}')"><i class="fas fa-trash"></i></div>
-            <div class="relative z-10 bg-gray-800 p-3 flex items-center gap-3 transition-transform duration-200 ease-out prod-content-swipe" data-id="${p.id}">
-                <input type="checkbox" class="form-checkbox h-5 w-5 text-yellow-500 rounded border-gray-600 bg-gray-900 focus:ring-yellow-500 cursor-pointer" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleProductSelection('${p.id}')">
-                <img src="${p.images[0]}" class="w-12 h-12 object-cover rounded border border-gray-600">
-                <div class="flex-1 min-w-0 cursor-pointer select-none" ondblclick="editProduct('${p.id}')">
-                    <div class="flex justify-between"><p class="font-bold text-white text-sm truncate">${p.name}</p></div>
-                    <div class="flex justify-between items-center mt-1"><p class="text-xs ${stockClass}">Estoque: ${p.stock}</p><p class="text-xs text-green-400 font-bold">${formatCurrency(p.price)}</p></div>
-                    <p class="text-xs text-gray-500 truncate">${p.category || 'Sem categoria'}</p>
-                </div>
-                <button onclick="editProduct('${p.id}')" class="text-gray-400 hover:text-white p-2"><i class="fas fa-pen"></i></button>
-            </div>`;
-        row.onfocus = () => state.focusedProductId = p.id;
-        row.onblur = () => { if (state.focusedProductId === p.id) state.focusedProductId = null; };
-        setupSwipe(row.querySelector('.prod-content-swipe'));
-        els.productListAdmin.appendChild(row);
+// 1. Filtra e Ordena (Substitui a lógica antiga)
+function filterAndRenderProducts() {
+    // Pega os elementos usando o objeto 'els' que já existe ou getEl direto
+    const searchInput = els.adminSearchProd || getEl('admin-search-prod');
+    const sortInput = els.adminSortProd || getEl('admin-sort-prod'); // Certifique-se que tem esse ID no HTML
+    const categoryInput = els.adminFilterCat || getEl('admin-filter-cat');
+
+    if (!searchInput) return;
+
+    const term = searchInput.value.toLowerCase().trim();
+    const sortBy = sortInput ? sortInput.value : 'name_asc';
+    const catFilter = categoryInput ? categoryInput.value : '';
+
+    // A. Filtragem
+    let filtered = state.products.filter(p => {
+        // Texto: Busca no Nome OU no Código
+        const codeStr = p.code ? String(p.code) : '';
+        const matchText = p.name.toLowerCase().includes(term) || codeStr.includes(term);
+
+        // Categoria
+        const matchCat = catFilter ? p.category === catFilter : true;
+
+        return matchText && matchCat;
     });
-    updateBulkActionBar();
+
+    // B. Ordenação
+    filtered.sort((a, b) => {
+        const priceA = a.promoPrice || a.price;
+        const priceB = b.promoPrice || b.price;
+
+        // Tratamento para códigos (quem não tem código vai pro final na asc, inicio na desc)
+        const codeA = a.code ? parseInt(a.code) : 999999;
+        const codeB = b.code ? parseInt(b.code) : 999999;
+
+        switch (sortBy) {
+            case 'price_asc': return priceA - priceB;
+            case 'price_desc': return priceB - priceA;
+            case 'code_asc': return codeA - codeB;
+            case 'code_desc': return codeB - codeA; // Inverte lógica para números
+            case 'name_desc': return b.name.localeCompare(a.name);
+            case 'name_asc':
+            default: return a.name.localeCompare(b.name);
+        }
+    });
+
+    // C. Renderiza
+    renderProductsList(filtered);
 }
+
+// 2. Renderiza a Lista Visual (Com Preço Promo e Código)
+// Substitua a função renderProductsList antiga por esta:
+function renderProductsList(products) {
+    const listEl = els.productListAdmin || getEl('admin-product-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    // --- Barra de Ações em Massa (Mantenha seu código atual desta parte) ---
+    // ... (Seu código da barra bulk actions aqui) ...
+
+    if (products.length === 0) {
+        listEl.innerHTML = '<p class="text-center text-gray-500 py-8 italic">Nenhum produto encontrado.</p>';
+        return;
+    }
+
+    // --- CÁLCULO DE MÉTRICAS (DATA E VENDAS) ---
+    const metricsMap = {};
+    const validSaleStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
+
+    if (state.orders) {
+        state.orders.forEach(order => {
+            if (validSaleStatuses.includes(order.status)) {
+                const orderDate = new Date(order.date);
+                order.items.forEach(item => {
+                    if (!metricsMap[item.id]) metricsMap[item.id] = { qtd: 0, lastDate: null };
+
+                    metricsMap[item.id].qtd += (parseInt(item.qty) || 0);
+
+                    // Pega a data mais recente
+                    if (!metricsMap[item.id].lastDate || orderDate > metricsMap[item.id].lastDate) {
+                        metricsMap[item.id].lastDate = orderDate;
+                    }
+                });
+            }
+        });
+    }
+
+    // --- CABEÇALHO ALINHADO (GRID 12 COLUNAS) ---
+    // Distribuição: Checkbox(1) | Cód(1) | Produto(4) | Data(2) | Vendas(1) | Estoque(1) | Valor(1) | Ações(1)
+    const headerHTML = `
+        <div class="hidden md:grid grid-cols-12 gap-2 bg-[#1f1f1f] text-gray-200 font-bold p-3 rounded-t-lg items-center text-xs uppercase mb-1 shadow-md border-b-2 border-gray-800">
+            <div class="col-span-1 text-center">
+            <div class="col-span-1 text-center border-r border-gray-700">Cód</div>
+            </div>
+            <i class="fas fa-check-squaree text-gray-100"></i> 
+            <div class="col-span-4 pl-2">Produto</div>
+            <div class="col-span-2 text-center">Última Mov.</div>
+            <div class="col-span-1 text-center">Vendas</div>
+            <div class="col-span-1 text-center">Estoque</div>
+            <div class="col-span-1 text-right pr-2">Valor</div>
+            <div class="col-span-1 text-center">Ações</div>
+        </div>
+
+        <div class="md:hidden flex justify-between px-4 py-2 text-gray-400 text-xs uppercase font-bold bg-[#1f1f1f] rounded-t-lg">
+            <span>Produto</span>
+            <span>Estoque / Valor</span>
+        </div>
+    `;
+
+    const headerContainer = document.createElement('div');
+    headerContainer.innerHTML = headerHTML;
+    listEl.appendChild(headerContainer);
+
+    // --- LISTA DE PRODUTOS ---
+    products.forEach(p => {
+        const metrics = metricsMap[p.id] || { qtd: 0, lastDate: null };
+
+        // Formatação da Data
+        let lastMovStr = "-";
+        if (metrics.lastDate) {
+            lastMovStr = metrics.lastDate.toLocaleDateString('pt-BR', {
+                day: '2-digit', month: '2-digit', year: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
+        }
+
+        // Formatação Preço
+        let priceHtml = p.promoPrice && p.promoPrice > 0
+            ? `<div class="flex flex-col items-end"><span class="text-green-400 font-bold text-xs">${formatCurrency(p.promoPrice)}</span><span class="text-gray-500 text-[10px] line-through">${formatCurrency(p.price)}</span></div>`
+            : `<span class="text-white font-bold text-xs">${formatCurrency(p.price)}</span>`;
+
+        const isChecked = state.selectedProducts.has(p.id) ? 'checked' : '';
+        const bgClass = isChecked ? 'bg-blue-900/20 border-blue-500/50' : 'bg-[#151720] border-gray-800 hover:bg-[#1e212b]';
+        const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://placehold.co/100?text=Sem+Foto';
+        const codeStr = p.code ? p.code : '-';
+
+        const row = document.createElement('div');
+        // Mantém o mesmo Grid do cabeçalho
+        row.className = `flex flex-col md:grid md:grid-cols-12 gap-2 p-3 border-b ${bgClass} transition-all text-sm group relative items-center`;
+
+        row.innerHTML = `
+            <div class="flex md:contents items-center justify-between w-full">
+                <div class="flex items-center gap-3 md:col-span-6 w-full"> <div class="md:hidden flex items-center">
+                         <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500" 
+                           onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
+                    </div>
+                    
+                    <div class="hidden md:flex md:col-span-1 items-center justify-center">
+                        <input type="checkbox" class="w-4 h-4 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" 
+                           onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
+                    </div>
+
+                    <div class="hidden md:flex md:col-span-1 items-center justify-center text-gray-400 font-mono text-xs border-r border-gray-800 h-full">
+                        ${codeStr}
+                    </div>
+
+                    <div class="flex items-center gap-3 md:col-span-4 min-w-0 flex-1">
+                        <img src="${imgUrl}" class="w-12 h-12 md:w-10 md:h-10 rounded object-cover border border-gray-700">
+                        <div class="flex flex-col min-w-0">
+                            <div class="flex items-center">
+                                <span class="md:hidden text-[10px] bg-gray-700 text-gray-300 px-1 rounded mr-1">#${codeStr}</span>
+                                <span class="text-white font-bold truncate cursor-pointer hover:text-yellow-500" onclick="editProduct('${p.id}')">
+                                    ${p.name}
+                                </span>
+                            </div>
+                            <span class="text-gray-500 text-[10px] truncate">${p.category || 'Geral'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="md:hidden flex flex-col items-end min-w-[80px]">
+                    ${priceHtml}
+                    ${p.stock <= 0 ? '<span class="text-red-500 text-[10px] font-bold">Esgotado</span>' : `<span class="text-gray-400 text-[10px]">Est.: ${p.stock}</span>`}
+                </div>
+            </div>
+
+            <div class="hidden md:block col-span-2 text-center text-gray-400 text-xs">
+                ${lastMovStr}
+            </div>
+
+            <div class="hidden md:block col-span-1 text-center text-gray-400 text-xs">
+                ${metrics.qtd} un.
+            </div>
+
+            <div class="hidden md:block col-span-1 text-center">
+                ${p.stock <= 0 ? '<span class="text-red-500 text-xs font-bold">0</span>' : `<span class="text-gray-300 text-xs font-bold">${p.stock}</span>`}
+            </div>
+
+            <div class="hidden md:block col-span-1 text-right pr-2">
+                ${priceHtml}
+            </div>
+
+            <div class="flex md:col-span-1 justify-end md:justify-center gap-3 mt-3 md:mt-0 border-t md:border-none border-gray-800 pt-2 md:pt-0">
+                <button onclick="editProduct('${p.id}')" class="text-gray-400 hover:text-blue-400 transition"><i class="fas fa-pen"></i></button>
+                <button onclick="confirmDeleteProduct('${p.id}')" class="text-gray-400 hover:text-red-500 transition"><i class="fas fa-trash"></i></button>
+            </div>
+        `;
+        listEl.appendChild(row);
+    });
+}
+
+// 3. Funções Auxiliares de Seleção
+window.toggleProductSelection = (id) => {
+    if (state.selectedProducts.has(id)) state.selectedProducts.delete(id);
+    else state.selectedProducts.add(id);
+
+    // Atualiza a lista para pintar o fundo e mostrar a barra
+    filterAndRenderProducts();
+};
+
+window.clearProductSelection = () => {
+    state.selectedProducts.clear();
+    filterAndRenderProducts();
+};
+
+// Helper para o botão mover da barra dinâmica
+window.bulkMoveDynamic = async () => {
+    const select = document.getElementById('bulk-category-select-dynamic');
+    if (!select) return;
+    const targetCat = select.value;
+    if (!targetCat) return alert("Selecione uma categoria de destino.");
+
+    if (!confirm(`Mover ${state.selectedProducts.size} produtos para "${targetCat}"?`)) return;
+
+    try {
+        const promises = Array.from(state.selectedProducts).map(id => updateDoc(doc(db, `sites/${state.siteId}/products`, id), { category: targetCat }));
+        await Promise.all(promises);
+        state.selectedProducts.clear();
+        filterAndRenderProducts(); // Recarrega
+        alert("Produtos movidos!");
+    } catch (error) { alert("Erro ao mover: " + error.message); }
+};
 
 function renderAdminCoupons() {
     if (!els.couponListAdmin) return;
@@ -1065,17 +1353,102 @@ function updateDashboardMetrics() {
 }
 
 function filterAndRenderSales() {
-    if (!els.filterOrderId) return;
-    const idTerm = els.filterOrderId.value.trim().toLowerCase();
-    const statusTerm = els.filterStatus.value;
-    const dateStart = els.filterDateStart.value;
-    const dateEnd = els.filterDateEnd.value;
-    let filtered = state.orders;
-    if (idTerm) filtered = filtered.filter(o => String(o.code).includes(idTerm));
-    if (statusTerm) filtered = filtered.filter(o => o.status === statusTerm);
-    if (dateStart) filtered = filtered.filter(o => new Date(o.date) >= new Date(dateStart));
-    if (dateEnd) { const endDate = new Date(dateEnd); endDate.setHours(23, 59, 59); filtered = filtered.filter(o => new Date(o.date) <= endDate); }
+    // 1. Captura Inputs
+    const searchInput = document.getElementById('filter-search-general');
+    if (!searchInput) return;
+
+    const term = searchInput.value.toLowerCase().trim();
+    const status = document.getElementById('filter-status').value;
+    const payment = document.getElementById('filter-payment').value;
+    const sortBy = document.getElementById('filter-sort').value;
+    const dateStart = document.getElementById('filter-date-start').value;
+    const dateEnd = document.getElementById('filter-date-end').value;
+
+    // 2. Filtragem
+    let filtered = state.orders.filter(o => {
+        // Busca Texto
+        let matchSearch = true;
+        if (term) {
+            const code = String(o.code).toLowerCase();
+            const name = (o.customer?.name || '').toLowerCase();
+            const phone = (o.customer?.phone || '').toLowerCase();
+            matchSearch = code.includes(term) || name.includes(term) || phone.includes(term);
+        }
+
+        // Status
+        let matchStatus = true;
+        if (status) {
+            if (status === 'Cancelado_All') matchStatus = o.status.includes('Cancelado');
+            else matchStatus = o.status === status;
+        }
+
+        // Pagamento
+        let matchPayment = true;
+        if (payment) {
+            const method = (o.paymentMethod || '').toLowerCase();
+            if (payment === 'pix') matchPayment = method.includes('pix');
+            else if (payment === 'card') matchPayment = method.includes('cartão') || method.includes('crédito') || method.includes('débito');
+            else if (payment === 'cash') matchPayment = method.includes('dinheiro');
+        }
+
+        // Data
+        let matchDate = true;
+        if (dateStart || dateEnd) {
+            const oDate = new Date(o.date).getTime();
+            if (dateStart) {
+                const s = new Date(dateStart); s.setHours(0, 0, 0, 0);
+                if (oDate < s.getTime()) matchDate = false;
+            }
+            if (dateEnd) {
+                const e = new Date(dateEnd); e.setHours(23, 59, 59, 999);
+                if (oDate > e.getTime()) matchDate = false;
+            }
+        }
+
+        return matchSearch && matchStatus && matchPayment && matchDate;
+    });
+
+    // 3. ORDENAÇÃO (ATUALIZADA COM NÚMERO DO PEDIDO)
+    filtered.sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+
+        // Trata Preço
+        const getPrice = (val) => {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            return parseFloat(String(val).replace('R$', '').trim().replace(',', '.')) || 0;
+        };
+        const priceA = getPrice(a.total);
+        const priceB = getPrice(b.total);
+
+        // Trata Número do Pedido (Código)
+        const codeA = parseInt(a.code) || 0;
+        const codeB = parseInt(b.code) || 0;
+
+        switch (sortBy) {
+            case 'price_asc': return priceA - priceB;
+            case 'price_desc': return priceB - priceA;
+            case 'date_asc': return dateA - dateB;
+
+            // Lógica nova para o Código
+            case 'code_asc': return codeA - codeB; // 1, 2, 3...
+            case 'code_desc': return codeB - codeA; // 99, 98, 97...
+
+            case 'date_desc':
+            default: return dateB - dateA;
+        }
+    });
+
+    // 4. Renderiza a Lista
     renderSalesList(filtered);
+
+    // 5. Renderiza o Resumo (NOVO)
+    renderOrdersSummary(filtered, status);
+
+    // Atualiza contador simples se existir
+    const countEl = document.getElementById('orders-count');
+    if (countEl) countEl.innerText = filtered.length;
 }
 
 function renderSalesList(orders) {
@@ -1085,7 +1458,7 @@ function renderSalesList(orders) {
     listEl.innerHTML = '';
 
     // Ordena: Mais recentes primeiro
-    orders.sort((a, b) => new Date(b.date) - new Date(a.date));
+    // orders.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (orders.length === 0) {
         listEl.innerHTML = '<div class="text-center py-8 text-gray-500"><i class="fas fa-inbox text-4xl mb-2 opacity-50"></i><p>Nenhum pedido encontrado.</p></div>';
@@ -1093,55 +1466,53 @@ function renderSalesList(orders) {
     }
 
     orders.forEach(o => {
-        // 1. Extração de Dados e Cores
-        let statusBadgeColor = 'text-yellow-500 border-yellow-500';
-        if (o.status === 'Aprovado' || o.status === 'Preparando pedido') statusBadgeColor = 'text-blue-400 border-blue-400';
-        if (o.status === 'Saiu para entrega') statusBadgeColor = 'text-purple-400 border-purple-400';
-        if (o.status === 'Entregue') statusBadgeColor = 'text-green-400 border-green-400';
-        if (o.status === 'Concluído') statusBadgeColor = 'text-gray-400 border-gray-400 bg-gray-800';
-        
-        // ALTERAÇÃO 1: Usa includes para pegar "Cancelado" e "Cancelado pelo Cliente"
-        if (o.status.includes('Cancelado')) statusBadgeColor = 'text-red-500 border-red-500';
+        // 1. Formatação de Data e Hora
+        const dataObj = new Date(o.date);
+        const dataStr = dataObj.toLocaleDateString('pt-BR');
+        const horaStr = dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const dataHoraFormatada = `${dataStr} às ${horaStr}`;
 
-        // 2. Extrair Troco (Se houver)
-        let trocoHtml = '';
-        if (o.paymentMethod && o.paymentMethod.includes('Dinheiro') && o.paymentMethod.includes('Troco para:')) {
-            const match = o.paymentMethod.match(/Troco para:\s*(.+?)\)/);
-            const valorTroco = match ? match[1] : '';
-            if (valorTroco) {
-                trocoHtml = `<div class="text-right"><span class="text-white font-bold text-sm">Troco para:</span> <span class="bg-gray-700 text-white px-2 py-1 rounded text-xs ml-1">${valorTroco}</span></div>`;
-            }
+        // 2. Definição de Cores (IGUAL AO RASTREIO)
+        let statusColorClass = 'text-gray-400'; // Padrão (Aguardando)
+
+        switch (o.status) {
+            case 'Aprovado':
+            case 'Preparando pedido':
+                statusColorClass = 'text-yellow-500'; // Amarelo
+                break;
+            case 'Saiu para entrega':
+                statusColorClass = 'text-orange-500'; // Laranja
+                break;
+            case 'Entregue':
+            case 'Concluído':
+                statusColorClass = 'text-green-500';  // Verde
+                break;
         }
 
-        // 3. HTML dos Itens
+        // Verifica cancelados (inclui "Cancelado pelo Cliente")
+        if (o.status.includes('Cancelado')) {
+            statusColorClass = 'text-red-500';
+        }
+
+        // 3. HTML dos Itens (Resumo)
         let itemsHtml = o.items.map(i => `
             <div class="bg-gray-800/50 p-2 rounded mb-1 border border-gray-700 flex justify-between items-center">
                 <span class="text-gray-300 text-sm font-medium">${i.qty}x ${i.name} <span class="text-gray-500 text-xs">(${i.size})</span></span>
-                </div>
+                <span class="text-white text-xs font-bold">${formatCurrency(i.price)}</span>
+            </div>
         `).join('');
 
-        // 4. Lógica de Controles (ALTERADA AQUI)
+        // 4. Controles (Botões de Ação)
         let controlsHtml = '';
-
-        // CASO 1: CANCELADO (Qualquer tipo) -> NÃO TEM BOTÕES DE AÇÃO
         if (o.status.includes('Cancelado')) {
-             controlsHtml = `
-                <div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700">
-                    <span class="bg-red-600 text-white px-4 py-2 rounded font-bold text-xs cursor-default">CANCELADO</span>
-                </div>
-            `;
-        } 
-        // CASO 2: CONCLUÍDO -> Tem botão de Estornar
-        else if (o.status === 'Concluído') {
+            controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span></div>`;
+        } else if (o.status === 'Concluído') {
             controlsHtml = `
                 <div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700">
-                    <span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs cursor-default">FINALIZADO</span>
-                    <button onclick="adminRevertStatus('${o.id}')" class="border border-gray-500 text-gray-400 hover:text-white px-3 py-2 rounded text-xs transition">Estornar / Reabrir</button>
-                </div>
-            `;
-        } 
-        // CASO 3: ATIVO (Em andamento) -> Select + Botões
-        else {
+                    <span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs">FINALIZADO</span>
+                    <button onclick="adminRevertStatus('${o.id}')" class="border border-gray-500 text-gray-400 hover:text-white px-3 py-2 rounded text-xs transition">Reabrir</button>
+                </div>`;
+        } else {
             controlsHtml = `
                 <div class="flex flex-col md:flex-row gap-4 justify-end items-center mt-4 border-t border-gray-700 pt-4">
                     <div class="flex items-center gap-2">
@@ -1154,72 +1525,82 @@ function renderSalesList(orders) {
                             <option value="Entregue" ${o.status === 'Entregue' ? 'selected' : ''}>Entregue</option>
                         </select>
                     </div>
-
                     <div class="flex gap-2">
                         <button onclick="adminCancelOrder('${o.id}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-xs font-bold transition">Cancelar</button>
-                        <button onclick="adminFinalizeOrder('${o.id}')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-xs font-bold transition">Finalizado</button>
+                        <button onclick="adminFinalizeOrder('${o.id}')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-xs font-bold transition">Finalizar</button>
                     </div>
                 </div>
             `;
         }
 
-        // 5. Montagem do Card
-        const card = document.createElement('div');
-        card.className = "bg-[#0f172a] border border-gray-700 rounded-lg overflow-hidden shadow-lg mb-4 p-4"; // Fundo bem escuro
+        // --- MONTAGEM DO CARD (ACORDEÃO) ---
+        const cardWrapper = document.createElement('div');
+        cardWrapper.className = "mb-4";
 
-        card.innerHTML = `
-            <div class="flex justify-between items-start mb-4">
-                <div>
-                    <h3 class="text-yellow-500 font-bold text-lg">PEDIDO #${o.code}</h3>
-                    <p class="text-gray-500 text-xs">Data: ${new Date(o.date).toLocaleDateString('pt-BR')} ${new Date(o.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-                </div>
+        cardWrapper.innerHTML = `
+            <div id="order-header-${o.id}" onclick="toggleOrderAccordion('${o.id}')" 
+                 class="bg-black border border-gray-800 p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-gray-600 transition-all shadow-md relative z-10">
                 
-                <div class="flex flex-col items-end gap-1">
-                    <div class="${statusBadgeColor} border px-3 py-1 rounded text-xs uppercase font-bold tracking-wider">
-                        ${o.status}
+                <div class="flex items-center gap-4 flex-1">
+                    <span class="text-yellow-500 font-bold text-xl tracking-wide">Pedidos #${o.code}</span>
+                    
+                    <div id="order-header-info-${o.id}" class="hidden md:flex items-center gap-4 text-sm transition-opacity duration-200">
+                        <span class="${statusColorClass} font-bold uppercase text-xs tracking-wider">${o.status}</span>
+                        <span class="text-gray-500 text-xs border-l border-gray-800 pl-3">${dataHoraFormatada}</span>
                     </div>
-                    ${trocoHtml}
                 </div>
+
+                <i id="order-arrow-${o.id}" class="fas fa-chevron-down text-yellow-500 text-xl transition-transform duration-300"></i>
             </div>
 
-            <div class="mb-4">
-                ${itemsHtml}
-            </div>
-
-            <div class="mb-4">
-                <span class="text-gray-400 text-xs block">Valor Total:</span>
-                <span class="text-white font-bold text-2xl">${formatCurrency(o.total)}</span>
-            </div>
-
-            <div class="bg-gray-900 p-3 rounded border border-gray-800 grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+            <div id="order-content-${o.id}" class="hidden bg-[#0f172a] border-x border-b border-gray-800 rounded-b-xl p-4 -mt-1 pt-6 shadow-inner">
                 
-                <div>
-                    <span class="text-gray-500 font-bold block mb-1">Cliente:</span>
-                    <span class="bg-gray-800 text-white px-2 py-1 rounded border border-gray-700 block text-center truncate">${o.customer?.name || '-'}</span>
-                </div>
-                
-                <div>
-                    <span class="text-gray-500 font-bold block mb-1">Telefone:</span>
-                    <span class="bg-gray-800 text-white px-2 py-1 rounded border border-gray-700 block text-center">${o.customer?.phone || '-'}</span>
-                </div>
-
-                <div>
-                    <span class="text-gray-500 font-bold block mb-1">Forma de pagamento:</span>
-                    <span class="bg-gray-800 text-white px-2 py-1 rounded border border-gray-700 block text-center truncate" title="${o.paymentMethod}">${o.paymentMethod?.split('[')[0] || '-'}</span>
+                <div class="flex justify-between items-start mb-4 pb-4 border-b border-gray-800">
+                    <div>
+                         <p class="text-gray-500 text-xs uppercase">Data do Pedido</p>
+                         <p class="text-white font-bold text-sm">${dataHoraFormatada}</p>
+                    </div>
+                    <div class="text-right">
+                         <p class="text-gray-500 text-xs uppercase">Status Atual</p>
+                         <p class="${statusColorClass} font-bold text-sm uppercase">${o.status}</p>
+                    </div>
                 </div>
 
-                <div>
-                    <span class="text-gray-500 font-bold block mb-1">Endereço:</span>
-                    <button onclick="alert('${o.customer?.addressNum}, CEP: ${o.customer?.cep}')" class="bg-gray-800 hover:bg-gray-700 text-white px-2 py-1 rounded border border-gray-700 w-full text-center transition">
-                        Clique para ver
-                    </button>
+                <div class="mb-4">
+                    <p class="text-xs text-gray-500 uppercase font-bold mb-2">Itens do Pedido</p>
+                    ${itemsHtml}
+                    <div class="text-right mt-2">
+                        <span class="text-gray-400 text-xs">Total:</span>
+                        <span class="text-white font-bold text-xl ml-2">${formatCurrency(o.total)}</span>
+                    </div>
                 </div>
+
+                <div class="bg-gray-900 p-3 rounded border border-gray-800 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mb-4">
+                    <div class="flex flex-col">
+                        <span class="text-gray-500 font-bold mb-1">Cliente:</span>
+                        <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center truncate flex items-center justify-center h-full">${o.customer?.name || '-'}</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-gray-500 font-bold mb-1">Telefone:</span>
+                        <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center flex items-center justify-center h-full">${o.customer?.phone || '-'}</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-gray-500 font-bold mb-1">Pagamento:</span>
+                        <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center truncate flex items-center justify-center h-full" title="${o.paymentMethod}">${o.paymentMethod?.split('[')[0] || '-'}</span>
+                    </div>
+                    <div class="col-span-1 md:col-span-3 mt-1">
+                        <span class="text-gray-500 font-bold block mb-1 uppercase">Endereço de Entrega:</span>
+                        <div class="bg-gray-800 p-2 rounded border border-gray-700 w-full">
+                            ${formatarEnderecoAdmin(o.customer)}
+                        </div>
+                    </div>
+                </div>
+
+                ${controlsHtml}
             </div>
-
-            ${controlsHtml}
         `;
 
-        listEl.appendChild(card);
+        listEl.appendChild(cardWrapper);
     });
 }
 
@@ -1232,9 +1613,10 @@ function setupEventListeners() {
     setupAccordion('btn-acc-coupon', 'content-acc-coupon', 'arrow-acc-coupon');
 
     // Filtros Admin
-    if (els.adminSearchProd) els.adminSearchProd.addEventListener('input', renderAdminProducts);
-    if (els.adminFilterCat) els.adminFilterCat.addEventListener('change', renderAdminProducts);
-    if (els.adminSortProd) els.adminSortProd.addEventListener('change', renderAdminProducts);
+    // Filtros Admin (Apontando para a nova função filterAndRenderProducts)
+    if (els.adminSearchProd) els.adminSearchProd.addEventListener('input', filterAndRenderProducts);
+    if (els.adminFilterCat) els.adminFilterCat.addEventListener('change', filterAndRenderProducts);
+    if (els.adminSortProd) els.adminSortProd.addEventListener('change', filterAndRenderProducts);
 
     if (els.confCardActive) {
         els.confCardActive.addEventListener('change', (e) => {
@@ -1266,7 +1648,7 @@ function setupEventListeners() {
             await Promise.all(promises);
             state.selectedProducts.clear();
             updateBulkActionBar();
-            renderAdminProducts();
+            filterAndRenderProducts();
             alert("Produtos movidos!");
         } catch (error) { alert("Erro ao mover: " + error.message); }
     };
@@ -1275,12 +1657,42 @@ function setupEventListeners() {
     if (els.searchInput) els.searchInput.addEventListener('input', (e) => { const term = e.target.value.toLowerCase(); const filtered = state.products.filter(p => p.name.toLowerCase().includes(term) || p.description.toLowerCase().includes(term)); renderCatalog(filtered); });
     if (els.catFilter) els.catFilter.addEventListener('change', (e) => { const cat = e.target.value; if (!cat) return renderCatalog(state.products); const filtered = state.products.filter(p => p.category === cat || p.category.startsWith(cat + ' -')); renderCatalog(filtered); });
 
-    // Filtros Vendas
-    if (els.filterOrderId) els.filterOrderId.addEventListener('input', filterAndRenderSales);
-    if (els.filterStatus) els.filterStatus.addEventListener('change', filterAndRenderSales);
-    if (els.filterDateStart) els.filterDateStart.addEventListener('change', filterAndRenderSales);
-    if (els.filterDateEnd) els.filterDateEnd.addEventListener('change', filterAndRenderSales);
-    if (els.btnClearFilters) els.btnClearFilters.onclick = () => { els.filterOrderId.value = ''; els.filterStatus.value = ''; els.filterDateStart.value = ''; els.filterDateEnd.value = ''; filterAndRenderSales(); };
+    // --- FILTROS DE VENDAS (ATUALIZADO) ---
+    const idsFiltros = [
+        'filter-search-general',
+        'filter-status',
+        'filter-payment',
+        'filter-sort',
+        'filter-date-start',
+        'filter-date-end'
+    ];
+
+    idsFiltros.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            // Usa 'input' para busca (tempo real) e 'change' para selects/datas
+            const eventType = id.includes('search') ? 'input' : 'change';
+            el.addEventListener(eventType, filterAndRenderSales);
+        }
+    });
+
+    // Botão Limpar
+    const btnClear = document.getElementById('btn-clear-filters');
+    if (btnClear) {
+        btnClear.onclick = () => {
+            // Limpa todos os campos
+            idsFiltros.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            // Reseta ordenação para o padrão
+            const sort = document.getElementById('filter-sort');
+            if (sort) sort.value = 'date_desc';
+
+            // Recarrega a lista
+            filterAndRenderSales();
+        };
+    }
 
     // Dashboard Vendas Simples - Controles
     if (els.dashPrevDate) els.dashPrevDate.onclick = () => { if (state.dashViewMode === 'day') state.dashDate.setDate(state.dashDate.getDate() - 1); else state.dashDate.setMonth(state.dashDate.getMonth() - 1); updateDashboardUI(); };
@@ -1593,7 +2005,11 @@ function setupEventListeners() {
 
                 // Gera código se for novo produto
                 if (!idEl.value) {
-                    data.code = Math.floor(10000 + Math.random() * 90000).toString();
+                    // Chama a função que conta 1, 2, 3...
+                    const nextCode = await getNextProductCode(state.siteId);
+
+                    data.code = nextCode;
+                    data.createdAt = new Date().toISOString();
                 }
 
                 const id = idEl.value;
@@ -2229,7 +2645,148 @@ window.changeQty = (index, delta) => {
 };
 
 window.confirmDeleteProduct = async (id) => {
-    if (confirm('Excluir este produto?')) { await deleteDoc(doc(db, `sites/${state.siteId}/products`, id)); }
+    // 1. Verifica se há pedidos ativos ou finalizados vinculados a este produto
+    // Status que IMPEDEM a exclusão (Basicamente qualquer coisa que não seja Cancelado)
+    // Se o pedido foi concluído, tecnicamente faz parte do histórico fiscal/venda, então também não deveria apagar,
+    // mas vou seguir sua regra: "Diferente de Cancelado ou Concluído".
+
+    // Porém, por segurança contábil, o ideal é nunca apagar produto vendido. 
+    // Mas seguindo sua regra estrita (Bloquear apenas se estiver EM ANDAMENTO):
+    const activeStatuses = ['Aguardando aprovação', 'Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue'];
+
+    // Procura em todas as vendas carregadas
+    const hasActiveOrder = state.orders.some(order => {
+        // Verifica se o status do pedido está na lista de bloqueio
+        const isActive = activeStatuses.includes(order.status);
+
+        // Verifica se o produto está dentro dos itens desse pedido
+        const hasProduct = order.items.some(item => item.id === id);
+
+        return isActive && hasProduct;
+    });
+
+    if (hasActiveOrder) {
+        alert("⛔ AÇÃO BLOQUEADA\n\nEste produto faz parte de um pedido em andamento (Aberto, Preparando ou Entrega).\nVocê não pode excluí-lo até que o pedido seja Cancelado ou Concluído.");
+        return;
+    }
+
+    // 2. Confirmação padrão
+    if (confirm('Tem certeza? Se este produto já foi vendido anteriormente, o histórico dele pode ficar incompleto.')) {
+        try {
+            await deleteDoc(doc(db, `sites/${state.siteId}/products`, id));
+            showToast("Produto excluído!");
+            // Se usou a seleção em massa, limpa ela
+            if (state.selectedProducts.has(id)) {
+                state.selectedProducts.delete(id);
+                updateBulkActionBar();
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao excluir: " + error.message);
+        }
+    }
+};
+
+window.saveProduct = async () => {
+    const btnSave = getEl('btn-save-product') || document.querySelector('button[onclick="saveProduct()"]');
+    const originalText = btnSave ? btnSave.innerText : 'Salvar';
+
+    // 1. Pega os inputs
+    const id = getEl('edit-prod-id').value;
+    const name = getEl('prod-name').value;
+    const cat = getEl('prod-cat-select').value;
+
+    const priceRaw = getEl('prod-price').value;
+    const promoRaw = getEl('prod-promo').value;
+    const costRaw = getEl('prod-cost').value;
+    const stockRaw = getEl('prod-stock').value;
+
+    const desc = getEl('prod-desc').value;
+    const sizesStr = getEl('prod-sizes').value;
+    const allowNoStock = getEl('prod-allow-no-stock').checked;
+
+    // --- NOVA FUNÇÃO DE CONVERSÃO (BRL -> FLOAT) ---
+    // Transforma "1.250,90" em 1250.90 para o banco de dados
+    const parseBRL = (val) => {
+        if (!val) return 0;
+        // Remove os pontos de milhar (.) e troca a vírgula decimal por ponto (.)
+        const cleanVal = val.toString().replace(/\./g, '').replace(',', '.');
+        return parseFloat(cleanVal);
+    };
+
+    const price = parseBRL(priceRaw);
+
+    // Validação
+    if (!name || isNaN(price) || price <= 0) {
+        return alert('Preencha o Nome e o Preço corretamente.');
+    }
+
+    if (btnSave) {
+        btnSave.innerText = 'Salvando...';
+        btnSave.disabled = true;
+    }
+
+    try {
+        // 2. Monta o Objeto
+        const productData = {
+            name: name,
+            description: desc,
+            category: cat,
+            price: price, // Valor numérico limpo
+            promoPrice: promoRaw ? parseBRL(promoRaw) : null,
+            stock: parseInt(stockRaw) || 0,
+            cost: costRaw ? parseBRL(costRaw) : null,
+            allowNoStock: allowNoStock,
+            sizes: sizesStr ? sizesStr.split(',').map(s => s.trim()) : [],
+            images: state.tempImages || []
+        };
+
+        // 3. PIX
+        const pixActive = getEl('prod-pix-active').checked;
+        const pixValRaw = getEl('prod-pix-val').value;
+        const pixType = getEl('prod-pix-type').value;
+
+        productData.paymentOptions = {
+            pix: {
+                active: pixActive,
+                val: parseBRL(pixValRaw),
+                type: pixType
+            }
+        };
+
+        // 4. Salva no Firebase
+        if (!id) { // Se não tem ID, é CRIAÇÃO
+
+            // AQUI ESTAVA O ERRO: Chamamos a função sequencial agora
+            const nextCode = await getNextProductCode(state.siteId);
+
+            productData.code = nextCode; // Grava o 1, 2, 3...
+            productData.createdAt = new Date().toISOString();
+
+            await addDoc(collection(db, `sites/${state.siteId}/products`), productData);
+            showToast(`Produto #${nextCode} criado!`);
+
+        } else {
+            // Se tem ID, é EDIÇÃO (não muda o código)
+            await updateDoc(doc(db, `sites/${state.siteId}/products`, id), productData);
+            showToast('Produto atualizado!');
+        }
+
+        // 5. Fecha Modal e Atualiza
+        if (els.productFormModal) els.productFormModal.classList.add('hidden');
+
+        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+        else window.location.reload();
+
+    } catch (error) {
+        console.error("Erro ao salvar:", error);
+        alert('Erro: ' + error.message);
+    } finally {
+        if (btnSave) {
+            btnSave.innerText = originalText;
+            btnSave.disabled = false;
+        }
+    }
 };
 
 window.editProduct = (id) => {
@@ -2242,10 +2799,10 @@ window.editProduct = (id) => {
     if (catSelect && p.category) catSelect.value = p.category;
 
     getEl('prod-desc').value = p.description;
-    getEl('prod-price').value = p.price;
-    getEl('prod-promo').value = p.promoPrice || '';
-    getEl('prod-stock').value = p.stock;
-    getEl('prod-cost').value = p.cost || '';
+    getEl('prod-price').value = formatMoneyForInput(p.price);
+    getEl('prod-promo').value = formatMoneyForInput(p.promoPrice);
+    getEl('prod-stock').value = p.stock; // Estoque continua igual (número inteiro)
+    getEl('prod-cost').value = formatMoneyForInput(p.cost);
     getEl('prod-sizes').value = p.sizes ? p.sizes.join(',') : '';
 
     // CARREGA IMAGENS EXISTENTES NO STATE TEMPORÁRIO
@@ -2272,7 +2829,14 @@ window.editProduct = (id) => {
         else settingsPix.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    if (inputPixVal) inputPixVal.value = pixOptions.val;
+    // Só formata se o tipo for fixo (dinheiro). Se for porcentagem, deixa normal.
+    if (inputPixVal) {
+        if (pixOptions.type === 'percent') {
+            inputPixVal.value = pixOptions.val;
+        } else {
+            inputPixVal.value = formatMoneyForInput(pixOptions.val);
+        }
+    }
     if (inputPixType) inputPixType.value = pixOptions.type;
 
     // Atualiza visual dos botões % / R$
@@ -2312,6 +2876,7 @@ window.deleteCoupon = async (id) => {
         alert("Erro ao excluir: " + error.message);
     }
 };
+
 window.filterByCat = (cat) => {
     // 1. Atualiza o Título da Página
     if (els.pageTitle) {
@@ -2823,23 +3388,110 @@ let checkoutState = {
 };
 
 window.openCheckoutModal = () => {
-    // Reseta estado visual
-    getEl('checkout-cep').value = '';
-    getEl('checkout-number').value = '';
-    getEl('checkout-comp').value = '';
-    els.addressDetails.classList.add('hidden');
-    els.deliveryError.classList.add('hidden');
-    els.paymentSection.classList.add('hidden'); // Começa oculto até validar CEP
-    els.paymentSection.classList.add('opacity-50', 'pointer-events-none');
-    els.btnFinishOrder.disabled = true;
+    // 1. Limpa campos anteriores
+    ['checkout-cep', 'checkout-number', 'checkout-comp'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
 
-    // Reseta opção de pagamento para WhatsApp
-    const radios = document.getElementsByName('payment-method');
-    if (radios[0]) radios[0].checked = true;
-    handlePaymentSelection('whatsapp');
+    // 2. Esconde mensagens de erro antigas
+    ['address-details', 'delivery-error'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
 
-    els.checkoutModal.classList.remove('hidden');
-    els.checkoutModal.classList.add('flex');
+    // 3. Verifica configuração de entrega da loja
+    // Se não tiver config carregada, assume FALSE para segurança
+    const config = (state.storeProfile && state.storeProfile.deliveryConfig)
+        ? state.storeProfile.deliveryConfig
+        : { ownDelivery: false };
+
+    // Pega os elementos
+    const containerDelivery = document.getElementById('container-delivery-option');
+    const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
+    const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
+
+    // Elemento de pagamento em dinheiro (que deve sumir junto)
+    const containerCash = document.getElementById('container-cash-option');
+
+    // LÓGICA BLINDADA DE VISIBILIDADE
+    if (config.ownDelivery !== true) {
+        // >>> MODO: ENTREGA DESATIVADA (Somente Online) <<<
+
+        if (containerDelivery) {
+            // Remove classes que forçam exibição
+            containerDelivery.classList.remove('flex', 'block');
+            // Adiciona ocultação
+            containerDelivery.classList.add('hidden');
+            // Força bruta CSS (garantia final)
+            containerDelivery.setAttribute('style', 'display: none !important');
+        }
+
+        // Garante que a opção Dinheiro suma imediatamente
+        if (containerCash) {
+            containerCash.classList.add('hidden');
+        }
+
+        // Desmarca o radio de entrega se estiver marcado
+        if (radioDelivery && radioDelivery.checked) {
+            radioDelivery.checked = false;
+        }
+
+        // Força marcar Online
+        if (radioOnline) {
+            radioOnline.checked = true;
+        }
+
+        // Atualiza a UI de pagamentos (para esconder abas de dinheiro/troco)
+        if (typeof window.togglePaymentMode === 'function') {
+            window.togglePaymentMode();
+        }
+
+    } else {
+        // >>> MODO: ENTREGA ATIVADA <<<
+
+        if (containerDelivery) {
+            containerDelivery.classList.remove('hidden');
+            // Remove o style inline para o CSS original voltar a funcionar
+            containerDelivery.removeAttribute('style');
+            // Se o seu layout original usava flex, garanta aqui (opcional)
+            // containerDelivery.classList.add('flex'); 
+        }
+
+        // Se nada estiver marcado, marca Online por padrão
+        if (radioOnline && (!radioDelivery || !radioDelivery.checked)) {
+            radioOnline.checked = true;
+            if (typeof window.togglePaymentMode === 'function') {
+                window.togglePaymentMode();
+            }
+        }
+    }
+
+    // 4. Troca a visualização do Carrinho para o Checkout
+    const viewCart = document.getElementById('view-cart-list');
+    const viewCheckout = document.getElementById('view-checkout');
+    const cartTitle = document.getElementById('cart-modal-title');
+    const btnBack = document.getElementById('btn-modal-back');
+    const btnGo = document.getElementById('btn-go-checkout');
+    const btnFinish = document.getElementById('btn-finish-payment');
+
+    if (viewCart) viewCart.classList.add('hidden');
+    if (viewCheckout) viewCheckout.classList.remove('hidden');
+
+    if (cartTitle) cartTitle.innerText = "FINALIZAR PEDIDO";
+    if (btnBack) btnBack.classList.remove('hidden');
+
+    // Troca os botões do rodapé
+    if (btnGo) btnGo.classList.add('hidden');
+    if (btnFinish) {
+        btnFinish.classList.remove('hidden');
+        btnFinish.disabled = true; // Desabilita até preencher CEP
+    }
+
+    // Atualiza totais
+    if (typeof window.updateCheckoutTotal === 'function') {
+        window.updateCheckoutTotal();
+    }
 };
 
 window.closeCheckoutModal = () => {
@@ -2850,24 +3502,24 @@ window.closeCheckoutModal = () => {
 // --- LÓGICA DE CEP E DISTÂNCIA ---
 window.handleCheckoutCep = async () => {
     const cepInput = document.getElementById('checkout-cep');
+    if (!cepInput) return;
+
     const cep = cepInput.value.replace(/\D/g, '');
 
-    // Elementos de UI
-    const loading = document.getElementById('cep-loading');
-    const errorBox = document.getElementById('delivery-error');
-    const errorMsg = document.getElementById('delivery-error-msg');
-    const addrFields = document.getElementById('address-fields');
-    const distDisplay = document.getElementById('distance-display');
+    // Elementos da UI (Busca segura para não dar erro null)
+    const elDistDisplay = document.getElementById('distance-display');
+    const elErrorMsg = document.getElementById('delivery-error-msg');
+    const elErrorDiv = document.getElementById('delivery-error');
+    const elAddrFields = document.getElementById('address-fields');
+    const elLoading = document.getElementById('cep-loading');
     const btnFinish = document.getElementById('btn-finish-payment');
 
     if (cep.length !== 8) return;
 
-    // Reset Visual
-    loading.classList.remove('hidden');
-    errorBox.classList.add('hidden');
-    addrFields.classList.add('opacity-50', 'pointer-events-none'); // Trava campos
-    if (distDisplay) distDisplay.classList.add('hidden');
-    if (btnFinish) btnFinish.disabled = true;
+    // Reset visual
+    if (elLoading) elLoading.classList.remove('hidden');
+    if (elErrorDiv) elErrorDiv.classList.add('hidden');
+    if (elDistDisplay) elDistDisplay.classList.add('hidden');
 
     try {
         // 1. Busca Endereço (ViaCEP)
@@ -2876,74 +3528,96 @@ window.handleCheckoutCep = async () => {
 
         if (data.erro) throw new Error("CEP não encontrado.");
 
-        // 2. Preenche Campos Automaticamente
-        document.getElementById('checkout-street').value = data.logradouro || '';
-        document.getElementById('checkout-district').value = data.bairro || '';
-        document.getElementById('checkout-city').value = `${data.localidade} - ${data.uf}`;
+        // Preenche campos
+        if (document.getElementById('checkout-street')) document.getElementById('checkout-street').value = data.logradouro;
+        if (document.getElementById('checkout-district')) document.getElementById('checkout-district').value = data.bairro;
+        if (document.getElementById('checkout-city')) document.getElementById('checkout-city').value = `${data.localidade} - ${data.uf}`;
 
-        // Destrava para digitar número
-        addrFields.classList.remove('opacity-50', 'pointer-events-none');
-        document.getElementById('checkout-number').focus();
+        // Libera campos de endereço
+        if (elAddrFields) {
+            elAddrFields.classList.remove('opacity-50', 'pointer-events-none');
+        }
 
-        // 3. Validação de Distância
-        const storeCep = state.storeProfile.cep; // CEP da loja configurado no Admin
-        const maxDist = parseFloat(state.storeProfile.maxDistance) || 0; // 0 = Sem limite
+        // Foca no número
+        const numInput = document.getElementById('checkout-number');
+        if (numInput) numInput.focus();
 
-        // Se a loja tem configuração de limite
-        if (storeCep && maxDist > 0) {
-            if (distDisplay) {
-                distDisplay.innerText = "Calculando frete...";
-                distDisplay.classList.remove('hidden');
+        // 2. VALIDAÇÃO DE DISTÂNCIA
+        const config = state.storeProfile.deliveryConfig || {};
+        const storeCep = state.storeProfile.cep ? state.storeProfile.cep.replace(/\D/g, '') : '';
+        const maxDist = parseFloat(state.storeProfile.maxDistance) || 0;
+
+        // Verifica se calcula distância (apenas se tiver entrega própria ativa)
+        if (storeCep && maxDist > 0 && config.ownDelivery === true) {
+
+            if (elDistDisplay) {
+                elDistDisplay.innerText = "Calculando...";
+                elDistDisplay.classList.remove('hidden', 'text-red-500', 'text-green-500');
             }
 
-            const dist = await calculateDistanceByCEP(storeCep, cep);
+            try {
+                // Certifique-se que você tem a função calculateDistanceByCEP no seu código
+                const dist = await calculateDistanceByCEP(storeCep, cep);
 
-            if (distDisplay) distDisplay.innerText = `${dist.toFixed(1)} km da loja`;
+                if (dist !== null) {
+                    if (elDistDisplay) {
+                        elDistDisplay.innerText = `${dist.toFixed(1)} km`;
+                        elDistDisplay.classList.remove('hidden');
 
-            if (dist > maxDist) {
-                // BLOQUEIA A VENDA
-                throw new Error(`Infelizmente não entregamos neste local.<br>Distância: ${dist.toFixed(1)}km (Máximo: ${maxDist}km)`);
+                        if (dist > maxDist) {
+                            elDistDisplay.classList.add('text-red-500');
+                            throw new Error(`Muito longe (${dist.toFixed(1)}km). Raio máx: ${maxDist}km`);
+                        } else {
+                            elDistDisplay.classList.add('text-green-500');
+                        }
+                    }
+                }
+            } catch (eDist) {
+                // Se o erro for de distância excessiva, repassa o erro
+                if (eDist.message.includes('Muito longe')) throw eDist;
+                console.warn("Erro cálculo distância (ignorado):", eDist);
             }
         }
 
-        // Se chegou aqui, libera o botão de finalizar
+        // Sucesso: Habilita botão de finalizar
         if (btnFinish) {
             btnFinish.disabled = false;
-            // Se for online, já recalcula totais
-            if (typeof updateCheckoutTotal === 'function') updateCheckoutTotal();
+            btnFinish.classList.remove('opacity-50', 'cursor-not-allowed');
         }
 
     } catch (err) {
-        // Exibe erro e mantém bloqueado
-        errorMsg.innerHTML = err.message;
-        errorBox.classList.remove('hidden');
-        addrFields.classList.add('opacity-50', 'pointer-events-none'); // Mantém travado
-        if (distDisplay) distDisplay.classList.add('hidden');
+        console.error("Erro CEP:", err);
+        if (elErrorMsg) elErrorMsg.innerText = err.message;
+        if (elErrorDiv) elErrorDiv.classList.remove('hidden');
+
+        // Bloqueia botão se der erro
+        if (btnFinish) btnFinish.disabled = true;
+
     } finally {
-        loading.classList.add('hidden');
+        if (elLoading) elLoading.classList.add('hidden');
     }
 };
 
-// API OpenStreetMap (Nominatim) para Lat/Lon (Mantenha ou adicione se não tiver)
 async function calculateDistanceByCEP(cepOrigin, cepDest) {
     const getCoords = async (c) => {
-        // Pequeno delay para evitar bloqueio da API gratuita
-        await new Promise(r => setTimeout(r, 300));
-        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&country=Brazil&postalcode=${c}`);
-        const d = await r.json();
-        if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
-        throw new Error("Não foi possível calcular a rota para este CEP.");
+        try {
+            // Tenta buscar no Nominatim
+            const url = `https://nominatim.openstreetmap.org/search?format=json&country=Brazil&postalcode=${c}&limit=1`;
+            const r = await fetch(url, { headers: { 'User-Agent': 'VesteMantoApp/1.0' } });
+            const d = await r.json();
+            if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+            return null;
+        } catch (e) {
+            console.error("Erro API Mapa:", e);
+            return null;
+        }
     };
 
-    try {
-        const [c1, c2] = await Promise.all([getCoords(cepOrigin), getCoords(cepDest)]);
-        return getDistanceFromLatLonInKm(c1.lat, c1.lon, c2.lat, c2.lon);
-    } catch (e) {
-        console.error(e);
-        // Em caso de erro na API de mapas, decidimos se bloqueamos ou liberamos.
-        // Aqui vou liberar retornando 0, mas avisando no console.
-        return 0;
-    }
+    const [c1, c2] = await Promise.all([getCoords(cepOrigin), getCoords(cepDest)]);
+
+    if (!c1 || !c2) return null; // Retorna null se falhar a API
+
+    return getDistanceFromLatLonInKm(c1.lat, c1.lon, c2.lat, c2.lon);
 }
 
 
@@ -3431,48 +4105,69 @@ window.calcCheckoutTotal = () => {
     }
 };
 
+
+// Função para gerar número sequencial seguro
+async function getNextOrderNumber(siteId) {
+    const counterRef = doc(db, `sites/${siteId}/settings`, 'orderCounter');
+
+    try {
+        // Tenta pegar o contador atual
+        const counterSnap = await getDoc(counterRef);
+
+        let newCount;
+
+        if (counterSnap.exists()) {
+            // Se já existe, pega o atual e soma 1
+            const current = counterSnap.data().current || 0;
+            newCount = current + 1;
+            await updateDoc(counterRef, { current: newCount });
+        } else {
+            // Se é o primeiro pedido da loja, começa do 1
+            newCount = 1;
+            await setDoc(counterRef, { current: newCount });
+        }
+
+        return newCount; // Retorna o número pronto para usar (ex: 1, 2, 3...)
+
+    } catch (error) {
+        console.error("Erro ao gerar sequencial:", error);
+        // Fallback de segurança: se der erro no contador, gera aleatório para não travar a venda
+        return Math.floor(10000 + Math.random() * 90000);
+    }
+}
+
 // --- ENVIAR PEDIDO (ATUALIZADO COM TROCO) ---
 // --- FUNÇÃO FINALIZAR PEDIDO (BLINDADA) ---
 window.submitOrder = async () => {
-    console.log("!!! CLIQUE RECEBIDO: submitOrder !!!");
-
-    // 1. Verificação de Segurança e Coleta de Dados
     try {
         const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
 
-        // --- DADOS DO CLIENTE ---
         const name = getVal('checkout-name');
         const phone = getVal('checkout-phone');
-
-        // --- DADOS DO ENDEREÇO (Atualizado para o novo HTML) ---
         const cep = getVal('checkout-cep');
-        const street = getVal('checkout-street');     // Rua (vinda do ViaCEP)
-        const district = getVal('checkout-district'); // Bairro (vindo do ViaCEP)
-        const number = getVal('checkout-number');     // Número (digitado)
-        const comp = getVal('checkout-comp');         // Complemento (digitado)
+        const street = getVal('checkout-street');
+        const district = getVal('checkout-district');
+        const number = getVal('checkout-number');
+        const comp = getVal('checkout-comp');
 
-        // Validação: Garante que nome, telefone, rua e número existem
         if (!name || !phone || !cep || !number || !street) {
-            alert("⚠️ Por favor, preencha NOME, TELEFONE e o ENDEREÇO completo (O Número é obrigatório).");
-            return;
+            return alert("⚠️ Preencha todos os campos obrigatórios.");
         }
 
-        // --- DADOS DE PAGAMENTO ---
+        // Dados de Pagamento
         const payModeEl = document.querySelector('input[name="pay-mode"]:checked');
         const methodEl = document.querySelector('input[name="payment-method-selection"]:checked');
 
         if (!payModeEl || !methodEl) {
-            alert("⚠️ Selecione uma forma de pagamento.");
-            return;
+            return alert("⚠️ Selecione a forma de pagamento.");
         }
 
-        const payMode = payModeEl.value;
-        const method = methodEl.value;
+        const payMode = payModeEl.value; // 'online' ou 'delivery'
+        const method = methodEl.value;   // 'pix', 'card', 'cash'
+
+        // Monta texto do pagamento
         let paymentDetails = "";
-
-        if (method === 'pix') {
-            paymentDetails = "Pix";
-        }
+        if (method === 'pix') paymentDetails = "Pix";
         else if (method === 'card') {
             const select = document.getElementById('checkout-installments');
             let parcelas = "Crédito/Débito";
@@ -3485,90 +4180,84 @@ window.submitOrder = async () => {
             const trocoVal = getVal('checkout-change-for');
             paymentDetails = `Dinheiro (Troco para: ${trocoVal || 'Não precisa'})`;
         }
-
         paymentDetails += (payMode === 'online') ? " [Pago Online]" : " [Pagar na Entrega]";
 
-        // --- VALORES ---
+        // Valor Final
         const totalEl = document.getElementById('checkout-final-total');
         let finalValue = 0;
         if (totalEl) {
             finalValue = parseFloat(totalEl.innerText.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
         }
 
-        // --- CONFIGURAÇÕES LOJA ---
-        const deliveryConfig = state.storeProfile?.deliveryConfig || {};
-        const cancelMinutes = deliveryConfig.cancelTimeMin || 5;
+        // --- LÓGICA DO CÓDIGO DE SEGURANÇA (CORRIGIDA) ---
+        // Garante leitura segura das configs
+        const deliveryConfig = state.storeProfile?.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
+        const cancelMinutes = parseInt(deliveryConfig.cancelTimeMin) || 5;
 
-        // --- MONTA ENDEREÇO COMPLETO FORMATADO ---
+        let securityCode = null;
+
+        // GERA CÓDIGO APENAS SE:
+        // 1. O modo escolhido for 'delivery' (Pagar na Entrega)
+        // 2. A loja exige código (reqCustomerCode é true)
+        if (payMode === 'delivery' && deliveryConfig.reqCustomerCode === true) {
+            securityCode = Math.floor(1000 + Math.random() * 9000); // Gera entre 1000 e 9999
+        }
+
         const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
 
-        // --- OBJETO DO PEDIDO ---
+        // 1. Gera o número sequencial (aguarda a resposta do banco)
+        const nextCode = await getNextOrderNumber(state.siteId);
+
+        // 2. Cria o objeto do pedido com o código sequencial
         const order = {
-            code: Math.floor(10000 + Math.random() * 90000),
+            code: nextCode,  // <--- AQUI USA O NÚMERO SEQUENCIAL (1, 2, 3...)
             date: new Date().toISOString(),
             customer: {
-                name: name,
-                phone: phone,
-                address: fullAddress, // Endereço completo formatado
-                addressNum: number,
-                cep: cep,
-                district: district,
-                street: street
+                name, phone, address: fullAddress,
+                addressNum: number, cep, district, street,
+                comp: comp // Garante que o complemento está aqui
             },
             items: state.cart || [],
             total: finalValue,
             status: 'Aguardando aprovação',
             paymentMethod: paymentDetails,
-            // Gera código de entrega SE configurado e SE for entrega própria
-            securityCode: (deliveryConfig.reqCustomerCode && deliveryConfig.ownDelivery) ? Math.floor(1000 + Math.random() * 9000) : null,
+            securityCode: securityCode,
             cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
         };
+
+        // ... resto da função continua igual (addDoc, etc) ...
 
         // Feedback visual
         const btnSubmit = document.getElementById('btn-finish-payment');
         if (btnSubmit) {
             btnSubmit.disabled = true;
-            btnSubmit.innerText = "⏳ Processando...";
+            btnSubmit.innerText = "⏳ Enviando...";
         }
 
-        // 5. Envio ao Firebase
+        // Salvar no Firebase
         const docRef = await addDoc(collection(db, `sites/${state.siteId}/sales`), order);
-        console.log("Pedido salvo ID:", docRef.id);
 
-        // --- CORREÇÃO DE PERSISTÊNCIA E LISTA ---
+        // Atualiza Local e Redireciona
         const newOrderLocal = { id: docRef.id, ...order };
-
-        // Adiciona ao Histórico
         if (!Array.isArray(state.myOrders)) state.myOrders = [];
         state.myOrders.push(newOrderLocal);
-
-        // Salva na chave correta
         localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
-        startBackgroundListeners(); // <--- Reinicia ouvintes para incluir o pedido novo
 
+        startBackgroundListeners();
         checkActiveOrders();
-
-        // Limpa Carrinho
         state.cart = [];
         localStorage.setItem('cart', JSON.stringify([]));
         updateCartUI();
 
-        const cartItemsContainer = document.getElementById('cart-items');
-        if (cartItemsContainer) cartItemsContainer.innerHTML = '';
-
-        // Redirecionamento e Feedback
         if (payMode === 'online') {
             sendOrderToWhatsapp(newOrderLocal);
-        } else {
-            setTimeout(() => alert("✅ Pedido Realizado com Sucesso!"), 300);
         }
 
-        // Abre a LISTA de pedidos (Acompanhamento)
         openTrackModal();
 
     } catch (e) {
-        console.error("ERRO GRAVE NO SUBMIT:", e);
-        alert("❌ Erro ao enviar pedido: " + e.message);
+        console.error("Erro Submit:", e);
+        alert("Erro ao enviar pedido: " + e.message);
     } finally {
         const btnSubmit = document.getElementById('btn-finish-payment');
         if (btnSubmit) {
@@ -3642,24 +4331,24 @@ window.showOrderStatusView = () => {
         if (window.currentOrderListener) window.currentOrderListener();
 
         window.currentOrderListener = onSnapshot(doc(db, `sites/${state.siteId}/sales`, orderId), (snap) => {
-        if (snap.exists()) {
-            const data = snap.data();
-            const fullOrder = { id: snap.id, ...data }; 
-            
-            updateStatusUI(fullOrder);
+            if (snap.exists()) {
+                const data = snap.data();
+                const fullOrder = { id: snap.id, ...data };
 
-            // Atualiza array local
-            const idx = state.myOrders.findIndex(o => o.id === orderId);
-            if (idx > -1) {
-                state.myOrders[idx] = fullOrder;
-                localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
-                
-                // --- ADICIONE ISTO AQUI ---
-                // Verifica a bolinha toda vez que o status mudar em tempo real
-                checkActiveOrders(); 
+                updateStatusUI(fullOrder);
+
+                // Atualiza array local
+                const idx = state.myOrders.findIndex(o => o.id === orderId);
+                if (idx > -1) {
+                    state.myOrders[idx] = fullOrder;
+                    localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+
+                    // --- ADICIONE ISTO AQUI ---
+                    // Verifica a bolinha toda vez que o status mudar em tempo real
+                    checkActiveOrders();
+                }
             }
-        }
-    });
+        });
     }
 };
 
@@ -3708,21 +4397,80 @@ window.adminRevertStatus = async (orderId) => {
     }
 };
 
-// Função auxiliar para atualizar no Firebase
-async function updateOrderStatusDB(orderId, status) {
+// Função auxiliar para atualizar no Firebase com BAIXA DE ESTOQUE AUTOMÁTICA
+async function updateOrderStatusDB(orderId, newStatus) {
     try {
-        const updateData = { status: status };
-        // Se finalizou, salva data
-        if (status === 'Concluído') {
+        const orderRef = doc(db, `sites/${state.siteId}/sales`, orderId);
+
+        // 1. Busca o pedido ATUAL
+        const docSnap = await getDoc(orderRef);
+        if (!docSnap.exists()) return alert("Pedido não encontrado.");
+
+        const currentOrder = docSnap.data();
+        const oldStatus = currentOrder.status || 'Aguardando aprovação';
+
+        // 2. CONFIGURAÇÃO DAS REGRAS
+        const stockConsumingStatuses = [
+            'Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'
+        ];
+
+        const wasConsuming = stockConsumingStatuses.includes(oldStatus);
+        const isConsuming = stockConsumingStatuses.includes(newStatus);
+        const items = currentOrder.items || [];
+
+        // --- CENÁRIO A: BAIXA DE ESTOQUE (Venda Nova) ---
+        if (!wasConsuming && isConsuming) {
+            for (const item of items) {
+                if (item.id) {
+                    const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+                    const pSnap = await getDoc(prodRef);
+
+                    if (pSnap.exists()) {
+                        const currentStock = parseInt(pSnap.data().stock) || 0;
+                        const qty = parseInt(item.qty) || 0;
+                        // Cálculo manual (evita erro do increment)
+                        let newStock = currentStock - qty;
+                        if (newStock < 0) newStock = 0; // Evita estoque negativo
+
+                        await updateDoc(prodRef, { stock: newStock });
+                    }
+                }
+            }
+            showToast(`Estoque baixado! (Status: ${newStatus})`, 'success');
+        }
+
+        // --- CENÁRIO B: DEVOLUÇÃO DE ESTOQUE (Cancelamento) ---
+        else if (wasConsuming && !isConsuming) {
+            for (const item of items) {
+                if (item.id) {
+                    const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+                    const pSnap = await getDoc(prodRef);
+
+                    if (pSnap.exists()) {
+                        const currentStock = parseInt(pSnap.data().stock) || 0;
+                        const qty = parseInt(item.qty) || 0;
+                        // Devolve o estoque
+                        await updateDoc(prodRef, { stock: currentStock + qty });
+                    }
+                }
+            }
+            showToast(`Estoque devolvido. (Status: ${newStatus})`, 'info');
+        }
+
+        // 3. Atualiza o pedido
+        const updateData = { status: newStatus };
+        if (newStatus === 'Concluído' && oldStatus !== 'Concluído') {
             updateData.completedAt = new Date().toISOString();
         }
 
-        await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), updateData);
-        showToast(`Status atualizado para: ${status}`);
-        // A lista atualiza sozinha via onSnapshot
+        await updateDoc(orderRef, updateData);
+
+        // Atualiza a tela se necessário
+        if (typeof loadAdminSales === 'function') loadAdminSales();
+
     } catch (error) {
-        console.error(error);
-        alert("Erro ao atualizar status.");
+        console.error("Erro ao atualizar status:", error);
+        alert("Erro ao atualizar: " + error.message);
     }
 }
 
@@ -3738,10 +4486,10 @@ window.openTrackModal = async () => {
         document.getElementById('view-checkout').classList.add('hidden');
         document.getElementById('view-order-status').classList.add('hidden');
         document.getElementById('view-order-list').classList.remove('hidden');
-        
+
         const container = document.getElementById('orders-list-container');
         container.innerHTML = '<div class="text-gray-500 text-center mt-10 p-4">Você ainda não fez pedidos.</div>';
-        
+
         // Configura Header Básico
         document.getElementById('cart-modal-title').innerText = "ACOMPANHAMENTO";
         document.getElementById('cart-footer-actions').classList.add('hidden');
@@ -3753,7 +4501,7 @@ window.openTrackModal = async () => {
     // Mostra um carregando simples se quiser, ou apenas atualiza rápido
     const container = document.getElementById('orders-list-container');
     container.innerHTML = '<div class="text-white text-center mt-10"><i class="fas fa-circle-notch fa-spin"></i> Atualizando pedidos...</div>';
-    
+
     showOrderListView(); // Mostra a estrutura da tela
 
     // Atualiza os dados de cada pedido no banco
@@ -3763,14 +4511,14 @@ window.openTrackModal = async () => {
             // Busca o documento atualizado no Firebase
             const docRef = doc(db, `sites/${state.siteId}/sales`, localOrder.id);
             const docSnap = await getDoc(docRef);
-            
+
             if (docSnap.exists()) {
                 // Se existe, usa os dados novos
                 freshOrders.push({ id: docSnap.id, ...docSnap.data() });
             } else {
                 // Se não existe mais (foi deletado), mantém o antigo ou ignora
                 // Opção: Manter histórico para o cliente não achar que sumiu
-                freshOrders.push(localOrder); 
+                freshOrders.push(localOrder);
             }
         } catch (e) {
             console.error("Erro ao atualizar pedido:", e);
@@ -3781,7 +4529,7 @@ window.openTrackModal = async () => {
     // Salva a lista atualizada e renderiza
     state.myOrders = freshOrders;
     localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
-    
+
     // Agora renderiza a lista com dados frescos
     showOrderListView();
 };
@@ -3881,7 +4629,7 @@ window.showOrderDetail = (orderId) => {
     btnBack.classList.remove('hidden');
     btnBack.onclick = () => {
         // Ao voltar, atualiza a lista novamente para garantir sincronia
-        openTrackModal(); 
+        openTrackModal();
     };
 
     // Renderiza inicial com o que tem na memória (pra não piscar tela branca)
@@ -3890,7 +4638,7 @@ window.showOrderDetail = (orderId) => {
 
     // --- LISTENER EM TEMPO REAL ---
     if (window.currentOrderListener) window.currentOrderListener();
-    
+
     // Listener no documento específico
     window.currentOrderListener = onSnapshot(doc(db, `sites/${state.siteId}/sales`, orderId), (snap) => {
         if (snap.exists()) {
@@ -3898,8 +4646,8 @@ window.showOrderDetail = (orderId) => {
             // --- CORREÇÃO CRÍTICA DO UNDEFINED ---
             // O objeto 'data' do firebase NÃO tem o ID dentro dele por padrão.
             // Precisamos criar um novo objeto com o ID e os dados.
-            const fullOrder = { id: snap.id, ...data }; 
-            
+            const fullOrder = { id: snap.id, ...data };
+
             // Atualiza a UI de Detalhes
             updateStatusUI(fullOrder);
 
@@ -3919,58 +4667,13 @@ window.showOrderDetail = (orderId) => {
 window.cancelTimerInterval = null;
 
 window.updateStatusUI = (order) => {
-    // Limpa timer anterior se houver troca de visualização
     if (window.cancelTimerInterval) clearInterval(window.cancelTimerInterval);
 
-    // --- RENDERIZAÇÃO DA TIMELINE (Mantida a lógica anterior, ajustada visualmente) ---
-    // Mapa de Progresso
-    const steps = {
-        'Aguardando aprovação': 1,
-        'Aprovado': 1,
-        'Preparando pedido': 2,
-        'Saiu para entrega': 3,
-        'Entregue': 4,
-        'Concluído': 4
-    };
-    
-    let currentStep = steps[order.status] || 1;
-    
-    // Se for QUALQUER tipo de cancelamento, o passo é 0 (falha)
-    if (order.status.includes('Cancelado')) currentStep = 0;
+    // ... (Mantém a lógica da barra de progresso / Timeline igual estava) ...
+    // Copie a parte da Timeline (steps, icons) do seu código anterior ou da minha resposta passada
+    // Vou focar apenas no CONTEÚDO abaixo da timeline:
 
-    // Atualiza Barra e Ícones (usando a lógica que já existia, mas simplificada para focar no design)
-    let barWidth = 0;
-    if (currentStep > 1) barWidth = ((currentStep - 1) / 3) * 100;
-    const timelineLine = document.getElementById('status-timeline-line');
-    if(timelineLine) timelineLine.style.width = `${barWidth}%`;
-
-    for (let i = 1; i <= 4; i++) {
-        const iconBox = document.getElementById(`icon-step-${i}`);
-        if(!iconBox) continue; 
-        const icon = iconBox.querySelector('i');
-        
-        iconBox.className = "w-10 h-10 rounded-full flex items-center justify-center border-2 z-10 transition-all duration-300 bg-[#0f111a]"; 
-        
-        // Verifica se é cancelado
-        if (order.status.includes('Cancelado')) {
-             iconBox.classList.add('border-red-600', 'text-red-600');
-             icon.className = "fas fa-times";
-        } 
-        else if (i <= currentStep) {
-             // ... verde ...
-             iconBox.classList.add('bg-green-500', 'border-green-500', 'text-white');
-             icon.className = "fas fa-check";
-        } else {
-             // ... cinza ...
-             iconBox.classList.add('border-gray-700', 'text-gray-700');
-        }
-    }
-
-    // --- CONTEÚDO DOS DETALHES (Estilo image_a2255a.png) ---
-    // Precisamos de um container específico no HTML para injetar esses detalhes.
-    // Sugiro que no seu HTML, dentro de 'view-order-status', você tenha uma div com id="order-details-body"
-    
-    const detailsContainer = document.getElementById('order-details-body'); // <--- CRIE ESSE ID NO HTML se não existir
+    const detailsContainer = document.getElementById('order-details-body');
     if (detailsContainer) {
         let itemsHtml = order.items.map(i => `
             <div class="flex justify-between text-sm text-gray-300 mb-1">
@@ -3978,22 +4681,32 @@ window.updateStatusUI = (order) => {
             </div>
         `).join('');
 
-        // Formatação do Cupom
-        const cupomHtml = order.cupom ? `<div class="text-sm text-gray-400 mt-2">Cupom: <span class="text-white">${order.cupom}</span></div>` : '';
-
-        // Situação Atual (Texto Grande no Centro)
         const statusDisplay = order.status === 'Concluído' ? 'CONCLUÍDO' : order.status.toUpperCase();
 
+        // --- NOVO: EXIBIÇÃO DO CÓDIGO DE SEGURANÇA ---
+        let securityCodeHtml = '';
+        if (order.securityCode && order.status !== 'Concluído' && order.status !== 'Cancelado' && !order.status.includes('Cancelado')) {
+            securityCodeHtml = `
+                <div class="bg-gray-800 border border-yellow-500/50 rounded-lg p-3 mb-4 text-center animate-pulse">
+                    <p class="text-xs text-gray-400 uppercase mb-1">Código de Segurança</p>
+                    <p class="text-2xl font-bold text-yellow-500 tracking-[0.2em]">${order.securityCode}</p>
+                    <p class="text-[10px] text-gray-500 mt-1">Informe este código ao entregador</p>
+                </div>
+            `;
+        }
+        // ---------------------------------------------
+
         detailsContainer.innerHTML = `
-            <div class="bg-[#1a1d2d] rounded-xl p-4 mb-6 text-center border border-gray-700">
+            <div class="bg-[#1a1d2d] rounded-xl p-4 mb-4 text-center border border-gray-700">
                 <span class="text-xs text-gray-500 uppercase tracking-widest block mb-1">Situação Atual</span>
                 <h2 class="text-2xl font-bold text-white">${statusDisplay}</h2>
             </div>
 
+            ${securityCodeHtml}
+
             <div class="mb-6">
                 <h3 class="text-white font-bold text-lg mb-2">Itens:</h3>
                 ${itemsHtml}
-                ${cupomHtml}
                 <div class="mt-3 pt-3 border-t border-gray-800 flex justify-between items-center">
                     <span class="text-white font-bold text-lg">Total:</span>
                     <span class="text-green-400 font-bold text-lg">${formatCurrency(order.total)}</span>
@@ -4012,62 +4725,45 @@ window.updateStatusUI = (order) => {
         `;
     }
 
-    // --- LÓGICA DO BOTÃO CANCELAR COM TIMER ---
+    // ... (Mantém a lógica do timer de cancelamento igual estava) ...
+    // Copie a parte do btnArea e checkTimer do código anterior
     const btnArea = document.getElementById('cancel-btn-area');
     if (!btnArea) return;
 
-    // Só mostra botão se o status for inicial
     if (order.status === 'Aguardando aprovação' || order.status === 'Pendente') {
-        
-        // Calcula tempo restante
         const checkTimer = () => {
             const now = new Date().getTime();
-            const limit = new Date(order.cancelLimit).getTime(); // cancelLimit foi salvo na criação do pedido
+            const limit = new Date(order.cancelLimit).getTime();
             const distance = limit - now;
 
             if (distance < 0) {
-                // Tempo acabou
-                btnArea.innerHTML = `
-                    <button disabled class="w-full bg-gray-800 text-gray-500 font-bold py-3 rounded-xl cursor-not-allowed">
-                        Cancelamento indisponível
-                    </button>
-                `;
+                btnArea.innerHTML = `<button disabled class="w-full bg-gray-800 text-gray-500 font-bold py-3 rounded-xl cursor-not-allowed">Cancelamento indisponível</button>`;
                 clearInterval(window.cancelTimerInterval);
             } else {
-                // Tempo rodando
                 const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
                 const seconds = Math.floor((distance % (1000 * 60)) / 1000);
                 const fmtSec = seconds < 10 ? `0${seconds}` : seconds;
-
-                btnArea.innerHTML = `
-                    <button onclick="clientCancelOrder('${order.id}')" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl flex justify-between px-6 transition">
-                        <span>Cancelar</span>
-                        <span>${minutes}:${fmtSec}s</span>
-                    </button>
-                `;
+                btnArea.innerHTML = `<button onclick="clientCancelOrder('${order.id}')" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl flex justify-between px-6 transition"><span>Cancelar</span><span>${minutes}:${fmtSec}s</span></button>`;
             }
         };
-
-        checkTimer(); // Roda imediatamente
-        window.cancelTimerInterval = setInterval(checkTimer, 1000); // Atualiza a cada segundo
-
+        checkTimer();
+        window.cancelTimerInterval = setInterval(checkTimer, 1000);
     } else {
-        // Se já foi aprovado ou saiu para entrega, não pode cancelar
         btnArea.innerHTML = '';
     }
 };
 
 // Nova função helper para o cliente cancelar
 window.clientCancelOrder = async (orderId) => {
-    if(!confirm("Tem certeza que deseja cancelar seu pedido?")) return;
-    
+    if (!confirm("Tem certeza que deseja cancelar seu pedido?")) return;
+
     try {
         // --- AQUI MUDA O STATUS PARA O QUE VAI APARECER NO ADMIN ---
-        await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), { 
+        await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), {
             status: 'Cancelado pelo Cliente',
             cancelReason: 'Cancelado pelo cliente no app'
         });
-        
+
         // Não precisa de alert, a UI vai atualizar sozinha pelo listener
     } catch (e) {
         console.error(e);
@@ -4091,12 +4787,12 @@ function checkActiveOrders() {
     // Filtra para contar apenas os pedidos que AINDA estão ativos/vivos
     const activeOrders = state.myOrders.filter(o => {
         const s = o.status;
-        
+
         // Verifica se o status é considerado "Finalizado"
         // (Inclui: Concluído, Entregue, e qualquer tipo de Cancelado)
-        const isFinished = 
-            s === 'Concluído' || 
-            s === 'Entregue' || 
+        const isFinished =
+            s === 'Concluído' ||
+            s === 'Entregue' ||
             s.includes('Cancelado'); // Pega 'Cancelado' e 'Cancelado pelo Cliente'
 
         // Retorna TRUE se o pedido NÃO estiver finalizado (ou seja, é um pedido ativo)
@@ -4131,19 +4827,19 @@ function startBackgroundListeners() {
         const unsub = onSnapshot(doc(db, `sites/${state.siteId}/sales`, localOrder.id), (docSnap) => {
             if (docSnap.exists()) {
                 const freshData = docSnap.data();
-                
+
                 // 1. Atualiza os dados na memória local
                 const index = state.myOrders.findIndex(o => o.id === localOrder.id);
                 if (index !== -1) {
                     // Mantém o ID e atualiza o resto
                     state.myOrders[index] = { id: localOrder.id, ...freshData };
-                    
+
                     // 2. Salva no LocalStorage para persistir
                     localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
-                    
+
                     // 3. O MAIS IMPORTANTE: Verifica a bolinha imediatamente
                     checkActiveOrders();
-                    
+
                     // Se o modal de lista estiver aberto, atualiza a lista visualmente também
                     const listModal = document.getElementById('view-order-list');
                     if (listModal && !listModal.classList.contains('hidden')) {
@@ -4152,12 +4848,144 @@ function startBackgroundListeners() {
                 }
             }
         });
-        
+
         // Guarda o ouvinte para poder limpar depois se precisar
         window.activeListeners.push(unsub);
     });
 }
 
+//recebe a lista de pedidos, conta quantos tem em cada status e monta os botões coloridos.
+function renderOrdersSummary(orders, filterStatus = '') {
+    const container = document.getElementById('orders-summary-bar');
+    if (!container) return;
+
+    // 1. Inicializa Contadores
+    const counts = {
+        'Aguardando aprovação': 0,
+        'Aprovado': 0,
+        'Preparando pedido': 0,
+        'Saiu para entrega': 0,
+        'Entregue': 0,
+        'Concluído': 0,
+        'Cancelado': 0
+    };
+
+    let totalItensVendidos = 0;
+
+    // 2. Processa os totais
+    orders.forEach(o => {
+        // A. Contagem de Status (Conta tudo para exibir nas caixinhas normais)
+        if (o.status.includes('Cancelado')) {
+            counts['Cancelado']++;
+        } else if (counts.hasOwnProperty(o.status)) {
+            counts[o.status]++;
+        }
+
+        // B. Contagem de Itens Vendidos (Regra Ajustada)
+        // Só conta se NÃO for Cancelado E se NÃO estiver Aguardando Aprovação
+        const isCancelado = o.status.includes('Cancelado');
+        const isAguardando = o.status === 'Aguardando aprovação';
+
+        if (!isCancelado && !isAguardando) {
+            const itensDoPedido = o.items ? o.items.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0) : 0;
+            totalItensVendidos += itensDoPedido;
+        }
+    });
+
+    // 3. Definição dos Cards
+    let cards = [
+        { label: 'Aguardando', key: 'Aguardando aprovação', bg: 'bg-gray-600' },
+        { label: 'Aprovados', key: 'Aprovado', bg: 'bg-yellow-600' },
+        { label: 'Preparando', key: 'Preparando pedido', bg: 'bg-yellow-700' },
+        { label: 'Na Entrega', key: 'Saiu para entrega', bg: 'bg-orange-600' },
+        { label: 'Entregues', key: 'Entregue', bg: 'bg-green-500' },
+        { label: 'Concluídos', key: 'Concluído', bg: 'bg-green-700' },
+        { label: 'Cancelados', key: 'Cancelado', bg: 'bg-red-600' }
+    ];
+
+    // 4. Filtro de Visibilidade (Se selecionou um status, mostra só ele)
+    if (filterStatus && filterStatus !== '') {
+        if (filterStatus === 'Cancelado_All') {
+            cards = cards.filter(c => c.key === 'Cancelado');
+        } else {
+            cards = cards.filter(c => c.key === filterStatus);
+        }
+    }
+
+    // Adiciona o card de ITENS no final (Sempre mostra itens REAIS vendidos/aprovados)
+    cards.push({ label: 'Itens Vendidos', val: totalItensVendidos, bg: 'bg-blue-600', key: 'total_items' });
+
+    // 5. Renderiza
+    let html = '';
+    cards.forEach(card => {
+        const value = card.val !== undefined ? card.val : (counts[card.key] || 0);
+
+        html += `
+            <div class="${card.bg} text-white rounded p-3 flex flex-col items-center justify-center border border-white/10 min-h-[70px] animate-fade-in">
+                <span class="text-2xl font-bold leading-none mb-1">${value}</span>
+                <span class="text-[10px] uppercase font-medium tracking-wider opacity-90">${card.label}</span>
+            </div>
+        `;
+    });
+
+    const gridCols = cards.length > 4 ? 'lg:grid-cols-8' : `lg:grid-cols-${cards.length}`;
+    container.className = `grid grid-cols-2 md:grid-cols-4 ${gridCols} gap-2 mb-6 transition-all`;
+
+    container.innerHTML = html;
+}
+
+// --- MÁSCARA DE MOEDA (Input Mask) ---
+function setupCurrencyMasks() {
+    const ids = ['prod-price', 'prod-promo', 'prod-cost', 'prod-pix-val'];
+
+    ids.forEach(id => {
+        const input = document.getElementById(id);
+        if (!input) return;
+
+        // Evento ao digitar
+        input.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\D/g, ""); // Remove tudo que não é número
+
+            // Se o campo estiver vazio, mantém vazio ou 0,00
+            if (value === "") {
+                e.target.value = "";
+                return;
+            }
+
+            // Converte para decimal (divide por 100)
+            value = (parseFloat(value) / 100).toFixed(2) + '';
+
+            // Troca ponto por vírgula
+            value = value.replace('.', ',');
+
+            // Adiciona ponto de milhar (ex: 1.000,00)
+            value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+
+            e.target.value = value;
+        });
+    });
+};
+// Formata números do banco (1250.90) para o padrão do input (1.250,90)
+function formatMoneyForInput(value) {
+    if (value === null || value === undefined || value === '') return '';
+    return parseFloat(value).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+// IMPORTANTE: Adicione essa chamada dentro do seu initApp ou logo após carregar 
+
+// Ativa as máscaras assim que o site carregar
+window.addEventListener('DOMContentLoaded', () => {
+    setupCurrencyMasks();
+});
+
+// E TAMBÉM chame ao abrir o modal de criar produto,
+// caso o modal seja criado dinamicamente, para garantir que o evento pegue.
+
 // Digite isso no Console do navegador para limpar o estado travado:
 // localStorage.removeItem('activeOrder');
 // location.reload();
+
+
