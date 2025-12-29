@@ -1867,6 +1867,9 @@ function renderSalesList(orders) {
 
     listEl.innerHTML = '';
 
+    // Ordena: Mais recentes primeiro
+    // orders.sort((a, b) => new Date(b.date) - new Date(a.date));
+
     if (orders.length === 0) {
         listEl.innerHTML = '<div class="text-center py-8 text-gray-500"><i class="fas fa-inbox text-4xl mb-2 opacity-50"></i><p>Nenhum pedido encontrado.</p></div>';
         return;
@@ -1880,22 +1883,23 @@ function renderSalesList(orders) {
         const dataHoraFormatada = `${dataStr} às ${horaStr}`;
 
         // 2. Definição de Cores (IGUAL AO RASTREIO)
-        let statusColorClass = 'text-gray-400'; 
+        let statusColorClass = 'text-gray-400'; // Padrão (Aguardando)
 
         switch (o.status) {
             case 'Aprovado':
             case 'Preparando pedido':
-                statusColorClass = 'text-yellow-500';
+                statusColorClass = 'text-yellow-500'; // Amarelo
                 break;
             case 'Saiu para entrega':
-                statusColorClass = 'text-orange-500';
+                statusColorClass = 'text-orange-500'; // Laranja
                 break;
             case 'Entregue':
             case 'Concluído':
-                statusColorClass = 'text-green-500'; 
+                statusColorClass = 'text-green-500';  // Verde
                 break;
         }
 
+        // Verifica cancelados (inclui "Cancelado pelo Cliente")
         if (o.status.includes('Cancelado')) {
             statusColorClass = 'text-red-500';
         }
@@ -1975,15 +1979,7 @@ function renderSalesList(orders) {
                 <div class="mb-4">
                     <p class="text-xs text-gray-500 uppercase font-bold mb-2">Itens do Pedido</p>
                     ${itemsHtml}
-
                     <div class="text-right mt-2">
-                        
-                        ${o.shippingFee && o.shippingFee > 0 ? `
-                            <div class="mb-1">
-                                <span class="text-gray-500 text-xs mr-2">Frete:</span>
-                                <span class="text-yellow-500 font-bold text-sm">+ ${formatCurrency(o.shippingFee)}</span>
-                            </div>
-                        ` : ''}
                         <span class="text-gray-400 text-xs">Total:</span>
                         <span class="text-white font-bold text-xl ml-2">${formatCurrency(o.total)}</span>
                     </div>
@@ -4082,27 +4078,27 @@ function fillProfileForm() {
 
         // Compatibilidade com versão anterior (se shippingActive era true)
         if (!dConfig.shippingRule && dConfig.shippingActive === true) {
-            elShipRule.value = 'both';
+            elShipRule.value = 'both'; 
         }
 
         // Controle visual (Opacidade)
         if (elShipRule.value !== 'none') {
-            if (elShipCont) elShipCont.classList.remove('opacity-50', 'pointer-events-none');
+            if(elShipCont) elShipCont.classList.remove('opacity-50', 'pointer-events-none');
         } else {
-            if (elShipCont) elShipCont.classList.add('opacity-50', 'pointer-events-none');
+            if(elShipCont) elShipCont.classList.add('opacity-50', 'pointer-events-none');
         }
-
+        
         // Listener para mudar visual em tempo real (sem precisar salvar)
         elShipRule.onchange = (e) => {
             if (e.target.value !== 'none') {
-                if (elShipCont) elShipCont.classList.remove('opacity-50', 'pointer-events-none');
+                if(elShipCont) elShipCont.classList.remove('opacity-50', 'pointer-events-none');
             } else {
-                if (elShipCont) elShipCont.classList.add('opacity-50', 'pointer-events-none');
+                if(elShipCont) elShipCont.classList.add('opacity-50', 'pointer-events-none');
             }
             autoSaveSettings('orders'); // Salva ao mudar
         };
     }
-
+    
     if (elShipVal) {
         // Formata o valor carregado do banco
         elShipVal.value = formatMoneyForInput(dConfig.shippingValue || 0);
@@ -4196,15 +4192,14 @@ async function autoSaveSettings(type) {
     }
     // 3. PEDIDOS E FRETE (AQUI ESTAVA O PROBLEMA)
     if (type === 'orders') {
+        // ... (ownDelivery, reqCode, cancelTime mantêm iguais) ...
         const ownDelivery = document.getElementById('conf-own-delivery').checked;
         const reqCode = document.getElementById('conf-req-code').checked;
         const cancelTime = parseInt(document.getElementById('conf-cancel-time').value) || 5;
 
-        // --- CAPTURA FRETE ---
-        const shipRule = document.getElementById('conf-shipping-rule').value; // 'none', 'both', 'online', 'delivery'
-
+        // Captura Nova Regra
+        const shipRule = document.getElementById('conf-shipping-rule').value; // 'none', 'both', etc
         const shipValRaw = document.getElementById('conf-shipping-value').value;
-        // LIMPEZA CRÍTICA: Remove "R$", espaços e pontos de milhar antes de converter
         const cleanVal = shipValRaw.replace(/[^\d,]/g, '');
         const shipVal = parseFloat(cleanVal.replace(',', '.')) || 0;
 
@@ -4213,8 +4208,8 @@ async function autoSaveSettings(type) {
                 ownDelivery: ownDelivery,
                 reqCustomerCode: reqCode,
                 cancelTimeMin: cancelTime,
-                shippingRule: shipRule,   // Nova Regra
-                shippingValue: shipVal    // Valor Limpo
+                shippingRule: shipRule, // Salva a regra (string)
+                shippingValue: shipVal
             }
         };
         message = 'Regras de entrega salvas!';
@@ -4452,9 +4447,8 @@ window.handleCheckoutCep = async () => {
             }
         }
 
-        checkoutState.isValidDelivery = true; // <--- CEP VÁLIDO!
-
-        // Sucesso: Habilita botão
+        checkoutState.isValidDelivery = true;
+        // Sucesso: Habilita botão de finalizar
         if (btnFinish) {
             btnFinish.disabled = false;
             btnFinish.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -4462,16 +4456,15 @@ window.handleCheckoutCep = async () => {
 
     } catch (err) {
         console.error("Erro CEP:", err);
-        checkoutState.isValidDelivery = false; // <--- CEP INVÁLIDO
-
+        checkoutState.isValidDelivery = false
         if (elErrorMsg) elErrorMsg.innerText = err.message;
         if (elErrorDiv) elErrorDiv.classList.remove('hidden');
+
+        // Bloqueia botão se der erro
         if (btnFinish) btnFinish.disabled = true;
 
     } finally {
         if (elLoading) elLoading.classList.add('hidden');
-
-        // IMPORTANTE: Recalcula o total (para somar ou remover o frete)
         calcCheckoutTotal();
     }
 };
@@ -4859,24 +4852,23 @@ window.toggleMethodSelection = () => {
 
 // --- FUNÇÃO ÚNICA: CALCULAR TOTAL DO CHECKOUT ---
 window.calcCheckoutTotal = () => {
-    // 1. Configurações e Estado Atual
+    // 1. Configurações e Estado
     const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value || 'online';
     const method = document.querySelector('input[name="payment-method-selection"]:checked')?.value || 'pix';
 
-    // Dados do Frete
     const dConfig = state.storeProfile.deliveryConfig || {};
     const shipRule = dConfig.shippingRule || 'none';
-    const shipValue = parseFloat(dConfig.shippingValue) || 0;
+    const shipValue = dConfig.shippingValue || 0;
 
     let finalTotal = 0;
     let savingsMsg = '';
-    let appliedShipping = 0; // Valor que será cobrado de fato
+    let appliedShipping = 0; // Valor efetivo a ser cobrado
 
     // --- LÓGICA DE APLICAÇÃO DO FRETE ---
-    // Só cobra se: Tiver valor E CEP for válido
-    if (shipValue > 0 && checkoutState.isValidDelivery) {
+    // Regra 1: CEP precisa ser válido
+    if (checkoutState.isValidDelivery && shipValue > 0) {
 
-        // Verifica a regra selecionada no Admin
+        // Regra 2: Verifica configuração do Admin
         if (shipRule === 'both') {
             appliedShipping = shipValue;
         }
@@ -4887,6 +4879,7 @@ window.calcCheckoutTotal = () => {
             appliedShipping = shipValue;
         }
     }
+    // -------------------------------------
 
     // 2. Calcula Base (Itens - Cupom)
     let itemsTotal = 0;
@@ -4901,9 +4894,8 @@ window.calcCheckoutTotal = () => {
 
     let productsTotal = Math.max(0, itemsTotal - discountCoupon);
 
-    // --- CÁLCULOS POR MÉTODO ---
+    // --- CÁLCULO POR MÉTODO (PIX/CARTÃO) ---
 
-    // A. PIX (Descontos)
     if (method === 'pix') {
         let totalWithPixDesc = 0;
         state.cart.forEach(item => {
@@ -4918,7 +4910,6 @@ window.calcCheckoutTotal = () => {
             totalWithPixDesc += price * item.qty;
         });
 
-        // Reaplica cupom sobre total Pix
         let cupomPix = state.currentCoupon?.type === 'percent'
             ? totalWithPixDesc * (state.currentCoupon.val / 100)
             : discountCoupon;
@@ -4930,28 +4921,29 @@ window.calcCheckoutTotal = () => {
         if (saved > 0.01) savingsMsg = `Economia de ${formatCurrency(saved)} no Pix!`;
     }
 
-    // B. CARTÃO (Juros)
     else if (method === 'card' && payMode === 'online') {
         const select = document.getElementById('checkout-installments');
         if (select && select.options.length > 0) {
             const selectedOpt = select.options[select.selectedIndex];
             if (selectedOpt && selectedOpt.dataset.total) {
+                // Total com juros do cartão
                 productsTotal = parseFloat(selectedOpt.dataset.total);
             }
         }
     }
 
-    // 3. SOMA FINAL (Produtos + Frete)
+    // 3. SOMA FINAL
     finalTotal = productsTotal + appliedShipping;
 
-    // 4. ATUALIZAÇÃO VISUAL
+    // 4. ATUALIZA VISUAL
     const elTotal = document.getElementById('checkout-final-total');
     if (elTotal) elTotal.innerText = formatCurrency(finalTotal);
 
-    // Aviso do Frete (Mostra/Esconde)
+    // --- MOSTRA/ESCONDE AVISO DE FRETE ---
     let elShipDisplay = document.getElementById('checkout-shipping-display');
+
+    // Cria elemento se não existir
     if (!elShipDisplay) {
-        // Cria elemento se não existir
         const totalContainer = elTotal.parentElement;
         const shipDiv = document.createElement('div');
         shipDiv.id = 'checkout-shipping-display';
@@ -5076,53 +5068,30 @@ window.submitOrder = async () => {
 
         const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
 
-        // 1. Gera o número sequencial
+        // 1. Gera o número sequencial (aguarda a resposta do banco)
         const nextCode = await getNextOrderNumber(state.siteId);
 
-        // --- CÁLCULO DE FRETE (Lógica Correta para Salvar) ---
-        // Precisamos recalcular aqui para garantir que a regra (Online/Entrega) seja respeitada no banco de dados
         const dConfig = state.storeProfile.deliveryConfig || {};
-        const shipRule = dConfig.shippingRule || 'none';
-        const shipValue = parseFloat(dConfig.shippingValue) || 0;
+        const shippingFee = (dConfig.shippingActive && dConfig.shippingValue > 0) ? dConfig.shippingValue : 0;
 
-        // Recupera o modo de pagamento escolhido pelo usuário para validar a regra
-        const selectedPayMode = document.querySelector('input[name="pay-mode"]:checked')?.value;
-
-        let valueToSave = 0;
-
-        // Só cobra se o CEP for válido E o valor for maior que 0
-        if (checkoutState.isValidDelivery && shipValue > 0) {
-            if (shipRule === 'both') {
-                valueToSave = shipValue;
-            }
-            else if (shipRule === 'online' && selectedPayMode === 'online') {
-                valueToSave = shipValue;
-            }
-            else if (shipRule === 'delivery' && selectedPayMode === 'delivery') {
-                valueToSave = shipValue;
-            }
-        }
-
-        // 2. Cria o objeto do pedido
+        // 2. Cria o objeto do pedido com o código sequencial
         const order = {
-            code: nextCode,
+            code: nextCode,  // <--- AQUI USA O NÚMERO SEQUENCIAL (1, 2, 3...)
             date: new Date().toISOString(),
             customer: {
                 name, phone, address: fullAddress,
                 addressNum: number, cep, district, street,
-                comp: comp
+                comp: comp // Garante que o complemento está aqui
             },
             items: state.cart || [],
-            total: finalValue, // Valor final (já inclui o frete visualmente)
+            total: finalValue,
             status: 'Aguardando aprovação',
             paymentMethod: paymentDetails,
             securityCode: securityCode,
-
-            // --- CAMPO CORRIGIDO ---
-            shippingFee: valueToSave, // Salva o valor calculado corretamente
-
+            shippingFee: shippingFee,
             cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
         };
+
         // ... resto da função continua igual (addDoc, etc) ...
 
         // Feedback visual

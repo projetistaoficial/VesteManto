@@ -1867,6 +1867,9 @@ function renderSalesList(orders) {
 
     listEl.innerHTML = '';
 
+    // Ordena: Mais recentes primeiro
+    // orders.sort((a, b) => new Date(b.date) - new Date(a.date));
+
     if (orders.length === 0) {
         listEl.innerHTML = '<div class="text-center py-8 text-gray-500"><i class="fas fa-inbox text-4xl mb-2 opacity-50"></i><p>Nenhum pedido encontrado.</p></div>';
         return;
@@ -1880,22 +1883,23 @@ function renderSalesList(orders) {
         const dataHoraFormatada = `${dataStr} às ${horaStr}`;
 
         // 2. Definição de Cores (IGUAL AO RASTREIO)
-        let statusColorClass = 'text-gray-400'; 
+        let statusColorClass = 'text-gray-400'; // Padrão (Aguardando)
 
         switch (o.status) {
             case 'Aprovado':
             case 'Preparando pedido':
-                statusColorClass = 'text-yellow-500';
+                statusColorClass = 'text-yellow-500'; // Amarelo
                 break;
             case 'Saiu para entrega':
-                statusColorClass = 'text-orange-500';
+                statusColorClass = 'text-orange-500'; // Laranja
                 break;
             case 'Entregue':
             case 'Concluído':
-                statusColorClass = 'text-green-500'; 
+                statusColorClass = 'text-green-500';  // Verde
                 break;
         }
 
+        // Verifica cancelados (inclui "Cancelado pelo Cliente")
         if (o.status.includes('Cancelado')) {
             statusColorClass = 'text-red-500';
         }
@@ -1975,15 +1979,7 @@ function renderSalesList(orders) {
                 <div class="mb-4">
                     <p class="text-xs text-gray-500 uppercase font-bold mb-2">Itens do Pedido</p>
                     ${itemsHtml}
-
                     <div class="text-right mt-2">
-                        
-                        ${o.shippingFee && o.shippingFee > 0 ? `
-                            <div class="mb-1">
-                                <span class="text-gray-500 text-xs mr-2">Frete:</span>
-                                <span class="text-yellow-500 font-bold text-sm">+ ${formatCurrency(o.shippingFee)}</span>
-                            </div>
-                        ` : ''}
                         <span class="text-gray-400 text-xs">Total:</span>
                         <span class="text-white font-bold text-xl ml-2">${formatCurrency(o.total)}</span>
                     </div>
@@ -4862,7 +4858,7 @@ window.calcCheckoutTotal = () => {
     // 1. Configurações e Estado Atual
     const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value || 'online';
     const method = document.querySelector('input[name="payment-method-selection"]:checked')?.value || 'pix';
-
+    
     // Dados do Frete
     const dConfig = state.storeProfile.deliveryConfig || {};
     const shipRule = dConfig.shippingRule || 'none';
@@ -4875,14 +4871,14 @@ window.calcCheckoutTotal = () => {
     // --- LÓGICA DE APLICAÇÃO DO FRETE ---
     // Só cobra se: Tiver valor E CEP for válido
     if (shipValue > 0 && checkoutState.isValidDelivery) {
-
+        
         // Verifica a regra selecionada no Admin
         if (shipRule === 'both') {
             appliedShipping = shipValue;
-        }
+        } 
         else if (shipRule === 'online' && payMode === 'online') {
             appliedShipping = shipValue;
-        }
+        } 
         else if (shipRule === 'delivery' && payMode === 'delivery') {
             appliedShipping = shipValue;
         }
@@ -4898,7 +4894,7 @@ window.calcCheckoutTotal = () => {
             ? itemsTotal * (state.currentCoupon.val / 100)
             : state.currentCoupon.val;
     }
-
+    
     let productsTotal = Math.max(0, itemsTotal - discountCoupon);
 
     // --- CÁLCULOS POR MÉTODO ---
@@ -4928,8 +4924,8 @@ window.calcCheckoutTotal = () => {
         const baseWithoutPix = Math.max(0, itemsTotal - discountCoupon);
         const saved = baseWithoutPix - productsTotal;
         if (saved > 0.01) savingsMsg = `Economia de ${formatCurrency(saved)} no Pix!`;
-    }
-
+    } 
+    
     // B. CARTÃO (Juros)
     else if (method === 'card' && payMode === 'online') {
         const select = document.getElementById('checkout-installments');
@@ -4959,7 +4955,7 @@ window.calcCheckoutTotal = () => {
         totalContainer.insertBefore(shipDiv, elTotal);
         elShipDisplay = shipDiv;
     }
-
+    
     if (appliedShipping > 0) {
         elShipDisplay.innerText = `+ Frete: ${formatCurrency(appliedShipping)}`;
         elShipDisplay.classList.remove('hidden');
@@ -5076,53 +5072,30 @@ window.submitOrder = async () => {
 
         const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
 
-        // 1. Gera o número sequencial
+        // 1. Gera o número sequencial (aguarda a resposta do banco)
         const nextCode = await getNextOrderNumber(state.siteId);
 
-        // --- CÁLCULO DE FRETE (Lógica Correta para Salvar) ---
-        // Precisamos recalcular aqui para garantir que a regra (Online/Entrega) seja respeitada no banco de dados
         const dConfig = state.storeProfile.deliveryConfig || {};
-        const shipRule = dConfig.shippingRule || 'none';
-        const shipValue = parseFloat(dConfig.shippingValue) || 0;
+        const shippingFee = (dConfig.shippingActive && dConfig.shippingValue > 0) ? dConfig.shippingValue : 0;
 
-        // Recupera o modo de pagamento escolhido pelo usuário para validar a regra
-        const selectedPayMode = document.querySelector('input[name="pay-mode"]:checked')?.value;
-
-        let valueToSave = 0;
-
-        // Só cobra se o CEP for válido E o valor for maior que 0
-        if (checkoutState.isValidDelivery && shipValue > 0) {
-            if (shipRule === 'both') {
-                valueToSave = shipValue;
-            }
-            else if (shipRule === 'online' && selectedPayMode === 'online') {
-                valueToSave = shipValue;
-            }
-            else if (shipRule === 'delivery' && selectedPayMode === 'delivery') {
-                valueToSave = shipValue;
-            }
-        }
-
-        // 2. Cria o objeto do pedido
+        // 2. Cria o objeto do pedido com o código sequencial
         const order = {
-            code: nextCode,
+            code: nextCode,  // <--- AQUI USA O NÚMERO SEQUENCIAL (1, 2, 3...)
             date: new Date().toISOString(),
             customer: {
                 name, phone, address: fullAddress,
                 addressNum: number, cep, district, street,
-                comp: comp
+                comp: comp // Garante que o complemento está aqui
             },
             items: state.cart || [],
-            total: finalValue, // Valor final (já inclui o frete visualmente)
+            total: finalValue,
             status: 'Aguardando aprovação',
             paymentMethod: paymentDetails,
             securityCode: securityCode,
-
-            // --- CAMPO CORRIGIDO ---
-            shippingFee: valueToSave, // Salva o valor calculado corretamente
-
+            shippingFee: shippingFee,
             cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
         };
+
         // ... resto da função continua igual (addDoc, etc) ...
 
         // Feedback visual

@@ -795,33 +795,6 @@
                                 <span class="text-white text-sm font-bold">Minutos</span>
                             </div>
                         </div>
-
-                        <div class="col-span-2 border-t border-gray-800 pt-3 mt-2">
-                            <div class="flex items-center justify-between gap-4">
-
-                                <div class="flex-1">
-                                    <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Regra de
-                                        Cobrança de Frete</label>
-                                    <select id="conf-shipping-rule"
-                                        class="w-full bg-black border border-gray-700 text-white p-2 rounded focus:border-yellow-500 outline-none text-sm">
-                                        <option value="none">Frete Grátis (Desativado)</option>
-                                        <option value="both">Cobrar Sempre (Online e Entrega)</option>
-                                        <option value="online">Cobrar Apenas no Pagamento Online</option>
-                                        <option value="delivery">Cobrar Apenas no Pagamento na Entrega</option>
-                                    </select>
-                                </div>
-
-                                <div id="shipping-value-container"
-                                    class="flex flex-col items-end opacity-50 pointer-events-none transition-opacity">
-                                    <label class="text-gray-400 text-xs font-bold uppercase mb-1">Valor da Taxa
-                                        Fixa</label>
-                                    <input type="text" id="conf-shipping-value" placeholder="0,00"
-                                        class="w-24 bg-black border border-gray-700 text-white p-2 rounded focus:border-yellow-500 outline-none text-right font-bold"
-                                        oninput="formatMoneyInput(this)">
-                                </div>
-
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -934,10 +907,6 @@
             </div>
 
             <div class="flex-1 overflow-y-auto p-4 custom-scrollbar relative bg-[#0f172a]">
-
-                <div id="view-cart-list">
-                    <div id="cart-items" class="space-y-2 mb-4"></div>
-                </div>
 
                 <div id="view-checkout" class="hidden space-y-4">
 

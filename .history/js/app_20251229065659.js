@@ -1867,6 +1867,9 @@ function renderSalesList(orders) {
 
     listEl.innerHTML = '';
 
+    // Ordena: Mais recentes primeiro
+    // orders.sort((a, b) => new Date(b.date) - new Date(a.date));
+
     if (orders.length === 0) {
         listEl.innerHTML = '<div class="text-center py-8 text-gray-500"><i class="fas fa-inbox text-4xl mb-2 opacity-50"></i><p>Nenhum pedido encontrado.</p></div>';
         return;
@@ -1880,22 +1883,23 @@ function renderSalesList(orders) {
         const dataHoraFormatada = `${dataStr} às ${horaStr}`;
 
         // 2. Definição de Cores (IGUAL AO RASTREIO)
-        let statusColorClass = 'text-gray-400'; 
+        let statusColorClass = 'text-gray-400'; // Padrão (Aguardando)
 
         switch (o.status) {
             case 'Aprovado':
             case 'Preparando pedido':
-                statusColorClass = 'text-yellow-500';
+                statusColorClass = 'text-yellow-500'; // Amarelo
                 break;
             case 'Saiu para entrega':
-                statusColorClass = 'text-orange-500';
+                statusColorClass = 'text-orange-500'; // Laranja
                 break;
             case 'Entregue':
             case 'Concluído':
-                statusColorClass = 'text-green-500'; 
+                statusColorClass = 'text-green-500';  // Verde
                 break;
         }
 
+        // Verifica cancelados (inclui "Cancelado pelo Cliente")
         if (o.status.includes('Cancelado')) {
             statusColorClass = 'text-red-500';
         }
@@ -1975,15 +1979,7 @@ function renderSalesList(orders) {
                 <div class="mb-4">
                     <p class="text-xs text-gray-500 uppercase font-bold mb-2">Itens do Pedido</p>
                     ${itemsHtml}
-
                     <div class="text-right mt-2">
-                        
-                        ${o.shippingFee && o.shippingFee > 0 ? `
-                            <div class="mb-1">
-                                <span class="text-gray-500 text-xs mr-2">Frete:</span>
-                                <span class="text-yellow-500 font-bold text-sm">+ ${formatCurrency(o.shippingFee)}</span>
-                            </div>
-                        ` : ''}
                         <span class="text-gray-400 text-xs">Total:</span>
                         <span class="text-white font-bold text-xl ml-2">${formatCurrency(o.total)}</span>
                     </div>
@@ -2576,7 +2572,7 @@ function setupEventListeners() {
         };
     }
 
-
+  
     const btnLogout = getEl('btn-logout'); if (btnLogout) btnLogout.onclick = () => signOut(auth);
 
     document.querySelectorAll('.tab-btn').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); const target = getEl(btn.dataset.tab); if (target) target.classList.remove('hidden'); document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500'); b.classList.add('text-gray-400'); }); btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500'); btn.classList.remove('text-gray-400'); }; });
@@ -2670,24 +2666,6 @@ function setupEventListeners() {
     const checkOwnDelivery = document.getElementById('conf-own-delivery');
     const checkReqCode = document.getElementById('conf-req-code');
     const inputCancelTime = document.getElementById('conf-cancel-time');
-
-    // --- LISTENER DO FRETE ---
-    const elShipCheck = document.getElementById('conf-shipping-active');
-    const elShipInput = document.getElementById('conf-shipping-value');
-
-    if (elShipCheck) {
-        elShipCheck.addEventListener('change', (e) => {
-            const container = document.getElementById('shipping-value-container');
-            if (e.target.checked) container.classList.remove('opacity-50', 'pointer-events-none');
-            else container.classList.add('opacity-50', 'pointer-events-none');
-
-            autoSaveSettings('orders');
-        });
-    }
-    if (elShipInput) {
-        // Usa blur para salvar só quando sair do campo
-        elShipInput.addEventListener('blur', () => autoSaveSettings('orders'));
-    }
 
     if (checkOwnDelivery && checkReqCode) {
         // Estado inicial
@@ -3010,7 +2988,7 @@ window.openProductModal = (productId) => {
     const modal = getEl('product-modal');
     const backdrop = getEl('modal-backdrop');
     const card = getEl('modal-card');
-
+    
     if (!modal || !card) return;
 
     // 1. CONFIGURAÇÃO DO CARD
@@ -3026,24 +3004,24 @@ window.openProductModal = (productId) => {
     const btnNext = getEl('btn-next-img');
 
     if (images.length > 1) {
-        if (btnPrev) btnPrev.classList.remove('hidden');
-        if (btnNext) btnNext.classList.remove('hidden');
+        if(btnPrev) btnPrev.classList.remove('hidden');
+        if(btnNext) btnNext.classList.remove('hidden');
     } else {
-        if (btnPrev) btnPrev.classList.add('hidden');
-        if (btnNext) btnNext.classList.add('hidden');
+        if(btnPrev) btnPrev.classList.add('hidden');
+        if(btnNext) btnNext.classList.add('hidden');
     }
     updateCarouselUI(images);
-
+    
     // 3. TEXTOS
-    if (getEl('modal-title')) getEl('modal-title').innerText = p.name;
-    if (getEl('modal-desc')) getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
-
+    if(getEl('modal-title')) getEl('modal-title').innerText = p.name;
+    if(getEl('modal-desc')) getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
+    
     const price = p.promoPrice || p.price;
-    if (getEl('modal-price')) getEl('modal-price').innerHTML = formatCurrency(price);
+    if(getEl('modal-price')) getEl('modal-price').innerHTML = formatCurrency(price);
 
     // 4. ESTRUTURA DE ROLAGEM (AJUSTE PRINCIPAL)
     const rightCol = card.children[2]; // Coluna da direita
-
+    
     if (rightCol) {
         // AQUI ESTÁ A MUDANÇA:
         // overflow-y-auto: A coluna inteira rola.
@@ -3052,7 +3030,7 @@ window.openProductModal = (productId) => {
         rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-y-auto no-scrollbar relative";
 
         // A. Header (Título/Preço)
-        if (rightCol.children[0]) {
+        if(rightCol.children[0]) {
             // Removemos borda fixa se quiser fluxo contínuo, ou mantemos para organização
             rightCol.children[0].className = "p-6 md:p-8 pb-4 shrink-0";
         }
@@ -3070,13 +3048,13 @@ window.openProductModal = (productId) => {
     const sizesDiv = getEl('modal-sizes');
     const sizesWrapper = getEl('modal-sizes-wrapper');
     let selectedSizeInModal = 'U';
-
+    
     if (sizesDiv) {
         sizesDiv.innerHTML = '';
         if (p.sizes && p.sizes.length > 0) {
             if (sizesWrapper) sizesWrapper.classList.remove('hidden');
             selectedSizeInModal = p.sizes[0];
-
+            
             p.sizes.forEach(s => {
                 const btn = document.createElement('button');
                 btn.className = `w-10 h-10 rounded border font-bold transition flex items-center justify-center text-sm ${s === selectedSizeInModal ? 'bg-yellow-500 text-black border-yellow-500' : 'border-gray-600 text-gray-300 hover:border-yellow-500 hover:text-yellow-500'}`;
@@ -3124,7 +3102,7 @@ window.openProductModal = (productId) => {
     // 7. EXIBIÇÃO
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-
+    
     setTimeout(() => {
         backdrop.classList.remove('opacity-0');
         card.classList.remove('opacity-0', 'scale-95');
@@ -3645,12 +3623,11 @@ function saveCart() {
     renderCatalog(state.products);
 }
 
-// Substitua a função updateCartUI inteira por esta:
 function updateCartUI() {
     const cartEl = els.cartItems;
-    const totalEl = getEl('cart-total'); // Total do botão checkout externo
-
-    // 1. Atualiza contadores (Bolinhas vermelhas)
+    const totalEl = getEl('cart-total'); // Botão flutuante ou fixo
+    
+    // 1. Atualiza contadores (Mobile e Desktop)
     const totalQty = state.cart.reduce((acc, item) => acc + item.qty, 0);
     if (els.cartCount) els.cartCount.innerText = totalQty;
     if (els.cartCountMobile) els.cartCountMobile.innerText = totalQty;
@@ -3658,52 +3635,43 @@ function updateCartUI() {
     if (!cartEl) return;
     cartEl.innerHTML = '';
 
-    // Se vazio
     if (state.cart.length === 0) {
-        cartEl.innerHTML = `
-            <div class="flex flex-col items-center justify-center py-12 text-gray-500">
-                <i class="fas fa-shopping-basket text-5xl mb-4 opacity-20"></i>
-                <p class="text-sm">Seu carrinho está vazio.</p>
-            </div>`;
+        cartEl.innerHTML = '<div class="flex flex-col items-center justify-center py-10 text-gray-500"><i class="fas fa-shopping-basket text-4xl mb-3 opacity-30"></i><p>Seu carrinho está vazio.</p></div>';
         if (totalEl) totalEl.innerText = formatCurrency(0);
-        state.currentCoupon = null;
+        state.currentCoupon = null; // Reseta cupom se esvaziou
         return;
     }
 
-    // 2. Renderiza Lista de Produtos e Calcula Base
+    // 2. Renderiza Lista de Produtos e Calcula Subtotal
     let subtotal = 0;
-
+    
     state.cart.forEach((item, index) => {
         const itemTotal = item.price * item.qty;
         subtotal += itemTotal;
 
-        // Tenta pegar imagem, senão usa placeholder
-        const imgUrl = (item.image && item.image.length > 10) ? item.image : 'https://placehold.co/100?text=Foto';
+        const imgUrl = item.image || 'https://placehold.co/100'; // Fallback se não tiver imagem salva no cart
 
         const li = document.createElement('div');
-        li.className = "flex justify-between items-center bg-[#151720] p-3 rounded-xl mb-3 border border-gray-800 shadow-sm relative group";
+        li.className = "flex justify-between items-center bg-[#1f1f1f] p-3 rounded-lg mb-2 border border-gray-800";
         li.innerHTML = `
-            <div class="flex items-center gap-3 flex-1">
-                <img src="${imgUrl}" class="w-14 h-14 rounded-lg object-cover border border-gray-700 bg-black">
-                <div class="flex flex-col">
-                    <h4 class="text-white text-sm font-bold line-clamp-1 mr-2">${item.name}</h4>
-                    <div class="flex items-center gap-2 mt-1">
-                        ${item.size !== 'U' ? `<span class="text-[10px] bg-gray-800 border border-gray-600 px-1.5 rounded text-gray-300">${item.size}</span>` : ''}
-                        <span class="text-green-400 text-xs font-bold">${formatCurrency(item.price)}</span>
-                    </div>
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded overflow-hidden border border-gray-700 bg-black">
+                     <img src="${imgUrl}" class="w-full h-full object-cover">
+                </div>
+                <div>
+                    <h4 class="text-white text-sm font-bold line-clamp-1">${item.name}</h4>
+                    <p class="text-gray-400 text-[10px] uppercase">${item.size !== 'U' ? `Tam: ${item.size} • ` : ''}${formatCurrency(item.price)}</p>
                 </div>
             </div>
-
-            <div class="flex flex-col items-end gap-2">
-                <button onclick="changeQty(${index}, -${item.qty})" class="text-gray-600 hover:text-red-500 transition absolute top-2 right-2 p-1">
-                    <i class="fas fa-times text-xs"></i>
-                </button>
-
-                <div class="flex items-center bg-black rounded-lg border border-gray-700 mt-4">
-                    <button onclick="changeQty(${index}, -1)" class="w-7 h-7 text-gray-400 hover:text-white flex items-center justify-center transition hover:bg-gray-800 rounded-l">-</button>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center bg-black rounded border border-gray-700 h-8">
+                    <button onclick="changeQty(${index}, -1)" class="w-8 h-full text-gray-400 hover:text-white flex items-center justify-center transition hover:bg-gray-800 rounded-l">-</button>
                     <span class="text-xs text-white w-6 text-center font-mono">${item.qty}</span>
-                    <button onclick="changeQty(${index}, 1)" class="w-7 h-7 text-gray-400 hover:text-white flex items-center justify-center transition hover:bg-gray-800 rounded-r">+</button>
+                    <button onclick="changeQty(${index}, 1)" class="w-8 h-full text-gray-400 hover:text-white flex items-center justify-center transition hover:bg-gray-800 rounded-r">+</button>
                 </div>
+                <button onclick="changeQty(${index}, -${item.qty})" class="text-gray-600 hover:text-red-500 transition w-8 flex justify-center" title="Remover">
+                    <i class="fas fa-trash-alt text-sm"></i>
+                </button>
             </div>
         `;
         cartEl.appendChild(li);
@@ -3717,57 +3685,52 @@ function updateCartUI() {
         } else {
             discount = state.currentCoupon.val;
         }
-        if (discount > subtotal) discount = subtotal; // Não deixa ficar negativo
+        // Trava desconto máximo
+        if (discount > subtotal) discount = subtotal;
     }
 
-    // --- 4. Lógica de Frete (NOVO) ---
-    // AQUI ESTAVA FALTANDO NO SEU CÓDIGO
-    const dConfig = state.storeProfile.deliveryConfig || {};
-    let shippingCost = 0;
+    const total = subtotal - discount;
 
-    // Verifica se está ativo e tem valor
-    if (dConfig.shippingActive === true && dConfig.shippingValue > 0) {
-        shippingCost = parseFloat(dConfig.shippingValue);
-    }
-
-    // 5. Total Final (Soma o frete)
-    const total = subtotal - discount + shippingCost;
-
-    // 6. Renderiza Área de Resumo e Cupom (DINÂMICO)
+    // 4. Renderiza Área de Resumo e Cupom (Dinâmico)
     const summaryDiv = document.createElement('div');
-    summaryDiv.className = "mt-6 pt-4 border-t border-dashed border-gray-700 space-y-4";
+    summaryDiv.className = "mt-4 pt-4 border-t border-gray-800 space-y-3 bg-[#151720] -mx-4 px-4 pb-4 md:rounded-b-lg";
 
-    // --- A. HTML DO CUPOM ---
+    // --- HTML DO CUPOM ---
     let couponHTML = '';
-
+    
     if (state.currentCoupon) {
+        // ESTADO 1: Cupom Aplicado (Mostra Badge Verde)
         couponHTML = `
-            <div class="bg-green-900/10 border border-green-500/30 p-3 rounded-lg flex justify-between items-center animate-fade-in">
+            <div class="flex justify-between items-center bg-green-900/20 border border-green-500/30 p-3 rounded-lg mb-2 group">
                 <div class="flex items-center gap-3">
-                    <div class="bg-green-500/20 w-8 h-8 rounded-full flex items-center justify-center text-green-500">
-                        <i class="fas fa-ticket-alt text-xs"></i>
+                    <div class="bg-green-500/20 p-2 rounded-full text-green-500">
+                        <i class="fas fa-ticket-alt"></i>
                     </div>
                     <div>
                         <p class="text-green-500 text-xs font-bold uppercase tracking-wider">${state.currentCoupon.code}</p>
-                        <p class="text-green-400 text-[10px]">Desconto aplicado</p>
+                        <p class="text-green-400 text-[10px]">Cupom aplicado com sucesso</p>
                     </div>
                 </div>
-                <button onclick="removeCoupon()" class="text-gray-500 hover:text-red-500 transition w-8 h-8 flex items-center justify-center" title="Remover Cupom">
-                    <i class="fas fa-trash-alt text-xs"></i>
-                </button>
+                <div class="flex items-center gap-3">
+                    <span class="text-green-500 text-sm font-bold">- ${formatCurrency(discount)}</span>
+                    <button onclick="removeCoupon()" class="text-gray-500 hover:text-red-500 transition bg-black/40 hover:bg-black w-8 h-8 rounded-full flex items-center justify-center" title="Remover Cupom">
+                        <i class="fas fa-times text-xs"></i>
+                    </button>
+                </div>
             </div>
         `;
     } else {
+        // ESTADO 2: Campo de Input (Padrão)
         couponHTML = `
-            <div class="relative flex gap-2">
-                <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+            <div class="flex gap-2 mb-2 relative">
+                <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
                     <i class="fas fa-tag text-xs"></i>
                 </div>
-                <input type="text" id="cart-coupon-input-dynamic" placeholder="CUPOM DE DESCONTO" 
-                       class="bg-[#0f111a] border border-gray-700 text-white text-xs rounded-lg pl-9 pr-3 h-10 flex-1 outline-none focus:border-yellow-500 uppercase transition placeholder-gray-600 font-bold tracking-wide"
+                <input type="text" id="cart-coupon-input-dynamic" placeholder="Adicionar cupom de desconto" 
+                       class="bg-black border border-gray-700 text-white text-sm rounded-lg pl-9 pr-3 h-10 flex-1 outline-none focus:border-yellow-500 uppercase transition placeholder-gray-600"
                        onkeydown="if(event.key === 'Enter') applyCouponDynamic()">
                 
-                <button onclick="applyCouponDynamic()" class="bg-gray-800 hover:bg-gray-700 text-white px-4 h-10 rounded-lg text-xs font-bold uppercase border border-gray-700 transition">
+                <button onclick="applyCouponDynamic()" class="bg-gray-800 hover:bg-gray-700 text-white px-4 h-10 rounded-lg text-xs font-bold uppercase border border-gray-700 transition tracking-wide">
                     Aplicar
                 </button>
             </div>
@@ -3777,41 +3740,44 @@ function updateCartUI() {
     summaryDiv.innerHTML = `
         ${couponHTML}
         
-        <div class="space-y-1 pt-2">
-            <div class="flex justify-between text-gray-400 text-xs">
+        <div class="space-y-1 text-sm">
+            <div class="flex justify-between text-gray-400">
                 <span>Subtotal</span>
                 <span>${formatCurrency(subtotal)}</span>
             </div>
             
             ${state.currentCoupon ? `
-            <div class="flex justify-between text-green-500 text-xs font-bold animate-fade-in">
+            <div class="flex justify-between text-green-500 font-medium animate-fade-in">
                 <span>Desconto</span>
                 <span>- ${formatCurrency(discount)}</span>
             </div>` : ''}
-
-            ${shippingCost > 0 ? `
-            <div class="flex justify-between text-yellow-500 text-xs font-bold animate-fade-in">
-                <span>Taxa de Entrega</span>
-                <span>+ ${formatCurrency(shippingCost)}</span>
-            </div>` : ''}
         </div>
         
-        <div class="flex justify-between items-end pt-2 border-t border-gray-800">
-            <span class="text-gray-300 text-sm font-bold">Total Final</span>
-            <div class="text-right">
-                <span class="text-yellow-500 text-2xl font-extrabold tracking-tight block leading-none" id="cart-total-display">${formatCurrency(total)}</span>
-                ${state.storeProfile.installments?.active ? `<span class="text-[10px] text-gray-500">ou até ${state.storeProfile.installments.max}x</span>` : ''}
-            </div>
+        <div class="flex justify-between items-center text-white mt-3 pt-3 border-t border-gray-800">
+            <span class="text-gray-300 font-bold">Total Final</span>
+            <span class="text-yellow-500 text-2xl font-bold tracking-tight" id="cart-total-display">${formatCurrency(total)}</span>
         </div>
     `;
-
+    
     cartEl.appendChild(summaryDiv);
 
-    // ATUALIZA ELEMENTOS EXTERNOS (Botão verde lá embaixo)
-    const externalTotal = document.getElementById('cart-total');
-    if (externalTotal) externalTotal.innerText = formatCurrency(total);
+    // Atualiza os spans estáticos antigos (caso existam no HTML fora da lista) para garantir compatibilidade
+    const staticSub = document.getElementById('cart-subtotal');
+    const staticDisc = document.getElementById('cart-discount');
+    const staticTotal = document.getElementById('cart-total'); // Botão checkout
+
+    if (staticSub) staticSub.innerText = formatCurrency(subtotal);
+    if (staticDisc) staticDisc.innerText = state.currentCoupon ? `- ${formatCurrency(discount)}` : 'R$ 0,00';
+    if (staticTotal) staticTotal.innerText = formatCurrency(total);
 }
-// --- FUNÇÕES DE CONTROLE DE CUPOM ---
+
+// --- NOVAS FUNÇÕES DE CUPOM ---
+
+window.removeCoupon = () => {
+    state.currentCoupon = null;
+    updateCartUI();
+    showToast('Cupom removido.', 'info');
+};
 
 window.applyCouponDynamic = async () => {
     const input = document.getElementById('cart-coupon-input-dynamic');
@@ -3819,10 +3785,11 @@ window.applyCouponDynamic = async () => {
 
     const code = input.value.trim().toUpperCase();
 
-    // 1. Procura na memória local primeiro (rápido)
+    // Procura no array de cupons já carregado na memória (state.coupons)
+    // Isso evita uma chamada desnecessária ao banco se já carregamos no início
     let coupon = state.coupons.find(c => c.code === code);
 
-    // 2. Se não achar, busca no banco (caso tenha sido criado agora por outro admin)
+    // Se não achar na memória (caso raro), busca no banco
     if (!coupon) {
         try {
             const q = query(collection(db, `sites/${state.siteId}/coupons`), where('code', '==', code));
@@ -3830,35 +3797,34 @@ window.applyCouponDynamic = async () => {
             if (!snapshot.empty) {
                 coupon = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+        }
     }
 
     if (!coupon) {
-        showToast('Cupom inválido.', 'error');
+        showToast('Cupom inválido ou não encontrado.', 'error');
+        // Efeito de erro no input
         input.classList.add('border-red-500', 'text-red-500');
         setTimeout(() => input.classList.remove('border-red-500', 'text-red-500'), 1000);
         return;
     }
 
-    // 3. Valida Data
+    // Validação de Validade
     if (coupon.expiryDate) {
         const expiry = new Date(coupon.expiryDate);
-        if (new Date() > expiry) {
+        const now = new Date();
+        // Zera horas para comparar apenas datas, se desejar, ou mantém horário
+        if (now > expiry) {
             showToast('Este cupom expirou.', 'error');
             return;
         }
     }
 
-    // 4. Aplica
+    // Sucesso
     state.currentCoupon = coupon;
-    updateCartUI(); // Redesenha com a etiqueta verde
+    updateCartUI();
     showToast(`Cupom ${code} aplicado!`, 'success');
-};
-
-window.removeCoupon = () => {
-    state.currentCoupon = null;
-    updateCartUI(); // Redesenha com o input de volta
-    showToast('Cupom removido.', 'info');
 };
 
 
@@ -4060,54 +4026,17 @@ function fillProfileForm() {
 
     // 2. CORREÇÃO DO TRAVAMENTO: Aplica o estado visual imediatamente
     if (elOwn && elReq) {
-        const parentLabel = elReq.closest('label');
+        const parentLabel = elReq.closest('label'); // Pega o pai do checkbox
 
         if (dConfig.ownDelivery === true) {
+            // Se entrega está ativa, libera o código
             elReq.disabled = false;
             if (parentLabel) parentLabel.classList.remove('opacity-50', 'pointer-events-none');
         } else {
+            // Se entrega está inativa, trava o código
             elReq.disabled = true;
             if (parentLabel) parentLabel.classList.add('opacity-50', 'pointer-events-none');
         }
-    }
-
-    // --- NOVO: Carregar Configuração de Frete ---
-    const elShipRule = document.getElementById('conf-shipping-rule');
-    const elShipVal = document.getElementById('conf-shipping-value');
-    const elShipCont = document.getElementById('shipping-value-container');
-
-    if (elShipRule) {
-        // Carrega regra salva ou padrão 'none'
-        elShipRule.value = dConfig.shippingRule || 'none';
-
-        // Compatibilidade com versão anterior (se shippingActive era true)
-        if (!dConfig.shippingRule && dConfig.shippingActive === true) {
-            elShipRule.value = 'both';
-        }
-
-        // Controle visual (Opacidade)
-        if (elShipRule.value !== 'none') {
-            if (elShipCont) elShipCont.classList.remove('opacity-50', 'pointer-events-none');
-        } else {
-            if (elShipCont) elShipCont.classList.add('opacity-50', 'pointer-events-none');
-        }
-
-        // Listener para mudar visual em tempo real (sem precisar salvar)
-        elShipRule.onchange = (e) => {
-            if (e.target.value !== 'none') {
-                if (elShipCont) elShipCont.classList.remove('opacity-50', 'pointer-events-none');
-            } else {
-                if (elShipCont) elShipCont.classList.add('opacity-50', 'pointer-events-none');
-            }
-            autoSaveSettings('orders'); // Salva ao mudar
-        };
-    }
-
-    if (elShipVal) {
-        // Formata o valor carregado do banco
-        elShipVal.value = formatMoneyForInput(dConfig.shippingValue || 0);
-        // Salva ao sair do campo
-        elShipVal.onblur = () => autoSaveSettings('orders');
     }
 }
 
@@ -4162,12 +4091,13 @@ async function saveStoreProfile() {
 async function autoSaveSettings(type) {
     console.log(`Autosalvando: ${type}...`);
 
+    // Referência ao documento
     const docRef = doc(db, `sites/${state.siteId}/settings`, 'profile');
     let dataToUpdate = {};
     let message = '';
 
-    // 1. LOGÍSTICA (CEP e Raio)
     if (type === 'logistics') {
+        // Pega CEP e Distância
         const cep = document.getElementById('conf-store-cep').value.replace(/\D/g, '');
         const dist = parseFloat(document.getElementById('conf-max-dist').value) || 0;
 
@@ -4175,15 +4105,16 @@ async function autoSaveSettings(type) {
             cep: cep,
             maxDistance: dist
         };
-        message = 'Logística salva!';
+        message = 'CEP/Logística salvo!';
     }
-    // 2. PARCELAMENTO
     else if (type === 'installments') {
+        // Pega toda a configuração de parcelamento
         const active = document.getElementById('conf-card-active').checked;
         const max = parseInt(document.getElementById('conf-card-max').value) || 12;
         const free = parseInt(document.getElementById('conf-card-free').value) || 3;
         const rate = parseFloat(document.getElementById('conf-card-rate').value.replace(',', '.')) || 0;
 
+        // Reconstrói o objeto installments completo para salvar
         dataToUpdate = {
             installments: {
                 active: active,
@@ -4192,60 +4123,54 @@ async function autoSaveSettings(type) {
                 rate: rate
             }
         };
-        message = active ? 'Parcelamento salvo!' : 'Parcelamento desativado.';
-    }
-    // 3. PEDIDOS E FRETE (AQUI ESTAVA O PROBLEMA)
-    if (type === 'orders') {
-        const ownDelivery = document.getElementById('conf-own-delivery').checked;
-        const reqCode = document.getElementById('conf-req-code').checked;
-        const cancelTime = parseInt(document.getElementById('conf-cancel-time').value) || 5;
-
-        // --- CAPTURA FRETE ---
-        const shipRule = document.getElementById('conf-shipping-rule').value; // 'none', 'both', 'online', 'delivery'
-
-        const shipValRaw = document.getElementById('conf-shipping-value').value;
-        // LIMPEZA CRÍTICA: Remove "R$", espaços e pontos de milhar antes de converter
-        const cleanVal = shipValRaw.replace(/[^\d,]/g, '');
-        const shipVal = parseFloat(cleanVal.replace(',', '.')) || 0;
-
-        dataToUpdate = {
-            deliveryConfig: {
-                ownDelivery: ownDelivery,
-                reqCustomerCode: reqCode,
-                cancelTimeMin: cancelTime,
-                shippingRule: shipRule,   // Nova Regra
-                shippingValue: shipVal    // Valor Limpo
-            }
-        };
-        message = 'Regras de entrega salvas!';
+        message = active ? 'Parcelamento ATIVADO e salvo!' : 'Parcelamento DESATIVADO.';
     }
 
-    // Grava no Firebase
     try {
+        // Usa setDoc com { merge: true } para atualizar só o que mudou sem apagar o resto (Nome, Logo, etc)
         await setDoc(docRef, dataToUpdate, { merge: true });
 
-        // Atualiza estado local imediatamente
+        // Atualiza estado local
         if (state.storeProfile) {
-            // Mescla profundo para não perder sub-objetos
-            if (dataToUpdate.deliveryConfig) {
-                state.storeProfile.deliveryConfig = { ...state.storeProfile.deliveryConfig, ...dataToUpdate.deliveryConfig };
-            }
-            if (dataToUpdate.installments) {
-                state.storeProfile.installments = { ...state.storeProfile.installments, ...dataToUpdate.installments };
-            }
-            // Outros campos simples
-            if (dataToUpdate.cep) state.storeProfile.cep = dataToUpdate.cep;
-            if (dataToUpdate.maxDistance) state.storeProfile.maxDistance = dataToUpdate.maxDistance;
+            state.storeProfile = { ...state.storeProfile, ...dataToUpdate };
         }
 
-        // Força atualização da Vitrine/Carrinho para refletir mudanças
+        // Atualiza a vitrine imediatamente (para mostrar/esconder parcelamento nos cards)
         renderCatalog(state.products);
-        if (typeof updateCartUI === 'function') updateCartUI();
 
         showToast(message, 'success');
 
     } catch (error) {
         console.error("Erro no autosave:", error);
+        showToast('Erro ao salvar alteração.', 'error');
+    }
+
+    // NOVO BLOCO: Configurações de Pedidos
+    if (type === 'orders') {
+        const ownDelivery = document.getElementById('conf-own-delivery').checked;
+        const reqCode = document.getElementById('conf-req-code').checked;
+        const cancelTime = parseInt(document.getElementById('conf-cancel-time').value) || 5;
+
+        dataToUpdate = {
+            deliveryConfig: {
+                ownDelivery: ownDelivery,
+                reqCustomerCode: reqCode,
+                cancelTimeMin: cancelTime
+            }
+        };
+        message = 'Configurações de pedidos salvas!';
+    }
+
+    try {
+        await setDoc(docRef, dataToUpdate, { merge: true });
+
+        // Atualiza memória local
+        if (state.storeProfile) {
+            state.storeProfile = { ...state.storeProfile, ...dataToUpdate };
+        }
+        showToast(message, 'success');
+    } catch (error) {
+        console.error(error);
         showToast('Erro ao salvar.', 'error');
     }
 }
@@ -4452,9 +4377,7 @@ window.handleCheckoutCep = async () => {
             }
         }
 
-        checkoutState.isValidDelivery = true; // <--- CEP VÁLIDO!
-
-        // Sucesso: Habilita botão
+        // Sucesso: Habilita botão de finalizar
         if (btnFinish) {
             btnFinish.disabled = false;
             btnFinish.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -4462,17 +4385,14 @@ window.handleCheckoutCep = async () => {
 
     } catch (err) {
         console.error("Erro CEP:", err);
-        checkoutState.isValidDelivery = false; // <--- CEP INVÁLIDO
-
         if (elErrorMsg) elErrorMsg.innerText = err.message;
         if (elErrorDiv) elErrorDiv.classList.remove('hidden');
+
+        // Bloqueia botão se der erro
         if (btnFinish) btnFinish.disabled = true;
 
     } finally {
         if (elLoading) elLoading.classList.add('hidden');
-
-        // IMPORTANTE: Recalcula o total (para somar ou remover o frete)
-        calcCheckoutTotal();
     }
 };
 
@@ -4537,63 +4457,42 @@ window.handlePaymentSelection = (method) => {
     updateCheckoutTotal();
 };
 
-function populateInstallments() {
-    const instConfig = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3, rate: 0 };
-    const select = document.getElementById('checkout-installments');
-
-    if (!select) return;
-
+function populateInstallmentsSelect() {
+    const instConfig = state.storeProfile.installments;
+    const select = els.checkoutInstallments;
     select.innerHTML = '';
 
-    // 1. Calcula o Total Base (Produtos)
-    let totalBase = 0;
-    state.cart.forEach(i => totalBase += i.price * i.qty);
+    // 1. Calcula Valor Base (Produtos * Qtd - Cupom Global)
+    let cartTotal = 0;
+    state.cart.forEach(item => { cartTotal += item.price * item.qty; });
 
-    // 2. Aplica Cupom
+    let discountCoupon = 0;
     if (state.currentCoupon) {
-        if (state.currentCoupon.type === 'percent') {
-            totalBase -= totalBase * (state.currentCoupon.val / 100);
+        if (state.currentCoupon.type === 'percent') discountCoupon = cartTotal * (state.currentCoupon.val / 100);
+        else discountCoupon = state.currentCoupon.val;
+    }
+    const baseValue = Math.max(0, cartTotal - discountCoupon);
+
+    // 2. Gera Opções
+    for (let i = 1; i <= instConfig.max; i++) {
+        let label = '';
+        let finalVal = baseValue;
+
+        // Juros Composto: M = C * (1 + i)^n
+        // Taxa deve ser decimal (4% = 0.04)
+        if (i >= instConfig.freeUntil) {
+            const rate = instConfig.rate / 100;
+            finalVal = baseValue * Math.pow((1 + rate), i);
+            const parcVal = finalVal / i;
+            label = `${i}x de ${formatCurrency(parcVal)} (Total: ${formatCurrency(finalVal)})`;
         } else {
-            totalBase -= state.currentCoupon.val;
-        }
-    }
-
-    // 3. ADICIONA O FRETE (Se aplicável)
-    const dConfig = state.storeProfile.deliveryConfig || {};
-    // Verifica se a entrega está selecionada (radio button)
-    const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value;
-
-    // O frete só soma se estiver ativo E o modo não for "Retirada" (Online costuma ter frete, delivery tem frete)
-    // Se sua loja for só "Pagar na Entrega" ou "Online com Envio", assume-se que tem frete.
-    // Se tiver opção "Retirar na Loja", precisaria de logica extra. 
-    // Assumindo padrão:
-    if (dConfig.shippingActive && dConfig.shippingValue > 0) {
-        totalBase += dConfig.shippingValue;
-    }
-
-    totalBase = Math.max(0, totalBase);
-
-    // 4. Gera Opções
-    const maxParcelas = (instConfig.active && totalBase > 0) ? instConfig.max : 1;
-
-    for (let i = 1; i <= maxParcelas; i++) {
-        let finalVal = totalBase;
-        let valorParcela = totalBase / i;
-        let label = `${i}x Sem Juros`;
-
-        // Aplica Juros
-        if (instConfig.active && i > instConfig.freeUntil && instConfig.rate > 0) {
-            const taxa = instConfig.rate / 100;
-            const fator = Math.pow(1 + taxa, i);
-            valorParcela = totalBase * ((taxa * fator) / (fator - 1));
-            finalVal = valorParcela * i;
-            label = `${i}x (c/ juros)`;
+            label = `${i}x de ${formatCurrency(baseValue / i)} Sem Juros`;
         }
 
         const option = document.createElement('option');
         option.value = i;
-        option.dataset.total = finalVal.toFixed(2);
-        option.text = `${label} de ${formatCurrency(valorParcela)}`;
+        option.text = label;
+        option.dataset.total = finalVal; // Guarda o total calculado
         select.appendChild(option);
     }
 }
@@ -4856,39 +4755,74 @@ window.toggleMethodSelection = () => {
 };
 
 
+// --- FUNÇÃO DE PARCELAMENTO (TABELA PRICE) ---
+function populateInstallments() {
+    const instConfig = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3, rate: 0 };
+    const select = document.getElementById('checkout-installments');
+
+    if (!select) return;
+
+    select.innerHTML = '';
+
+    // 1. Calcula o Total Base
+    let totalBase = 0;
+    state.cart.forEach(i => totalBase += i.price * i.qty);
+
+    if (state.currentCoupon) {
+        if (state.currentCoupon.type === 'percent') {
+            totalBase -= totalBase * (state.currentCoupon.val / 100);
+        } else {
+            totalBase -= state.currentCoupon.val;
+        }
+    }
+    totalBase = Math.max(0, totalBase);
+
+    // 2. Define Máximo de Parcelas
+    const maxParcelas = (instConfig.active && totalBase > 0) ? instConfig.max : 1;
+
+    for (let i = 1; i <= maxParcelas; i++) {
+        let finalVal = totalBase;
+        let valorParcela = totalBase / i;
+        let label = `${i}x Sem Juros`;
+
+        // Aplica Juros (Tabela Price) se aplicável
+        if (instConfig.active && i > instConfig.freeUntil && instConfig.rate > 0) {
+            const taxa = instConfig.rate / 100; // Ex: 2% vira 0.02
+
+            // Fórmula PRICE: PMT = PV * [ i * (1+i)^n ] / [ (1+i)^n - 1 ]
+            // PV = Valor Presente (totalBase)
+            // n = Número de parcelas (i)
+            // i = taxa
+
+            const fator = Math.pow(1 + taxa, i);
+            valorParcela = totalBase * ((taxa * fator) / (fator - 1));
+
+            finalVal = valorParcela * i; // Total final é a soma das parcelas
+
+            label = `${i}x (c/ juros)`;
+        }
+
+        const option = document.createElement('option');
+        option.value = i;
+
+        // Armazena o valor TOTAL FINAL desta opção
+        option.dataset.total = finalVal.toFixed(2);
+
+        option.text = `${label} de ${formatCurrency(valorParcela)}`;
+        select.appendChild(option);
+    }
+}
 
 // --- FUNÇÃO ÚNICA: CALCULAR TOTAL DO CHECKOUT ---
 window.calcCheckoutTotal = () => {
-    // 1. Configurações e Estado Atual
+    // 1. Identifica Modo e Método
     const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value || 'online';
     const method = document.querySelector('input[name="payment-method-selection"]:checked')?.value || 'pix';
 
-    // Dados do Frete
-    const dConfig = state.storeProfile.deliveryConfig || {};
-    const shipRule = dConfig.shippingRule || 'none';
-    const shipValue = parseFloat(dConfig.shippingValue) || 0;
-
     let finalTotal = 0;
     let savingsMsg = '';
-    let appliedShipping = 0; // Valor que será cobrado de fato
 
-    // --- LÓGICA DE APLICAÇÃO DO FRETE ---
-    // Só cobra se: Tiver valor E CEP for válido
-    if (shipValue > 0 && checkoutState.isValidDelivery) {
-
-        // Verifica a regra selecionada no Admin
-        if (shipRule === 'both') {
-            appliedShipping = shipValue;
-        }
-        else if (shipRule === 'online' && payMode === 'online') {
-            appliedShipping = shipValue;
-        }
-        else if (shipRule === 'delivery' && payMode === 'delivery') {
-            appliedShipping = shipValue;
-        }
-    }
-
-    // 2. Calcula Base (Itens - Cupom)
+    // 2. Calcula Base (Soma Itens - Cupom Global)
     let itemsTotal = 0;
     state.cart.forEach(item => itemsTotal += item.price * item.qty);
 
@@ -4898,17 +4832,17 @@ window.calcCheckoutTotal = () => {
             ? itemsTotal * (state.currentCoupon.val / 100)
             : state.currentCoupon.val;
     }
+    let baseTotal = Math.max(0, itemsTotal - discountCoupon);
 
-    let productsTotal = Math.max(0, itemsTotal - discountCoupon);
+    // --- CÁLCULO ESPECÍFICO POR MÉTODO ---
 
-    // --- CÁLCULOS POR MÉTODO ---
-
-    // A. PIX (Descontos)
+    // A. PIX (Com desconto configurado no produto)
     if (method === 'pix') {
         let totalWithPixDesc = 0;
         state.cart.forEach(item => {
             const prod = state.products.find(p => p.id === item.id);
             let price = item.price;
+            // Aplica desconto do produto se existir
             if (prod && prod.paymentOptions?.pix?.active) {
                 const descVal = prod.paymentOptions.pix.type === 'percent'
                     ? price * (prod.paymentOptions.pix.val / 100)
@@ -4923,51 +4857,44 @@ window.calcCheckoutTotal = () => {
             ? totalWithPixDesc * (state.currentCoupon.val / 100)
             : discountCoupon;
 
-        productsTotal = Math.max(0, totalWithPixDesc - cupomPix);
+        finalTotal = Math.max(0, totalWithPixDesc - cupomPix);
 
-        const baseWithoutPix = Math.max(0, itemsTotal - discountCoupon);
-        const saved = baseWithoutPix - productsTotal;
+        const saved = (baseTotal - finalTotal);
         if (saved > 0.01) savingsMsg = `Economia de ${formatCurrency(saved)} no Pix!`;
     }
 
-    // B. CARTÃO (Juros)
-    else if (method === 'card' && payMode === 'online') {
-        const select = document.getElementById('checkout-installments');
-        if (select && select.options.length > 0) {
-            const selectedOpt = select.options[select.selectedIndex];
-            if (selectedOpt && selectedOpt.dataset.total) {
-                productsTotal = parseFloat(selectedOpt.dataset.total);
+    // B. CARTÃO
+    else if (method === 'card') {
+        // Se for ONLINE, pega o valor do Select (pode ter juros)
+        if (payMode === 'online') {
+            const select = document.getElementById('checkout-installments');
+            if (select && select.options.length > 0) {
+                const selectedOpt = select.options[select.selectedIndex];
+                if (selectedOpt && selectedOpt.dataset.total) {
+                    finalTotal = parseFloat(selectedOpt.dataset.total);
+                } else {
+                    finalTotal = baseTotal;
+                }
+            } else {
+                finalTotal = baseTotal;
             }
+        }
+        // Se for ENTREGA, usa o valor base (sem juros do site)
+        else {
+            finalTotal = baseTotal;
         }
     }
 
-    // 3. SOMA FINAL (Produtos + Frete)
-    finalTotal = productsTotal + appliedShipping;
+    // C. DINHEIRO ou Padrão
+    else {
+        finalTotal = baseTotal;
+        savingsMsg = '';
+    }
 
-    // 4. ATUALIZAÇÃO VISUAL
+    // Atualiza Interface
     const elTotal = document.getElementById('checkout-final-total');
     if (elTotal) elTotal.innerText = formatCurrency(finalTotal);
 
-    // Aviso do Frete (Mostra/Esconde)
-    let elShipDisplay = document.getElementById('checkout-shipping-display');
-    if (!elShipDisplay) {
-        // Cria elemento se não existir
-        const totalContainer = elTotal.parentElement;
-        const shipDiv = document.createElement('div');
-        shipDiv.id = 'checkout-shipping-display';
-        shipDiv.className = "text-xs text-yellow-500 font-bold uppercase mr-4 bg-yellow-900/20 px-2 py-1 rounded border border-yellow-500/30";
-        totalContainer.insertBefore(shipDiv, elTotal);
-        elShipDisplay = shipDiv;
-    }
-
-    if (appliedShipping > 0) {
-        elShipDisplay.innerText = `+ Frete: ${formatCurrency(appliedShipping)}`;
-        elShipDisplay.classList.remove('hidden');
-    } else {
-        elShipDisplay.classList.add('hidden');
-    }
-
-    // Aviso do Pix
     const msgEl = document.getElementById('checkout-pix-discount-msg');
     if (msgEl) {
         msgEl.innerText = savingsMsg;
@@ -5076,53 +5003,26 @@ window.submitOrder = async () => {
 
         const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
 
-        // 1. Gera o número sequencial
+        // 1. Gera o número sequencial (aguarda a resposta do banco)
         const nextCode = await getNextOrderNumber(state.siteId);
 
-        // --- CÁLCULO DE FRETE (Lógica Correta para Salvar) ---
-        // Precisamos recalcular aqui para garantir que a regra (Online/Entrega) seja respeitada no banco de dados
-        const dConfig = state.storeProfile.deliveryConfig || {};
-        const shipRule = dConfig.shippingRule || 'none';
-        const shipValue = parseFloat(dConfig.shippingValue) || 0;
-
-        // Recupera o modo de pagamento escolhido pelo usuário para validar a regra
-        const selectedPayMode = document.querySelector('input[name="pay-mode"]:checked')?.value;
-
-        let valueToSave = 0;
-
-        // Só cobra se o CEP for válido E o valor for maior que 0
-        if (checkoutState.isValidDelivery && shipValue > 0) {
-            if (shipRule === 'both') {
-                valueToSave = shipValue;
-            }
-            else if (shipRule === 'online' && selectedPayMode === 'online') {
-                valueToSave = shipValue;
-            }
-            else if (shipRule === 'delivery' && selectedPayMode === 'delivery') {
-                valueToSave = shipValue;
-            }
-        }
-
-        // 2. Cria o objeto do pedido
+        // 2. Cria o objeto do pedido com o código sequencial
         const order = {
-            code: nextCode,
+            code: nextCode,  // <--- AQUI USA O NÚMERO SEQUENCIAL (1, 2, 3...)
             date: new Date().toISOString(),
             customer: {
                 name, phone, address: fullAddress,
                 addressNum: number, cep, district, street,
-                comp: comp
+                comp: comp // Garante que o complemento está aqui
             },
             items: state.cart || [],
-            total: finalValue, // Valor final (já inclui o frete visualmente)
+            total: finalValue,
             status: 'Aguardando aprovação',
             paymentMethod: paymentDetails,
             securityCode: securityCode,
-
-            // --- CAMPO CORRIGIDO ---
-            shippingFee: valueToSave, // Salva o valor calculado corretamente
-
             cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
         };
+
         // ... resto da função continua igual (addDoc, etc) ...
 
         // Feedback visual

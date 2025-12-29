@@ -113,7 +113,7 @@
 
                     <button id="btn-track-icon" class="relative text-white hover:text-yellow-500 transition mr-4"
                         title="Acompanhar Pedido">
-                        <i class="fas fa-shopping-bag w-5 text-center group-hover:text-yellow-500 transition"></i>
+                        <i class="fas fa-motorcycle text-xl"></i>
                         <span id="track-indicator" class="absolute -top-1 -right-2 flex h-3 w-3 hidden">
                             <span
                                 class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -795,33 +795,6 @@
                                 <span class="text-white text-sm font-bold">Minutos</span>
                             </div>
                         </div>
-
-                        <div class="col-span-2 border-t border-gray-800 pt-3 mt-2">
-                            <div class="flex items-center justify-between gap-4">
-
-                                <div class="flex-1">
-                                    <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Regra de
-                                        Cobrança de Frete</label>
-                                    <select id="conf-shipping-rule"
-                                        class="w-full bg-black border border-gray-700 text-white p-2 rounded focus:border-yellow-500 outline-none text-sm">
-                                        <option value="none">Frete Grátis (Desativado)</option>
-                                        <option value="both">Cobrar Sempre (Online e Entrega)</option>
-                                        <option value="online">Cobrar Apenas no Pagamento Online</option>
-                                        <option value="delivery">Cobrar Apenas no Pagamento na Entrega</option>
-                                    </select>
-                                </div>
-
-                                <div id="shipping-value-container"
-                                    class="flex flex-col items-end opacity-50 pointer-events-none transition-opacity">
-                                    <label class="text-gray-400 text-xs font-bold uppercase mb-1">Valor da Taxa
-                                        Fixa</label>
-                                    <input type="text" id="conf-shipping-value" placeholder="0,00"
-                                        class="w-24 bg-black border border-gray-700 text-white p-2 rounded focus:border-yellow-500 outline-none text-right font-bold"
-                                        oninput="formatMoneyInput(this)">
-                                </div>
-
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -937,6 +910,22 @@
 
                 <div id="view-cart-list">
                     <div id="cart-items" class="space-y-2 mb-4"></div>
+                    <div class="bg-gray-800 p-4 rounded-lg space-y-2 text-sm border border-gray-700">
+                        <div class="flex justify-between text-gray-400"><span>Subtotal:</span> <span
+                                id="cart-subtotal">R$ 0,00</span></div>
+                        <div class="flex justify-between text-green-400 font-bold"><span
+                                id="cart-discount-label">Descontos:</span> <span id="cart-discount">R$ 0,00</span></div>
+                        <div
+                            class="border-t border-gray-700 my-2 pt-2 flex justify-between text-white text-xl font-bold">
+                            <span>Total:</span> <span id="cart-total">R$ 0,00</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex gap-2">
+                        <input type="text" id="cart-coupon-input" placeholder="CUPOM"
+                            class="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white uppercase outline-none">
+                        <button id="btn-apply-coupon" class="bg-gray-700 text-white px-4 rounded"><i
+                                class="fas fa-tag"></i></button>
+                    </div>
                 </div>
 
                 <div id="view-checkout" class="hidden space-y-4">

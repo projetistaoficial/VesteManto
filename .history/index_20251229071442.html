@@ -797,24 +797,20 @@
                         </div>
 
                         <div class="col-span-2 border-t border-gray-800 pt-3 mt-2">
-                            <div class="flex items-center justify-between gap-4">
+                            <div class="flex items-center justify-between">
 
-                                <div class="flex-1">
-                                    <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Regra de
-                                        Cobrança de Frete</label>
-                                    <select id="conf-shipping-rule"
-                                        class="w-full bg-black border border-gray-700 text-white p-2 rounded focus:border-yellow-500 outline-none text-sm">
-                                        <option value="none">Frete Grátis (Desativado)</option>
-                                        <option value="both">Cobrar Sempre (Online e Entrega)</option>
-                                        <option value="online">Cobrar Apenas no Pagamento Online</option>
-                                        <option value="delivery">Cobrar Apenas no Pagamento na Entrega</option>
-                                    </select>
+                                <div class="flex items-center gap-3">
+                                    <input type="checkbox" id="conf-shipping-active"
+                                        class="w-5 h-5 rounded text-blue-500 bg-gray-800 border-gray-600 focus:ring-blue-500 cursor-pointer">
+                                    <label for="conf-shipping-active"
+                                        class="text-white font-bold text-sm cursor-pointer select-none">
+                                        Cobrar Taxa Fixa de Entrega
+                                    </label>
                                 </div>
 
                                 <div id="shipping-value-container"
-                                    class="flex flex-col items-end opacity-50 pointer-events-none transition-opacity">
-                                    <label class="text-gray-400 text-xs font-bold uppercase mb-1">Valor da Taxa
-                                        Fixa</label>
+                                    class="flex items-center gap-2 opacity-50 pointer-events-none transition-opacity">
+                                    <label class="text-gray-400 text-xs font-bold uppercase">Valor:</label>
                                     <input type="text" id="conf-shipping-value" placeholder="0,00"
                                         class="w-24 bg-black border border-gray-700 text-white p-2 rounded focus:border-yellow-500 outline-none text-right font-bold"
                                         oninput="formatMoneyInput(this)">

@@ -1867,6 +1867,9 @@ function renderSalesList(orders) {
 
     listEl.innerHTML = '';
 
+    // Ordena: Mais recentes primeiro
+    // orders.sort((a, b) => new Date(b.date) - new Date(a.date));
+
     if (orders.length === 0) {
         listEl.innerHTML = '<div class="text-center py-8 text-gray-500"><i class="fas fa-inbox text-4xl mb-2 opacity-50"></i><p>Nenhum pedido encontrado.</p></div>';
         return;
@@ -1880,22 +1883,23 @@ function renderSalesList(orders) {
         const dataHoraFormatada = `${dataStr} às ${horaStr}`;
 
         // 2. Definição de Cores (IGUAL AO RASTREIO)
-        let statusColorClass = 'text-gray-400'; 
+        let statusColorClass = 'text-gray-400'; // Padrão (Aguardando)
 
         switch (o.status) {
             case 'Aprovado':
             case 'Preparando pedido':
-                statusColorClass = 'text-yellow-500';
+                statusColorClass = 'text-yellow-500'; // Amarelo
                 break;
             case 'Saiu para entrega':
-                statusColorClass = 'text-orange-500';
+                statusColorClass = 'text-orange-500'; // Laranja
                 break;
             case 'Entregue':
             case 'Concluído':
-                statusColorClass = 'text-green-500'; 
+                statusColorClass = 'text-green-500';  // Verde
                 break;
         }
 
+        // Verifica cancelados (inclui "Cancelado pelo Cliente")
         if (o.status.includes('Cancelado')) {
             statusColorClass = 'text-red-500';
         }
@@ -1975,15 +1979,7 @@ function renderSalesList(orders) {
                 <div class="mb-4">
                     <p class="text-xs text-gray-500 uppercase font-bold mb-2">Itens do Pedido</p>
                     ${itemsHtml}
-
                     <div class="text-right mt-2">
-                        
-                        ${o.shippingFee && o.shippingFee > 0 ? `
-                            <div class="mb-1">
-                                <span class="text-gray-500 text-xs mr-2">Frete:</span>
-                                <span class="text-yellow-500 font-bold text-sm">+ ${formatCurrency(o.shippingFee)}</span>
-                            </div>
-                        ` : ''}
                         <span class="text-gray-400 text-xs">Total:</span>
                         <span class="text-white font-bold text-xl ml-2">${formatCurrency(o.total)}</span>
                     </div>
