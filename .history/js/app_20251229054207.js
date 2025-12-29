@@ -2999,13 +2999,21 @@ window.openProductModal = (productId) => {
     const modal = getEl('product-modal');
     const backdrop = getEl('modal-backdrop');
     const card = getEl('modal-card');
-    
-    if (!modal || !card) return;
+    if (!modal) return;
 
-    // 1. CONFIGURAÇÃO DO CARD
-    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0";
+    // --- CORREÇÃO DE RESPONSIVIDADE ---
+    // Força classes CSS para garantir que o modal caiba na tela e tenha rolagem
+    card.className = "bg-[#151720] w-full max-w-lg rounded-2xl shadow-2xl relative transform transition-all duration-300 scale-95 opacity-0 flex flex-col max-h-[90vh]"; 
+    // ^^^ Note o 'flex flex-col max-h-[90vh]'
 
-    // 2. IMAGENS
+    // O conteúdo interno (onde fica imagem e texto) precisa ser rolável e expandir
+    const contentContainer = card.querySelector('.overflow-y-auto') || card.children[0]; 
+    if (contentContainer) {
+        // Garante rolagem interna e oculta a barra de rolagem feia
+        contentContainer.className = "overflow-y-auto custom-scrollbar flex-1";
+    }
+
+    // PREPARAÇÃO DAS IMAGENS
     let images = p.images || [];
     if (images.length === 0) images = ['https://placehold.co/600'];
 
@@ -3013,106 +3021,78 @@ window.openProductModal = (productId) => {
     const btnNext = getEl('btn-next-img');
 
     if (images.length > 1) {
-        if(btnPrev) btnPrev.classList.remove('hidden');
-        if(btnNext) btnNext.classList.remove('hidden');
+        btnPrev.classList.remove('hidden');
+        btnNext.classList.remove('hidden');
     } else {
-        if(btnPrev) btnPrev.classList.add('hidden');
-        if(btnNext) btnNext.classList.add('hidden');
+        btnPrev.classList.add('hidden');
+        btnNext.classList.add('hidden');
     }
+
     updateCarouselUI(images);
-    
-    // 3. TEXTOS
-    if(getEl('modal-title')) getEl('modal-title').innerText = p.name;
-    if(getEl('modal-desc')) getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
-    
+
+    // Preenche textos
+    getEl('modal-title').innerText = p.name;
+    getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
     const price = p.promoPrice || p.price;
-    if(getEl('modal-price')) getEl('modal-price').innerHTML = formatCurrency(price);
+    getEl('modal-price').innerHTML = formatCurrency(price);
 
-    // 4. ESTRUTURA E SCROLL (Coluna Direita)
-    const rightCol = card.children[2]; // Ajuste conforme seu HTML (0=Close, 1=ImgContainer, 2=RightCol)
-    
-    if (rightCol) {
-        // Garante que a coluna ocupe a altura correta e esconda o excesso
-        rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-hidden";
-
-        // A. Header (Título/Preço) - Reduzi o padding de p-6 para p-5
-        if(rightCol.children[0]) {
-            rightCol.children[0].className = "p-5 border-b border-gray-800 pb-3 shrink-0";
-        }
-
-        // B. Miolo (Scroll)
-        if (rightCol.children[1]) {
-            const scrollContent = rightCol.children[1];
-            // min-h-0 é vital para o scroll funcionar dentro do flex
-            scrollContent.className = "p-5 overflow-y-auto flex-1 space-y-4 no-scrollbar min-h-0";
-        }
-    }
-
-    // 5. TAMANHOS
+    // Tamanhos
     const sizesDiv = getEl('modal-sizes');
     const sizesWrapper = getEl('modal-sizes-wrapper');
+    sizesDiv.innerHTML = '';
     let selectedSizeInModal = 'U';
     
-    if (sizesDiv) {
-        sizesDiv.innerHTML = '';
-        if (p.sizes && p.sizes.length > 0) {
-            if (sizesWrapper) sizesWrapper.classList.remove('hidden');
-            selectedSizeInModal = p.sizes[0];
+    if (p.sizes && p.sizes.length > 0) {
+        if (sizesWrapper) sizesWrapper.classList.remove('hidden');
+        selectedSizeInModal = p.sizes[0];
+        p.sizes.forEach(s => {
+            const btn = document.createElement('button');
+            btn.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
+            btn.innerText = s;
+            if (s === selectedSizeInModal) btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
             
-            p.sizes.forEach(s => {
-                const btn = document.createElement('button');
-                btn.className = `w-10 h-10 rounded border font-bold transition flex items-center justify-center text-sm ${s === selectedSizeInModal ? 'bg-yellow-500 text-black border-yellow-500' : 'border-gray-600 text-gray-300 hover:border-yellow-500 hover:text-yellow-500'}`;
-                btn.innerText = s;
-                btn.onclick = () => {
-                    selectedSizeInModal = s;
-                    Array.from(sizesDiv.children).forEach(b => {
-                        if (b.innerText === s) {
-                            b.className = "w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm";
-                        } else {
-                            b.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
-                        }
-                    });
-                };
-                sizesDiv.appendChild(btn);
-            });
-        } else {
-            if (sizesWrapper) sizesWrapper.classList.add('hidden');
-        }
+            btn.onclick = () => {
+                selectedSizeInModal = s;
+                // Remove classe ativa de todos
+                Array.from(sizesDiv.children).forEach(b => {
+                    b.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
+                });
+                // Adiciona no clicado
+                btn.classList.remove('text-gray-300', 'border-gray-600');
+                btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
+            };
+            sizesDiv.appendChild(btn);
+        });
+    } else {
+        if (sizesWrapper) sizesWrapper.classList.add('hidden');
     }
 
-    // 6. BOTÃO (Compacto)
+    // Botão Adicionar
     const btnAdd = getEl('modal-add-cart');
-    if (btnAdd) {
-        // Reduz o padding do CONTAINER do botão para ganhar espaço (p-4 em vez de p-6 ou p-8)
-        if (btnAdd.parentElement) {
-            btnAdd.parentElement.className = "p-4 border-t border-gray-800 bg-gray-900 z-10 shrink-0";
-        }
+    // Força o botão a ficar fixo no fundo visualmente, caso não esteja
+    // Se o seu HTML tiver um container para o botão, garanta que ele tem padding
+    
+    const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
+    const isOut = p.stock <= 0 && !allowNegative;
 
-        const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-        const isOut = p.stock <= 0 && !allowNegative;
-
-        if (isOut) {
-            btnAdd.disabled = true;
-            btnAdd.innerHTML = "<span>ESGOTADO</span>";
-            // Botão menor (py-3, text-sm)
-            btnAdd.className = "w-full bg-gray-700 text-gray-500 font-bold text-sm py-3 rounded-xl cursor-not-allowed uppercase tracking-wide flex items-center justify-center";
-        } else {
-            btnAdd.disabled = false;
-            btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i><span>ADICIONAR</span>`;
-            // Botão menor (py-3, text-sm) e padding vertical reduzido
-            btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-3 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide";
-            btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
-        }
+    if (isOut) {
+        btnAdd.disabled = true;
+        btnAdd.innerHTML = "PRODUTO ESGOTADO";
+        btnAdd.className = "w-full bg-gray-700 text-gray-500 font-bold text-sm py-3 rounded-xl cursor-not-allowed uppercase tracking-wide";
+    } else {
+        btnAdd.disabled = false;
+        btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i> ADICIONAR AO CARRINHO`;
+        btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-3 rounded-xl shadow-lg shadow-green-900/50 transition transform active:scale-95 flex items-center justify-center uppercase tracking-wide";
+        btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
     }
 
-    // 7. EXIBIÇÃO
+    // Exibe o modal
     modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    
+    modal.classList.add('flex'); // Garante centralização
     setTimeout(() => {
         backdrop.classList.remove('opacity-0');
         card.classList.remove('opacity-0', 'scale-95');
-        card.classList.add('opacity-100', 'scale-100');
+        card.classList.add('scale-100');
     }, 10);
 };
 

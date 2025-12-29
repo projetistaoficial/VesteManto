@@ -3002,10 +3002,12 @@ window.openProductModal = (productId) => {
     
     if (!modal || !card) return;
 
-    // 1. CONFIGURAÇÃO DO CARD
+    // --- 1. CONFIGURAÇÃO DO CARD PRINCIPAL ---
+    // max-h-[90vh] limita a altura total.
+    // flex-col (mobile) / md:flex-row (PC).
     card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0";
 
-    // 2. IMAGENS
+    // --- 2. AJUSTE DAS IMAGENS ---
     let images = p.images || [];
     if (images.length === 0) images = ['https://placehold.co/600'];
 
@@ -3021,34 +3023,38 @@ window.openProductModal = (productId) => {
     }
     updateCarouselUI(images);
     
-    // 3. TEXTOS
+    // --- 3. PREENCHIMENTO DOS DADOS ---
     if(getEl('modal-title')) getEl('modal-title').innerText = p.name;
     if(getEl('modal-desc')) getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
     
     const price = p.promoPrice || p.price;
     if(getEl('modal-price')) getEl('modal-price').innerHTML = formatCurrency(price);
 
-    // 4. ESTRUTURA E SCROLL (Coluna Direita)
-    const rightCol = card.children[2]; // Ajuste conforme seu HTML (0=Close, 1=ImgContainer, 2=RightCol)
+    // --- 4. AJUSTE ESTRUTURAL (CORREÇÃO DO SCROLL) ---
+    // Precisamos encontrar a coluna da direita e o container do meio para aplicar as classes certas
     
+    // A. Coluna Direita (Onde fica o texto)
+    // No seu HTML, ela é a segunda div filha direta do card.
+    // Vamos garantir que ela tenha 'overflow-hidden' para não criar scroll duplo
+    const rightCol = card.children[2]; // Index 0 é botão fechar, 1 é imagem, 2 é texto (baseado no seu HTML)
     if (rightCol) {
-        // Garante que a coluna ocupe a altura correta e esconda o excesso
+        // h-full é essencial aqui para respeitar o 90vh do pai
         rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-hidden";
-
-        // A. Header (Título/Preço) - Reduzi o padding de p-6 para p-5
-        if(rightCol.children[0]) {
-            rightCol.children[0].className = "p-5 border-b border-gray-800 pb-3 shrink-0";
-        }
-
-        // B. Miolo (Scroll)
-        if (rightCol.children[1]) {
-            const scrollContent = rightCol.children[1];
-            // min-h-0 é vital para o scroll funcionar dentro do flex
-            scrollContent.className = "p-5 overflow-y-auto flex-1 space-y-4 no-scrollbar min-h-0";
-        }
     }
 
-    // 5. TAMANHOS
+    // B. Container de Conteúdo (O "miolo" que deve rolar)
+    // No seu HTML, é a div que contém a descrição e os tamanhos.
+    // Geralmente é o segundo filho da coluna direita (0: Header Preço, 1: Miolo, 2: Footer Botão)
+    if (rightCol && rightCol.children[1]) {
+        const scrollContent = rightCol.children[1];
+        // flex-1: Ocupa todo o espaço disponível
+        // overflow-y-auto: Permite rolar
+        // no-scrollbar: A classe CSS que criamos para esconder a barra
+        // min-h-0: Truque do Flexbox para permitir encolher se necessário
+        scrollContent.className = "p-6 md:p-8 overflow-y-auto flex-1 space-y-6 no-scrollbar min-h-0";
+    }
+
+    // --- 5. TAMANHOS ---
     const sizesDiv = getEl('modal-sizes');
     const sizesWrapper = getEl('modal-sizes-wrapper');
     let selectedSizeInModal = 'U';
@@ -3080,32 +3086,25 @@ window.openProductModal = (productId) => {
         }
     }
 
-    // 6. BOTÃO (Compacto)
+    // --- 6. BOTÃO (FOOTER) ---
     const btnAdd = getEl('modal-add-cart');
     if (btnAdd) {
-        // Reduz o padding do CONTAINER do botão para ganhar espaço (p-4 em vez de p-6 ou p-8)
-        if (btnAdd.parentElement) {
-            btnAdd.parentElement.className = "p-4 border-t border-gray-800 bg-gray-900 z-10 shrink-0";
-        }
-
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
         const isOut = p.stock <= 0 && !allowNegative;
 
         if (isOut) {
             btnAdd.disabled = true;
-            btnAdd.innerHTML = "<span>ESGOTADO</span>";
-            // Botão menor (py-3, text-sm)
-            btnAdd.className = "w-full bg-gray-700 text-gray-500 font-bold text-sm py-3 rounded-xl cursor-not-allowed uppercase tracking-wide flex items-center justify-center";
+            btnAdd.innerHTML = "<span>PRODUTO ESGOTADO</span>";
+            btnAdd.className = "w-full bg-gray-700 text-gray-500 font-bold text-lg py-4 rounded-xl cursor-not-allowed uppercase tracking-wide flex items-center justify-center";
         } else {
             btnAdd.disabled = false;
-            btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i><span>ADICIONAR</span>`;
-            // Botão menor (py-3, text-sm) e padding vertical reduzido
-            btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-3 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide";
+            btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-3"></i><span>ADICIONAR AO CARRINHO</span>`;
+            btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2";
             btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
         }
     }
 
-    // 7. EXIBIÇÃO
+    // --- 7. EXIBIÇÃO ---
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     

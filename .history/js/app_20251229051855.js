@@ -578,7 +578,6 @@ function loadProducts() {
 
         // Recalcula Capital de Giro sempre que produtos mudarem
         calculateStatsMetrics();
-        renderAdminCategoryList();
     });
 }
 
@@ -853,26 +852,14 @@ function renderCatalog(products) {
     if (!els.grid) return;
     els.grid.innerHTML = '';
 
-    // --- ORDENAÇÃO: Esgotados vão para o final ---
-    // Cria uma cópia para não bagunçar o estado original
-    const sortedProducts = [...products].sort((a, b) => {
-        // Define o que é "Esgotado" (Estoque <= 0 E não permite venda negativa)
-        const isSoldOutA = a.stock <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
-        const isSoldOutB = b.stock <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
-
-        if (isSoldOutA && !isSoldOutB) return 1; // A é esgotado, vai pro fim
-        if (!isSoldOutA && isSoldOutB) return -1; // B é esgotado, vai pro fim
-        return 0; // Mantém a ordem atual (alfabética ou filtro)
-    });
-
     // Pega configuração global de parcelamento
     const globalInst = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3 };
 
-    sortedProducts.forEach(p => {
+    products.forEach(p => {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
         const isOut = p.stock <= 0 && !allowNegative;
 
-        // --- LÓGICA DO PIX ---
+        // --- LÓGICA DO PIX (Específica do Produto) ---
         let pixHtml = '';
         if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
             const pix = p.paymentOptions.pix;
@@ -880,21 +867,34 @@ function renderCatalog(products) {
             pixHtml = `<p class="text-green-500 text-xs font-bold mt-1">${valDisplay} OFF no Pix</p>`;
         }
 
-        // --- LÓGICA DO PARCELAMENTO ---
+        // --- LÓGICA DO PARCELAMENTO (Global) ---
         let installmentHtml = '';
         if (globalInst.active) {
             const price = p.promoPrice || p.price;
+            // Se "freeUntil" for maior que 1, mostra a opção "X vezes sem juros"
+            // Mostramos o máximo de parcelas sem juros permitidas ou o máximo do cartão
+
+            let showInstallments = 1;
+            let label = "";
+
+            // Lógica: Mostrar a melhor condição (Maior qtd de parcelas sem juros)
+            // Se freeUntil for 3, e max for 12. Mostramos "3x sem juros" (ou calculado).
+            // Para simplificar na vitrine, mostramos até quantas vezes é sem juros.
+
             if (globalInst.freeUntil > 1) {
+                // Calcula valor da parcela sem juros
                 const parcVal = price / globalInst.freeUntil;
                 installmentHtml = `<p class="text-gray-400 text-xs mt-0.5">Ou ${globalInst.freeUntil}x de ${formatCurrency(parcVal)} sem juros</p>`;
             } else {
+                // Se tudo tem juros, mostra o máximo possível (com texto genérico ou calculado se quiser complexidade)
                 installmentHtml = `<p class="text-gray-400 text-xs mt-0.5">Em até ${globalInst.max}x no cartão</p>`;
             }
         }
 
-        // --- CARD ---
+        // --- MONTAGEM DO CARD ---
         const imgUrl = p.images && p.images.length > 0 ? p.images[0] : 'https://placehold.co/400?text=Sem+Foto';
 
+        // Exibição de Preço
         const priceDisplay = p.promoPrice ?
             `<div class="flex flex-col">
                 <span class="text-gray-500 line-through text-xs">${formatCurrency(p.price)}</span>
@@ -904,21 +904,19 @@ function renderCatalog(products) {
                 <span class="text-white font-bold text-lg">${formatCurrency(p.price)}</span>
              </div>`;
 
-        // Se estiver esgotado, diminui a opacidade da imagem
-        const imgOpacity = isOut ? 'opacity-50 grayscale' : '';
-
         const card = document.createElement('div');
-        card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative cursor-pointer";
+        card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative";
         card.onclick = () => openProductModal(p.id);
 
         card.innerHTML = `
             <div class="relative w-full aspect-[4/5] bg-gray-900 overflow-hidden">
-                <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${imgOpacity}">
-                ${isOut ? `<div class="absolute inset-0 flex items-center justify-center z-10"><span class="bg-red-600 text-white font-bold px-4 py-1 rounded shadow-lg transform -rotate-6 text-sm uppercase tracking-wide">Esgotado</span></div>` : ''}
+                <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                ${isOut ? `<div class="absolute inset-0 bg-black/70 flex items-center justify-center z-10"><span class="text-red-500 font-bold border-2 border-red-500 px-2 py-1 transform -rotate-12">ESGOTADO</span></div>` : ''}
             </div>
 
             <div class="p-3 flex flex-col flex-1">
                 <h3 class="text-white font-bold text-sm leading-tight line-clamp-2 mb-1">${p.name}</h3>
+                <p class="text-gray-500 text-xs line-clamp-2 mb-2">${p.description || ''}</p>
                 
                 <div class="mt-auto pt-2 border-t border-gray-800">
                     ${priceDisplay}
@@ -934,127 +932,6 @@ function renderCatalog(products) {
 
 // =======================================================================================================================// =======================================================================================================================
 //LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
-function renderCategories() {
-    // Se não tiver o container da sidebar, para.
-    if (!els.sidebarCategories) return;
-
-    const catNames = state.categories.map(c => c.name);
-
-    // 1. Preenche Selects (Filtros)
-    const populateSelect = (selectEl) => {
-        if (!selectEl) return;
-        const currentVal = selectEl.value;
-        selectEl.innerHTML = '<option value="">Todas as Categorias</option>';
-        catNames.forEach(c => {
-            selectEl.innerHTML += `<option value="${c}">${c}</option>`;
-        });
-        if (currentVal) selectEl.value = currentVal;
-    };
-
-    populateSelect(els.catFilter);
-    populateSelect(els.adminFilterCat);
-    populateSelect(els.bulkCategorySelect);
-    populateSelect(getEl('prod-cat-select'));
-    // Se existir o select da barra de ação nova, preenche também
-    const bulkDynamic = document.getElementById('bulk-category-select-dynamic');
-    if (bulkDynamic) populateSelect(bulkDynamic);
-
-    // 2. Monta a Árvore
-    const tree = {};
-    catNames.forEach(name => {
-        const parts = name.split(' - ');
-        let currentLevel = tree;
-        parts.forEach((part, index) => {
-            if (!currentLevel[part]) {
-                const fullPath = parts.slice(0, index + 1).join(' - ');
-                currentLevel[part] = { _path: fullPath, _children: {} };
-            }
-            currentLevel = currentLevel[part]._children;
-        });
-    });
-
-    // Função Recursiva HTML
-    const buildHtml = (node, level = 0) => {
-        let html = '';
-        const keys = Object.keys(node).sort();
-
-        keys.forEach(key => {
-            const item = node[key];
-            const hasChildren = Object.keys(item._children).length > 0;
-            // Escapa aspas
-            const safePath = item._path.replace(/'/g, "\\'");
-
-            // Cálculo de recuo (Padding)
-            // Se for nível 0, padding menor. Se for filho, aumenta.
-            const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
-
-            // Estilos de Texto
-            const textStyle = level === 0
-                ? "text-yellow-500 font-bold uppercase tracking-wide text-sm"
-                : "text-gray-300 font-medium text-sm hover:text-white";
-
-            // Se tiver filhos, usa <details> para o accordion
-            if (hasChildren) {
-                html += `
-                    <details class="group mb-1">
-                        <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
-                            <span class="${textStyle} flex-1" 
-                                  style="padding-left:${paddingLeft}px"
-                                  onclick="event.preventDefault(); filterByCat('${safePath}')">
-                                ${key}
-                            </span>
-                            
-                            <span class="text-gray-500 text-[10px] transform transition-transform duration-200 group-open:rotate-180 p-2">
-                                ▼
-                            </span>
-                        </summary>
-                        <div class="border-l border-gray-800 ml-4">
-                            ${buildHtml(item._children, level + 1)}
-                        </div>
-                    </details>
-                `;
-            } else {
-                // Se NÃO tiver filhos, é apenas um botão simples (sem seta)
-                html += `
-                    <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center"
-                         onclick="filterByCat('${safePath}')">
-                        <span class="${textStyle}" style="padding-left:${paddingLeft}px">
-                            ${key}
-                        </span>
-                    </div>
-                `;
-            }
-        });
-        return html;
-    };
-
-    // Renderiza SEM o botão "Ver Todos" (limpando o innerHTML antes)
-    els.sidebarCategories.innerHTML = `
-        <div class="space-y-1 mt-2">
-            ${buildHtml(tree)}
-        </div>
-    `;
-}
-
-// Função Helper para selecionar o pai sem fechar o menu visualmente
-window.selectParentCategory = (id, name, event) => {
-    // Impede que o clique no nome dispare o abrir/fechar do accordion (opcional, se quiser separar as ações)
-    // Se quiser que clique no nome TAMBÉM abra, remova a linha abaixo.
-    if (event) event.preventDefault();
-
-    if (state.selectedCategoryParent === name) {
-        state.selectedCategoryParent = null;
-        if (els.newCatName) els.newCatName.placeholder = "Nome da Categoria Principal...";
-    } else {
-        state.selectedCategoryParent = name;
-        const displayName = name.split(' - ').pop();
-        if (els.newCatName) els.newCatName.placeholder = `Adicionar em: ${displayName} > ...`;
-    }
-
-    // Re-renderiza para mostrar a borda amarela de seleção
-    renderAdminCategoryList();
-};
-
 function renderAdminCategoryList() {
     if (!els.catListAdmin) return;
 
@@ -1069,7 +946,7 @@ function renderAdminCategoryList() {
     const catMap = {};
     state.categories.forEach(c => catMap[c.name] = c.id);
 
-    // Helper de Contagem
+    // Helper de Contagem de Produtos
     const getProductCount = (catName) => {
         if (!state.products) return 0;
         return state.products.filter(p => {
@@ -1094,7 +971,7 @@ function renderAdminCategoryList() {
         });
     });
 
-    // Renderização
+    // Renderização Recursiva
     const buildHtml = (node, level = 0) => {
         let html = '';
         const keys = Object.keys(node).sort();
@@ -1107,23 +984,26 @@ function renderAdminCategoryList() {
             const id = catMap[fullPath];
 
             // --- CONTAGENS ---
-            const prodCount = getProductCount(fullPath);
-            const subCatCount = childrenKeys.length;
+            const prodCount = getProductCount(fullPath); // Produtos totais (incluindo filhos)
+            const subCatCount = childrenKeys.length;     // Quantidade de subcategorias diretas
 
+            // Texto de estatística
             let statsText = `${prodCount} produto(s)`;
             if (subCatCount > 0) {
                 statsText += ` • ${subCatCount} subcategoria(s)`;
             }
 
+            // Estilização
             const isMain = level === 0;
             const isSelected = state.selectedCategoryParent === fullPath;
             const selectBorder = isSelected ? 'border-yellow-500' : 'border-gray-700';
             const isOpenAttr = openDetailsIds.has(id) ? 'open' : '';
 
             const bgClass = isMain
-                ? 'bg-[#1f2937] mb-2'
-                : 'bg-black/30 mt-1 ml-4 border-l-2 border-gray-700';
+                ? 'bg-[#1f2937] mb-2' // Pai: Cinza Azulado
+                : 'bg-black/30 mt-1 ml-4 border-l-2 border-gray-700'; // Filho: Escuro Recuado
 
+            // Conteúdo da Linha
             const rowContent = `
                 <div class="flex items-center justify-between p-3 rounded hover:bg-white/5 transition cursor-pointer group min-h-[60px]">
                     
@@ -1134,12 +1014,13 @@ function renderAdminCategoryList() {
                             ${key}
                         </span>
                         
-                        <span class="text-xs text-gray-400 font-bold mt-1 flex items-center gap-1">
+                        <span class="text-[10px] text-gray-500 font-mono mt-0.5 flex items-center gap-1">
                             ${statsText}
                         </span>
                     </div>
 
                     <div class="flex items-center gap-3">
+                        
                         ${hasChildren ?
                     `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
                                 <span class="text-gray-300 text-xs group-open:text-yellow-500">▼</span>
@@ -1166,6 +1047,154 @@ function renderAdminCategoryList() {
             `;
 
             if (hasChildren) {
+                html += `
+                    <details class="rounded border ${selectBorder} ${bgClass} overflow-hidden group transition-all duration-300" ${isOpenAttr} data-cat-id="${id}">
+                        <summary class="list-none select-none outline-none">
+                            ${rowContent}
+                        </summary>
+                        <div class="pb-2 pr-2 border-t border-gray-700/50 animate-fade-in">
+                            ${buildHtml(item._children, level + 1)}
+                        </div>
+                    </details>
+                `;
+            } else {
+                html += `
+                    <div class="rounded border ${selectBorder} ${bgClass}">
+                        ${rowContent}
+                    </div>
+                `;
+            }
+        });
+        return html;
+    };
+
+    els.catListAdmin.innerHTML = buildHtml(tree);
+}
+
+// Função Helper para selecionar o pai sem fechar o menu visualmente
+window.selectParentCategory = (id, name, event) => {
+    // Impede que o clique no nome dispare o abrir/fechar do accordion (opcional, se quiser separar as ações)
+    // Se quiser que clique no nome TAMBÉM abra, remova a linha abaixo.
+    if (event) event.preventDefault();
+
+    if (state.selectedCategoryParent === name) {
+        state.selectedCategoryParent = null;
+        if (els.newCatName) els.newCatName.placeholder = "Nome da Categoria Principal...";
+    } else {
+        state.selectedCategoryParent = name;
+        const displayName = name.split(' - ').pop();
+        if (els.newCatName) els.newCatName.placeholder = `Adicionar em: ${displayName} > ...`;
+    }
+
+    // Re-renderiza para mostrar a borda amarela de seleção
+    renderAdminCategoryList();
+};
+
+function renderAdminCategoryList() {
+    if (!els.catListAdmin) return;
+
+    // 1. PERSISTÊNCIA DE ESTADO (Guarda o que está aberto antes de limpar)
+    const openDetailsIds = new Set();
+    els.catListAdmin.querySelectorAll('details[open]').forEach(el => {
+        // Usamos o ID da categoria que guardamos num atributo data-id ou inferimos
+        if (el.dataset.catId) openDetailsIds.add(el.dataset.catId);
+    });
+
+    els.catListAdmin.innerHTML = '';
+
+    const catMap = {};
+    state.categories.forEach(c => catMap[c.name] = c.id);
+
+    // 2. CORREÇÃO DA CONTAGEM (Mais segura)
+    const getCount = (catName) => {
+        if (!state.products) return 0;
+        return state.products.filter(p => {
+            if (!p.category) return false;
+            // Verifica correspondência exata ou subcategoria
+            return p.category === catName || p.category.startsWith(catName + ' - ');
+        }).length;
+    };
+
+    const tree = {};
+    const sortedCats = [...state.categories].sort((a, b) => a.name.localeCompare(b.name));
+
+    sortedCats.forEach(c => {
+        const parts = c.name.split(' - ');
+        let currentLevel = tree;
+        parts.forEach((part, index) => {
+            if (!currentLevel[part]) {
+                const fullPath = parts.slice(0, index + 1).join(' - ');
+                currentLevel[part] = { _path: fullPath, _children: {} };
+            }
+            currentLevel = currentLevel[part]._children;
+        });
+    });
+
+    const buildHtml = (node, level = 0) => {
+        let html = '';
+        const keys = Object.keys(node).sort();
+
+        keys.forEach(key => {
+            const item = node[key];
+            const hasChildren = Object.keys(item._children).length > 0;
+            const fullPath = item._path;
+            const id = catMap[fullPath];
+            const count = getCount(fullPath);
+
+            const isMain = level === 0;
+            const isSelected = state.selectedCategoryParent === fullPath;
+            const selectBorder = isSelected ? 'border-yellow-500' : 'border-gray-700';
+
+            // Recupera se estava aberto
+            const isOpenAttr = openDetailsIds.has(id) ? 'open' : '';
+
+            const bgClass = isMain
+                ? 'bg-[#1f2937] mb-2'
+                : 'bg-black/30 mt-1 ml-4 border-l-2 border-gray-700';
+
+            // Conteúdo da Linha
+            const rowContent = `
+                <div class="flex items-center justify-between p-3 rounded hover:bg-white/5 transition cursor-pointer group min-h-[60px]">
+                    
+                    <div class="flex flex-col justify-center flex-1" 
+                         onclick="selectParentCategory('${id}', '${fullPath}', event)">
+                        <span class="${isMain ? 'text-white font-bold text-sm' : 'text-gray-300 text-sm'} ${isSelected ? 'text-yellow-500' : ''}">
+                            ${key}
+                        </span>
+                        <span class="text-[10px] text-gray-500 font-mono mt-0.5">
+                            ${count} produto(s)
+                        </span>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        
+                        ${hasChildren ?
+                    `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
+                                <span class="text-gray-300 text-xs group-open:text-yellow-500">▼</span>
+                             </div>`
+                    : ''}
+
+                        <div class="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity pl-2 border-l border-gray-700">
+                            <button type="button" 
+                                    onclick="event.stopPropagation(); renameCategory('${id}', '${fullPath}')" 
+                                    class="w-8 h-8 rounded-full bg-blue-900/30 text-blue-400 hover:bg-blue-600 hover:text-white flex items-center justify-center transition"
+                                    title="Editar Nome">
+                                <i class="fas fa-pen text-xs"></i>
+                            </button>
+
+                            <button type="button" 
+                                    onclick="event.stopPropagation(); deleteCategory('${id}', '${fullPath}')" 
+                                    class="w-8 h-8 rounded-full bg-red-900/30 text-red-400 hover:bg-red-600 hover:text-white flex items-center justify-center transition"
+                                    title="Excluir Categoria">
+                                <i class="fas fa-trash-alt text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (hasChildren) {
+                // Adicionei data-cat-id para persistência
                 html += `
                     <details class="rounded border ${selectBorder} ${bgClass} overflow-hidden group transition-all duration-300" ${isOpenAttr} data-cat-id="${id}">
                         <summary class="list-none select-none outline-none">
@@ -2993,126 +3022,90 @@ window.openProductModal = (productId) => {
     const p = state.products.find(x => x.id === productId);
     if (!p) return;
 
+    // Salva o ID no estado para o carrossel usar
     state.focusedProductId = productId;
-    state.currentImgIndex = 0;
+    state.currentImgIndex = 0; // Reseta para a primeira foto
 
     const modal = getEl('product-modal');
     const backdrop = getEl('modal-backdrop');
     const card = getEl('modal-card');
-    
-    if (!modal || !card) return;
+    if (!modal) return;
 
-    // 1. CONFIGURAÇÃO DO CARD
-    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0";
-
-    // 2. IMAGENS
+    // PREPARAÇÃO DAS IMAGENS
+    // Garante que images seja um array (mesmo se for produto antigo)
     let images = p.images || [];
-    if (images.length === 0) images = ['https://placehold.co/600'];
+    if (images.length === 0) images = ['https://placehold.co/600']; // Fallback
 
+    // Configura botões do carrossel
     const btnPrev = getEl('btn-prev-img');
     const btnNext = getEl('btn-next-img');
 
     if (images.length > 1) {
-        if(btnPrev) btnPrev.classList.remove('hidden');
-        if(btnNext) btnNext.classList.remove('hidden');
+        btnPrev.classList.remove('hidden');
+        btnNext.classList.remove('hidden');
     } else {
-        if(btnPrev) btnPrev.classList.add('hidden');
-        if(btnNext) btnNext.classList.add('hidden');
+        btnPrev.classList.add('hidden');
+        btnNext.classList.add('hidden');
     }
+
+    // Renderiza a primeira imagem e as miniaturas
     updateCarouselUI(images);
-    
-    // 3. TEXTOS
-    if(getEl('modal-title')) getEl('modal-title').innerText = p.name;
-    if(getEl('modal-desc')) getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
-    
+
+    // Preenche textos
+    getEl('modal-title').innerText = p.name;
+    getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
     const price = p.promoPrice || p.price;
-    if(getEl('modal-price')) getEl('modal-price').innerHTML = formatCurrency(price);
+    getEl('modal-price').innerHTML = formatCurrency(price);
 
-    // 4. ESTRUTURA E SCROLL (Coluna Direita)
-    const rightCol = card.children[2]; // Ajuste conforme seu HTML (0=Close, 1=ImgContainer, 2=RightCol)
-    
-    if (rightCol) {
-        // Garante que a coluna ocupe a altura correta e esconda o excesso
-        rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-hidden";
+    // ... (O RESTO DO CÓDIGO DA FUNÇÃO MANTÉM IGUAL: Sizes, Botão Add Cart, etc.) ...
 
-        // A. Header (Título/Preço) - Reduzi o padding de p-6 para p-5
-        if(rightCol.children[0]) {
-            rightCol.children[0].className = "p-5 border-b border-gray-800 pb-3 shrink-0";
-        }
-
-        // B. Miolo (Scroll)
-        if (rightCol.children[1]) {
-            const scrollContent = rightCol.children[1];
-            // min-h-0 é vital para o scroll funcionar dentro do flex
-            scrollContent.className = "p-5 overflow-y-auto flex-1 space-y-4 no-scrollbar min-h-0";
-        }
-    }
-
-    // 5. TAMANHOS
+    // Parte dos tamanhos (Copie do seu código anterior ou mantenha o que estava lá)
     const sizesDiv = getEl('modal-sizes');
     const sizesWrapper = getEl('modal-sizes-wrapper');
+    sizesDiv.innerHTML = '';
     let selectedSizeInModal = 'U';
-    
-    if (sizesDiv) {
-        sizesDiv.innerHTML = '';
-        if (p.sizes && p.sizes.length > 0) {
-            if (sizesWrapper) sizesWrapper.classList.remove('hidden');
-            selectedSizeInModal = p.sizes[0];
-            
-            p.sizes.forEach(s => {
-                const btn = document.createElement('button');
-                btn.className = `w-10 h-10 rounded border font-bold transition flex items-center justify-center text-sm ${s === selectedSizeInModal ? 'bg-yellow-500 text-black border-yellow-500' : 'border-gray-600 text-gray-300 hover:border-yellow-500 hover:text-yellow-500'}`;
-                btn.innerText = s;
-                btn.onclick = () => {
-                    selectedSizeInModal = s;
-                    Array.from(sizesDiv.children).forEach(b => {
-                        if (b.innerText === s) {
-                            b.className = "w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm";
-                        } else {
-                            b.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
-                        }
-                    });
-                };
-                sizesDiv.appendChild(btn);
-            });
-        } else {
-            if (sizesWrapper) sizesWrapper.classList.add('hidden');
-        }
+    if (p.sizes && p.sizes.length > 0) {
+        if (sizesWrapper) sizesWrapper.classList.remove('hidden');
+        selectedSizeInModal = p.sizes[0];
+        p.sizes.forEach(s => {
+            const btn = document.createElement('button');
+            btn.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center";
+            btn.innerText = s;
+            if (s === selectedSizeInModal) btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
+            btn.onclick = () => {
+                selectedSizeInModal = s;
+                document.querySelectorAll('#modal-sizes button').forEach(b => b.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center");
+                btn.classList.remove('text-gray-300', 'border-gray-600');
+                btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
+            };
+            sizesDiv.appendChild(btn);
+        });
+    } else {
+        if (sizesWrapper) sizesWrapper.classList.add('hidden');
     }
 
-    // 6. BOTÃO (Compacto)
+    // Configura Botão Adicionar (Mantém igual)
     const btnAdd = getEl('modal-add-cart');
-    if (btnAdd) {
-        // Reduz o padding do CONTAINER do botão para ganhar espaço (p-4 em vez de p-6 ou p-8)
-        if (btnAdd.parentElement) {
-            btnAdd.parentElement.className = "p-4 border-t border-gray-800 bg-gray-900 z-10 shrink-0";
-        }
+    const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
+    const isOut = p.stock <= 0 && !allowNegative;
 
-        const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-        const isOut = p.stock <= 0 && !allowNegative;
-
-        if (isOut) {
-            btnAdd.disabled = true;
-            btnAdd.innerHTML = "<span>ESGOTADO</span>";
-            // Botão menor (py-3, text-sm)
-            btnAdd.className = "w-full bg-gray-700 text-gray-500 font-bold text-sm py-3 rounded-xl cursor-not-allowed uppercase tracking-wide flex items-center justify-center";
-        } else {
-            btnAdd.disabled = false;
-            btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i><span>ADICIONAR</span>`;
-            // Botão menor (py-3, text-sm) e padding vertical reduzido
-            btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-3 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide";
-            btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
-        }
+    if (isOut) {
+        btnAdd.disabled = true;
+        btnAdd.innerHTML = "ESGOTADO";
+        btnAdd.className = "w-full bg-gray-700 text-gray-500 font-bold text-lg py-4 rounded-xl cursor-not-allowed";
+    } else {
+        btnAdd.disabled = false;
+        btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i> ADICIONAR AO CARRINHO`;
+        btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center";
+        btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
     }
 
-    // 7. EXIBIÇÃO
+    // Exibe o modal
     modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    
     setTimeout(() => {
         backdrop.classList.remove('opacity-0');
         card.classList.remove('opacity-0', 'scale-95');
-        card.classList.add('opacity-100', 'scale-100');
+        card.classList.add('scale-100');
     }, 10);
 };
 

@@ -9,17 +9,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
-    <style>
-    /* Esconde a barra de rolagem no Chrome, Safari e Opera */
-    .no-scrollbar::-webkit-scrollbar {
-        display: none;
-    }
-    /* Esconde a barra de rolagem no IE, Edge e Firefox */
-    .no-scrollbar {
-        -ms-overflow-style: none;  /* IE and Edge */
-        scrollbar-width: none;  /* Firefox */
-    }
-</style>
 </head>
 
 <body class="bg-black text-white font-sans antialiased">
@@ -826,7 +815,7 @@
         <div class="relative w-full h-full flex items-center justify-center p-4 pointer-events-none">
 
             <div id="modal-card"
-                class="bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform scale-95 opacity-0 transition-all duration-300 pointer-events-auto relative">
+                class="bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform scale-95 opacity-0 transition-all duration-300 pointer-events-auto relative flex-1 overflow-y-auto">
 
                 <button id="close-modal-btn"
                     class="absolute top-4 right-4 z-20 bg-black/50 hover:bg-red-600 text-white w-10 h-10 rounded-full flex items-center justify-center transition duration-300 group">

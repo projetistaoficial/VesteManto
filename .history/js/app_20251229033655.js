@@ -280,13 +280,13 @@ async function getNextProductCode(siteId) {
         // Atualiza o contador com o novo número
         // setDoc com merge garante que cria se não existir ou atualiza se existir
         await setDoc(counterRef, { current: newCount }, { merge: true });
-
+        
         return newCount;
     } catch (error) {
         console.error("Erro ao gerar código (Quota ou Permissão):", error);
         // Se der erro de cota, infelizmente só gera aleatório para não travar a venda
         // Mas com essa função mais leve, a chance de erro diminui.
-        return Math.floor(1000 + Math.random() * 9000);
+        return Math.floor(1000 + Math.random() * 9000); 
     }
 }
 // =================================================================
@@ -578,7 +578,6 @@ function loadProducts() {
 
         // Recalcula Capital de Giro sempre que produtos mudarem
         calculateStatsMetrics();
-        renderAdminCategoryList();
     });
 }
 
@@ -853,26 +852,14 @@ function renderCatalog(products) {
     if (!els.grid) return;
     els.grid.innerHTML = '';
 
-    // --- ORDENAÇÃO: Esgotados vão para o final ---
-    // Cria uma cópia para não bagunçar o estado original
-    const sortedProducts = [...products].sort((a, b) => {
-        // Define o que é "Esgotado" (Estoque <= 0 E não permite venda negativa)
-        const isSoldOutA = a.stock <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
-        const isSoldOutB = b.stock <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
-
-        if (isSoldOutA && !isSoldOutB) return 1; // A é esgotado, vai pro fim
-        if (!isSoldOutA && isSoldOutB) return -1; // B é esgotado, vai pro fim
-        return 0; // Mantém a ordem atual (alfabética ou filtro)
-    });
-
     // Pega configuração global de parcelamento
     const globalInst = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3 };
 
-    sortedProducts.forEach(p => {
+    products.forEach(p => {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
         const isOut = p.stock <= 0 && !allowNegative;
 
-        // --- LÓGICA DO PIX ---
+        // --- LÓGICA DO PIX (Específica do Produto) ---
         let pixHtml = '';
         if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
             const pix = p.paymentOptions.pix;
@@ -880,21 +867,34 @@ function renderCatalog(products) {
             pixHtml = `<p class="text-green-500 text-xs font-bold mt-1">${valDisplay} OFF no Pix</p>`;
         }
 
-        // --- LÓGICA DO PARCELAMENTO ---
+        // --- LÓGICA DO PARCELAMENTO (Global) ---
         let installmentHtml = '';
         if (globalInst.active) {
             const price = p.promoPrice || p.price;
+            // Se "freeUntil" for maior que 1, mostra a opção "X vezes sem juros"
+            // Mostramos o máximo de parcelas sem juros permitidas ou o máximo do cartão
+
+            let showInstallments = 1;
+            let label = "";
+
+            // Lógica: Mostrar a melhor condição (Maior qtd de parcelas sem juros)
+            // Se freeUntil for 3, e max for 12. Mostramos "3x sem juros" (ou calculado).
+            // Para simplificar na vitrine, mostramos até quantas vezes é sem juros.
+
             if (globalInst.freeUntil > 1) {
+                // Calcula valor da parcela sem juros
                 const parcVal = price / globalInst.freeUntil;
                 installmentHtml = `<p class="text-gray-400 text-xs mt-0.5">Ou ${globalInst.freeUntil}x de ${formatCurrency(parcVal)} sem juros</p>`;
             } else {
+                // Se tudo tem juros, mostra o máximo possível (com texto genérico ou calculado se quiser complexidade)
                 installmentHtml = `<p class="text-gray-400 text-xs mt-0.5">Em até ${globalInst.max}x no cartão</p>`;
             }
         }
 
-        // --- CARD ---
+        // --- MONTAGEM DO CARD ---
         const imgUrl = p.images && p.images.length > 0 ? p.images[0] : 'https://placehold.co/400?text=Sem+Foto';
 
+        // Exibição de Preço
         const priceDisplay = p.promoPrice ?
             `<div class="flex flex-col">
                 <span class="text-gray-500 line-through text-xs">${formatCurrency(p.price)}</span>
@@ -904,21 +904,19 @@ function renderCatalog(products) {
                 <span class="text-white font-bold text-lg">${formatCurrency(p.price)}</span>
              </div>`;
 
-        // Se estiver esgotado, diminui a opacidade da imagem
-        const imgOpacity = isOut ? 'opacity-50 grayscale' : '';
-
         const card = document.createElement('div');
-        card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative cursor-pointer";
+        card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative";
         card.onclick = () => openProductModal(p.id);
 
         card.innerHTML = `
             <div class="relative w-full aspect-[4/5] bg-gray-900 overflow-hidden">
-                <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${imgOpacity}">
-                ${isOut ? `<div class="absolute inset-0 flex items-center justify-center z-10"><span class="bg-red-600 text-white font-bold px-4 py-1 rounded shadow-lg transform -rotate-6 text-sm uppercase tracking-wide">Esgotado</span></div>` : ''}
+                <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                ${isOut ? `<div class="absolute inset-0 bg-black/70 flex items-center justify-center z-10"><span class="text-red-500 font-bold border-2 border-red-500 px-2 py-1 transform -rotate-12">ESGOTADO</span></div>` : ''}
             </div>
 
             <div class="p-3 flex flex-col flex-1">
                 <h3 class="text-white font-bold text-sm leading-tight line-clamp-2 mb-1">${p.name}</h3>
+                <p class="text-gray-500 text-xs line-clamp-2 mb-2">${p.description || ''}</p>
                 
                 <div class="mt-auto pt-2 border-t border-gray-800">
                     ${priceDisplay}
@@ -931,20 +929,14 @@ function renderCatalog(products) {
     });
 }
 
-
-// =======================================================================================================================// =======================================================================================================================
-//LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
 function renderCategories() {
-    // Se não tiver o container da sidebar, para.
-    if (!els.sidebarCategories) return;
-
     const catNames = state.categories.map(c => c.name);
 
-    // 1. Preenche Selects (Filtros)
+    // 1. Preenche Selects (Filtros e Formulário)
     const populateSelect = (selectEl) => {
         if (!selectEl) return;
         const currentVal = selectEl.value;
-        selectEl.innerHTML = '<option value="">Todas as Categorias</option>';
+        selectEl.innerHTML = '<option value="">Selecione / Todas</option>';
         catNames.forEach(c => {
             selectEl.innerHTML += `<option value="${c}">${c}</option>`;
         });
@@ -955,299 +947,114 @@ function renderCategories() {
     populateSelect(els.adminFilterCat);
     populateSelect(els.bulkCategorySelect);
     populateSelect(getEl('prod-cat-select'));
-    // Se existir o select da barra de ação nova, preenche também
-    const bulkDynamic = document.getElementById('bulk-category-select-dynamic');
-    if (bulkDynamic) populateSelect(bulkDynamic);
 
-    // 2. Monta a Árvore
-    const tree = {};
-    catNames.forEach(name => {
-        const parts = name.split(' - ');
-        let currentLevel = tree;
-        parts.forEach((part, index) => {
-            if (!currentLevel[part]) {
-                const fullPath = parts.slice(0, index + 1).join(' - ');
-                currentLevel[part] = { _path: fullPath, _children: {} };
-            }
-            currentLevel = currentLevel[part]._children;
+    // 2. Sidebar Hierárquica (Menu Lateral)
+    if (els.sidebarCategories) {
+        const tree = {};
+
+        // Monta a árvore de categorias
+        catNames.forEach(name => {
+            const parts = name.split(' - ');
+            let currentLevel = tree;
+            parts.forEach((part, index) => {
+                if (!currentLevel[part]) {
+                    const fullPath = parts.slice(0, index + 1).join(' - ');
+                    currentLevel[part] = { _path: fullPath, _children: {} };
+                }
+                currentLevel = currentLevel[part]._children;
+            });
         });
-    });
 
-    // Função Recursiva HTML
-    const buildHtml = (node, level = 0) => {
-        let html = '';
-        const keys = Object.keys(node).sort();
+        // Função recursiva para gerar HTML
+        const buildHtml = (node, level = 0) => {
+            let html = '';
+            const keys = Object.keys(node).sort();
 
-        keys.forEach(key => {
-            const item = node[key];
-            const hasChildren = Object.keys(item._children).length > 0;
-            // Escapa aspas
-            const safePath = item._path.replace(/'/g, "\\'");
+            keys.forEach(key => {
+                const item = node[key];
+                const hasChildren = Object.keys(item._children).length > 0;
+                const indent = level * 10;
+                // Escapa aspas simples para não quebrar o onclick
+                const safePath = item._path.replace(/'/g, "\\'");
 
-            // Cálculo de recuo (Padding)
-            // Se for nível 0, padding menor. Se for filho, aumenta.
-            const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
+                const textStyle = level === 0
+                    ? 'font-bold text-yellow-500 text-sm uppercase'
+                    : 'text-gray-400 text-sm hover:text-white';
 
-            // Estilos de Texto
-            const textStyle = level === 0
-                ? "text-yellow-500 font-bold uppercase tracking-wide text-sm"
-                : "text-gray-300 font-medium text-sm hover:text-white";
+                if (hasChildren) {
+                    html += `
+                        <details class="group mb-1">
+                            <summary class="list-none flex items-center cursor-pointer p-1 rounded hover:bg-gray-800 transition" style="margin-left:${indent}px">
+                                <span class="transition-transform duration-300 group-open:rotate-90 text-gray-500 mr-2 text-xs">▶</span>
+                                
+                                <span class="${textStyle}" onclick="event.preventDefault(); filterByCat('${safePath}')">
+                                    ${key}
+                                </span>
+                            </summary>
+                            <div class="border-l border-gray-800 ml-2">
+                                ${buildHtml(item._children, level + 1)}
+                            </div>
+                        </details>
+                    `;
+                } else {
+                    html += `
+                        <button class="w-full text-left py-1 p-1 mb-1 rounded hover:bg-gray-800 transition ${textStyle}" 
+                                style="margin-left:${indent + (level > 0 ? 12 : 0)}px"
+                                onclick="filterByCat('${safePath}')">
+                            ${level > 0 ? '↳ ' : ''}${key}
+                        </button>
+                    `;
+                }
+            });
+            return html;
+        };
 
-            // Se tiver filhos, usa <details> para o accordion
-            if (hasChildren) {
-                html += `
-                    <details class="group mb-1">
-                        <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
-                            <span class="${textStyle} flex-1" 
-                                  style="padding-left:${paddingLeft}px"
-                                  onclick="event.preventDefault(); filterByCat('${safePath}')">
-                                ${key}
-                            </span>
-                            
-                            <span class="text-gray-500 text-[10px] transform transition-transform duration-200 group-open:rotate-180 p-2">
-                                ▼
-                            </span>
-                        </summary>
-                        <div class="border-l border-gray-800 ml-4">
-                            ${buildHtml(item._children, level + 1)}
-                        </div>
-                    </details>
-                `;
-            } else {
-                // Se NÃO tiver filhos, é apenas um botão simples (sem seta)
-                html += `
-                    <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center"
-                         onclick="filterByCat('${safePath}')">
-                        <span class="${textStyle}" style="padding-left:${paddingLeft}px">
-                            ${key}
-                        </span>
-                    </div>
-                `;
-            }
-        });
-        return html;
-    };
-
-    // Renderiza SEM o botão "Ver Todos" (limpando o innerHTML antes)
-    els.sidebarCategories.innerHTML = `
-        <div class="space-y-1 mt-2">
+        els.sidebarCategories.innerHTML = `
+            <button class="w-full text-left py-2 px-2 mb-2 text-white bg-gray-800 rounded font-bold" onclick="filterByCat('')">
+                VER TODOS
+            </button>
             ${buildHtml(tree)}
-        </div>
-    `;
-}
-
-// Função Helper para selecionar o pai sem fechar o menu visualmente
-window.selectParentCategory = (id, name, event) => {
-    // Impede que o clique no nome dispare o abrir/fechar do accordion (opcional, se quiser separar as ações)
-    // Se quiser que clique no nome TAMBÉM abra, remova a linha abaixo.
-    if (event) event.preventDefault();
-
-    if (state.selectedCategoryParent === name) {
-        state.selectedCategoryParent = null;
-        if (els.newCatName) els.newCatName.placeholder = "Nome da Categoria Principal...";
-    } else {
-        state.selectedCategoryParent = name;
-        const displayName = name.split(' - ').pop();
-        if (els.newCatName) els.newCatName.placeholder = `Adicionar em: ${displayName} > ...`;
+        `;
     }
-
-    // Re-renderiza para mostrar a borda amarela de seleção
-    renderAdminCategoryList();
-};
+}
 
 function renderAdminCategoryList() {
     if (!els.catListAdmin) return;
-
-    // 1. PERSISTÊNCIA (Mantém aberto o que já estava aberto)
-    const openDetailsIds = new Set();
-    els.catListAdmin.querySelectorAll('details[open]').forEach(el => {
-        if (el.dataset.catId) openDetailsIds.add(el.dataset.catId);
-    });
-
     els.catListAdmin.innerHTML = '';
-
-    const catMap = {};
-    state.categories.forEach(c => catMap[c.name] = c.id);
-
-    // Helper de Contagem
-    const getProductCount = (catName) => {
-        if (!state.products) return 0;
-        return state.products.filter(p => {
-            if (!p.category) return false;
-            return p.category === catName || p.category.startsWith(catName + ' - ');
-        }).length;
-    };
-
-    // Monta a Árvore
-    const tree = {};
     const sortedCats = [...state.categories].sort((a, b) => a.name.localeCompare(b.name));
-
     sortedCats.forEach(c => {
-        const parts = c.name.split(' - ');
-        let currentLevel = tree;
-        parts.forEach((part, index) => {
-            if (!currentLevel[part]) {
-                const fullPath = parts.slice(0, index + 1).join(' - ');
-                currentLevel[part] = { _path: fullPath, _children: {} };
-            }
-            currentLevel = currentLevel[part]._children;
-        });
-    });
-
-    // Renderização
-    const buildHtml = (node, level = 0) => {
-        let html = '';
-        const keys = Object.keys(node).sort();
-
-        keys.forEach(key => {
-            const item = node[key];
-            const childrenKeys = Object.keys(item._children);
-            const hasChildren = childrenKeys.length > 0;
-            const fullPath = item._path;
-            const id = catMap[fullPath];
-
-            // --- CONTAGENS ---
-            const prodCount = getProductCount(fullPath);
-            const subCatCount = childrenKeys.length;
-
-            let statsText = `${prodCount} produto(s)`;
-            if (subCatCount > 0) {
-                statsText += ` • ${subCatCount} subcategoria(s)`;
-            }
-
-            const isMain = level === 0;
-            const isSelected = state.selectedCategoryParent === fullPath;
-            const selectBorder = isSelected ? 'border-yellow-500' : 'border-gray-700';
-            const isOpenAttr = openDetailsIds.has(id) ? 'open' : '';
-
-            const bgClass = isMain
-                ? 'bg-[#1f2937] mb-2'
-                : 'bg-black/30 mt-1 ml-4 border-l-2 border-gray-700';
-
-            const rowContent = `
-                <div class="flex items-center justify-between p-3 rounded hover:bg-white/5 transition cursor-pointer group min-h-[60px]">
-                    
-                    <div class="flex flex-col justify-center flex-1" 
-                         onclick="selectParentCategory('${id}', '${fullPath}', event)">
-                        
-                        <span class="${isMain ? 'text-white font-bold text-sm' : 'text-gray-300 text-sm'} ${isSelected ? 'text-yellow-500' : ''}">
-                            ${key}
-                        </span>
-                        
-                        <span class="text-xs text-gray-400 font-bold mt-1 flex items-center gap-1">
-                            ${statsText}
-                        </span>
-                    </div>
-
-                    <div class="flex items-center gap-3">
-                        ${hasChildren ?
-                    `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
-                                <span class="text-gray-300 text-xs group-open:text-yellow-500">▼</span>
-                             </div>`
-                    : ''}
-
-                        <div class="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity pl-2 border-l border-gray-700">
-                            <button type="button" 
-                                    onclick="event.stopPropagation(); renameCategory('${id}', '${fullPath}')" 
-                                    class="w-8 h-8 rounded-full bg-blue-900/30 text-blue-400 hover:bg-blue-600 hover:text-white flex items-center justify-center transition"
-                                    title="Editar Nome">
-                                <i class="fas fa-pen text-xs"></i>
-                            </button>
-
-                            <button type="button" 
-                                    onclick="event.stopPropagation(); deleteCategory('${id}', '${fullPath}')" 
-                                    class="w-8 h-8 rounded-full bg-red-900/30 text-red-400 hover:bg-red-600 hover:text-white flex items-center justify-center transition"
-                                    title="Excluir Categoria">
-                                <i class="fas fa-trash-alt text-xs"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            if (hasChildren) {
-                html += `
-                    <details class="rounded border ${selectBorder} ${bgClass} overflow-hidden group transition-all duration-300" ${isOpenAttr} data-cat-id="${id}">
-                        <summary class="list-none select-none outline-none">
-                            ${rowContent}
-                        </summary>
-                        <div class="pb-2 pr-2 border-t border-gray-700/50 animate-fade-in">
-                            ${buildHtml(item._children, level + 1)}
-                        </div>
-                    </details>
-                `;
+        const isSelected = state.selectedCategoryParent === c.name;
+        const level = (c.name.match(/-/g) || []).length;
+        const displayName = c.name.split('-').pop().trim();
+        const bgClass = isSelected ? 'bg-gray-700 border-yellow-500' : 'bg-gray-800 border-gray-700';
+        const indent = level * 20;
+        const item = document.createElement('div');
+        item.className = `${bgClass} flex justify-between items-center p-3 rounded mb-1 border cursor-pointer hover:bg-gray-700 transition select-none`;
+        item.style.marginLeft = `${indent}px`;
+        item.innerHTML = `
+            <div class="flex items-center">
+                ${level > 0 ? '<i class="fas fa-level-up-alt rotate-90 mr-2 text-gray-500 text-xs"></i>' : ''}
+                <span class="font-bold text-white text-sm">${displayName}</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="event.stopPropagation(); deleteCategory('${c.id}', '${c.name}')" class="w-8 h-8 flex items-center justify-center bg-red-600 hover:bg-red-700 rounded text-white transition">
+                    <i class="fas fa-trash-alt text-xs"></i>
+                </button>
+            </div>
+        `;
+        item.onclick = () => {
+            if (state.selectedCategoryParent === c.name) {
+                state.selectedCategoryParent = null;
+                els.newCatName.placeholder = "Nome da Categoria Principal...";
             } else {
-                html += `
-                    <div class="rounded border ${selectBorder} ${bgClass}">
-                        ${rowContent}
-                    </div>
-                `;
+                state.selectedCategoryParent = c.name;
+                els.newCatName.placeholder = `Adicionar em: ${displayName} > ...`;
             }
-        });
-        return html;
-    };
-
-    els.catListAdmin.innerHTML = buildHtml(tree);
+            renderAdminCategoryList();
+        };
+        els.catListAdmin.appendChild(item);
+    });
 }
-
-window.renameCategory = async (id, oldFullName) => {
-    const newNameShort = prompt("Novo nome para a categoria:", oldFullName.split(' - ').pop());
-
-    if (!newNameShort || newNameShort.trim() === "") return;
-
-    // Reconstrói o nome completo mantendo o pai (se houver)
-    const parts = oldFullName.split(' - ');
-    parts.pop(); // Remove o nome antigo
-    parts.push(newNameShort.trim()); // Adiciona o novo
-    const newFullName = parts.join(' - ');
-
-    if (newFullName === oldFullName) return;
-
-    if (!confirm(`Renomear "${oldFullName}" para "${newFullName}"?\nIsso atualizará produtos e subcategorias vinculados.`)) return;
-
-    try {
-        // 1. Atualiza a Categoria em si
-        await updateDoc(doc(db, `sites/${state.siteId}/categories`, id), { name: newFullName });
-
-        // 2. ATUALIZAÇÃO EM CASCATA (Cascading Update)
-        // Precisamos encontrar produtos e subcategorias que dependem desse nome
-
-        // A. Produtos
-        const productsToUpdate = state.products.filter(p => p.category === oldFullName || p.category.startsWith(oldFullName + ' - '));
-
-        // B. Subcategorias (ex: se mudei "Roupas", tenho que mudar "Roupas - Calças")
-        const catsToUpdate = state.categories.filter(c => c.id !== id && c.name.startsWith(oldFullName + ' - '));
-
-        const batchPromises = [];
-
-        // Atualiza Produtos
-        productsToUpdate.forEach(p => {
-            const newCatName = p.category.replace(oldFullName, newFullName);
-            batchPromises.push(updateDoc(doc(db, `sites/${state.siteId}/products`, p.id), { category: newCatName }));
-        });
-
-        // Atualiza Subcategorias
-        catsToUpdate.forEach(c => {
-            const newCatName = c.name.replace(oldFullName, newFullName);
-            batchPromises.push(updateDoc(doc(db, `sites/${state.siteId}/categories`, c.id), { name: newCatName }));
-        });
-
-        await Promise.all(batchPromises);
-
-        showToast(`Categoria renomeada! (${batchPromises.length} vínculos atualizados)`);
-
-        // Limpa seleção se estava nela
-        if (state.selectedCategoryParent === oldFullName) {
-            state.selectedCategoryParent = null;
-        }
-
-    } catch (error) {
-        console.error("Erro ao renomear:", error);
-        alert("Erro ao renomear: " + error.message);
-    }
-};
-//LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
-// =======================================================================================================================// =======================================================================================================================
 
 // =================================================================
 // NOVA LÓGICA DE PRODUTOS (ADMIN)
@@ -1262,7 +1069,7 @@ function filterAndRenderProducts() {
     // Precisamos saber as vendas de cada produto ANTES de ordenar
     const metricsMap = {};
     const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
-
+    
     if (state.orders) {
         state.orders.forEach(order => {
             if (validStatuses.includes(order.status)) {
@@ -1280,7 +1087,7 @@ function filterAndRenderProducts() {
 
     // 3. Ordena
     const { key, direction } = state.sortConfig;
-
+    
     filtered.sort((a, b) => {
         let valA, valB;
 
@@ -1357,10 +1164,10 @@ window.sortProducts = (key) => {
 window.toggleSelectAll = (checkbox) => {
     // Pega apenas os produtos que estão aparecendo na tela (respeita a busca/filtro)
     // Se a função getCurrentFilteredProducts não existir, usa state.products direto
-    const visibleProducts = (typeof getCurrentFilteredProducts === 'function')
-        ? getCurrentFilteredProducts()
+    const visibleProducts = (typeof getCurrentFilteredProducts === 'function') 
+        ? getCurrentFilteredProducts() 
         : state.products;
-
+    
     if (checkbox.checked) {
         // Marca todos
         visibleProducts.forEach(p => state.selectedProducts.add(p.id));
@@ -1368,7 +1175,7 @@ window.toggleSelectAll = (checkbox) => {
         // Desmarca todos (limpa o Set)
         state.selectedProducts.clear();
     }
-
+    
     // Atualiza a tela para mostrar a barra de ação
     renderProductsList(visibleProducts);
 };
@@ -1376,12 +1183,12 @@ window.toggleSelectAll = (checkbox) => {
 // --- CORREÇÃO DO BUG: CANCELAR SELEÇÃO ---
 window.toggleSelectionMode = () => {
     state.isSelectionMode = !state.isSelectionMode;
-
+    
     // Se estiver SAINDO do modo de seleção, limpa tudo IMEDIATAMENTE
     if (!state.isSelectionMode) {
         state.selectedProducts.clear();
     }
-
+    
     // Força re-renderização para sumir a barra
     filterAndRenderProducts();
 };
@@ -1390,7 +1197,7 @@ window.toggleSelectionMode = () => {
 function renderProductsList(products, preCalcMetrics = null) {
     const listEl = els.productListAdmin || getEl('admin-product-list');
     if (!listEl) return;
-
+    
     // --- CORREÇÃO: REMOVE A BARRA AMARELA ANTIGA À FORÇA ---
     const oldBar = document.getElementById('bulk-actions-bar');
     if (oldBar) {
@@ -1404,14 +1211,14 @@ function renderProductsList(products, preCalcMetrics = null) {
     // --- 1. BARRA DE CONTROLES NOVA (Azul/Escura) ---
     const controlsBar = document.createElement('div');
     controlsBar.className = "flex flex-wrap justify-between items-center mb-2 px-1 gap-2 min-h-[40px]";
-
+    
     // Botão Selecionar
-    const selectBtnText = state.isSelectionMode ?
-        '<i class="fas fa-times mr-2"></i> Cancelar' :
-        '<i class="fas fa-check-square mr-2"></i> Selecionar';
-
-    const selectBtnClass = state.isSelectionMode ?
-        "text-red-400 hover:text-red-300 text-xs font-bold uppercase cursor-pointer py-2 px-2 bg-red-900/20 rounded border border-red-900/50" :
+    const selectBtnText = state.isSelectionMode ? 
+        '<i class="fas fa-times mr-2"></i> Cancelar' : 
+        '<i class="fas fa-check-square mr-2 "></i> Selecionar';
+    
+    const selectBtnClass = state.isSelectionMode ? 
+        "text-red-400 hover:text-red-300 text-xs font-bold uppercase cursor-pointer py-2 px-2 bg-red-900/20 rounded border border-red-900/50" : 
         "text-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase cursor-pointer py-2 px-2 hover:bg-yellow-900/20 rounded transition";
 
     let bulkActionsHTML = '';
@@ -1455,12 +1262,12 @@ function renderProductsList(products, preCalcMetrics = null) {
 
     const getSortIcon = (key) => {
         if (state.sortConfig.key !== key) return '<i class="fas fa-sort text-gray-700 ml-1 opacity-30"></i>';
-        return state.sortConfig.direction === 'asc'
-            ? '<i class="fas fa-sort-up text-yellow-500 ml-1 mt-1"></i>'
+        return state.sortConfig.direction === 'asc' 
+            ? '<i class="fas fa-sort-up text-yellow-500 ml-1 mt-1"></i>' 
             : '<i class="fas fa-sort-down text-yellow-500 ml-1 -mt-1"></i>';
     };
 
-    const checkColContent = state.isSelectionMode
+    const checkColContent = state.isSelectionMode 
         ? `<input type="checkbox" onchange="toggleSelectAll(this)" ${masterCheckAttr} class="cursor-pointer rounded border-gray-600 bg-gray-800 text-yellow-500 focus:ring-0 w-4 h-4" title="Selecionar Todos">`
         : ``;
 
@@ -1498,10 +1305,10 @@ function renderProductsList(products, preCalcMetrics = null) {
             <span>Estoque / Valor</span>
         </div>
     `;
-
+    
     const scrollContainer = document.createElement('div');
     scrollContainer.className = "max-h-[65vh] overflow-y-auto overflow-x-hidden border-x border-b border-gray-800 rounded-b-xl bg-[#0f111a] custom-scrollbar relative";
-
+    
     listEl.insertAdjacentHTML('beforeend', headerHTML);
     listEl.appendChild(scrollContainer);
 
@@ -1526,13 +1333,13 @@ function renderProductsList(products, preCalcMetrics = null) {
     // --- 3. LISTA ---
     products.forEach(p => {
         const metrics = metricsMap[p.id] || { qtd: 0, lastDate: 0 };
-
+        
         let lastMovStr = "-";
         if (metrics.lastDate > 0) {
-            lastMovStr = new Date(metrics.lastDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+            lastMovStr = new Date(metrics.lastDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute:'2-digit' });
         }
 
-        let priceHtml = p.promoPrice && p.promoPrice > 0
+        let priceHtml = p.promoPrice && p.promoPrice > 0 
             ? `<div class="flex flex-col items-end"><span class="text-green-400 font-bold text-xs">${formatCurrency(p.promoPrice)}</span><span class="text-gray-600 text-[10px] line-through">${formatCurrency(p.price)}</span></div>`
             : `<span class="text-gray-200 font-bold text-xs">${formatCurrency(p.price)}</span>`;
 
@@ -1601,7 +1408,7 @@ function renderProductsList(products, preCalcMetrics = null) {
                 </div>
             </div>
         `;
-
+        
         setupSwipe(row.querySelector('.prod-swipe-content'));
         scrollContainer.appendChild(row);
     });
@@ -1764,49 +1571,34 @@ function updateDashboardMetrics() {
 function filterAndRenderSales() {
     // 1. Captura Inputs
     const searchInput = document.getElementById('filter-search-general');
-    const prodInput = document.getElementById('filter-search-product-value');
-
     if (!searchInput) return;
 
     const term = searchInput.value.toLowerCase().trim();
-    const prodTerm = prodInput ? prodInput.value.toLowerCase().trim() : ''; // Termo do produto
-
     const status = document.getElementById('filter-status').value;
     const payment = document.getElementById('filter-payment').value;
-    const sortBy = document.getElementById('filter-sort')?.value || 'date_desc';
+    const sortBy = document.getElementById('filter-sort').value;
     const dateStart = document.getElementById('filter-date-start').value;
     const dateEnd = document.getElementById('filter-date-end').value;
 
     // 2. Filtragem
     let filtered = state.orders.filter(o => {
-        // A. Busca Geral (Cliente, Código, Telefone)
-        let matchGeneral = true;
+        // Busca Texto
+        let matchSearch = true;
         if (term) {
             const code = String(o.code).toLowerCase();
             const name = (o.customer?.name || '').toLowerCase();
             const phone = (o.customer?.phone || '').toLowerCase();
-            matchGeneral = code.includes(term) || name.includes(term) || phone.includes(term);
+            matchSearch = code.includes(term) || name.includes(term) || phone.includes(term);
         }
 
-        // B. Busca por Produto (NOVO)
-        let matchProduct = true;
-        if (prodTerm) {
-            // Verifica se ALGUM item do pedido contém o nome digitado
-            if (o.items && Array.isArray(o.items)) {
-                matchProduct = o.items.some(item => item.name.toLowerCase().includes(prodTerm));
-            } else {
-                matchProduct = false;
-            }
-        }
-
-        // C. Status
+        // Status
         let matchStatus = true;
         if (status) {
             if (status === 'Cancelado_All') matchStatus = o.status.includes('Cancelado');
             else matchStatus = o.status === status;
         }
 
-        // D. Pagamento
+        // Pagamento
         let matchPayment = true;
         if (payment) {
             const method = (o.paymentMethod || '').toLowerCase();
@@ -1815,7 +1607,7 @@ function filterAndRenderSales() {
             else if (payment === 'cash') matchPayment = method.includes('dinheiro');
         }
 
-        // E. Data
+        // Data
         let matchDate = true;
         if (dateStart || dateEnd) {
             const oDate = new Date(o.date).getTime();
@@ -1829,16 +1621,24 @@ function filterAndRenderSales() {
             }
         }
 
-        return matchGeneral && matchProduct && matchStatus && matchPayment && matchDate;
+        return matchSearch && matchStatus && matchPayment && matchDate;
     });
 
-    // 3. Ordenação
+    // 3. ORDENAÇÃO (ATUALIZADA COM NÚMERO DO PEDIDO)
     filtered.sort((a, b) => {
         const dateA = new Date(a.date).getTime();
         const dateB = new Date(b.date).getTime();
-        const getPrice = (val) => typeof val === 'number' ? val : parseFloat(String(val).replace('R$', '').trim().replace(',', '.')) || 0;
+
+        // Trata Preço
+        const getPrice = (val) => {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            return parseFloat(String(val).replace('R$', '').trim().replace(',', '.')) || 0;
+        };
         const priceA = getPrice(a.total);
         const priceB = getPrice(b.total);
+
+        // Trata Número do Pedido (Código)
         const codeA = parseInt(a.code) || 0;
         const codeB = parseInt(b.code) || 0;
 
@@ -1846,17 +1646,23 @@ function filterAndRenderSales() {
             case 'price_asc': return priceA - priceB;
             case 'price_desc': return priceB - priceA;
             case 'date_asc': return dateA - dateB;
-            case 'code_asc': return codeA - codeB;
-            case 'code_desc': return codeB - codeA;
+
+            // Lógica nova para o Código
+            case 'code_asc': return codeA - codeB; // 1, 2, 3...
+            case 'code_desc': return codeB - codeA; // 99, 98, 97...
+
             case 'date_desc':
             default: return dateB - dateA;
         }
     });
 
-    // 4. Renderiza
+    // 4. Renderiza a Lista
     renderSalesList(filtered);
+
+    // 5. Renderiza o Resumo (NOVO)
     renderOrdersSummary(filtered, status);
 
+    // Atualiza contador simples se existir
     const countEl = document.getElementById('orders-count');
     if (countEl) countEl.innerText = filtered.length;
 }
@@ -2068,13 +1874,8 @@ function setupEventListeners() {
     if (els.catFilter) els.catFilter.addEventListener('change', (e) => { const cat = e.target.value; if (!cat) return renderCatalog(state.products); const filtered = state.products.filter(p => p.category === cat || p.category.startsWith(cat + ' -')); renderCatalog(filtered); });
 
     // --- FILTROS DE VENDAS (ATUALIZADO) ---
-    // 1. Ativa o Acordeão de Filtros
-    setupAccordion('btn-acc-sales-filters', 'content-acc-sales-filters', 'arrow-acc-sales-filters');
-
-    // 2. Listeners dos inputs
     const idsFiltros = [
         'filter-search-general',
-        'filter-search-product', // <--- ADICIONEI O NOVO INPUT AQUI
         'filter-status',
         'filter-payment',
         'filter-sort',
@@ -2085,23 +1886,26 @@ function setupEventListeners() {
     idsFiltros.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
+            // Usa 'input' para busca (tempo real) e 'change' para selects/datas
             const eventType = id.includes('search') ? 'input' : 'change';
             el.addEventListener(eventType, filterAndRenderSales);
         }
     });
 
-    // 3. Botão Limpar Filtros
+    // Botão Limpar
     const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
+            // Limpa todos os campos
             idsFiltros.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
-            // Reset do select de ordenação se existir
+            // Reseta ordenação para o padrão
             const sort = document.getElementById('filter-sort');
             if (sort) sort.value = 'date_desc';
 
+            // Recarrega a lista
             filterAndRenderSales();
         };
     }
@@ -2129,115 +1933,6 @@ function setupEventListeners() {
     if (els.statsViewDay) els.statsViewDay.onclick = () => { state.statsViewMode = 'day'; updateStatsUI(); };
     if (els.statsViewMonth) els.statsViewMonth.onclick = () => { state.statsViewMode = 'month'; updateStatsUI(); };
 
-    //=====================================================================================================//=====================================================================================================
-    // --- LÓGICA DO SELETOR DE PRODUTOS nos filtro da ABA VENDAS - INICIO ---
-
-    window.openProductSelectorModal = () => {
-        const modal = document.getElementById('modal-product-selector');
-        if (modal) {
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-
-            // Limpa a busca interna e foca
-            const input = document.getElementById('selector-internal-search');
-            if (input) {
-                input.value = '';
-                input.focus();
-            }
-
-            // Renderiza a lista completa
-            renderProductSelectorList('');
-        }
-    };
-
-    window.closeProductSelectorModal = () => {
-        const modal = document.getElementById('modal-product-selector');
-        if (modal) {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        }
-    };
-
-    window.renderProductSelectorList = (term = '') => {
-        const container = document.getElementById('product-selector-list');
-        if (!container) return;
-
-        container.innerHTML = '';
-        const cleanTerm = term.toLowerCase().trim();
-
-        // Filtra produtos pelo termo (Nome ou Código)
-        const filtered = state.products.filter(p => {
-            const name = p.name.toLowerCase();
-            const code = p.code ? String(p.code).toLowerCase() : '';
-            return name.includes(cleanTerm) || code.includes(cleanTerm);
-        });
-
-        if (filtered.length === 0) {
-            container.innerHTML = '<p class="text-gray-500 text-center py-4 text-sm">Nenhum produto encontrado.</p>';
-            return;
-        }
-
-        filtered.forEach(p => {
-            const codeStr = p.code ? `#${p.code}` : '-';
-
-            const item = document.createElement('div');
-            item.className = "flex items-center justify-between p-3 rounded-lg hover:bg-gray-800 cursor-pointer border border-transparent hover:border-gray-700 transition mb-1 group";
-
-            item.onclick = () => confirmProductSelection(p.name, p.code);
-
-            item.innerHTML = `
-            <div class="flex items-center gap-3">
-                <span class="text-yellow-500 font-mono font-bold text-xs bg-yellow-900/20 px-2 py-1 rounded">${codeStr}</span>
-                <span class="text-gray-300 font-medium text-sm group-hover:text-white transition">${p.name}</span>
-            </div>
-            <i class="fas fa-chevron-right text-gray-600 text-xs opacity-0 group-hover:opacity-100 transition"></i>
-        `;
-            container.appendChild(item);
-        });
-    };
-
-    window.confirmProductSelection = (name, code) => {
-        // 1. Atualiza o Input Oculto (Valor real)
-        const inputHidden = document.getElementById('filter-search-product-value');
-        if (inputHidden) inputHidden.value = name; // Vamos buscar pelo NOME exato
-
-        // 2. Atualiza o Visual
-        const display = document.getElementById('selected-product-display');
-        const btnClear = document.getElementById('btn-clear-prod-selection');
-
-        if (display) {
-            display.innerText = name;
-            display.classList.add('text-white', 'font-bold');
-            display.classList.remove('text-gray-400');
-        }
-        if (btnClear) btnClear.classList.remove('hidden');
-
-        // 3. Fecha Modal e Dispara Filtro
-        closeProductSelectorModal();
-        filterAndRenderSales();
-    };
-
-    window.clearProductFilter = () => {
-        // Limpa valor oculto
-        const inputHidden = document.getElementById('filter-search-product-value');
-        if (inputHidden) inputHidden.value = '';
-
-        // Reseta visual
-        const display = document.getElementById('selected-product-display');
-        const btnClear = document.getElementById('btn-clear-prod-selection');
-
-        if (display) {
-            display.innerText = "Selecionar produto...";
-            display.classList.remove('text-white', 'font-bold');
-            display.classList.add('text-gray-400');
-        }
-        if (btnClear) btnClear.classList.add('hidden');
-
-        // Dispara Filtro
-        filterAndRenderSales();
-    };
-    // --- LÓGICA DO SELETOR DE PRODUTOS nos filtro da ABA VENDAS - FIM ---
-    //=====================================================================================================//=====================================================================================================
 
     // Carrinho
     // Carrinho Desktop
@@ -2264,25 +1959,7 @@ function setupEventListeners() {
     const btnCloseSide = getEl('close-sidebar'); if (btnCloseSide) btnCloseSide.onclick = window.toggleSidebar;
     if (els.sidebarOverlay) els.sidebarOverlay.onclick = window.toggleSidebar;
     if (els.themeToggle) els.themeToggle.onclick = () => { toggleTheme(true); };
-    if (els.menuLinkHome) {
-        els.menuLinkHome.onclick = (e) => {
-            if (e) e.preventDefault(); // Evita recarregar a página se for um <a>
-
-            // 1. Garante que a visualização é o catálogo (e não o admin)
-            showView('catalog');
-
-            // 2. O PULO DO GATO: Chama o filtro vazio para mostrar TODOS os produtos
-            filterByCat('');
-
-            // 3. Fecha a sidebar no mobile se estiver aberta
-            if (window.innerWidth < 1024) {
-                const sidebar = getEl('sidebar');
-                const overlay = getEl('sidebar-overlay');
-                if (sidebar) sidebar.classList.add('-translate-x-full');
-                if (overlay) overlay.classList.add('hidden');
-            }
-        };
-    }
+    if (els.menuLinkHome) els.menuLinkHome.onclick = () => { showView('catalog'); window.toggleSidebar(); };
     if (els.menuBtnAdmin) els.menuBtnAdmin.onclick = () => { window.toggleSidebar(); if (state.user) { showView('admin'); } else { getEl('login-modal').showModal(); } };
 
     const btnCat = getEl('btn-toggle-categories'); const containerCat = getEl('sidebar-categories-container'); const iconArrow = getEl('icon-cat-arrow');
@@ -2905,17 +2582,17 @@ function setupKeyboardListeners() {
 
 function setupSwipe(element) {
     if (!element) return;
-
+    
     let startX = 0;
     let currentX = 0;
     let isSwiping = false;
     // Limite para considerar que abriu (largura do botão vermelho)
-    const SWIPE_THRESHOLD = -80;
+    const SWIPE_THRESHOLD = -80; 
 
     element.addEventListener('touchstart', (e) => {
         // Se estiver em modo de seleção, desativa o swipe para não atrapalhar o checkbox
         if (state.isSelectionMode) return;
-
+        
         startX = e.touches[0].clientX;
         isSwiping = true;
         element.style.transition = 'none'; // Remove transição para arrastar em tempo real
@@ -2936,13 +2613,13 @@ function setupSwipe(element) {
         if (!isSwiping) return;
         isSwiping = false;
         element.style.transition = 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)'; // Animação suave na soltura
-
+        
         const diff = currentX - startX;
 
         // Se arrastou o suficiente, trava aberto
         if (diff < SWIPE_THRESHOLD) {
             element.style.transform = `translateX(-100px)`;
-
+            
             // Fecha automaticamente após 3 segundos se não clicar
             setTimeout(() => {
                 element.style.transform = `translateX(0)`;
@@ -2993,126 +2670,90 @@ window.openProductModal = (productId) => {
     const p = state.products.find(x => x.id === productId);
     if (!p) return;
 
+    // Salva o ID no estado para o carrossel usar
     state.focusedProductId = productId;
-    state.currentImgIndex = 0;
+    state.currentImgIndex = 0; // Reseta para a primeira foto
 
     const modal = getEl('product-modal');
     const backdrop = getEl('modal-backdrop');
     const card = getEl('modal-card');
-    
-    if (!modal || !card) return;
+    if (!modal) return;
 
-    // 1. CONFIGURAÇÃO DO CARD
-    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0";
-
-    // 2. IMAGENS
+    // PREPARAÇÃO DAS IMAGENS
+    // Garante que images seja um array (mesmo se for produto antigo)
     let images = p.images || [];
-    if (images.length === 0) images = ['https://placehold.co/600'];
+    if (images.length === 0) images = ['https://placehold.co/600']; // Fallback
 
+    // Configura botões do carrossel
     const btnPrev = getEl('btn-prev-img');
     const btnNext = getEl('btn-next-img');
 
     if (images.length > 1) {
-        if(btnPrev) btnPrev.classList.remove('hidden');
-        if(btnNext) btnNext.classList.remove('hidden');
+        btnPrev.classList.remove('hidden');
+        btnNext.classList.remove('hidden');
     } else {
-        if(btnPrev) btnPrev.classList.add('hidden');
-        if(btnNext) btnNext.classList.add('hidden');
+        btnPrev.classList.add('hidden');
+        btnNext.classList.add('hidden');
     }
+
+    // Renderiza a primeira imagem e as miniaturas
     updateCarouselUI(images);
-    
-    // 3. TEXTOS
-    if(getEl('modal-title')) getEl('modal-title').innerText = p.name;
-    if(getEl('modal-desc')) getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
-    
+
+    // Preenche textos
+    getEl('modal-title').innerText = p.name;
+    getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
     const price = p.promoPrice || p.price;
-    if(getEl('modal-price')) getEl('modal-price').innerHTML = formatCurrency(price);
+    getEl('modal-price').innerHTML = formatCurrency(price);
 
-    // 4. ESTRUTURA E SCROLL (Coluna Direita)
-    const rightCol = card.children[2]; // Ajuste conforme seu HTML (0=Close, 1=ImgContainer, 2=RightCol)
-    
-    if (rightCol) {
-        // Garante que a coluna ocupe a altura correta e esconda o excesso
-        rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-hidden";
+    // ... (O RESTO DO CÓDIGO DA FUNÇÃO MANTÉM IGUAL: Sizes, Botão Add Cart, etc.) ...
 
-        // A. Header (Título/Preço) - Reduzi o padding de p-6 para p-5
-        if(rightCol.children[0]) {
-            rightCol.children[0].className = "p-5 border-b border-gray-800 pb-3 shrink-0";
-        }
-
-        // B. Miolo (Scroll)
-        if (rightCol.children[1]) {
-            const scrollContent = rightCol.children[1];
-            // min-h-0 é vital para o scroll funcionar dentro do flex
-            scrollContent.className = "p-5 overflow-y-auto flex-1 space-y-4 no-scrollbar min-h-0";
-        }
-    }
-
-    // 5. TAMANHOS
+    // Parte dos tamanhos (Copie do seu código anterior ou mantenha o que estava lá)
     const sizesDiv = getEl('modal-sizes');
     const sizesWrapper = getEl('modal-sizes-wrapper');
+    sizesDiv.innerHTML = '';
     let selectedSizeInModal = 'U';
-    
-    if (sizesDiv) {
-        sizesDiv.innerHTML = '';
-        if (p.sizes && p.sizes.length > 0) {
-            if (sizesWrapper) sizesWrapper.classList.remove('hidden');
-            selectedSizeInModal = p.sizes[0];
-            
-            p.sizes.forEach(s => {
-                const btn = document.createElement('button');
-                btn.className = `w-10 h-10 rounded border font-bold transition flex items-center justify-center text-sm ${s === selectedSizeInModal ? 'bg-yellow-500 text-black border-yellow-500' : 'border-gray-600 text-gray-300 hover:border-yellow-500 hover:text-yellow-500'}`;
-                btn.innerText = s;
-                btn.onclick = () => {
-                    selectedSizeInModal = s;
-                    Array.from(sizesDiv.children).forEach(b => {
-                        if (b.innerText === s) {
-                            b.className = "w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm";
-                        } else {
-                            b.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
-                        }
-                    });
-                };
-                sizesDiv.appendChild(btn);
-            });
-        } else {
-            if (sizesWrapper) sizesWrapper.classList.add('hidden');
-        }
+    if (p.sizes && p.sizes.length > 0) {
+        if (sizesWrapper) sizesWrapper.classList.remove('hidden');
+        selectedSizeInModal = p.sizes[0];
+        p.sizes.forEach(s => {
+            const btn = document.createElement('button');
+            btn.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center";
+            btn.innerText = s;
+            if (s === selectedSizeInModal) btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
+            btn.onclick = () => {
+                selectedSizeInModal = s;
+                document.querySelectorAll('#modal-sizes button').forEach(b => b.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center");
+                btn.classList.remove('text-gray-300', 'border-gray-600');
+                btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
+            };
+            sizesDiv.appendChild(btn);
+        });
+    } else {
+        if (sizesWrapper) sizesWrapper.classList.add('hidden');
     }
 
-    // 6. BOTÃO (Compacto)
+    // Configura Botão Adicionar (Mantém igual)
     const btnAdd = getEl('modal-add-cart');
-    if (btnAdd) {
-        // Reduz o padding do CONTAINER do botão para ganhar espaço (p-4 em vez de p-6 ou p-8)
-        if (btnAdd.parentElement) {
-            btnAdd.parentElement.className = "p-4 border-t border-gray-800 bg-gray-900 z-10 shrink-0";
-        }
+    const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
+    const isOut = p.stock <= 0 && !allowNegative;
 
-        const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-        const isOut = p.stock <= 0 && !allowNegative;
-
-        if (isOut) {
-            btnAdd.disabled = true;
-            btnAdd.innerHTML = "<span>ESGOTADO</span>";
-            // Botão menor (py-3, text-sm)
-            btnAdd.className = "w-full bg-gray-700 text-gray-500 font-bold text-sm py-3 rounded-xl cursor-not-allowed uppercase tracking-wide flex items-center justify-center";
-        } else {
-            btnAdd.disabled = false;
-            btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i><span>ADICIONAR</span>`;
-            // Botão menor (py-3, text-sm) e padding vertical reduzido
-            btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-3 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide";
-            btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
-        }
+    if (isOut) {
+        btnAdd.disabled = true;
+        btnAdd.innerHTML = "ESGOTADO";
+        btnAdd.className = "w-full bg-gray-700 text-gray-500 font-bold text-lg py-4 rounded-xl cursor-not-allowed";
+    } else {
+        btnAdd.disabled = false;
+        btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i> ADICIONAR AO CARRINHO`;
+        btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center";
+        btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
     }
 
-    // 7. EXIBIÇÃO
+    // Exibe o modal
     modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    
     setTimeout(() => {
         backdrop.classList.remove('opacity-0');
         card.classList.remove('opacity-0', 'scale-95');
-        card.classList.add('opacity-100', 'scale-100');
+        card.classList.add('scale-100');
     }, 10);
 };
 
@@ -3493,49 +3134,42 @@ window.deleteCoupon = async (id) => {
     }
 };
 
-window.filterByCat = (catName) => {
-    // 1. Atualiza Título e Select Visual
-    if (els.pageTitle) els.pageTitle.innerText = catName ? catName : 'Vitrine';
-    if (els.catFilter) els.catFilter.value = catName;
-
-    // 2. Lógica de Filtragem (Hierárquica)
-    // Se não tiver categoria (clicou em "Todos"), mostra tudo.
-    if (!catName) {
-        renderCatalog(state.products);
-    } else {
-        const term = catName.toLowerCase();
-
-        const filtered = state.products.filter(p => {
-            if (!p.category) return false;
-            const prodCat = p.category.toLowerCase();
-
-            // CASO 1: É a categoria exata (Ex: clicou em "Camisas", produto é "Camisas")
-            const isExact = prodCat === term;
-
-            // CASO 2: É uma categoria Pai (Ex: clicou em "Roupas", produto é "Roupas - Camisas")
-            // O " - " garante que "Camisa" não pegue "Camisete" por engano, apenas subníveis reais.
-            const isParent = prodCat.startsWith(term + ' -');
-
-            return isExact || isParent;
-        });
-
-        renderCatalog(filtered);
+window.filterByCat = (cat) => {
+    // 1. Atualiza o Título da Página
+    if (els.pageTitle) {
+        // Se tem categoria, mostra o nome dela. Se não, volta para 'Vitrine'
+        els.pageTitle.innerText = cat ? cat : 'Vitrine';
     }
 
-    // 3. Rola para o topo da grade
-    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // 2. Sincroniza o Select visualmente
+    if (els.catFilter) els.catFilter.value = cat;
 
-    // 4. FECHA O MENU LATERAL (MOBILE)
-    // Verifica se estamos no celular e se o menu está aberto
-    if (window.innerWidth < 1024) { // 1024px é o padrão lg do Tailwind, ou use 768 para md
-        const sidebar = getEl('sidebar');
-        const overlay = getEl('sidebar-overlay');
+    // 3. Se vazio, recarrega todos
+    if (!cat) return renderCatalog(state.products);
 
-        if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
-            sidebar.classList.add('-translate-x-full'); // Fecha sidebar
-            if (overlay) overlay.classList.add('hidden'); // Esconde fundo escuro
+    // 4. Normaliza para evitar erro de maiúsculas/minúsculas
+    const term = cat.toLowerCase();
+
+    // 5. Filtra os produtos
+    const filtered = state.products.filter(p => {
+        if (!p.category) return false;
+        const prodCat = p.category.toLowerCase();
+
+        // Aceita categoria EXATA ou SUBCATEGORIA (Ex: "Roupas" mostra "Roupas - Camisetas")
+        return prodCat === term || prodCat.startsWith(term + ' -');
+    });
+
+    renderCatalog(filtered);
+
+    // 6. Fecha sidebar no mobile
+    if (window.innerWidth < 768) {
+        if (els.sidebar && !els.sidebar.classList.contains('-translate-x-full')) {
+            window.toggleSidebar();
         }
     }
+
+    // 7. Rola para o topo
+    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 window.toggleSidebar = () => {
@@ -3550,7 +3184,7 @@ window.toggleProductSelection = (id) => {
     } else {
         state.selectedProducts.add(id);
     }
-
+    
     // Como você excluiu o updateBulkActionBar, chamamos a renderização geral
     // Isso vai fazer a barra aparecer/sumir automaticamente
     filterAndRenderProducts();

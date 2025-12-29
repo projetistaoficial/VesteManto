@@ -853,26 +853,14 @@ function renderCatalog(products) {
     if (!els.grid) return;
     els.grid.innerHTML = '';
 
-    // --- ORDENAÇÃO: Esgotados vão para o final ---
-    // Cria uma cópia para não bagunçar o estado original
-    const sortedProducts = [...products].sort((a, b) => {
-        // Define o que é "Esgotado" (Estoque <= 0 E não permite venda negativa)
-        const isSoldOutA = a.stock <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
-        const isSoldOutB = b.stock <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
-
-        if (isSoldOutA && !isSoldOutB) return 1; // A é esgotado, vai pro fim
-        if (!isSoldOutA && isSoldOutB) return -1; // B é esgotado, vai pro fim
-        return 0; // Mantém a ordem atual (alfabética ou filtro)
-    });
-
     // Pega configuração global de parcelamento
     const globalInst = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3 };
 
-    sortedProducts.forEach(p => {
+    products.forEach(p => {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
         const isOut = p.stock <= 0 && !allowNegative;
 
-        // --- LÓGICA DO PIX ---
+        // --- LÓGICA DO PIX (Específica do Produto) ---
         let pixHtml = '';
         if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
             const pix = p.paymentOptions.pix;
@@ -880,21 +868,34 @@ function renderCatalog(products) {
             pixHtml = `<p class="text-green-500 text-xs font-bold mt-1">${valDisplay} OFF no Pix</p>`;
         }
 
-        // --- LÓGICA DO PARCELAMENTO ---
+        // --- LÓGICA DO PARCELAMENTO (Global) ---
         let installmentHtml = '';
         if (globalInst.active) {
             const price = p.promoPrice || p.price;
+            // Se "freeUntil" for maior que 1, mostra a opção "X vezes sem juros"
+            // Mostramos o máximo de parcelas sem juros permitidas ou o máximo do cartão
+
+            let showInstallments = 1;
+            let label = "";
+
+            // Lógica: Mostrar a melhor condição (Maior qtd de parcelas sem juros)
+            // Se freeUntil for 3, e max for 12. Mostramos "3x sem juros" (ou calculado).
+            // Para simplificar na vitrine, mostramos até quantas vezes é sem juros.
+
             if (globalInst.freeUntil > 1) {
+                // Calcula valor da parcela sem juros
                 const parcVal = price / globalInst.freeUntil;
                 installmentHtml = `<p class="text-gray-400 text-xs mt-0.5">Ou ${globalInst.freeUntil}x de ${formatCurrency(parcVal)} sem juros</p>`;
             } else {
+                // Se tudo tem juros, mostra o máximo possível (com texto genérico ou calculado se quiser complexidade)
                 installmentHtml = `<p class="text-gray-400 text-xs mt-0.5">Em até ${globalInst.max}x no cartão</p>`;
             }
         }
 
-        // --- CARD ---
+        // --- MONTAGEM DO CARD ---
         const imgUrl = p.images && p.images.length > 0 ? p.images[0] : 'https://placehold.co/400?text=Sem+Foto';
 
+        // Exibição de Preço
         const priceDisplay = p.promoPrice ?
             `<div class="flex flex-col">
                 <span class="text-gray-500 line-through text-xs">${formatCurrency(p.price)}</span>
@@ -904,21 +905,19 @@ function renderCatalog(products) {
                 <span class="text-white font-bold text-lg">${formatCurrency(p.price)}</span>
              </div>`;
 
-        // Se estiver esgotado, diminui a opacidade da imagem
-        const imgOpacity = isOut ? 'opacity-50 grayscale' : '';
-
         const card = document.createElement('div');
-        card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative cursor-pointer";
+        card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative";
         card.onclick = () => openProductModal(p.id);
 
         card.innerHTML = `
             <div class="relative w-full aspect-[4/5] bg-gray-900 overflow-hidden">
-                <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${imgOpacity}">
-                ${isOut ? `<div class="absolute inset-0 flex items-center justify-center z-10"><span class="bg-red-600 text-white font-bold px-4 py-1 rounded shadow-lg transform -rotate-6 text-sm uppercase tracking-wide">Esgotado</span></div>` : ''}
+                <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                ${isOut ? `<div class="absolute inset-0 bg-black/70 flex items-center justify-center z-10"><span class="text-red-500 font-bold border-2 border-red-500 px-2 py-1 transform -rotate-12">ESGOTADO</span></div>` : ''}
             </div>
 
             <div class="p-3 flex flex-col flex-1">
                 <h3 class="text-white font-bold text-sm leading-tight line-clamp-2 mb-1">${p.name}</h3>
+                <p class="text-gray-500 text-xs line-clamp-2 mb-2">${p.description || ''}</p>
                 
                 <div class="mt-auto pt-2 border-t border-gray-800">
                     ${priceDisplay}
@@ -2993,126 +2992,90 @@ window.openProductModal = (productId) => {
     const p = state.products.find(x => x.id === productId);
     if (!p) return;
 
+    // Salva o ID no estado para o carrossel usar
     state.focusedProductId = productId;
-    state.currentImgIndex = 0;
+    state.currentImgIndex = 0; // Reseta para a primeira foto
 
     const modal = getEl('product-modal');
     const backdrop = getEl('modal-backdrop');
     const card = getEl('modal-card');
-    
-    if (!modal || !card) return;
+    if (!modal) return;
 
-    // 1. CONFIGURAÇÃO DO CARD
-    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0";
-
-    // 2. IMAGENS
+    // PREPARAÇÃO DAS IMAGENS
+    // Garante que images seja um array (mesmo se for produto antigo)
     let images = p.images || [];
-    if (images.length === 0) images = ['https://placehold.co/600'];
+    if (images.length === 0) images = ['https://placehold.co/600']; // Fallback
 
+    // Configura botões do carrossel
     const btnPrev = getEl('btn-prev-img');
     const btnNext = getEl('btn-next-img');
 
     if (images.length > 1) {
-        if(btnPrev) btnPrev.classList.remove('hidden');
-        if(btnNext) btnNext.classList.remove('hidden');
+        btnPrev.classList.remove('hidden');
+        btnNext.classList.remove('hidden');
     } else {
-        if(btnPrev) btnPrev.classList.add('hidden');
-        if(btnNext) btnNext.classList.add('hidden');
+        btnPrev.classList.add('hidden');
+        btnNext.classList.add('hidden');
     }
+
+    // Renderiza a primeira imagem e as miniaturas
     updateCarouselUI(images);
-    
-    // 3. TEXTOS
-    if(getEl('modal-title')) getEl('modal-title').innerText = p.name;
-    if(getEl('modal-desc')) getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
-    
+
+    // Preenche textos
+    getEl('modal-title').innerText = p.name;
+    getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
     const price = p.promoPrice || p.price;
-    if(getEl('modal-price')) getEl('modal-price').innerHTML = formatCurrency(price);
+    getEl('modal-price').innerHTML = formatCurrency(price);
 
-    // 4. ESTRUTURA E SCROLL (Coluna Direita)
-    const rightCol = card.children[2]; // Ajuste conforme seu HTML (0=Close, 1=ImgContainer, 2=RightCol)
-    
-    if (rightCol) {
-        // Garante que a coluna ocupe a altura correta e esconda o excesso
-        rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-hidden";
+    // ... (O RESTO DO CÓDIGO DA FUNÇÃO MANTÉM IGUAL: Sizes, Botão Add Cart, etc.) ...
 
-        // A. Header (Título/Preço) - Reduzi o padding de p-6 para p-5
-        if(rightCol.children[0]) {
-            rightCol.children[0].className = "p-5 border-b border-gray-800 pb-3 shrink-0";
-        }
-
-        // B. Miolo (Scroll)
-        if (rightCol.children[1]) {
-            const scrollContent = rightCol.children[1];
-            // min-h-0 é vital para o scroll funcionar dentro do flex
-            scrollContent.className = "p-5 overflow-y-auto flex-1 space-y-4 no-scrollbar min-h-0";
-        }
-    }
-
-    // 5. TAMANHOS
+    // Parte dos tamanhos (Copie do seu código anterior ou mantenha o que estava lá)
     const sizesDiv = getEl('modal-sizes');
     const sizesWrapper = getEl('modal-sizes-wrapper');
+    sizesDiv.innerHTML = '';
     let selectedSizeInModal = 'U';
-    
-    if (sizesDiv) {
-        sizesDiv.innerHTML = '';
-        if (p.sizes && p.sizes.length > 0) {
-            if (sizesWrapper) sizesWrapper.classList.remove('hidden');
-            selectedSizeInModal = p.sizes[0];
-            
-            p.sizes.forEach(s => {
-                const btn = document.createElement('button');
-                btn.className = `w-10 h-10 rounded border font-bold transition flex items-center justify-center text-sm ${s === selectedSizeInModal ? 'bg-yellow-500 text-black border-yellow-500' : 'border-gray-600 text-gray-300 hover:border-yellow-500 hover:text-yellow-500'}`;
-                btn.innerText = s;
-                btn.onclick = () => {
-                    selectedSizeInModal = s;
-                    Array.from(sizesDiv.children).forEach(b => {
-                        if (b.innerText === s) {
-                            b.className = "w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm";
-                        } else {
-                            b.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
-                        }
-                    });
-                };
-                sizesDiv.appendChild(btn);
-            });
-        } else {
-            if (sizesWrapper) sizesWrapper.classList.add('hidden');
-        }
+    if (p.sizes && p.sizes.length > 0) {
+        if (sizesWrapper) sizesWrapper.classList.remove('hidden');
+        selectedSizeInModal = p.sizes[0];
+        p.sizes.forEach(s => {
+            const btn = document.createElement('button');
+            btn.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center";
+            btn.innerText = s;
+            if (s === selectedSizeInModal) btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
+            btn.onclick = () => {
+                selectedSizeInModal = s;
+                document.querySelectorAll('#modal-sizes button').forEach(b => b.className = "w-12 h-12 rounded-lg border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center");
+                btn.classList.remove('text-gray-300', 'border-gray-600');
+                btn.classList.add('bg-yellow-500', 'text-black', 'border-yellow-500');
+            };
+            sizesDiv.appendChild(btn);
+        });
+    } else {
+        if (sizesWrapper) sizesWrapper.classList.add('hidden');
     }
 
-    // 6. BOTÃO (Compacto)
+    // Configura Botão Adicionar (Mantém igual)
     const btnAdd = getEl('modal-add-cart');
-    if (btnAdd) {
-        // Reduz o padding do CONTAINER do botão para ganhar espaço (p-4 em vez de p-6 ou p-8)
-        if (btnAdd.parentElement) {
-            btnAdd.parentElement.className = "p-4 border-t border-gray-800 bg-gray-900 z-10 shrink-0";
-        }
+    const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
+    const isOut = p.stock <= 0 && !allowNegative;
 
-        const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-        const isOut = p.stock <= 0 && !allowNegative;
-
-        if (isOut) {
-            btnAdd.disabled = true;
-            btnAdd.innerHTML = "<span>ESGOTADO</span>";
-            // Botão menor (py-3, text-sm)
-            btnAdd.className = "w-full bg-gray-700 text-gray-500 font-bold text-sm py-3 rounded-xl cursor-not-allowed uppercase tracking-wide flex items-center justify-center";
-        } else {
-            btnAdd.disabled = false;
-            btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i><span>ADICIONAR</span>`;
-            // Botão menor (py-3, text-sm) e padding vertical reduzido
-            btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-3 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide";
-            btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
-        }
+    if (isOut) {
+        btnAdd.disabled = true;
+        btnAdd.innerHTML = "ESGOTADO";
+        btnAdd.className = "w-full bg-gray-700 text-gray-500 font-bold text-lg py-4 rounded-xl cursor-not-allowed";
+    } else {
+        btnAdd.disabled = false;
+        btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i> ADICIONAR AO CARRINHO`;
+        btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center";
+        btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
     }
 
-    // 7. EXIBIÇÃO
+    // Exibe o modal
     modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    
     setTimeout(() => {
         backdrop.classList.remove('opacity-0');
         card.classList.remove('opacity-0', 'scale-95');
-        card.classList.add('opacity-100', 'scale-100');
+        card.classList.add('scale-100');
     }, 10);
 };
 
