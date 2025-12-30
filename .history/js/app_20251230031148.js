@@ -5560,43 +5560,42 @@ window.updateStatusUI = (order) => {
     const s = order.status;
     const isCancelled = s.includes('Cancelado');
 
-    // 1. LÓGICA DA TIMELINE
+    // 1. LÓGICA DA TIMELINE (Corrigida)
     let currentStep = 0; 
     
-    // Mapeamento
+    // Mapeamento dos passos
     if (s === 'Aguardando aprovação') currentStep = 0;
-    else if (s === 'Aprovado') currentStep = 1;       
+    else if (s === 'Aprovado') currentStep = 1;        // Passou do 0, brilha o 1 (Preparando) ou fica verde o 0
     else if (s === 'Preparando pedido') currentStep = 1;
     else if (s === 'Saiu para entrega') currentStep = 2;
     else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
 
-    // Configuração da primeira bolinha
+    // Configuração Dinâmica da Primeira Bolinha
+    // Se já passou de aguardando, vira "Aprovado". Se cancelou, mantém o estado original ou mostra erro.
     const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
     const step0Icon  = (s === 'Aguardando aprovação' || isCancelled) ? 'fa-clock' : 'fa-thumbs-up';
 
     const steps = [
-        { label: step0Label, icon: step0Icon },
-        { label: 'Preparando', icon: 'fa-box-open' },
-        { label: 'Saiu', icon: 'fa-motorcycle' },
-        { label: 'Entregue', icon: 'fa-check' }
+        { label: step0Label, icon: step0Icon },        // 0: Aguardando -> Vira Aprovado
+        { label: 'Preparando', icon: 'fa-box-open' },  // 1: Preparando (Restaurado)
+        { label: 'Saiu', icon: 'fa-motorcycle' },      // 2: Saiu
+        { label: 'Entregue', icon: 'fa-check' }        // 3: Entregue
     ];
 
-    // --- HTML DA TIMELINE (AJUSTADO) ---
+    // Geração do HTML da Timeline
     let timelineHTML = `<div class="flex justify-between items-start mb-8 relative px-2">`;
     
-    // Linha de Fundo (Cinza) - Ajustei left/right de 4 para 7 para esconder a ponta
-    // Ajustei top para 18px (metade exata da altura da bolinha de 36px/w-9)
-    timelineHTML += `<div class="absolute top-[18px] left-7 right-7 h-0.5 bg-gray-700 -z-0"></div>`;
+    // Linha de fundo
+    timelineHTML += `<div class="absolute top-4 left-4 right-4 h-0.5 bg-gray-700 -z-0"></div>`;
     
-    // Linha de Progresso (Verde)
+    // Linha de progresso (verde)
     const progressWidth = Math.min(currentStep * 33.33, 100); 
     if (!isCancelled) {
-        // Ajustei o cálculo da largura (subtraindo 3.5rem) para compensar o novo recuo
-        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
+        timelineHTML += `<div class="absolute top-4 left-4 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 2rem)"></div>`;
     }
 
     steps.forEach((step, index) => {
-        let circleClass = "bg-[#1f2937] border-2 border-gray-600 text-gray-500"; // Padrão Inativo
+        let circleClass = "bg-[#1f2937] border-2 border-gray-600 text-gray-500"; // Inativo
         let iconClass = step.icon;
         let labelClass = "text-gray-500";
         let glowEffect = "";
@@ -5608,15 +5607,20 @@ window.updateStatusUI = (order) => {
                 labelClass = "text-red-500 font-bold";
              }
         } else {
-            // Passos Concluídos
+            // Passos Concluídos (Anteriores ao atual)
             if (index < currentStep) {
                 circleClass = "bg-green-500 border-2 border-green-500 text-black";
+                // Mantém o ícone específico do passo (ex: thumbs-up para aprovado) em vez de check genérico
+                // Se quiser check genérico, descomente a linha abaixo:
+                // iconClass = "fa-check"; 
                 labelClass = "text-green-500 font-bold";
             } 
-            // Passo Atual (Preenchido + Brilho)
+            // Passo Atual (Em andamento)
             else if (index === currentStep) {
-                circleClass = "bg-green-500 border-2 border-green-500 text-white"; 
-                glowEffect = "shadow-[0_0_15px_rgba(34,197,94,0.8)] scale-110";
+                // Se for "Aprovado", ele tecnicamente está "parado" no passo 1 (Preparando) visualmente ou concluindo o 0.
+                // Ajuste visual: Se status é "Aprovado", o passo 1 (Preparando) fica aceso esperando ação.
+                circleClass = "bg-[#0f172a] border-2 border-green-500 text-green-500";
+                glowEffect = "shadow-[0_0_15px_rgba(34,197,94,0.6)] scale-110";
                 labelClass = "text-white font-bold";
             }
         }
@@ -5707,6 +5711,7 @@ window.updateStatusUI = (order) => {
 
     // 4. LÓGICA DO BOTÃO CANCELAR
     const btnArea = document.getElementById('cancel-btn-area');
+    // Só permite cancelar se estiver no passo 0 (Aguardando/Pendente) e não estiver cancelado
     if (!btnArea || isCancelled || currentStep > 0) {
         if(btnArea) btnArea.innerHTML = '';
         return; 

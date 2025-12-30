@@ -5557,46 +5557,41 @@ window.updateStatusUI = (order) => {
     const detailsContainer = document.getElementById('order-details-body');
     if (!detailsContainer) return;
 
-    const s = order.status;
-    const isCancelled = s.includes('Cancelado');
-
     // 1. LÓGICA DA TIMELINE
-    let currentStep = 0; 
-    
-    // Mapeamento
-    if (s === 'Aguardando aprovação') currentStep = 0;
-    else if (s === 'Aprovado') currentStep = 1;       
+    let currentStep = 0; // 0: Aguardando
+
+    const s = order.status;
+    if (s === 'Aprovado') currentStep = 1; // Aprovado ilumina o passo 1 (Preparando/Aprovado)
     else if (s === 'Preparando pedido') currentStep = 1;
     else if (s === 'Saiu para entrega') currentStep = 2;
     else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
 
-    // Configuração da primeira bolinha
-    const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
-    const step0Icon  = (s === 'Aguardando aprovação' || isCancelled) ? 'fa-clock' : 'fa-thumbs-up';
+    const isCancelled = s.includes('Cancelado');
 
     const steps = [
-        { label: step0Label, icon: step0Icon },
-        { label: 'Preparando', icon: 'fa-box-open' },
+        { label: 'Aguardando', icon: 'fa-clock' },
+        { label: 'Aprovado', icon: 'fa-thumbs-up' }, // Mudei icone/label visual da timeline se quiser
         { label: 'Saiu', icon: 'fa-motorcycle' },
         { label: 'Entregue', icon: 'fa-check' }
     ];
 
-    // --- HTML DA TIMELINE (AJUSTADO) ---
+    // Se preferir manter "Preparando" na timeline visual, mantenha o label antigo, 
+    // mas o texto grande abaixo vai obedecer o status real.
+    // Vou manter labels genéricos de timeline para não quebrar o layout de 4 passos.
+
     let timelineHTML = `<div class="flex justify-between items-start mb-8 relative px-2">`;
     
-    // Linha de Fundo (Cinza) - Ajustei left/right de 4 para 7 para esconder a ponta
-    // Ajustei top para 18px (metade exata da altura da bolinha de 36px/w-9)
-    timelineHTML += `<div class="absolute top-[18px] left-7 right-7 h-0.5 bg-gray-700 -z-0"></div>`;
+    // Barra de fundo
+    timelineHTML += `<div class="absolute top-4 left-4 right-4 h-0.5 bg-gray-700 -z-0"></div>`;
     
-    // Linha de Progresso (Verde)
+    // Barra de progresso verde
     const progressWidth = Math.min(currentStep * 33.33, 100); 
     if (!isCancelled) {
-        // Ajustei o cálculo da largura (subtraindo 3.5rem) para compensar o novo recuo
-        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
+        timelineHTML += `<div class="absolute top-4 left-4 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 2rem)"></div>`;
     }
 
     steps.forEach((step, index) => {
-        let circleClass = "bg-[#1f2937] border-2 border-gray-600 text-gray-500"; // Padrão Inativo
+        let circleClass = "bg-[#1f2937] border-2 border-gray-600 text-gray-500";
         let iconClass = step.icon;
         let labelClass = "text-gray-500";
         let glowEffect = "";
@@ -5608,15 +5603,13 @@ window.updateStatusUI = (order) => {
                 labelClass = "text-red-500 font-bold";
              }
         } else {
-            // Passos Concluídos
             if (index < currentStep) {
                 circleClass = "bg-green-500 border-2 border-green-500 text-black";
+                iconClass = "fa-check";
                 labelClass = "text-green-500 font-bold";
-            } 
-            // Passo Atual (Preenchido + Brilho)
-            else if (index === currentStep) {
-                circleClass = "bg-green-500 border-2 border-green-500 text-white"; 
-                glowEffect = "shadow-[0_0_15px_rgba(34,197,94,0.8)] scale-110";
+            } else if (index === currentStep) {
+                circleClass = "bg-[#0f172a] border-2 border-green-500 text-green-500";
+                glowEffect = "shadow-[0_0_15px_rgba(34,197,94,0.6)] scale-110";
                 labelClass = "text-white font-bold";
             }
         }
@@ -5657,7 +5650,7 @@ window.updateStatusUI = (order) => {
         </div>
     `;
 
-    // 3. RENDERIZAÇÃO
+    // 3. RENDERIZAÇÃO FINAL
     detailsContainer.innerHTML = `
         <div class="mb-6">
             <h2 class="text-2xl font-extrabold text-yellow-500 tracking-tight">PEDIDO #${order.code}</h2>
@@ -5678,6 +5671,7 @@ window.updateStatusUI = (order) => {
         ` : ''}
 
         <div class="bg-[#151720] rounded-xl p-4 border border-gray-800">
+            
             <div class="mb-4 text-center border-b border-gray-700 pb-3">
                 <span class="text-xs text-gray-500 uppercase font-bold">Status Atual</span>
                 <h3 class="text-xl font-bold text-white mt-1">${order.status}</h3>
@@ -5707,10 +5701,7 @@ window.updateStatusUI = (order) => {
 
     // 4. LÓGICA DO BOTÃO CANCELAR
     const btnArea = document.getElementById('cancel-btn-area');
-    if (!btnArea || isCancelled || currentStep > 0) {
-        if(btnArea) btnArea.innerHTML = '';
-        return; 
-    }
+    if (!btnArea || isCancelled || currentStep > 0) return; // Só cancela se estiver no passo 0 (Aguardando/Pendente)
 
     if (order.status === 'Aguardando aprovação' || order.status === 'Pendente') {
         const checkTimer = () => {

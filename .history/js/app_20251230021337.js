@@ -1880,7 +1880,7 @@ function renderSalesList(orders) {
         const dataHoraFormatada = `${dataStr} às ${horaStr}`;
 
         // 2. Definição de Cores (IGUAL AO RASTREIO)
-        let statusColorClass = 'text-gray-400';
+        let statusColorClass = 'text-gray-400'; 
 
         switch (o.status) {
             case 'Aprovado':
@@ -1892,7 +1892,7 @@ function renderSalesList(orders) {
                 break;
             case 'Entregue':
             case 'Concluído':
-                statusColorClass = 'text-green-500';
+                statusColorClass = 'text-green-500'; 
                 break;
         }
 
@@ -3648,7 +3648,7 @@ function saveCart() {
 // Substitua a função updateCartUI inteira por esta:
 function updateCartUI() {
     const cartEl = els.cartItems;
-
+    
     // 1. Atualiza contadores
     const totalQty = state.cart.reduce((acc, item) => acc + item.qty, 0);
     if (els.cartCount) els.cartCount.innerText = totalQty;
@@ -3672,7 +3672,7 @@ function updateCartUI() {
 
     // 2. Renderiza Lista de Produtos e Calcula Subtotal
     let subtotal = 0;
-
+    
     state.cart.forEach((item, index) => {
         const itemTotal = item.price * item.qty;
         subtotal += itemTotal;
@@ -3773,14 +3773,14 @@ function updateCartUI() {
         </div>
         
         <div class="flex justify-between items-end pt-2 border-t border-gray-800">
-            <span class="text-gray-300 text-sm font-bold">Total</span>
+            <span class="text-gray-300 text-sm font-bold">Total (Sem frete)</span>
             <div class="text-right">
                 <span class="text-yellow-500 text-2xl font-extrabold tracking-tight block leading-none" id="cart-total-display">${formatCurrency(total)}</span>
                 ${state.storeProfile.installments?.active ? `<span class="text-[10px] text-gray-500">ou até ${state.storeProfile.installments.max}x</span>` : ''}
             </div>
         </div>
     `;
-
+    
     cartEl.appendChild(summaryDiv);
 
     // Atualiza botão verde lá embaixo
@@ -4534,26 +4534,18 @@ function populateInstallments() {
         }
     }
 
-    // --- 3. ADICIONA O FRETE AO CÁLCULO DAS PARCELAS ---
-    // (Lógica idêntica ao calcCheckoutTotal para garantir consistência)
+    // 3. ADICIONA O FRETE (Se aplicável)
     const dConfig = state.storeProfile.deliveryConfig || {};
-    const shipRule = dConfig.shippingRule || 'none';
-    const shipValue = parseFloat(dConfig.shippingValue) || 0;
-    const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value || 'online';
+    // Verifica se a entrega está selecionada (radio button)
+    const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value;
 
-    // Só soma se CEP for válido e regra bater
-    if (checkoutState.isValidDelivery && shipValue > 0) {
-        if (shipRule === 'both') {
-            totalBase += shipValue;
-        }
-        else if (shipRule === 'online' && payMode === 'online') {
-            totalBase += shipValue;
-        }
-        else if (shipRule === 'delivery' && payMode === 'delivery') {
-            totalBase += shipValue;
-        }
+    // O frete só soma se estiver ativo E o modo não for "Retirada" (Online costuma ter frete, delivery tem frete)
+    // Se sua loja for só "Pagar na Entrega" ou "Online com Envio", assume-se que tem frete.
+    // Se tiver opção "Retirar na Loja", precisaria de logica extra. 
+    // Assumindo padrão:
+    if (dConfig.shippingActive && dConfig.shippingValue > 0) {
+        totalBase += dConfig.shippingValue;
     }
-    // ----------------------------------------------------
 
     totalBase = Math.max(0, totalBase);
 
@@ -4843,21 +4835,24 @@ window.toggleMethodSelection = () => {
 
 // --- FUNÇÃO ÚNICA: CALCULAR TOTAL DO CHECKOUT ---
 window.calcCheckoutTotal = () => {
-    // 1. Configurações e Estado
+    // 1. Configurações e Estado Atual
     const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value || 'online';
     const method = document.querySelector('input[name="payment-method-selection"]:checked')?.value || 'pix';
 
+    // Dados do Frete
     const dConfig = state.storeProfile.deliveryConfig || {};
     const shipRule = dConfig.shippingRule || 'none';
     const shipValue = parseFloat(dConfig.shippingValue) || 0;
 
     let finalTotal = 0;
     let savingsMsg = '';
-    let appliedShipping = 0; // Valor do frete que será aplicado
+    let appliedShipping = 0; // Valor que será cobrado de fato
 
     // --- LÓGICA DE APLICAÇÃO DO FRETE ---
-    // Só calcula se CEP for válido
-    if (checkoutState.isValidDelivery && shipValue > 0) {
+    // Só cobra se: Tiver valor E CEP for válido
+    if (shipValue > 0 && checkoutState.isValidDelivery) {
+
+        // Verifica a regra selecionada no Admin
         if (shipRule === 'both') {
             appliedShipping = shipValue;
         }
@@ -4880,12 +4875,11 @@ window.calcCheckoutTotal = () => {
             : state.currentCoupon.val;
     }
 
-    // Valor base dos produtos (sem frete ainda)
     let productsTotal = Math.max(0, itemsTotal - discountCoupon);
 
     // --- CÁLCULOS POR MÉTODO ---
 
-    // A. PIX
+    // A. PIX (Descontos)
     if (method === 'pix') {
         let totalWithPixDesc = 0;
         state.cart.forEach(item => {
@@ -4900,50 +4894,40 @@ window.calcCheckoutTotal = () => {
             totalWithPixDesc += price * item.qty;
         });
 
+        // Reaplica cupom sobre total Pix
         let cupomPix = state.currentCoupon?.type === 'percent'
             ? totalWithPixDesc * (state.currentCoupon.val / 100)
             : discountCoupon;
 
-        // Base Pix (Produtos com desconto Pix)
         productsTotal = Math.max(0, totalWithPixDesc - cupomPix);
-
-        // No Pix, somamos o frete manualmente no final
-        finalTotal = productsTotal + appliedShipping;
 
         const baseWithoutPix = Math.max(0, itemsTotal - discountCoupon);
         const saved = baseWithoutPix - productsTotal;
         if (saved > 0.01) savingsMsg = `Economia de ${formatCurrency(saved)} no Pix!`;
     }
 
-    // B. CARTÃO (ONLINE)
+    // B. CARTÃO (Juros)
     else if (method === 'card' && payMode === 'online') {
         const select = document.getElementById('checkout-installments');
-
-        // Se tem opção selecionada no dropdown, ela JÁ CONTÉM O FRETE (calculado no populateInstallments)
         if (select && select.options.length > 0) {
             const selectedOpt = select.options[select.selectedIndex];
             if (selectedOpt && selectedOpt.dataset.total) {
-                // CORREÇÃO: Não soma appliedShipping aqui, pois já está dentro do dataset.total
-                finalTotal = parseFloat(selectedOpt.dataset.total);
+                productsTotal = parseFloat(selectedOpt.dataset.total);
             }
-        } else {
-            // Fallback caso não tenha select carregado
-            finalTotal = productsTotal + appliedShipping;
         }
     }
 
-    // C. QUALQUER OUTRO (Dinheiro, Pagar na Entrega, etc)
-    else {
-        finalTotal = productsTotal + appliedShipping;
-    }
+    // 3. SOMA FINAL (Produtos + Frete)
+    finalTotal = productsTotal + appliedShipping;
 
-    // 4. ATUALIZA VISUAL
+    // 4. ATUALIZAÇÃO VISUAL
     const elTotal = document.getElementById('checkout-final-total');
     if (elTotal) elTotal.innerText = formatCurrency(finalTotal);
 
     // Aviso do Frete (Mostra/Esconde)
     let elShipDisplay = document.getElementById('checkout-shipping-display');
     if (!elShipDisplay) {
+        // Cria elemento se não existir
         const totalContainer = elTotal.parentElement;
         const shipDiv = document.createElement('div');
         shipDiv.id = 'checkout-shipping-display';
@@ -5073,17 +5057,26 @@ window.submitOrder = async () => {
 
         // --- CÁLCULO DE FRETE (Lógica Correta para Salvar) ---
         // Precisamos recalcular aqui para garantir que a regra (Online/Entrega) seja respeitada no banco de dados
-        // --- RECALCULA FRETE PARA SALVAR CORRETAMENTE ---
         const dConfig = state.storeProfile.deliveryConfig || {};
         const shipRule = dConfig.shippingRule || 'none';
         const shipValue = parseFloat(dConfig.shippingValue) || 0;
 
-        // Precisamos saber se o modo atual (online/delivery) ativa o frete
+        // Recupera o modo de pagamento escolhido pelo usuário para validar a regra
+        const selectedPayMode = document.querySelector('input[name="pay-mode"]:checked')?.value;
+
         let valueToSave = 0;
+
+        // Só cobra se o CEP for válido E o valor for maior que 0
         if (checkoutState.isValidDelivery && shipValue > 0) {
-            if (shipRule === 'both') valueToSave = shipValue;
-            else if (shipRule === 'online' && payMode === 'online') valueToSave = shipValue;
-            else if (shipRule === 'delivery' && payMode === 'delivery') valueToSave = shipValue;
+            if (shipRule === 'both') {
+                valueToSave = shipValue;
+            }
+            else if (shipRule === 'online' && selectedPayMode === 'online') {
+                valueToSave = shipValue;
+            }
+            else if (shipRule === 'delivery' && selectedPayMode === 'delivery') {
+                valueToSave = shipValue;
+            }
         }
 
         // 2. Cria o objeto do pedido
@@ -5096,16 +5089,13 @@ window.submitOrder = async () => {
                 comp: comp
             },
             items: state.cart || [],
-
-            // O valor finalValue (que vem do HTML checkout-final-total) já está correto agora
-            total: finalValue,
-
+            total: finalValue, // Valor final (já inclui o frete visualmente)
             status: 'Aguardando aprovação',
             paymentMethod: paymentDetails,
             securityCode: securityCode,
 
-            // Salva o valor do frete separado para histórico
-            shippingFee: valueToSave,
+            // --- CAMPO CORRIGIDO ---
+            shippingFee: valueToSave, // Salva o valor calculado corretamente
 
             cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
         };
@@ -5432,43 +5422,35 @@ window.showOrderListView = () => {
     sortedList.forEach(order => {
         // --- Definição de Cores e Status ---
         let statusColor = 'bg-gray-400';
-        let statusLabel = order.status; // Padrão: usa o texto do próprio status
+        let statusLabel = 'Aguardando aprovação';
 
-        // Mapeamento visual
+        // Mapeamento
         switch (order.status) {
             case 'Aguardando aprovação':
                 statusColor = 'bg-gray-400';
+                statusLabel = 'Aguardando aprovação';
                 break;
-            
-            // --- CORREÇÃO: SEPARANDO OS STATUS ---
             case 'Aprovado':
-                statusColor = 'bg-yellow-500';
-                statusLabel = 'Aprovado'; // Exibe exatamente "Aprovado"
-                break;
-                
             case 'Preparando pedido':
-                statusColor = 'bg-yellow-600';
+                statusColor = 'bg-yellow-400';
                 statusLabel = 'Preparando Pedido';
                 break;
-            // -------------------------------------
-
             case 'Saiu para entrega':
                 statusColor = 'bg-orange-500';
-                statusLabel = 'Saiu para Entrega';
+                statusLabel = 'Entrega';
                 break;
             case 'Entregue':
-                statusColor = 'bg-green-500'; // Entregue mas não finalizado
-                statusLabel = 'Entregue';
-                break;
             case 'Concluído':
-                statusColor = 'bg-green-600';
+                statusColor = 'bg-green-500';
                 statusLabel = 'Concluído';
                 break;
             case 'Cancelado':
-            case 'Cancelado pelo Cliente': 
+            case 'Cancelado pelo Cliente': // <--- ADICIONADO AQUI
                 statusColor = 'bg-red-600';
-                statusLabel = 'Cancelado';
+                statusLabel = 'Cancelado / Recusado';
                 break;
+            default:
+                statusLabel = order.status; // Fallback
         }
 
         // --- Legenda Superior ---
@@ -5552,71 +5534,67 @@ window.showOrderDetail = (orderId) => {
 window.cancelTimerInterval = null;
 
 window.updateStatusUI = (order) => {
+    // Limpa timer anterior se existir
     if (window.cancelTimerInterval) clearInterval(window.cancelTimerInterval);
 
     const detailsContainer = document.getElementById('order-details-body');
     if (!detailsContainer) return;
 
-    const s = order.status;
-    const isCancelled = s.includes('Cancelado');
+    // 1. LÓGICA DA TIMELINE (Barra de Progresso)
+    let currentStep = 0; // 0: Aguardando, 1: Preparando, 2: Saiu, 3: Entregue
 
-    // 1. LÓGICA DA TIMELINE
-    let currentStep = 0; 
-    
-    // Mapeamento
-    if (s === 'Aguardando aprovação') currentStep = 0;
-    else if (s === 'Aprovado') currentStep = 1;       
-    else if (s === 'Preparando pedido') currentStep = 1;
+    const s = order.status;
+    if (s === 'Aprovado' || s === 'Preparando pedido') currentStep = 1;
     else if (s === 'Saiu para entrega') currentStep = 2;
     else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
 
-    // Configuração da primeira bolinha
-    const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
-    const step0Icon  = (s === 'Aguardando aprovação' || isCancelled) ? 'fa-clock' : 'fa-thumbs-up';
+    // Se for cancelado, tratamos visualmente depois ou mantemos no step 0
+    const isCancelled = s.includes('Cancelado');
 
+    // Definição das Etapas
     const steps = [
-        { label: step0Label, icon: step0Icon },
+        { label: 'Aguardando', icon: 'fa-clock' },
         { label: 'Preparando', icon: 'fa-box-open' },
         { label: 'Saiu', icon: 'fa-motorcycle' },
         { label: 'Entregue', icon: 'fa-check' }
     ];
 
-    // --- HTML DA TIMELINE (AJUSTADO) ---
+    // Gera o HTML da Timeline
     let timelineHTML = `<div class="flex justify-between items-start mb-8 relative px-2">`;
     
-    // Linha de Fundo (Cinza) - Ajustei left/right de 4 para 7 para esconder a ponta
-    // Ajustei top para 18px (metade exata da altura da bolinha de 36px/w-9)
-    timelineHTML += `<div class="absolute top-[18px] left-7 right-7 h-0.5 bg-gray-700 -z-0"></div>`;
+    // Linha de conexão (fundo cinza)
+    timelineHTML += `<div class="absolute top-4 left-4 right-4 h-0.5 bg-gray-700 -z-0"></div>`;
     
-    // Linha de Progresso (Verde)
+    // Linha de progresso (verde) - Calcula a largura baseada no passo atual (0%, 33%, 66%, 100%)
     const progressWidth = Math.min(currentStep * 33.33, 100); 
     if (!isCancelled) {
-        // Ajustei o cálculo da largura (subtraindo 3.5rem) para compensar o novo recuo
-        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
+        timelineHTML += `<div class="absolute top-4 left-4 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 2rem)"></div>`;
     }
 
     steps.forEach((step, index) => {
-        let circleClass = "bg-[#1f2937] border-2 border-gray-600 text-gray-500"; // Padrão Inativo
+        let circleClass = "bg-[#1f2937] border-2 border-gray-600 text-gray-500"; // Padrão (Inativo)
         let iconClass = step.icon;
         let labelClass = "text-gray-500";
         let glowEffect = "";
 
         if (isCancelled) {
+            // Estilo se cancelado (Vermelho no atual, cinza no resto)
              if (index === 0) {
                 circleClass = "bg-red-900 border-2 border-red-500 text-red-500";
                 iconClass = "fa-times";
                 labelClass = "text-red-500 font-bold";
              }
         } else {
-            // Passos Concluídos
+            // Estilo Normal
             if (index < currentStep) {
+                // Passos já completados (Verde Sólido + Check)
                 circleClass = "bg-green-500 border-2 border-green-500 text-black";
+                iconClass = "fa-check";
                 labelClass = "text-green-500 font-bold";
-            } 
-            // Passo Atual (Preenchido + Brilho)
-            else if (index === currentStep) {
-                circleClass = "bg-green-500 border-2 border-green-500 text-white"; 
-                glowEffect = "shadow-[0_0_15px_rgba(34,197,94,0.8)] scale-110";
+            } else if (index === currentStep) {
+                // Passo ATUAL (Borda Verde + Brilho)
+                circleClass = "bg-[#0f172a] border-2 border-green-500 text-green-500";
+                glowEffect = "shadow-[0_0_15px_rgba(34,197,94,0.6)] scale-110"; // Brilho verde
                 labelClass = "text-white font-bold";
             }
         }
@@ -5633,7 +5611,7 @@ window.updateStatusUI = (order) => {
     timelineHTML += `</div>`;
 
 
-    // 2. CONTEÚDO DOS ITENS
+    // 2. CONTEÚDO DOS ITENS E ENDEREÇO
     let itemsHtml = order.items.map(i => `
         <div class="flex justify-between items-center text-sm text-gray-300 mb-2 border-b border-gray-800 pb-2 last:border-0">
             <div class="flex items-center gap-2">
@@ -5644,6 +5622,7 @@ window.updateStatusUI = (order) => {
         </div>
     `).join('');
 
+    // Formata Endereço
     const addressBlock = `
         <div class="flex items-start gap-3 mt-4 bg-gray-900 p-3 rounded-lg border border-gray-800">
             <i class="fas fa-map-marker-alt text-red-500 mt-1"></i>
@@ -5657,7 +5636,7 @@ window.updateStatusUI = (order) => {
         </div>
     `;
 
-    // 3. RENDERIZAÇÃO
+    // 3. RENDERIZAÇÃO FINAL
     detailsContainer.innerHTML = `
         <div class="mb-6">
             <h2 class="text-2xl font-extrabold text-yellow-500 tracking-tight">PEDIDO #${order.code}</h2>
@@ -5668,8 +5647,8 @@ window.updateStatusUI = (order) => {
 
         ${timelineHTML}
 
-        ${order.securityCode && order.status === 'Saiu para entrega' ? `
-            <div class="bg-gray-800 border border-yellow-500/30 rounded-xl p-4 mb-6 text-center relative overflow-hidden group animate-pulse">
+        ${order.securityCode && currentStep < 3 && !isCancelled ? `
+            <div class="bg-gray-800 border border-yellow-500/30 rounded-xl p-4 mb-6 text-center relative overflow-hidden group">
                 <div class="absolute inset-0 bg-yellow-500/5 group-hover:bg-yellow-500/10 transition"></div>
                 <p class="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Código de Segurança</p>
                 <p class="text-3xl font-mono font-bold text-yellow-500 tracking-[0.3em]">${order.securityCode}</p>
@@ -5678,11 +5657,6 @@ window.updateStatusUI = (order) => {
         ` : ''}
 
         <div class="bg-[#151720] rounded-xl p-4 border border-gray-800">
-            <div class="mb-4 text-center border-b border-gray-700 pb-3">
-                <span class="text-xs text-gray-500 uppercase font-bold">Status Atual</span>
-                <h3 class="text-xl font-bold text-white mt-1">${order.status}</h3>
-            </div>
-
             <h3 class="text-xs font-bold text-gray-400 uppercase mb-3">Resumo do Pedido</h3>
             ${itemsHtml}
             
@@ -5705,12 +5679,9 @@ window.updateStatusUI = (order) => {
         <div id="cancel-btn-area" class="mt-6"></div>
     `;
 
-    // 4. LÓGICA DO BOTÃO CANCELAR
+    // 4. LÓGICA DO BOTÃO CANCELAR (Timer)
     const btnArea = document.getElementById('cancel-btn-area');
-    if (!btnArea || isCancelled || currentStep > 0) {
-        if(btnArea) btnArea.innerHTML = '';
-        return; 
-    }
+    if (!btnArea || isCancelled || currentStep > 1) return; // Só mostra se não estiver cancelado e estiver nas etapas iniciais
 
     if (order.status === 'Aguardando aprovação' || order.status === 'Pendente') {
         const checkTimer = () => {

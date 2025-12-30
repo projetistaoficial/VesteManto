@@ -5570,7 +5570,7 @@ window.updateStatusUI = (order) => {
     else if (s === 'Saiu para entrega') currentStep = 2;
     else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
 
-    // Configuração da primeira bolinha
+    // Configuração da primeira bolinha (Muda texto/ícone se aprovado)
     const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
     const step0Icon  = (s === 'Aguardando aprovação' || isCancelled) ? 'fa-clock' : 'fa-thumbs-up';
 
@@ -5581,18 +5581,16 @@ window.updateStatusUI = (order) => {
         { label: 'Entregue', icon: 'fa-check' }
     ];
 
-    // --- HTML DA TIMELINE (AJUSTADO) ---
+    // HTML da Timeline
     let timelineHTML = `<div class="flex justify-between items-start mb-8 relative px-2">`;
     
-    // Linha de Fundo (Cinza) - Ajustei left/right de 4 para 7 para esconder a ponta
-    // Ajustei top para 18px (metade exata da altura da bolinha de 36px/w-9)
-    timelineHTML += `<div class="absolute top-[18px] left-7 right-7 h-0.5 bg-gray-700 -z-0"></div>`;
+    // Linha de Fundo (Cinza)
+    timelineHTML += `<div class="absolute top-4 left-4 right-4 h-0.5 bg-gray-700 -z-0"></div>`;
     
     // Linha de Progresso (Verde)
     const progressWidth = Math.min(currentStep * 33.33, 100); 
     if (!isCancelled) {
-        // Ajustei o cálculo da largura (subtraindo 3.5rem) para compensar o novo recuo
-        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
+        timelineHTML += `<div class="absolute top-4 left-4 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 2rem)"></div>`;
     }
 
     steps.forEach((step, index) => {
@@ -5608,13 +5606,15 @@ window.updateStatusUI = (order) => {
                 labelClass = "text-red-500 font-bold";
              }
         } else {
-            // Passos Concluídos
+            // Passos Concluídos (Anteriores)
             if (index < currentStep) {
-                circleClass = "bg-green-500 border-2 border-green-500 text-black";
+                circleClass = "bg-green-500 border-2 border-green-500 text-black"; // Fundo Verde, Texto Preto
                 labelClass = "text-green-500 font-bold";
             } 
-            // Passo Atual (Preenchido + Brilho)
+            // Passo Atual (Em andamento) - AQUI ESTA A MUDANÇA
             else if (index === currentStep) {
+                // AGORA É PREENCHIDA (bg-green-500) IGUAL AS OUTRAS
+                // Mas com texto branco e brilho para destacar que é a atual
                 circleClass = "bg-green-500 border-2 border-green-500 text-white"; 
                 glowEffect = "shadow-[0_0_15px_rgba(34,197,94,0.8)] scale-110";
                 labelClass = "text-white font-bold";
