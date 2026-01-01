@@ -321,8 +321,7 @@ const state = {
         whatsapp: '',
         description: '',
         installments: { active: false },
-        deliveryConfig: { ownDelivery: false, cancelTimeMin: 5 },
-        tempLogo: null,
+        deliveryConfig: { ownDelivery: false, cancelTimeMin: 5 }
     },
 
     // Variáveis de Dashboard/Stats
@@ -2911,38 +2910,6 @@ function setupEventListeners() {
     // Aplica a validação nos grupos (adicionei classes no HTML do passo 1)
     validateSubOptions('sub-check-online');
     validateSubOptions('sub-check-delivery');
-
-
-    // UPLOAD DE LOGO DA LOJA
-    const logoInput = getEl('conf-logo-upload');
-    if (logoInput) {
-        logoInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            try {
-                // Reusa a função processImageFile que já existe no seu código
-                const base64 = await processImageFile(file);
-
-                // Salva no estado temporário
-                state.tempLogo = base64;
-
-                // Atualiza o preview na hora
-                const preview = getEl('conf-logo-preview');
-                const placeholder = getEl('conf-logo-placeholder');
-
-                if (preview) {
-                    preview.src = base64;
-                    preview.classList.remove('hidden');
-                }
-                if (placeholder) placeholder.classList.add('hidden');
-
-            } catch (err) {
-                console.error("Erro logo:", err);
-                alert("Erro ao processar imagem.");
-            }
-        });
-    }
 }
 
 function updateCardStyles(isLight) {
@@ -2964,41 +2931,19 @@ function toggleTheme(save = true) {
     const body = document.body;
     const nav = document.querySelector('nav');
     const icon = getEl('theme-icon');
-    const text = getEl('theme-text'); // <--- Este elemento pode não existir no novo design
+    const text = getEl('theme-text');
 
     if (!state.isDarkMode) {
-        // MODO CLARO
         body.classList.replace('bg-black', 'bg-gray-100');
         body.classList.replace('text-white', 'text-gray-900');
-        
-        if (nav) { 
-            nav.classList.replace('bg-black', 'bg-white'); 
-            nav.classList.remove('border-gray-800'); 
-            nav.classList.add('border-gray-200', 'shadow-sm'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-sun', 'fa-moon');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Escuro";
-        
+        if (nav) { nav.classList.replace('bg-black', 'bg-white'); nav.classList.remove('border-gray-800'); nav.classList.add('border-gray-200', 'shadow-sm'); }
+        if (icon) { icon.classList.replace('fa-sun', 'fa-moon'); text.innerText = "Modo Escuro"; }
         if (save) localStorage.setItem('theme', 'light');
     } else {
-        // MODO ESCURO
         body.classList.replace('bg-gray-100', 'bg-black');
         body.classList.replace('text-gray-900', 'text-white');
-        
-        if (nav) { 
-            nav.classList.replace('bg-white', 'bg-black'); 
-            nav.classList.remove('border-gray-200', 'shadow-sm'); 
-            nav.classList.add('border-gray-800'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-moon', 'fa-sun');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Claro";
-        
+        if (nav) { nav.classList.replace('bg-white', 'bg-black'); nav.classList.remove('border-gray-200', 'shadow-sm'); nav.classList.add('border-gray-800'); }
+        if (icon) { icon.classList.replace('fa-moon', 'fa-sun'); text.innerText = "Modo Claro"; }
         if (save) localStorage.setItem('theme', 'dark');
     }
     updateCardStyles(!state.isDarkMode);
@@ -4116,76 +4061,46 @@ function loadStoreProfile() {
 function renderStoreProfile() {
     const p = state.storeProfile;
 
-    // --- 1. ATUALIZA HEADER (LOGO E NOME) ---
-    const navLogo = document.getElementById('navbar-store-logo');
-    const navText = document.getElementById('navbar-store-text');
+    // 1. Sidebar
+    if (els.sidebarStoreName) els.sidebarStoreName.innerText = p.name || 'Veste Manto';
+    if (els.sidebarStoreDesc) els.sidebarStoreDesc.innerText = p.description || '';
 
-    if (navLogo && navText) {
+    // Logo
+    if (els.sidebarStoreLogo) {
         if (p.logo) {
-            navLogo.src = p.logo;
-            navLogo.classList.remove('hidden');
-            navText.classList.add('hidden');
+            els.sidebarStoreLogo.src = p.logo;
+            els.sidebarStoreLogo.classList.remove('hidden');
         } else {
-            navLogo.classList.add('hidden');
-            navText.innerHTML = p.name || '<span class="text-white">SUA</span><span class="text-yellow-500">LOJA</span>';
-            navText.classList.remove('hidden');
+            els.sidebarStoreLogo.classList.add('hidden');
         }
     }
 
-    // --- 2. ATUALIZA SIDEBAR (MENU LATERAL) ---
-    const sideName = document.getElementById('sidebar-store-name');
-    const sideDesc = document.getElementById('sidebar-store-desc');
-
-    if (sideName) sideName.innerText = p.name || 'Loja Virtual';
-    if (sideDesc) sideDesc.innerText = p.description || '';
-
-    // --- 3. FUNÇÃO UNIFICADA PARA LINKS (TOPO E MENU) ---
-    const updateLink = (elementId, value, urlPrefix = '') => {
-        const el = document.getElementById(elementId);
+    // Redes Sociais
+    const updateLink = (el, val, prefix = '') => {
         if (!el) return;
-
-        if (value) {
-            let finalUrl = value;
-            if (urlPrefix.includes('instagram')) finalUrl = urlPrefix + value.replace('@', '').replace('https://instagram.com/', '');
-            else if (urlPrefix.includes('wa.me')) finalUrl = urlPrefix + value.replace(/\D/g, '');
-            
-            el.href = finalUrl;
+        if (val) {
+            el.href = val.startsWith('http') ? val : prefix + val;
             el.classList.remove('hidden');
-            el.classList.add('flex');
         } else {
             el.classList.add('hidden');
-            el.classList.remove('flex');
         }
     };
 
-    // Header Links
-    updateLink('header-link-insta', p.instagram, 'https://instagram.com/');
-    updateLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
+    updateLink(els.linkWhatsapp, p.whatsapp, 'https://wa.me/');
+    updateLink(els.linkInstagram, p.instagram, 'https://instagram.com/');
+    updateLink(els.linkFacebook, p.facebook);
 
-    // Sidebar Links
-    updateLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
-    updateLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
-    updateLink('sidebar-link-facebook', p.facebook);
-
-    const btnAddr = document.getElementById('btn-show-address');
-    if (btnAddr) {
+    // Endereço (Botão com Alert ou Modal Simples)
+    if (els.btnShowAddress) {
         if (p.address) {
-            btnAddr.classList.remove('hidden');
-            btnAddr.classList.add('flex');
-            btnAddr.onclick = () => alert(`📍 Endereço da Loja:\n\n${p.address}`);
+            els.btnShowAddress.classList.remove('hidden');
+            els.btnShowAddress.onclick = () => alert(`📍 Endereço da Loja:\n\n${p.address}`);
         } else {
-            btnAddr.classList.add('hidden');
+            els.btnShowAddress.classList.add('hidden');
         }
     }
-    
-    // Remove a logo duplicada da tela inicial se ainda existir lá
-    const homeLogoOld = document.getElementById('home-screen-logo');
-    if(homeLogoOld) homeLogoOld.classList.add('hidden');
-    const homeTitleOld = document.getElementById('home-screen-title');
-    if(homeTitleOld) homeTitleOld.classList.add('hidden');
 
-
-    if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
+    window.updateStoreStatusUI();
 }
 
 // Função para carregar dados nos inputs de configuração
@@ -4342,21 +4257,6 @@ function fillProfileForm() {
     if (getEl('conf-hours-end')) getEl('conf-hours-end').value = hours.end || "18:00";
     if (getEl('conf-hours-block')) getEl('conf-hours-block').checked = hours.block || false;
 
-    // Preenche Preview da Logo
-    const preview = getEl('conf-logo-preview');
-    const placeholder = getEl('conf-logo-placeholder');
-
-    if (p.logo) {
-        if (preview) {
-            preview.src = p.logo;
-            preview.classList.remove('hidden');
-        }
-        if (placeholder) placeholder.classList.add('hidden');
-    } else {
-        if (preview) preview.classList.add('hidden');
-        if (placeholder) placeholder.classList.remove('hidden');
-    }
-
 }
 
 // Função para salvar no Firebase
@@ -4370,7 +4270,7 @@ async function saveStoreProfile() {
     // Monta o objeto com os dados
     const data = {
         name: getVal(els.confStoreName),
-        logo: state.tempLogo ? state.tempLogo : (state.storeProfile.logo || ''),
+        logo: getVal(els.confStoreLogo),
         whatsapp: getVal(els.confStoreWpp).replace(/\D/g, ''),
         instagram: getVal(els.confStoreInsta),
         facebook: getVal(els.confStoreFace),
@@ -6398,10 +6298,10 @@ window.updateStoreStatusUI = () => {
         } else {
             badgeBtn.classList.remove('hidden');
             badgeBtn.classList.add('flex');
-
+            
             // Reseta classes base
             badgeBtn.className = "flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mt-2 border transition hover:opacity-80 mx-auto cursor-pointer";
-
+            
             let dotHtml = "";
             let labelText = "";
             let alertMsg = `🕒 Horário de Funcionamento:\n\nDas ${status.start} às ${status.end}`;
@@ -6411,19 +6311,19 @@ window.updateStoreStatusUI = () => {
                 badgeBtn.classList.add('border-green-500/30', 'bg-green-500/10', 'text-green-400');
                 dotHtml = `<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] animate-pulse"></div>`;
                 labelText = "Aberto";
-
+                
                 // Mensagem padrão
                 alertMsg += `\n\n✅ Estamos abertos!`;
-            }
+            } 
             else if (status.block) {
                 // VERMELHO: Fechado e Bloqueado
                 badgeBtn.classList.add('border-red-500/30', 'bg-red-500/10', 'text-red-400');
                 dotHtml = `<div class="w-2 h-2 rounded-full bg-red-500"></div>`;
                 labelText = "Fechado";
-
+                
                 // Mensagem de fechado
                 alertMsg += `\n\n⛔ Estamos fechados no momento.`;
-            }
+            } 
             else {
                 // LARANJA: Fechado mas Aceitando (Recebendo)
                 badgeBtn.classList.add('border-orange-500/30', 'bg-orange-500/10', 'text-orange-400');
@@ -6431,11 +6331,11 @@ window.updateStoreStatusUI = () => {
                 labelText = "Fechado (Recebendo)";
 
                 // --- AQUI ESTÁ A MENSAGEM QUE VOCÊ PEDIU ---
-                alertMsg += `\n\n⚠️ Atenção:\nEstamos fechados, mas aceitando encomendas.\n\nOs pedidos feitos agora serão preparados e enviados assim que iniciarmos ás ${status.start}.`;
+                alertMsg += `\n\n⚠️ Atenção:\nEstamos fechados, mas aceitando encomendas.\n\nOs pedidos feitos agora serão preparados e enviados assim que iniciarmos as ${status.start}.`;
             }
 
             badgeBtn.innerHTML = `${dotHtml}<span>${labelText}</span>`;
-
+            
             // Define o clique com a mensagem personalizada calculada acima
             badgeBtn.onclick = () => alert(alertMsg);
         }
@@ -6449,18 +6349,18 @@ window.updateStoreStatusUI = () => {
             modalBlock.classList.add('flex');
             modalBlock.style.zIndex = "9999";
 
-            if (displayTime) displayTime.innerText = `Abriremos às ${status.start}`;
+            if(displayTime) displayTime.innerText = `Abriremos às ${status.start}`;
 
             const cartModal = document.getElementById('cart-modal');
             const prodModal = document.getElementById('product-modal');
-            if (cartModal) cartModal.classList.add('hidden');
-            if (prodModal) prodModal.classList.add('hidden');
+            if(cartModal) cartModal.classList.add('hidden');
+            if(prodModal) prodModal.classList.add('hidden');
 
-            return;
+            return; 
         }
     }
 
-    if (modalBlock) {
+    if(modalBlock) {
         modalBlock.classList.add('hidden');
         modalBlock.classList.remove('flex');
     }

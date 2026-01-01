@@ -2964,41 +2964,19 @@ function toggleTheme(save = true) {
     const body = document.body;
     const nav = document.querySelector('nav');
     const icon = getEl('theme-icon');
-    const text = getEl('theme-text'); // <--- Este elemento pode não existir no novo design
+    const text = getEl('theme-text');
 
     if (!state.isDarkMode) {
-        // MODO CLARO
         body.classList.replace('bg-black', 'bg-gray-100');
         body.classList.replace('text-white', 'text-gray-900');
-        
-        if (nav) { 
-            nav.classList.replace('bg-black', 'bg-white'); 
-            nav.classList.remove('border-gray-800'); 
-            nav.classList.add('border-gray-200', 'shadow-sm'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-sun', 'fa-moon');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Escuro";
-        
+        if (nav) { nav.classList.replace('bg-black', 'bg-white'); nav.classList.remove('border-gray-800'); nav.classList.add('border-gray-200', 'shadow-sm'); }
+        if (icon) { icon.classList.replace('fa-sun', 'fa-moon'); text.innerText = "Modo Escuro"; }
         if (save) localStorage.setItem('theme', 'light');
     } else {
-        // MODO ESCURO
         body.classList.replace('bg-gray-100', 'bg-black');
         body.classList.replace('text-gray-900', 'text-white');
-        
-        if (nav) { 
-            nav.classList.replace('bg-white', 'bg-black'); 
-            nav.classList.remove('border-gray-200', 'shadow-sm'); 
-            nav.classList.add('border-gray-800'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-moon', 'fa-sun');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Claro";
-        
+        if (nav) { nav.classList.replace('bg-white', 'bg-black'); nav.classList.remove('border-gray-200', 'shadow-sm'); nav.classList.add('border-gray-800'); }
+        if (icon) { icon.classList.replace('fa-moon', 'fa-sun'); text.innerText = "Modo Claro"; }
         if (save) localStorage.setItem('theme', 'dark');
     }
     updateCardStyles(!state.isDarkMode);
@@ -4132,24 +4110,41 @@ function renderStoreProfile() {
         }
     }
 
-    // --- 2. ATUALIZA SIDEBAR (MENU LATERAL) ---
-    const sideName = document.getElementById('sidebar-store-name');
-    const sideDesc = document.getElementById('sidebar-store-desc');
+    // --- 2. ATUALIZA LINKS DO HEADER ---
+    const headerInsta = document.getElementById('header-link-insta');
+    const headerWpp = document.getElementById('header-link-wpp');
 
-    if (sideName) sideName.innerText = p.name || 'Loja Virtual';
-    if (sideDesc) sideDesc.innerText = p.description || '';
+    if (headerInsta) {
+        if (p.instagram) {
+            const user = p.instagram.replace('@', '').replace('https://instagram.com/', '');
+            headerInsta.href = `https://instagram.com/${user}`;
+            headerInsta.classList.remove('hidden');
+            headerInsta.classList.add('flex');
+        } else {
+            headerInsta.classList.add('hidden');
+        }
+    }
 
-    // --- 3. FUNÇÃO UNIFICADA PARA LINKS (TOPO E MENU) ---
-    const updateLink = (elementId, value, urlPrefix = '') => {
-        const el = document.getElementById(elementId);
+    if (headerWpp) {
+        if (p.whatsapp) {
+            headerWpp.href = `https://wa.me/${p.whatsapp.replace(/\D/g, '')}`;
+            headerWpp.classList.remove('hidden');
+            headerWpp.classList.add('flex');
+        } else {
+            headerWpp.classList.add('hidden');
+        }
+    }
+
+    // --- 3. ATUALIZA SIDEBAR (MENU LATERAL) ---
+    if (els.sidebarStoreName) els.sidebarStoreName.innerText = p.name || 'Loja Virtual';
+    if (els.sidebarStoreDesc) els.sidebarStoreDesc.innerText = p.description || '';
+
+    // Links Sociais da Sidebar
+    const updateSideLink = (id, val, prefix = '') => {
+        const el = document.getElementById(id);
         if (!el) return;
-
-        if (value) {
-            let finalUrl = value;
-            if (urlPrefix.includes('instagram')) finalUrl = urlPrefix + value.replace('@', '').replace('https://instagram.com/', '');
-            else if (urlPrefix.includes('wa.me')) finalUrl = urlPrefix + value.replace(/\D/g, '');
-            
-            el.href = finalUrl;
+        if (val) {
+            el.href = val.startsWith('http') ? val : prefix + val;
             el.classList.remove('hidden');
             el.classList.add('flex');
         } else {
@@ -4157,34 +4152,11 @@ function renderStoreProfile() {
             el.classList.remove('flex');
         }
     };
+    updateSideLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
+    updateSideLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
+    updateSideLink('sidebar-link-facebook', p.facebook);
 
-    // Header Links
-    updateLink('header-link-insta', p.instagram, 'https://instagram.com/');
-    updateLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
-
-    // Sidebar Links
-    updateLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
-    updateLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
-    updateLink('sidebar-link-facebook', p.facebook);
-
-    const btnAddr = document.getElementById('btn-show-address');
-    if (btnAddr) {
-        if (p.address) {
-            btnAddr.classList.remove('hidden');
-            btnAddr.classList.add('flex');
-            btnAddr.onclick = () => alert(`📍 Endereço da Loja:\n\n${p.address}`);
-        } else {
-            btnAddr.classList.add('hidden');
-        }
-    }
-    
-    // Remove a logo duplicada da tela inicial se ainda existir lá
-    const homeLogoOld = document.getElementById('home-screen-logo');
-    if(homeLogoOld) homeLogoOld.classList.add('hidden');
-    const homeTitleOld = document.getElementById('home-screen-title');
-    if(homeTitleOld) homeTitleOld.classList.add('hidden');
-
-
+    // Atualiza status (Bolinha)
     if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 }
 

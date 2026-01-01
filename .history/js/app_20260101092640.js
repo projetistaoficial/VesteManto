@@ -2964,41 +2964,19 @@ function toggleTheme(save = true) {
     const body = document.body;
     const nav = document.querySelector('nav');
     const icon = getEl('theme-icon');
-    const text = getEl('theme-text'); // <--- Este elemento pode não existir no novo design
+    const text = getEl('theme-text');
 
     if (!state.isDarkMode) {
-        // MODO CLARO
         body.classList.replace('bg-black', 'bg-gray-100');
         body.classList.replace('text-white', 'text-gray-900');
-        
-        if (nav) { 
-            nav.classList.replace('bg-black', 'bg-white'); 
-            nav.classList.remove('border-gray-800'); 
-            nav.classList.add('border-gray-200', 'shadow-sm'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-sun', 'fa-moon');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Escuro";
-        
+        if (nav) { nav.classList.replace('bg-black', 'bg-white'); nav.classList.remove('border-gray-800'); nav.classList.add('border-gray-200', 'shadow-sm'); }
+        if (icon) { icon.classList.replace('fa-sun', 'fa-moon'); text.innerText = "Modo Escuro"; }
         if (save) localStorage.setItem('theme', 'light');
     } else {
-        // MODO ESCURO
         body.classList.replace('bg-gray-100', 'bg-black');
         body.classList.replace('text-gray-900', 'text-white');
-        
-        if (nav) { 
-            nav.classList.replace('bg-white', 'bg-black'); 
-            nav.classList.remove('border-gray-200', 'shadow-sm'); 
-            nav.classList.add('border-gray-800'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-moon', 'fa-sun');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Claro";
-        
+        if (nav) { nav.classList.replace('bg-white', 'bg-black'); nav.classList.remove('border-gray-200', 'shadow-sm'); nav.classList.add('border-gray-800'); }
+        if (icon) { icon.classList.replace('fa-moon', 'fa-sun'); text.innerText = "Modo Claro"; }
         if (save) localStorage.setItem('theme', 'dark');
     }
     updateCardStyles(!state.isDarkMode);

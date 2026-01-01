@@ -2964,41 +2964,19 @@ function toggleTheme(save = true) {
     const body = document.body;
     const nav = document.querySelector('nav');
     const icon = getEl('theme-icon');
-    const text = getEl('theme-text'); // <--- Este elemento pode não existir no novo design
+    const text = getEl('theme-text');
 
     if (!state.isDarkMode) {
-        // MODO CLARO
         body.classList.replace('bg-black', 'bg-gray-100');
         body.classList.replace('text-white', 'text-gray-900');
-        
-        if (nav) { 
-            nav.classList.replace('bg-black', 'bg-white'); 
-            nav.classList.remove('border-gray-800'); 
-            nav.classList.add('border-gray-200', 'shadow-sm'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-sun', 'fa-moon');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Escuro";
-        
+        if (nav) { nav.classList.replace('bg-black', 'bg-white'); nav.classList.remove('border-gray-800'); nav.classList.add('border-gray-200', 'shadow-sm'); }
+        if (icon) { icon.classList.replace('fa-sun', 'fa-moon'); text.innerText = "Modo Escuro"; }
         if (save) localStorage.setItem('theme', 'light');
     } else {
-        // MODO ESCURO
         body.classList.replace('bg-gray-100', 'bg-black');
         body.classList.replace('text-gray-900', 'text-white');
-        
-        if (nav) { 
-            nav.classList.replace('bg-white', 'bg-black'); 
-            nav.classList.remove('border-gray-200', 'shadow-sm'); 
-            nav.classList.add('border-gray-800'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-moon', 'fa-sun');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Claro";
-        
+        if (nav) { nav.classList.replace('bg-white', 'bg-black'); nav.classList.remove('border-gray-200', 'shadow-sm'); nav.classList.add('border-gray-800'); }
+        if (icon) { icon.classList.replace('fa-moon', 'fa-sun'); text.innerText = "Modo Claro"; }
         if (save) localStorage.setItem('theme', 'dark');
     }
     updateCardStyles(!state.isDarkMode);
@@ -4116,7 +4094,9 @@ function loadStoreProfile() {
 function renderStoreProfile() {
     const p = state.storeProfile;
 
-    // --- 1. ATUALIZA HEADER (LOGO E NOME) ---
+    // =========================================================
+    // 1. NAVBAR (TOPO) - LOGO
+    // =========================================================
     const navLogo = document.getElementById('navbar-store-logo');
     const navText = document.getElementById('navbar-store-text');
 
@@ -4132,41 +4112,46 @@ function renderStoreProfile() {
         }
     }
 
-    // --- 2. ATUALIZA SIDEBAR (MENU LATERAL) ---
+    // =========================================================
+    // 2. SIDEBAR (MENU LATERAL) - INFORMAÇÕES
+    // =========================================================
+    
+    // Nome e Descrição
     const sideName = document.getElementById('sidebar-store-name');
     const sideDesc = document.getElementById('sidebar-store-desc');
 
     if (sideName) sideName.innerText = p.name || 'Loja Virtual';
     if (sideDesc) sideDesc.innerText = p.description || '';
 
-    // --- 3. FUNÇÃO UNIFICADA PARA LINKS (TOPO E MENU) ---
-    const updateLink = (elementId, value, urlPrefix = '') => {
+    // Função interna para atualizar links da sidebar
+    const updateSidebarLink = (elementId, value, urlPrefix = '') => {
         const el = document.getElementById(elementId);
-        if (!el) return;
+        if (!el) return; // Se não achar o elemento, ignora (não trava)
 
         if (value) {
+            // Formata a URL (remove @ do instagram, remove caracteres do whats)
             let finalUrl = value;
-            if (urlPrefix.includes('instagram')) finalUrl = urlPrefix + value.replace('@', '').replace('https://instagram.com/', '');
-            else if (urlPrefix.includes('wa.me')) finalUrl = urlPrefix + value.replace(/\D/g, '');
-            
+            if (urlPrefix.includes('instagram')) {
+                finalUrl = urlPrefix + value.replace('@', '').replace('https://instagram.com/', '');
+            } else if (urlPrefix.includes('wa.me')) {
+                finalUrl = urlPrefix + value.replace(/\D/g, '');
+            }
+
             el.href = finalUrl;
             el.classList.remove('hidden');
-            el.classList.add('flex');
+            el.classList.add('flex'); // Importante para o layout de ícone centralizado
         } else {
             el.classList.add('hidden');
             el.classList.remove('flex');
         }
     };
 
-    // Header Links
-    updateLink('header-link-insta', p.instagram, 'https://instagram.com/');
-    updateLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
+    // Atualiza os ícones do menu
+    updateSidebarLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
+    updateSidebarLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
+    updateSidebarLink('sidebar-link-facebook', p.facebook);
 
-    // Sidebar Links
-    updateLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
-    updateLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
-    updateLink('sidebar-link-facebook', p.facebook);
-
+    // Endereço (Sidebar)
     const btnAddr = document.getElementById('btn-show-address');
     if (btnAddr) {
         if (p.address) {
@@ -4177,14 +4162,49 @@ function renderStoreProfile() {
             btnAddr.classList.add('hidden');
         }
     }
-    
-    // Remove a logo duplicada da tela inicial se ainda existir lá
-    const homeLogoOld = document.getElementById('home-screen-logo');
-    if(homeLogoOld) homeLogoOld.classList.add('hidden');
-    const homeTitleOld = document.getElementById('home-screen-title');
-    if(homeTitleOld) homeTitleOld.classList.add('hidden');
 
+    // =========================================================
+    // 3. TELA INICIAL (VITRINE) - LOGO GRANDE (OPCIONAL)
+    // =========================================================
+    const homeLogo = document.getElementById('home-screen-logo');
+    const homeTitle = document.getElementById('home-screen-title');
+    const homeNameText = document.getElementById('home-store-name-text');
 
+    if (homeLogo && homeTitle) {
+        if (p.logo) {
+            homeLogo.src = p.logo;
+            homeLogo.classList.remove('hidden');
+            homeTitle.classList.add('hidden');
+        } else {
+            homeLogo.classList.add('hidden');
+            if (homeNameText) homeNameText.innerText = p.name || 'SUA LOJA';
+            homeTitle.classList.remove('hidden');
+        }
+    }
+
+    // =========================================================
+    // 4. HEADER LINKS (RODAPÉ DO TOPO)
+    // =========================================================
+    // Se você estiver usando o header estilo "Capa" que criamos antes
+    const updateHeaderLink = (elementId, value, urlPrefix = '') => {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        if (value) {
+            let finalUrl = value;
+            if (urlPrefix.includes('instagram')) finalUrl = urlPrefix + value.replace('@', '').replace('https://instagram.com/', '');
+            else if (urlPrefix.includes('wa.me')) finalUrl = urlPrefix + value.replace(/\D/g, '');
+            
+            el.href = finalUrl;
+            el.classList.remove('hidden');
+            el.classList.add('flex');
+        } else {
+            el.classList.add('hidden');
+        }
+    };
+    updateHeaderLink('header-link-insta', p.instagram, 'https://instagram.com/');
+    updateHeaderLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
+
+    // Atualiza status (Bolinha)
     if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 }
 

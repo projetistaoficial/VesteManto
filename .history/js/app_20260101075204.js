@@ -2964,41 +2964,19 @@ function toggleTheme(save = true) {
     const body = document.body;
     const nav = document.querySelector('nav');
     const icon = getEl('theme-icon');
-    const text = getEl('theme-text'); // <--- Este elemento pode não existir no novo design
+    const text = getEl('theme-text');
 
     if (!state.isDarkMode) {
-        // MODO CLARO
         body.classList.replace('bg-black', 'bg-gray-100');
         body.classList.replace('text-white', 'text-gray-900');
-        
-        if (nav) { 
-            nav.classList.replace('bg-black', 'bg-white'); 
-            nav.classList.remove('border-gray-800'); 
-            nav.classList.add('border-gray-200', 'shadow-sm'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-sun', 'fa-moon');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Escuro";
-        
+        if (nav) { nav.classList.replace('bg-black', 'bg-white'); nav.classList.remove('border-gray-800'); nav.classList.add('border-gray-200', 'shadow-sm'); }
+        if (icon) { icon.classList.replace('fa-sun', 'fa-moon'); text.innerText = "Modo Escuro"; }
         if (save) localStorage.setItem('theme', 'light');
     } else {
-        // MODO ESCURO
         body.classList.replace('bg-gray-100', 'bg-black');
         body.classList.replace('text-gray-900', 'text-white');
-        
-        if (nav) { 
-            nav.classList.replace('bg-white', 'bg-black'); 
-            nav.classList.remove('border-gray-200', 'shadow-sm'); 
-            nav.classList.add('border-gray-800'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-moon', 'fa-sun');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Claro";
-        
+        if (nav) { nav.classList.replace('bg-white', 'bg-black'); nav.classList.remove('border-gray-200', 'shadow-sm'); nav.classList.add('border-gray-800'); }
+        if (icon) { icon.classList.replace('fa-moon', 'fa-sun'); text.innerText = "Modo Claro"; }
         if (save) localStorage.setItem('theme', 'dark');
     }
     updateCardStyles(!state.isDarkMode);
@@ -4116,7 +4094,7 @@ function loadStoreProfile() {
 function renderStoreProfile() {
     const p = state.storeProfile;
 
-    // --- 1. ATUALIZA HEADER (LOGO E NOME) ---
+    // --- 0. ATUALIZA NAVBAR (Logo no Topo) ---
     const navLogo = document.getElementById('navbar-store-logo');
     const navText = document.getElementById('navbar-store-text');
 
@@ -4132,58 +4110,66 @@ function renderStoreProfile() {
         }
     }
 
-    // --- 2. ATUALIZA SIDEBAR (MENU LATERAL) ---
+    // --- 1. ATUALIZA SIDEBAR (Menu Lateral) ---
+    // Usamos getElementById direto para garantir que encontre os elementos
     const sideName = document.getElementById('sidebar-store-name');
     const sideDesc = document.getElementById('sidebar-store-desc');
+    const sideLogo = document.getElementById('sidebar-store-logo'); 
 
     if (sideName) sideName.innerText = p.name || 'Loja Virtual';
     if (sideDesc) sideDesc.innerText = p.description || '';
+    
+    if (sideLogo) {
+        if (p.logo) {
+            sideLogo.src = p.logo;
+            sideLogo.classList.remove('hidden');
+        } else {
+            sideLogo.classList.add('hidden');
+        }
+    }
 
-    // --- 3. FUNÇÃO UNIFICADA PARA LINKS (TOPO E MENU) ---
-    const updateLink = (elementId, value, urlPrefix = '') => {
-        const el = document.getElementById(elementId);
+    // --- 2. ATUALIZA TELA INICIAL ---
+    const homeLogo = document.getElementById('home-screen-logo');
+    const homeTitle = document.getElementById('home-screen-title');
+    const homeNameText = document.getElementById('home-store-name-text');
+
+    if (homeLogo && homeTitle) {
+        if (p.logo) {
+            homeLogo.src = p.logo;
+            homeLogo.classList.remove('hidden');
+            homeTitle.classList.add('hidden');
+        } else {
+            homeLogo.classList.add('hidden');
+            if (homeNameText) homeNameText.innerText = p.name || 'SUA LOJA';
+            homeTitle.classList.remove('hidden');
+        }
+    }
+
+    // Links sociais
+    const updateLink = (elOrId, val, prefix = '') => {
+        // Garante que pega o elemento, seja passando o objeto ou o ID string
+        const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
         if (!el) return;
-
-        if (value) {
-            let finalUrl = value;
-            if (urlPrefix.includes('instagram')) finalUrl = urlPrefix + value.replace('@', '').replace('https://instagram.com/', '');
-            else if (urlPrefix.includes('wa.me')) finalUrl = urlPrefix + value.replace(/\D/g, '');
-            
-            el.href = finalUrl;
+        
+        if (val) {
+            el.href = val.startsWith('http') ? val : prefix + val;
             el.classList.remove('hidden');
-            el.classList.add('flex');
+            // Garante display flex para ícones centralizados
+            if (el.classList.contains('hidden') === false) el.classList.add('flex');
         } else {
             el.classList.add('hidden');
             el.classList.remove('flex');
         }
     };
 
-    // Header Links
+    // Atualiza Header
     updateLink('header-link-insta', p.instagram, 'https://instagram.com/');
     updateLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
 
-    // Sidebar Links
+    // Atualiza Sidebar (Tenta pelos IDs novos primeiro, fallback para os antigos)
     updateLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
     updateLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
     updateLink('sidebar-link-facebook', p.facebook);
-
-    const btnAddr = document.getElementById('btn-show-address');
-    if (btnAddr) {
-        if (p.address) {
-            btnAddr.classList.remove('hidden');
-            btnAddr.classList.add('flex');
-            btnAddr.onclick = () => alert(`📍 Endereço da Loja:\n\n${p.address}`);
-        } else {
-            btnAddr.classList.add('hidden');
-        }
-    }
-    
-    // Remove a logo duplicada da tela inicial se ainda existir lá
-    const homeLogoOld = document.getElementById('home-screen-logo');
-    if(homeLogoOld) homeLogoOld.classList.add('hidden');
-    const homeTitleOld = document.getElementById('home-screen-title');
-    if(homeTitleOld) homeTitleOld.classList.add('hidden');
-
 
     if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 }

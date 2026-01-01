@@ -54,39 +54,26 @@
         <div class="flex-1"></div>
 
         <div class="bg-gray-900 border-t border-gray-800 p-4">
-
             <div class="flex flex-col items-center text-center mb-4">
                 <h3 id="sidebar-store-name" class="text-white font-bold text-xl tracking-tight">Nome da Loja</h3>
-
                 <button id="store-status-badge"
                     class="hidden flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mt-2 border transition hover:opacity-80 mx-auto">
                 </button>
-
                 <p id="sidebar-store-desc" class="text-gray-400 text-xs mt-1 px-2 line-clamp-2">Descrição da loja...</p>
             </div>
 
             <div class="flex justify-center gap-4 mb-4">
-
-                <a id="sidebar-link-wpp" href="#" target="_blank"
-                    class="text-gray-400 hover:text-green-500 transition hidden">
-                    <i class="fab fa-whatsapp text-2xl"></i>
-                </a>
-
-                <a id="sidebar-link-insta" href="#" target="_blank"
-                    class="text-gray-400 hover:text-pink-500 transition hidden">
-                    <i class="fab fa-instagram text-2xl"></i>
-                </a>
-
-                <a id="sidebar-link-facebook" href="#" target="_blank"
-                    class="text-gray-400 hover:text-blue-500 transition hidden">
-                    <i class="fab fa-facebook text-2xl"></i>
-                </a>
-
+                <a id="link-whatsapp" href="#" target="_blank"
+                    class="text-gray-400 hover:text-green-500 transition hidden"><i
+                        class="fab fa-whatsapp text-xl"></i></a>
+                <a id="link-instagram" href="#" target="_blank"
+                    class="text-gray-400 hover:text-pink-500 transition hidden"><i
+                        class="fab fa-instagram text-xl"></i></a>
+                <a id="link-facebook" href="#" target="_blank"
+                    class="text-gray-400 hover:text-blue-500 transition hidden"><i
+                        class="fab fa-facebook text-xl"></i></a>
                 <button id="btn-show-address" class="text-gray-400 hover:text-yellow-500 transition hidden"
-                    title="Ver Endereço">
-                    <i class="fas fa-map-marker-alt text-2xl"></i>
-                </button>
-
+                    title="Ver Endereço"><i class="fas fa-map-marker-alt text-xl"></i></button>
             </div>
 
             <button onclick="shareStoreLink()"
@@ -150,7 +137,7 @@
         </div>
 
         <div
-            class="relative z-20 px-6 pb-3 mt-14 md:mt-16 flex justify-between items-end text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest">
+            class="relative z-20 px-6 pb-3 mt-14 md:mt-16 flex justify-between items-start text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest">
 
             <a id="header-link-insta" href="#" target="_blank"
                 class="flex items-center gap-2 hover:text-pink-500 transition hidden group">

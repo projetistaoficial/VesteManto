@@ -54,39 +54,26 @@
         <div class="flex-1"></div>
 
         <div class="bg-gray-900 border-t border-gray-800 p-4">
-
             <div class="flex flex-col items-center text-center mb-4">
                 <h3 id="sidebar-store-name" class="text-white font-bold text-xl tracking-tight">Nome da Loja</h3>
-
                 <button id="store-status-badge"
                     class="hidden flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mt-2 border transition hover:opacity-80 mx-auto">
                 </button>
-
                 <p id="sidebar-store-desc" class="text-gray-400 text-xs mt-1 px-2 line-clamp-2">Descrição da loja...</p>
             </div>
 
             <div class="flex justify-center gap-4 mb-4">
-
-                <a id="sidebar-link-wpp" href="#" target="_blank"
-                    class="text-gray-400 hover:text-green-500 transition hidden">
-                    <i class="fab fa-whatsapp text-2xl"></i>
-                </a>
-
-                <a id="sidebar-link-insta" href="#" target="_blank"
-                    class="text-gray-400 hover:text-pink-500 transition hidden">
-                    <i class="fab fa-instagram text-2xl"></i>
-                </a>
-
-                <a id="sidebar-link-facebook" href="#" target="_blank"
-                    class="text-gray-400 hover:text-blue-500 transition hidden">
-                    <i class="fab fa-facebook text-2xl"></i>
-                </a>
-
+                <a id="link-whatsapp" href="#" target="_blank"
+                    class="text-gray-400 hover:text-green-500 transition hidden"><i
+                        class="fab fa-whatsapp text-xl"></i></a>
+                <a id="link-instagram" href="#" target="_blank"
+                    class="text-gray-400 hover:text-pink-500 transition hidden"><i
+                        class="fab fa-instagram text-xl"></i></a>
+                <a id="link-facebook" href="#" target="_blank"
+                    class="text-gray-400 hover:text-blue-500 transition hidden"><i
+                        class="fab fa-facebook text-xl"></i></a>
                 <button id="btn-show-address" class="text-gray-400 hover:text-yellow-500 transition hidden"
-                    title="Ver Endereço">
-                    <i class="fas fa-map-marker-alt text-2xl"></i>
-                </button>
-
+                    title="Ver Endereço"><i class="fas fa-map-marker-alt text-xl"></i></button>
             </div>
 
             <button onclick="shareStoreLink()"
@@ -149,27 +136,21 @@
             </h1>
         </div>
 
-        <div
-            class="relative z-20 px-6 pb-3 mt-14 md:mt-16 flex justify-between items-end text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest">
+       <div class="absolute bottom-4 w-full px-10 flex justify-between items-end text-[10px] md:text-xs font-medium text-gray-400 uppercase tracking-widest z-20 pointer-events-none">
+        <a id="header-link-insta" href="#" target="_blank" class="flex items-center gap-2 hover:text-pink-500 transition hidden group pointer-events-auto">
+            <div class="w-6 h-6 rounded-full border border-white/30 flex items-center justify-center group-hover:border-pink-500 transition">
+                <i class="fab fa-instagram"></i>
+            </div>
+            <span class="hidden md:inline">Instagram</span>
+        </a>
 
-            <a id="header-link-insta" href="#" target="_blank"
-                class="flex items-center gap-2 hover:text-pink-500 transition hidden group">
-                <div
-                    class="w-6 h-6 rounded-full border border-gray-600 flex items-center justify-center group-hover:border-pink-500 transition">
-                    <i class="fab fa-instagram"></i>
-                </div>
-                <span class="hidden md:inline">Instagram</span>
-            </a>
-
-            <a id="header-link-wpp" href="#" target="_blank"
-                class="flex items-center gap-2 hover:text-green-500 transition hidden text-right group">
-                <span class="hidden md:inline">Fale Conosco</span>
-                <div
-                    class="w-6 h-6 rounded-full border border-gray-600 flex items-center justify-center group-hover:border-green-500 transition">
-                    <i class="fab fa-whatsapp"></i>
-                </div>
-            </a>
-        </div>
+        <a id="header-link-wpp" href="#" target="_blank" class="flex items-center gap-2 hover:text-green-500 transition hidden text-right group pointer-events-auto">
+            <span class="hidden md:inline">Fale Conosco</span>
+            <div class="w-6 h-6 rounded-full border border-white/30 flex items-center justify-center group-hover:border-green-500 transition">
+                <i class="fab fa-whatsapp"></i>
+            </div>
+        </a>
+    </div>
     </nav>
     <div class="w-full px-4 mt-6 mb-0 flex justify-center relative z-40">
 

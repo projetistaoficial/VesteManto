@@ -54,39 +54,26 @@
         <div class="flex-1"></div>
 
         <div class="bg-gray-900 border-t border-gray-800 p-4">
-
             <div class="flex flex-col items-center text-center mb-4">
                 <h3 id="sidebar-store-name" class="text-white font-bold text-xl tracking-tight">Nome da Loja</h3>
-
                 <button id="store-status-badge"
                     class="hidden flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mt-2 border transition hover:opacity-80 mx-auto">
                 </button>
-
                 <p id="sidebar-store-desc" class="text-gray-400 text-xs mt-1 px-2 line-clamp-2">Descrição da loja...</p>
             </div>
 
             <div class="flex justify-center gap-4 mb-4">
-
-                <a id="sidebar-link-wpp" href="#" target="_blank"
-                    class="text-gray-400 hover:text-green-500 transition hidden">
-                    <i class="fab fa-whatsapp text-2xl"></i>
-                </a>
-
-                <a id="sidebar-link-insta" href="#" target="_blank"
-                    class="text-gray-400 hover:text-pink-500 transition hidden">
-                    <i class="fab fa-instagram text-2xl"></i>
-                </a>
-
-                <a id="sidebar-link-facebook" href="#" target="_blank"
-                    class="text-gray-400 hover:text-blue-500 transition hidden">
-                    <i class="fab fa-facebook text-2xl"></i>
-                </a>
-
+                <a id="link-whatsapp" href="#" target="_blank"
+                    class="text-gray-400 hover:text-green-500 transition hidden"><i
+                        class="fab fa-whatsapp text-xl"></i></a>
+                <a id="link-instagram" href="#" target="_blank"
+                    class="text-gray-400 hover:text-pink-500 transition hidden"><i
+                        class="fab fa-instagram text-xl"></i></a>
+                <a id="link-facebook" href="#" target="_blank"
+                    class="text-gray-400 hover:text-blue-500 transition hidden"><i
+                        class="fab fa-facebook text-xl"></i></a>
                 <button id="btn-show-address" class="text-gray-400 hover:text-yellow-500 transition hidden"
-                    title="Ver Endereço">
-                    <i class="fas fa-map-marker-alt text-2xl"></i>
-                </button>
-
+                    title="Ver Endereço"><i class="fas fa-map-marker-alt text-xl"></i></button>
             </div>
 
             <button onclick="shareStoreLink()"
@@ -115,7 +102,7 @@
 
                 <button id="theme-toggle"
                     class="w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-yellow-400 hover:bg-white/10 transition focus:outline-none">
-                    <i id="theme-icon" class="fas fa-sun text-lg"></i>
+                    <i id=bu"theme-icon" class="fas fa-sun text-lg"></i>
                 </button>
 
                 <button id="btn-track-icon"
@@ -171,28 +158,18 @@
             </a>
         </div>
     </nav>
-    <div class="w-full px-4 mt-6 mb-0 flex justify-center relative z-40">
+    <div class="absolute top-120 m-4 w-full px-6 z-30">
 
-        <div class="max-w-3xl w-full relative group">
+        <div class="max-w-xl mx-auto relative group">
 
-            <div
-                class="absolute -inset-0.5 bg-gradient-to-r from-yellow-600 to-yellow-900 rounded-2xl opacity-20 group-hover:opacity-40 group-focus-within:opacity-100 group-focus-within:blur transition duration-500">
-            </div>
+            <input type="text" id="search-input" placeholder="Buscar produtos..."
+                class="w-full bg-white/10 border border-white/10 rounded-full px-5 py-2.5 text-xs text-white placeholder-gray-400 focus:outline-none focus:bg-black/80 focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/50 transition-all text-center backdrop-blur-md shadow-lg">
 
-            <div
-                class="relative flex items-center bg-[#0a0a0a] rounded-2xl border border-gray-800/80 shadow-2xl transition-all duration-300 group-focus-within:border-yellow-500/50">
+            <i
+                class="fas fa-search absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-yellow-500 transition"></i>
 
-                <input type="text" id="search-input"
-                    class="w-full bg-transparent py-4 pl-6 pr-12 text-lg text-white font-medium placeholder-gray-400 outline-none rounded-2xl"
-                    placeholder="Busque o Produto...">
-
-                <div
-                    class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-white/5 rounded-xl group-focus-within:bg-yellow-500 group-focus-within:text-black transition-all duration-300">
-                    <i class="fas fa-search text-gray-400 text-xl group-focus-within:text-black transition-colors"></i>
-                </div>
-
-            </div>
         </div>
+
     </div>
 
     <main id="main-content" class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">

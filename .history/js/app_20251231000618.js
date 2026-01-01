@@ -1,5 +1,5 @@
 import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction } from './firebase-config.js';
-import { initStatsModule, updateStatsData } from './stats.js';
+
 // =================================================================
 // 1. HELPERS (FUNÇÕES AUXILIARES)
 // =================================================================
@@ -321,8 +321,7 @@ const state = {
         whatsapp: '',
         description: '',
         installments: { active: false },
-        deliveryConfig: { ownDelivery: false, cancelTimeMin: 5 },
-        tempLogo: null,
+        deliveryConfig: { ownDelivery: false, cancelTimeMin: 5 }
     },
 
     // Variáveis de Dashboard/Stats
@@ -331,7 +330,6 @@ const state = {
     statsDate: new Date(),
     statsViewMode: 'month',
     statsFilterType: 'all',
-    dailyStats: [],
     siteStats: { visits: 0, shares: 0 },
 
     // UI Helpers
@@ -508,13 +506,6 @@ function initApp() {
 
     startBackgroundListeners(); // <--- Inicia o monitoramento em tempo real
 
-    initStatsModule();
-
-    // Checa status a cada 60 segundos
-    setInterval(() => {
-        if (state.storeProfile) window.updateStoreStatusUI();
-    }, 60000);
-
 
     // 2. Tema
     if (localStorage.getItem('theme') === 'light') toggleTheme(false);
@@ -588,7 +579,6 @@ function loadProducts() {
         // Recalcula Capital de Giro sempre que produtos mudarem
         calculateStatsMetrics();
         renderAdminCategoryList();
-        updateStatsData(state.orders, state.products, state.siteStats);
     });
 }
 
@@ -626,59 +616,38 @@ function loadAdminSales() {
         if (document.getElementById('admin-product-list')) {
             filterAndRenderProducts();
         }
-        updateStatsData(state.orders, state.products, state.dailyStats);
     });
 }
 
 // Carrega Contadores de Visitas/Compartilhamentos
 function loadSiteStats() {
-    // Carrega a coleção de estatísticas diárias
-    const q = query(collection(db, `sites/${state.siteId}/dailyStats`));
-
-    onSnapshot(q, (snapshot) => {
-        const dailyData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        state.dailyStats = dailyData; // Salva no estado global
-
-        // Atualiza o módulo de estatísticas
-        // IMPORTANTE: O terceiro parâmetro agora é state.dailyStats (array), não mais state.siteStats (objeto)
-        updateStatsData(state.orders, state.products, state.dailyStats);
-    });
-}
-
-
-// Função para registrar estatísticas diárias (Visita ou Share)
-async function logDailyStat(type) {
-    // type deve ser 'visits' ou 'shares'
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const docRef = doc(db, `sites/${state.siteId}/dailyStats`, today);
-
-    try {
-        const docSnap = await getDoc(docRef);
-
+    const docRef = doc(db, `sites/${state.siteId}/stats`, 'general');
+    onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
-            const currentVal = docSnap.data()[type] || 0;
-            await updateDoc(docRef, { [type]: currentVal + 1 });
+            state.siteStats = docSnap.data();
+            if (els.statVisits) els.statVisits.innerText = `${state.siteStats.visits || 0} Usuários`;
+            if (els.statShares) els.statShares.innerText = state.siteStats.shares || 0;
         } else {
-            // Se não existe o dia, cria com o valor inicial
-            await setDoc(docRef, {
-                visits: type === 'visits' ? 1 : 0,
-                shares: type === 'shares' ? 1 : 0
-            });
+            setDoc(docRef, { visits: 0, shares: 0 });
         }
-        console.log(`Stat ${type} registrada para ${today}`);
-    } catch (e) {
-        console.error("Erro ao logar stat:", e);
-    }
+    });
 }
 
 // Incrementa Visitas (Seguro: Não conta Admin)
 async function incrementVisitsCounter() {
-    // Evita contar admin e evita contar F5 repetido na mesma sessão
+    // Se o usuário já estiver autenticado (Admin), não conta
     if (auth.currentUser) return;
-    if (sessionStorage.getItem('visit_logged')) return;
 
-    sessionStorage.setItem('visit_logged', 'true');
-    logDailyStat('visits');
+    const docRef = doc(db, `sites/${state.siteId}/stats`, 'general');
+    try {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+            const current = snap.data().visits || 0;
+            await updateDoc(docRef, { visits: current + 1 });
+        } else {
+            await setDoc(docRef, { visits: 1, shares: 0 });
+        }
+    } catch (e) { console.log("Erro contador visitas (Adblock?):", e); }
 }
 
 // =================================================================
@@ -1729,8 +1698,6 @@ function renderAdminCoupons() {
     }).join('');
 }
 
-
-
 // =================================================================
 // 7. DASHBOARD E VENDAS SIMPLES
 // =================================================================
@@ -1796,59 +1763,50 @@ function updateDashboardMetrics() {
 
 function filterAndRenderSales() {
     // 1. Captura Inputs
-    const codeInput = document.getElementById('filter-search-code'); // NOVO
     const searchInput = document.getElementById('filter-search-general');
     const prodInput = document.getElementById('filter-search-product-value');
 
     if (!searchInput) return;
 
-    // Valores Tratados
-    const termCode = codeInput ? codeInput.value.trim() : ''; // Valor numérico do pedido
-    const termGeneral = searchInput.value.toLowerCase().trim();
-    const termProduct = prodInput ? prodInput.value.toLowerCase().trim() : '';
+    const term = searchInput.value.toLowerCase().trim();
+    const prodTerm = prodInput ? prodInput.value.toLowerCase().trim() : ''; // Termo do produto
 
     const status = document.getElementById('filter-status').value;
     const payment = document.getElementById('filter-payment').value;
+    const sortBy = document.getElementById('filter-sort')?.value || 'date_desc';
     const dateStart = document.getElementById('filter-date-start').value;
     const dateEnd = document.getElementById('filter-date-end').value;
 
     // 2. Filtragem
     let filtered = state.orders.filter(o => {
-        // A. Busca por CÓDIGO (Prioritária)
-        let matchCode = true;
-        if (termCode) {
-            // Verifica se o código do pedido contem o que foi digitado
-            // Ex: Digitar "5" mostra "5", "15", "50", "501"
-            matchCode = String(o.code).includes(termCode);
-        }
-
-        // B. Busca Geral (Cliente, Telefone) - REMOVIDO CÓDIGO DAQUI
+        // A. Busca Geral (Cliente, Código, Telefone)
         let matchGeneral = true;
-        if (termGeneral) {
+        if (term) {
+            const code = String(o.code).toLowerCase();
             const name = (o.customer?.name || '').toLowerCase();
             const phone = (o.customer?.phone || '').toLowerCase();
-            // Agora busca geral olha apenas nome e telefone
-            matchGeneral = name.includes(termGeneral) || phone.includes(termGeneral);
+            matchGeneral = code.includes(term) || name.includes(term) || phone.includes(term);
         }
 
-        // C. Busca por Produto
+        // B. Busca por Produto (NOVO)
         let matchProduct = true;
-        if (termProduct) {
+        if (prodTerm) {
+            // Verifica se ALGUM item do pedido contém o nome digitado
             if (o.items && Array.isArray(o.items)) {
-                matchProduct = o.items.some(item => item.name.toLowerCase().includes(termProduct));
+                matchProduct = o.items.some(item => item.name.toLowerCase().includes(prodTerm));
             } else {
                 matchProduct = false;
             }
         }
 
-        // D. Status
+        // C. Status
         let matchStatus = true;
         if (status) {
             if (status === 'Cancelado_All') matchStatus = o.status.includes('Cancelado');
             else matchStatus = o.status === status;
         }
 
-        // E. Pagamento
+        // D. Pagamento
         let matchPayment = true;
         if (payment) {
             const method = (o.paymentMethod || '').toLowerCase();
@@ -1857,7 +1815,7 @@ function filterAndRenderSales() {
             else if (payment === 'cash') matchPayment = method.includes('dinheiro');
         }
 
-        // F. Data
+        // E. Data
         let matchDate = true;
         if (dateStart || dateEnd) {
             const oDate = new Date(o.date).getTime();
@@ -1871,33 +1829,28 @@ function filterAndRenderSales() {
             }
         }
 
-        return matchCode && matchGeneral && matchProduct && matchStatus && matchPayment && matchDate;
+        return matchGeneral && matchProduct && matchStatus && matchPayment && matchDate;
     });
 
-    // 3. Ordenação Inteligente (Proximidade Numérica)
+    // 3. Ordenação
     filtered.sort((a, b) => {
-        // SE o usuário digitou um número de pedido...
-        if (termCode) {
-            const target = parseInt(termCode);
-            const codeA = parseInt(a.code) || 0;
-            const codeB = parseInt(b.code) || 0;
-
-            // Calcula a distância absoluta (quem está mais perto do número digitado)
-            const distA = Math.abs(codeA - target);
-            const distB = Math.abs(codeB - target);
-
-            // Se as distâncias forem diferentes, o menor ganha (mais perto)
-            if (distA !== distB) {
-                return distA - distB;
-            }
-            // Se forem iguais (improvável com ID único), desempata por data
-        }
-
-        // ORDENAÇÃO PADRÃO (Data Decrescente)
-        // Se não tiver busca por código, ou para desempatar
         const dateA = new Date(a.date).getTime();
         const dateB = new Date(b.date).getTime();
-        return dateB - dateA;
+        const getPrice = (val) => typeof val === 'number' ? val : parseFloat(String(val).replace('R$', '').trim().replace(',', '.')) || 0;
+        const priceA = getPrice(a.total);
+        const priceB = getPrice(b.total);
+        const codeA = parseInt(a.code) || 0;
+        const codeB = parseInt(b.code) || 0;
+
+        switch (sortBy) {
+            case 'price_asc': return priceA - priceB;
+            case 'price_desc': return priceB - priceA;
+            case 'date_asc': return dateA - dateB;
+            case 'code_asc': return codeA - codeB;
+            case 'code_desc': return codeB - codeA;
+            case 'date_desc':
+            default: return dateB - dateA;
+        }
     });
 
     // 4. Renderiza
@@ -1926,18 +1879,28 @@ function renderSalesList(orders) {
         const horaStr = dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         const dataHoraFormatada = `${dataStr} às ${horaStr}`;
 
-        // 2. Cores do Status
+        // 2. Definição de Cores (IGUAL AO RASTREIO)
         let statusColorClass = 'text-gray-400';
+
         switch (o.status) {
             case 'Aprovado':
-            case 'Preparando pedido': statusColorClass = 'text-yellow-500'; break;
-            case 'Saiu para entrega': statusColorClass = 'text-orange-500'; break;
+            case 'Preparando pedido':
+                statusColorClass = 'text-yellow-500';
+                break;
+            case 'Saiu para entrega':
+                statusColorClass = 'text-orange-500';
+                break;
             case 'Entregue':
-            case 'Concluído': statusColorClass = 'text-green-500'; break;
+            case 'Concluído':
+                statusColorClass = 'text-green-500';
+                break;
         }
-        if (o.status.includes('Cancelado')) statusColorClass = 'text-red-500';
 
-        // 3. HTML dos Itens
+        if (o.status.includes('Cancelado')) {
+            statusColorClass = 'text-red-500';
+        }
+
+        // 3. HTML dos Itens (Resumo)
         let itemsHtml = o.items.map(i => `
             <div class="bg-gray-800/50 p-2 rounded mb-1 border border-gray-700 flex justify-between items-center">
                 <span class="text-gray-300 text-sm font-medium">${i.qty}x ${i.name} <span class="text-gray-500 text-xs">(${i.size})</span></span>
@@ -1945,69 +1908,7 @@ function renderSalesList(orders) {
             </div>
         `).join('');
 
-        // 4. Lógica de Desconto (Cupom/Pix)
-        const subTotalItens = o.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
-        const valFrete = o.shippingFee || 0;
-        const valTotalPago = o.total || 0;
-        const valDescontoTotal = Math.max(0, (subTotalItens + valFrete) - valTotalPago);
-
-        let discountHtml = '';
-        if (valDescontoTotal > 0.05) {
-            const isPix = (o.paymentMethod || '').toLowerCase().includes('pix');
-            const hasCupom = (o.cupom && o.cupom.trim().length > 0);
-
-            // Verifica dados salvos do cupom
-            let valDescontoCupom = 0;
-            let nomeCupom = null;
-            if (o.couponData && o.couponData.value) {
-                valDescontoCupom = o.couponData.value;
-                nomeCupom = o.couponData.code;
-            } else if (o.cupom) {
-                nomeCupom = o.cupom;
-            }
-
-            // Calcula sobra para Pix
-            const totalEsperadoSemPix = (subTotalItens + valFrete) - valDescontoCupom;
-            const valDescontoPix = Math.max(0, totalEsperadoSemPix - valTotalPago);
-
-            discountHtml += `<div class="mt-2 mb-2 border-y border-gray-700/50 py-2 space-y-1">`;
-            if (nomeCupom) {
-                discountHtml += `
-                    <div class="flex justify-between text-xs text-gray-300">
-                        <span>Cupom: <span class="text-yellow-500 font-bold uppercase tracking-wider border border-yellow-500/30 px-1 rounded bg-yellow-500/10">${nomeCupom}</span></span>
-                        ${valDescontoCupom > 0 ? `<span>- ${formatCurrency(valDescontoCupom)}</span>` : ''}
-                    </div>
-                `;
-            }
-            if (valDescontoPix > 0.05) {
-                discountHtml += `
-                    <div class="flex justify-between text-xs text-gray-300">
-                        <span>Desconto Pix:</span>
-                        <span class="text-green-400 font-bold">- ${formatCurrency(valDescontoPix)}</span>
-                    </div>
-                `;
-            }
-            discountHtml += `</div>`;
-        }
-
-        // --- LÓGICA DO TIPO DE PAGAMENTO (NOVO) ---
-        // Analisa a string salva para definir o tipo
-        const rawMethod = o.paymentMethod || '';
-        const isOnline = rawMethod.includes('Online');
-        const isDelivery = rawMethod.includes('Entrega');
-
-        // Limpa o nome do método (Tira o texto entre colchetes)
-        const cleanMethodName = rawMethod.split('[')[0].trim();
-
-        let typeBadge = '';
-        if (isOnline) {
-            typeBadge = `<span class="text-[10px] bg-green-900/40 text-green-400 border border-green-600/50 px-2 py-0.5 rounded uppercase font-bold tracking-wide mt-1 inline-block">Online</span>`;
-        } else if (isDelivery) {
-            typeBadge = `<span class="text-[10px] bg-orange-900/40 text-orange-400 border border-orange-600/50 px-2 py-0.5 rounded uppercase font-bold tracking-wide mt-1 inline-block">Na Entrega</span>`;
-        }
-        // ------------------------------------------
-
-        // 5. Controles
+        // 4. Controles (Botões de Ação)
         let controlsHtml = '';
         if (o.status.includes('Cancelado')) {
             controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span></div>`;
@@ -2038,24 +1939,28 @@ function renderSalesList(orders) {
             `;
         }
 
-        // 6. Monta Card
+        // --- MONTAGEM DO CARD (ACORDEÃO) ---
         const cardWrapper = document.createElement('div');
         cardWrapper.className = "mb-4";
 
         cardWrapper.innerHTML = `
             <div id="order-header-${o.id}" onclick="toggleOrderAccordion('${o.id}')" 
                  class="bg-black border border-gray-800 p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-gray-600 transition-all shadow-md relative z-10">
+                
                 <div class="flex items-center gap-4 flex-1">
                     <span class="text-yellow-500 font-bold text-xl tracking-wide">Pedidos #${o.code}</span>
+                    
                     <div id="order-header-info-${o.id}" class="hidden md:flex items-center gap-4 text-sm transition-opacity duration-200">
                         <span class="${statusColorClass} font-bold uppercase text-xs tracking-wider">${o.status}</span>
                         <span class="text-gray-500 text-xs border-l border-gray-800 pl-3">${dataHoraFormatada}</span>
                     </div>
                 </div>
+
                 <i id="order-arrow-${o.id}" class="fas fa-chevron-down text-yellow-500 text-xl transition-transform duration-300"></i>
             </div>
 
             <div id="order-content-${o.id}" class="hidden bg-[#0f172a] border-x border-b border-gray-800 rounded-b-xl p-4 -mt-1 pt-6 shadow-inner">
+                
                 <div class="flex justify-between items-start mb-4 pb-4 border-b border-gray-800">
                     <div>
                          <p class="text-gray-500 text-xs uppercase">Data do Pedido</p>
@@ -2070,17 +1975,17 @@ function renderSalesList(orders) {
                 <div class="mb-4">
                     <p class="text-xs text-gray-500 uppercase font-bold mb-2">Itens do Pedido</p>
                     ${itemsHtml}
-                    <div class="text-right mt-2 bg-black/20 p-2 rounded border border-gray-700/50">
+
+                    <div class="text-right mt-2">
+                        
                         ${o.shippingFee && o.shippingFee > 0 ? `
-                        <div class="mb-1 flex justify-between text-xs">
-                            <span class="text-gray-500">Frete</span>
-                            <span class="text-yellow-500 font-bold">+ ${formatCurrency(o.shippingFee)}</span>
-                        </div>` : ''}
-                        ${discountHtml}
-                        <div class="flex justify-between items-center pt-2 border-t border-gray-700 mt-1">
-                            <span class="text-gray-400 text-xs font-bold uppercase">Total Final</span>
-                            <span class="text-white font-bold text-xl">${formatCurrency(o.total)}</span>
-                        </div>
+                            <div class="mb-1">
+                                <span class="text-gray-500 text-xs mr-2">Frete:</span>
+                                <span class="text-yellow-500 font-bold text-sm">+ ${formatCurrency(o.shippingFee)}</span>
+                            </div>
+                        ` : ''}
+                        <span class="text-gray-400 text-xs">Total:</span>
+                        <span class="text-white font-bold text-xl ml-2">${formatCurrency(o.total)}</span>
                     </div>
                 </div>
 
@@ -2093,13 +1998,9 @@ function renderSalesList(orders) {
                         <span class="text-gray-500 font-bold mb-1">Telefone:</span>
                         <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center flex items-center justify-center h-full">${o.customer?.phone || '-'}</span>
                     </div>
-                    
                     <div class="flex flex-col">
                         <span class="text-gray-500 font-bold mb-1">Pagamento:</span>
-                        <div class="bg-gray-800 text-white px-2 py-2 rounded border border-gray-700 w-full text-center flex flex-col items-center justify-center h-full">
-                            <span class="truncate w-full font-bold" title="${rawMethod}">${cleanMethodName}</span>
-                            ${typeBadge}
-                        </div>
+                        <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center truncate flex items-center justify-center h-full" title="${o.paymentMethod}">${o.paymentMethod?.split('[')[0] || '-'}</span>
                     </div>
                     <div class="col-span-1 md:col-span-3 mt-1">
                         <span class="text-gray-500 font-bold block mb-1 uppercase">Endereço de Entrega:</span>
@@ -2112,6 +2013,7 @@ function renderSalesList(orders) {
                 ${controlsHtml}
             </div>
         `;
+
         listEl.appendChild(cardWrapper);
     });
 }
@@ -2181,8 +2083,7 @@ function setupEventListeners() {
         'filter-payment',
         'filter-sort',
         'filter-date-start',
-        'filter-date-end',
-        'filter-search-code'
+        'filter-date-end'
     ];
 
     idsFiltros.forEach(id => {
@@ -2911,38 +2812,6 @@ function setupEventListeners() {
     // Aplica a validação nos grupos (adicionei classes no HTML do passo 1)
     validateSubOptions('sub-check-online');
     validateSubOptions('sub-check-delivery');
-
-
-    // UPLOAD DE LOGO DA LOJA
-    const logoInput = getEl('conf-logo-upload');
-    if (logoInput) {
-        logoInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            try {
-                // Reusa a função processImageFile que já existe no seu código
-                const base64 = await processImageFile(file);
-
-                // Salva no estado temporário
-                state.tempLogo = base64;
-
-                // Atualiza o preview na hora
-                const preview = getEl('conf-logo-preview');
-                const placeholder = getEl('conf-logo-placeholder');
-
-                if (preview) {
-                    preview.src = base64;
-                    preview.classList.remove('hidden');
-                }
-                if (placeholder) placeholder.classList.add('hidden');
-
-            } catch (err) {
-                console.error("Erro logo:", err);
-                alert("Erro ao processar imagem.");
-            }
-        });
-    }
 }
 
 function updateCardStyles(isLight) {
@@ -2964,41 +2833,19 @@ function toggleTheme(save = true) {
     const body = document.body;
     const nav = document.querySelector('nav');
     const icon = getEl('theme-icon');
-    const text = getEl('theme-text'); // <--- Este elemento pode não existir no novo design
+    const text = getEl('theme-text');
 
     if (!state.isDarkMode) {
-        // MODO CLARO
         body.classList.replace('bg-black', 'bg-gray-100');
         body.classList.replace('text-white', 'text-gray-900');
-        
-        if (nav) { 
-            nav.classList.replace('bg-black', 'bg-white'); 
-            nav.classList.remove('border-gray-800'); 
-            nav.classList.add('border-gray-200', 'shadow-sm'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-sun', 'fa-moon');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Escuro";
-        
+        if (nav) { nav.classList.replace('bg-black', 'bg-white'); nav.classList.remove('border-gray-800'); nav.classList.add('border-gray-200', 'shadow-sm'); }
+        if (icon) { icon.classList.replace('fa-sun', 'fa-moon'); text.innerText = "Modo Escuro"; }
         if (save) localStorage.setItem('theme', 'light');
     } else {
-        // MODO ESCURO
         body.classList.replace('bg-gray-100', 'bg-black');
         body.classList.replace('text-gray-900', 'text-white');
-        
-        if (nav) { 
-            nav.classList.replace('bg-white', 'bg-black'); 
-            nav.classList.remove('border-gray-200', 'shadow-sm'); 
-            nav.classList.add('border-gray-800'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-moon', 'fa-sun');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Claro";
-        
+        if (nav) { nav.classList.replace('bg-white', 'bg-black'); nav.classList.remove('border-gray-200', 'shadow-sm'); nav.classList.add('border-gray-800'); }
+        if (icon) { icon.classList.replace('fa-moon', 'fa-sun'); text.innerText = "Modo Claro"; }
         if (save) localStorage.setItem('theme', 'dark');
     }
     updateCardStyles(!state.isDarkMode);
@@ -3775,14 +3622,20 @@ window.toggleProductSelection = (id) => {
 };
 
 window.shareStoreLink = () => {
+    // Incrementa "Shares" no banco (Apenas se não for Admin, mas a regra do design pediu para o botão enviar funcionar para Admin)
+    // Regra do Design: "botão deve funcionar para admin enviar, mas não deve contar nos compartilhamentos"
     const url = window.location.href;
     const text = `Confira nossa loja: ${url}`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(whatsappUrl, '_blank');
 
-    // Se não for admin, conta como share
+    // Incrementa contador (apenas se não for admin)
     if (!auth.currentUser) {
-        logDailyStat('shares');
+        // Lógica simplificada de incremento sem leitura prévia pesada (usando a que já temos carregada)
+        // Para precisão, seria ideal usar increment() do Firestore, mas aqui usamos leitura simples
+        const docRef = doc(db, `sites/${state.siteId}/stats`, 'general');
+        const currentShares = state.siteStats.shares || 0;
+        updateDoc(docRef, { shares: currentShares + 1 }).catch(e => console.log(e));
     }
 };
 
@@ -3792,18 +3645,6 @@ window.shareStoreLink = () => {
 
 function addToCart(product, size) {
     const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
-    // 1. Verifica status da loja
-    const status = getStoreStatus();
-
-    // Se estiver fechado E for para bloquear (Strict Mode)
-    if (!status.isOpen && status.block) {
-        // Se for admin, deixa passar (para testes), senão bloqueia
-        if (!state.user) {
-            alert(`A loja está fechada no momento.\nHorário de funcionamento: ${status.start} às ${status.end}`);
-            window.updateStoreStatusUI(); // Força o modal a aparecer caso não tenha aparecido
-            return; // <--- IMPEDE A ADIÇÃO
-        }
-    }
 
     // 1. Calcula o TOTAL deste produto no carrinho (somando todos os tamanhos: P + M + G...)
     const currentTotalQty = state.cart.reduce((total, item) => {
@@ -4109,83 +3950,50 @@ function loadStoreProfile() {
         // --- ADIÇÃO CRÍTICA: ---
         // Força a vitrine a se redesenhar com as novas regras de parcelamento
         renderCatalog(state.products);
-        window.updateStoreStatusUI();
     });
 }
 
 function renderStoreProfile() {
     const p = state.storeProfile;
 
-    // --- 1. ATUALIZA HEADER (LOGO E NOME) ---
-    const navLogo = document.getElementById('navbar-store-logo');
-    const navText = document.getElementById('navbar-store-text');
+    // 1. Sidebar
+    if (els.sidebarStoreName) els.sidebarStoreName.innerText = p.name || 'Veste Manto';
+    if (els.sidebarStoreDesc) els.sidebarStoreDesc.innerText = p.description || '';
 
-    if (navLogo && navText) {
+    // Logo
+    if (els.sidebarStoreLogo) {
         if (p.logo) {
-            navLogo.src = p.logo;
-            navLogo.classList.remove('hidden');
-            navText.classList.add('hidden');
+            els.sidebarStoreLogo.src = p.logo;
+            els.sidebarStoreLogo.classList.remove('hidden');
         } else {
-            navLogo.classList.add('hidden');
-            navText.innerHTML = p.name || '<span class="text-white">SUA</span><span class="text-yellow-500">LOJA</span>';
-            navText.classList.remove('hidden');
+            els.sidebarStoreLogo.classList.add('hidden');
         }
     }
 
-    // --- 2. ATUALIZA SIDEBAR (MENU LATERAL) ---
-    const sideName = document.getElementById('sidebar-store-name');
-    const sideDesc = document.getElementById('sidebar-store-desc');
-
-    if (sideName) sideName.innerText = p.name || 'Loja Virtual';
-    if (sideDesc) sideDesc.innerText = p.description || '';
-
-    // --- 3. FUNÇÃO UNIFICADA PARA LINKS (TOPO E MENU) ---
-    const updateLink = (elementId, value, urlPrefix = '') => {
-        const el = document.getElementById(elementId);
+    // Redes Sociais
+    const updateLink = (el, val, prefix = '') => {
         if (!el) return;
-
-        if (value) {
-            let finalUrl = value;
-            if (urlPrefix.includes('instagram')) finalUrl = urlPrefix + value.replace('@', '').replace('https://instagram.com/', '');
-            else if (urlPrefix.includes('wa.me')) finalUrl = urlPrefix + value.replace(/\D/g, '');
-            
-            el.href = finalUrl;
+        if (val) {
+            el.href = val.startsWith('http') ? val : prefix + val;
             el.classList.remove('hidden');
-            el.classList.add('flex');
         } else {
             el.classList.add('hidden');
-            el.classList.remove('flex');
         }
     };
 
-    // Header Links
-    updateLink('header-link-insta', p.instagram, 'https://instagram.com/');
-    updateLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
+    updateLink(els.linkWhatsapp, p.whatsapp, 'https://wa.me/');
+    updateLink(els.linkInstagram, p.instagram, 'https://instagram.com/');
+    updateLink(els.linkFacebook, p.facebook);
 
-    // Sidebar Links
-    updateLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
-    updateLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
-    updateLink('sidebar-link-facebook', p.facebook);
-
-    const btnAddr = document.getElementById('btn-show-address');
-    if (btnAddr) {
+    // Endereço (Botão com Alert ou Modal Simples)
+    if (els.btnShowAddress) {
         if (p.address) {
-            btnAddr.classList.remove('hidden');
-            btnAddr.classList.add('flex');
-            btnAddr.onclick = () => alert(`📍 Endereço da Loja:\n\n${p.address}`);
+            els.btnShowAddress.classList.remove('hidden');
+            els.btnShowAddress.onclick = () => alert(`📍 Endereço da Loja:\n\n${p.address}`);
         } else {
-            btnAddr.classList.add('hidden');
+            els.btnShowAddress.classList.add('hidden');
         }
     }
-    
-    // Remove a logo duplicada da tela inicial se ainda existir lá
-    const homeLogoOld = document.getElementById('home-screen-logo');
-    if(homeLogoOld) homeLogoOld.classList.add('hidden');
-    const homeTitleOld = document.getElementById('home-screen-title');
-    if(homeTitleOld) homeTitleOld.classList.add('hidden');
-
-
-    if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 }
 
 // Função para carregar dados nos inputs de configuração
@@ -4288,74 +4096,33 @@ function fillProfileForm() {
     // --- CARREGAR FORMAS DE PAGAMENTO (NOVO) ---
     // Estrutura padrão: tudo ativado se não existir config
     const payConfig = p.paymentMethods || {
-        online: { active: true, pix: true, card: true },
-        delivery: { active: true, pix: true, card: true, cash: true }
+        online: { pix: true, card: true },
+        delivery: { pix: true, card: true, cash: true }
     };
 
+    // Helper para marcar checkbox seguro
     const setCheck = (id, val) => {
         const el = document.getElementById(id);
-        // Se val for undefined, assume true. Se for false, é false.
-        if (el) el.checked = (val !== false);
+        if (el) el.checked = (val !== false); // Padrão true
     };
 
-    // ATENÇÃO AQUI: Carrega os botões mestres
-    setCheck('conf-pay-online-active', payConfig.online?.active);
-    setCheck('conf-pay-delivery-active', payConfig.delivery?.active);
-
-    // Carrega os sub-itens
     setCheck('conf-pay-online-pix', payConfig.online?.pix);
     setCheck('conf-pay-online-card', payConfig.online?.card);
+
     setCheck('conf-pay-delivery-pix', payConfig.delivery?.pix);
     setCheck('conf-pay-delivery-card', payConfig.delivery?.card);
     setCheck('conf-pay-delivery-cash', payConfig.delivery?.cash);
 
-    // Atualiza a opacidade visual
+    setCheck('conf-pay-delivery-pix', payConfig.delivery?.pix);
+    setCheck('conf-pay-delivery-card', payConfig.delivery?.card);
+    setCheck('conf-pay-delivery-cash', payConfig.delivery?.cash);
+
+    // Ajusta opacidade inicial
     const groupOnline = document.getElementById('group-online-methods');
     const groupDelivery = document.getElementById('group-delivery-methods');
+    if (groupOnline) groupOnline.className = (payConfig.online?.active !== false) ? "space-y-3 opacity-100" : "space-y-3 opacity-30 pointer-events-none";
+    if (groupDelivery) groupDelivery.className = (payConfig.delivery?.active !== false) ? "space-y-3 opacity-100" : "space-y-3 opacity-30 pointer-events-none";
 
-    if (groupOnline) {
-        groupOnline.className = (payConfig.online?.active !== false) ? "space-y-3 opacity-100" : "space-y-3 opacity-30 pointer-events-none";
-    }
-    if (groupDelivery) {
-        groupDelivery.className = (payConfig.delivery?.active !== false) ? "space-y-3 opacity-100" : "space-y-3 opacity-30 pointer-events-none";
-    };
-
-    // --- HORÁRIO DE FUNCIONAMENTO ---
-    const hours = p.openingHours || { active: false, start: "08:00", end: "18:00", block: false };
-
-    const elHoursCheck = getEl('conf-hours-active');
-    const elHoursDiv = getEl('hours-settings');
-
-    if (elHoursCheck) {
-        elHoursCheck.checked = hours.active;
-        if (hours.active) elHoursDiv.classList.remove('opacity-50', 'pointer-events-none');
-        else elHoursDiv.classList.add('opacity-50', 'pointer-events-none');
-
-        // Listener visual
-        elHoursCheck.addEventListener('change', (e) => {
-            if (e.target.checked) elHoursDiv.classList.remove('opacity-50', 'pointer-events-none');
-            else elHoursDiv.classList.add('opacity-50', 'pointer-events-none');
-        });
-    }
-
-    if (getEl('conf-hours-start')) getEl('conf-hours-start').value = hours.start || "08:00";
-    if (getEl('conf-hours-end')) getEl('conf-hours-end').value = hours.end || "18:00";
-    if (getEl('conf-hours-block')) getEl('conf-hours-block').checked = hours.block || false;
-
-    // Preenche Preview da Logo
-    const preview = getEl('conf-logo-preview');
-    const placeholder = getEl('conf-logo-placeholder');
-
-    if (p.logo) {
-        if (preview) {
-            preview.src = p.logo;
-            preview.classList.remove('hidden');
-        }
-        if (placeholder) placeholder.classList.add('hidden');
-    } else {
-        if (preview) preview.classList.add('hidden');
-        if (placeholder) placeholder.classList.remove('hidden');
-    }
 
 }
 
@@ -4370,20 +4137,12 @@ async function saveStoreProfile() {
     // Monta o objeto com os dados
     const data = {
         name: getVal(els.confStoreName),
-        logo: state.tempLogo ? state.tempLogo : (state.storeProfile.logo || ''),
+        logo: getVal(els.confStoreLogo),
         whatsapp: getVal(els.confStoreWpp).replace(/\D/g, ''),
         instagram: getVal(els.confStoreInsta),
         facebook: getVal(els.confStoreFace),
         address: getVal(els.confStoreAddress),
         description: getVal(els.confStoreDesc),
-
-        // NOVO OBJETO DE HORÁRIO
-        openingHours: {
-            active: getCheck(getEl('conf-hours-active')),
-            start: getVal(getEl('conf-hours-start')),
-            end: getVal(getEl('conf-hours-end')),
-            block: getCheck(getEl('conf-hours-block'))
-        },
 
         // CORREÇÃO DO CEP: Salvando string limpa
         cep: getVal(els.confStoreCep).replace(/\D/g, ''),
@@ -4411,7 +4170,7 @@ async function saveStoreProfile() {
     } catch (error) {
         console.error(error);
         showToast('Erro ao salvar: ' + error.message, 'error');
-    };
+    }
 }
 
 // --- FUNÇÃO DE AUTOSALVAMENTO (LOGÍSTICA E PARCELAMENTO) ---
@@ -4499,25 +4258,23 @@ async function autoSaveSettings(type) {
 
     // Grava no Firebase
     try {
-        // Grava no Banco
         await setDoc(docRef, dataToUpdate, { merge: true });
 
-        // --- CORREÇÃO DO ESTADO LOCAL ---
-        // Atualiza a variável global state.storeProfile IMEDIATAMENTE
+        // Atualiza estado local imediatamente
         if (state.storeProfile) {
-            if (dataToUpdate.paymentMethods) {
-                state.storeProfile.paymentMethods = dataToUpdate.paymentMethods;
-            }
+            // Mescla profundo para não perder sub-objetos
             if (dataToUpdate.deliveryConfig) {
                 state.storeProfile.deliveryConfig = { ...state.storeProfile.deliveryConfig, ...dataToUpdate.deliveryConfig };
             }
             if (dataToUpdate.installments) {
                 state.storeProfile.installments = { ...state.storeProfile.installments, ...dataToUpdate.installments };
             }
+            // Outros campos simples
             if (dataToUpdate.cep) state.storeProfile.cep = dataToUpdate.cep;
             if (dataToUpdate.maxDistance) state.storeProfile.maxDistance = dataToUpdate.maxDistance;
         }
 
+        // Força atualização da Vitrine/Carrinho para refletir mudanças
         renderCatalog(state.products);
         if (typeof updateCartUI === 'function') updateCartUI();
 
@@ -4540,7 +4297,7 @@ let checkoutState = {
 };
 
 window.openCheckoutModal = () => {
-    // 1. Limpa campos anteriores
+    // 1. Limpa campos
     ['checkout-cep', 'checkout-number', 'checkout-comp'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
     });
@@ -4548,82 +4305,67 @@ window.openCheckoutModal = () => {
         const el = document.getElementById(id); if (el) el.classList.add('hidden');
     });
 
-    // 2. RECUPERA CONFIGURAÇÕES (Com Defaults Seguros)
-    // Se active for undefined, assume true (ativado)
-    const pm = state.storeProfile.paymentMethods || {};
+    // 2. RECUPERA CONFIGURAÇÕES
+    const payConfig = state.storeProfile.paymentMethods || {
+        online: { active: true },
+        delivery: { active: true }
+    };
+    
+    // Configuração antiga de logística (para compatibilidade)
+    const oldOwnDelivery = state.storeProfile.deliveryConfig?.ownDelivery;
 
-    // --- CORREÇÃO AQUI: FORÇAR BOOLEANO ---
-    // Verifica explicitamente se é false. Se for undefined ou true, considera ativo.
-    const onlineActive = pm.online?.active !== false;
-    const deliveryActive = pm.delivery?.active !== false;
-
-    // Compatibilidade com logística antiga (opcional, mas vamos priorizar o botão financeiro)
-    // Se quiser que o botão financeiro seja SOBERANO, ignore o oldOwnDelivery.
-    // Vou manter apenas para garantir que não quebre lojas antigas, mas a prioridade é o novo botão.
-    const logisticsActive = state.storeProfile.deliveryConfig?.ownDelivery !== false;
-
-    // 3. REFERÊNCIAS AOS ELEMENTOS
-    const containerDelivery = document.getElementById('container-delivery-option'); // Div do Pagar na Entrega
-    const labelOnline = document.getElementById('label-pay-online'); // Div do Pagar Online
-
+    // Elementos
+    const containerDelivery = document.getElementById('container-delivery-option'); // Div inteira do Delivery
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
+    const labelOnline = radioOnline?.closest('label'); // O Label (botão visual) do Online
     const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
 
-    console.log("Status Online:", onlineActive);
-    console.log("Status Entrega (Fin):", deliveryActive);
-    console.log("Status Entrega (Log):", logisticsActive);
-
-    // --- A. VISIBILIDADE ONLINE ---
-    if (!onlineActive) {
+    // --- A. CONTROLE DE VISIBILIDADE DO ONLINE ---
+    if (payConfig.online.active === false) {
         if (labelOnline) {
             labelOnline.classList.add('hidden');
-            labelOnline.style.setProperty('display', 'none', 'important'); // Força ocultar
+            labelOnline.style.display = 'none'; // Força bruta
         }
     } else {
         if (labelOnline) {
             labelOnline.classList.remove('hidden');
-            labelOnline.style.display = ''; // Volta ao padrão (flex)
+            labelOnline.style.display = 'flex'; // Restaura display flex
         }
     }
 
-    // --- B. VISIBILIDADE ENTREGA ---
-    // AQUI ESTAVA O ERRO: A lógica deve ser restritiva.
-    // Se o botão financeiro estiver OFF, some. Ponto final.
-    // Se o botão financeiro estiver ON, mas a logística OFF, também some.
-
-    const showDelivery = deliveryActive && logisticsActive;
-
-    if (!showDelivery) {
+    // --- B. CONTROLE DE VISIBILIDADE DO DELIVERY ---
+    // Some se estiver desativado no financeiro OU desativado na logística
+    if (payConfig.delivery.active === false || oldOwnDelivery === false) {
         if (containerDelivery) {
             containerDelivery.classList.add('hidden');
-            containerDelivery.style.setProperty('display', 'none', 'important');
+            containerDelivery.style.display = 'none';
         }
     } else {
         if (containerDelivery) {
             containerDelivery.classList.remove('hidden');
-            containerDelivery.style.display = ''; // Volta ao padrão (block)
+            containerDelivery.style.display = 'block';
         }
     }
 
-    // --- C. AUTO-SELEÇÃO DO RADIO (Para não ficar nenhum marcado) ---
+    // --- C. SELEÇÃO AUTOMÁTICA (AUTO-CORREÇÃO) ---
+    // Verifica qual sobrou visível e marca ele
+    const isOnlineVisible = payConfig.online.active !== false;
+    const isDeliveryVisible = payConfig.delivery.active !== false && oldOwnDelivery !== false;
 
-    // Se o Online está ativo, marcamos ele por padrão
-    if (onlineActive) {
+    if (isOnlineVisible) {
         if (radioOnline) radioOnline.checked = true;
-    }
-    // Se o Online está OFF, mas Entrega está ON, marcamos a Entrega
-    else if (showDelivery) {
+    } else if (isDeliveryVisible) {
         if (radioDelivery) radioDelivery.checked = true;
     }
 
-    // 4. Atualiza Interface Interna
+    // 3. Atualiza interface interna (sub-opções) e totais
     if (typeof window.togglePaymentMode === 'function') window.togglePaymentMode();
     if (typeof window.calcCheckoutTotal === 'function') window.calcCheckoutTotal();
 
-    // 5. NAVEGAÇÃO
+    // 4. Navegação do Modal
     const viewCart = document.getElementById('view-cart-list');
     const viewCheckout = document.getElementById('view-checkout');
-
+    
     if (viewCart) viewCart.classList.add('hidden');
     if (viewCheckout) viewCheckout.classList.remove('hidden');
 
@@ -4632,11 +4374,11 @@ window.openCheckoutModal = () => {
 
     document.getElementById('btn-modal-back')?.classList.remove('hidden');
     document.getElementById('btn-go-checkout')?.classList.add('hidden');
-
+    
     const btnFinish = document.getElementById('btn-finish-payment');
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = true;
+        btnFinish.disabled = true; 
     }
 };
 
@@ -4652,7 +4394,7 @@ window.handleCheckoutCep = async () => {
 
     const cep = cepInput.value.replace(/\D/g, '');
 
-    // Elementos da UI
+    // Elementos da UI (Busca segura para não dar erro null)
     const elDistDisplay = document.getElementById('distance-display');
     const elErrorMsg = document.getElementById('delivery-error-msg');
     const elErrorDiv = document.getElementById('delivery-error');
@@ -4662,13 +4404,10 @@ window.handleCheckoutCep = async () => {
 
     if (cep.length !== 8) return;
 
-    // Reset visual inicial
+    // Reset visual
     if (elLoading) elLoading.classList.remove('hidden');
     if (elErrorDiv) elErrorDiv.classList.add('hidden');
     if (elDistDisplay) elDistDisplay.classList.add('hidden');
-
-    // Reseta estado de entrega
-    checkoutState.isValidDelivery = false;
 
     try {
         // 1. Busca Endereço (ViaCEP)
@@ -4691,19 +4430,21 @@ window.handleCheckoutCep = async () => {
         const numInput = document.getElementById('checkout-number');
         if (numInput) numInput.focus();
 
-        // 2. VALIDAÇÃO DE DISTÂNCIA E FRETE
+        // 2. VALIDAÇÃO DE DISTÂNCIA
         const config = state.storeProfile.deliveryConfig || {};
         const storeCep = state.storeProfile.cep ? state.storeProfile.cep.replace(/\D/g, '') : '';
         const maxDist = parseFloat(state.storeProfile.maxDistance) || 0;
 
-        // Se tiver entrega própria configurada, calcula distância
+        // Verifica se calcula distância (apenas se tiver entrega própria ativa)
         if (storeCep && maxDist > 0 && config.ownDelivery === true) {
+
             if (elDistDisplay) {
                 elDistDisplay.innerText = "Calculando...";
                 elDistDisplay.classList.remove('hidden', 'text-red-500', 'text-green-500');
             }
 
             try {
+                // Certifique-se que você tem a função calculateDistanceByCEP no seu código
                 const dist = await calculateDistanceByCEP(storeCep, cep);
 
                 if (dist !== null) {
@@ -4720,15 +4461,15 @@ window.handleCheckoutCep = async () => {
                     }
                 }
             } catch (eDist) {
+                // Se o erro for de distância excessiva, repassa o erro
                 if (eDist.message.includes('Muito longe')) throw eDist;
-                // Se der erro de API mas não for distância, deixamos passar (opcional)
                 console.warn("Erro cálculo distância (ignorado):", eDist);
             }
         }
 
-        // SE CHEGOU AQUI, O ENDEREÇO/ENTREGA É VÁLIDO
-        checkoutState.isValidDelivery = true;
+        checkoutState.isValidDelivery = true; // <--- CEP VÁLIDO!
 
+        // Sucesso: Habilita botão
         if (btnFinish) {
             btnFinish.disabled = false;
             btnFinish.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -4736,7 +4477,7 @@ window.handleCheckoutCep = async () => {
 
     } catch (err) {
         console.error("Erro CEP:", err);
-        checkoutState.isValidDelivery = false; // Garante que frete não será cobrado
+        checkoutState.isValidDelivery = false; // <--- CEP INVÁLIDO
 
         if (elErrorMsg) elErrorMsg.innerText = err.message;
         if (elErrorDiv) elErrorDiv.classList.remove('hidden');
@@ -4745,18 +4486,8 @@ window.handleCheckoutCep = async () => {
     } finally {
         if (elLoading) elLoading.classList.add('hidden');
 
-        // --- CORREÇÃO DA ORDEM DE ATUALIZAÇÃO ---
-
-        // 1º: Recria a lista de parcelas (Dropdown) JÁ COM O FRETE INCLUSO
-        // Isso é crucial porque a função seguinte lê o valor de dentro desse dropdown
-        if (typeof populateInstallments === 'function') {
-            populateInstallments();
-        }
-
-        // 2º: Calcula o Total Final (Verde) e exibe o aviso "+ Frete"
-        if (typeof calcCheckoutTotal === 'function') {
-            calcCheckoutTotal();
-        }
+        // IMPORTANTE: Recalcula o total (para somar ou remover o frete)
+        calcCheckoutTotal();
     }
 };
 
@@ -5056,17 +4787,6 @@ window.showCartListView = () => {
 
 window.goToCheckoutView = () => {
     if (state.cart.length === 0) return alert("Carrinho vazio!");
-
-    // VERIFICAÇÃO DE LOJA FECHADA (MODO AVISO)
-    const status = getStoreStatus();
-
-    if (!status.isOpen && !status.block) {
-        const confirmMsg = `A loja está FECHADA no momento (Abre às ${status.start}).\n\nSeu pedido será recebido, mas só começará a ser preparado quando a loja abrir.\n\nDeseja continuar?`;
-
-        if (!confirm(confirmMsg)) {
-            return; // Cancela ida ao checkout
-        }
-    }
 
     hideAllViews();
     document.getElementById('view-checkout').classList.remove('hidden');
@@ -5380,6 +5100,7 @@ window.submitOrder = async () => {
             return alert("⚠️ Preencha todos os campos obrigatórios.");
         }
 
+        // Dados de Pagamento
         const payModeEl = document.querySelector('input[name="pay-mode"]:checked');
         const methodEl = document.querySelector('input[name="payment-method-selection"]:checked');
 
@@ -5387,8 +5108,8 @@ window.submitOrder = async () => {
             return alert("⚠️ Selecione a forma de pagamento.");
         }
 
-        const payMode = payModeEl.value;
-        const method = methodEl.value;
+        const payMode = payModeEl.value; // 'online' ou 'delivery'
+        const method = methodEl.value;   // 'pix', 'card', 'cash'
 
         // Monta texto do pagamento
         let paymentDetails = "";
@@ -5414,44 +5135,33 @@ window.submitOrder = async () => {
             finalValue = parseFloat(totalEl.innerText.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
         }
 
-        // --- CÁLCULO E SALVAMENTO DO CUPOM (NOVO) ---
-        let couponData = null;
-        if (state.currentCoupon) {
-            // Calcula o valor exato que o cupom descontou
-            let subtotal = state.cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-            let discountVal = 0;
-
-            if (state.currentCoupon.type === 'percent') {
-                discountVal = subtotal * (state.currentCoupon.val / 100);
-            } else {
-                discountVal = state.currentCoupon.val;
-            }
-
-            if (discountVal > subtotal) discountVal = subtotal;
-
-            couponData = {
-                code: state.currentCoupon.code,
-                value: discountVal
-            };
-        }
-        // --------------------------------------------
-
+        // --- LÓGICA DO CÓDIGO DE SEGURANÇA (CORRIGIDA) ---
+        // Garante leitura segura das configs
         const deliveryConfig = state.storeProfile?.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
         const cancelMinutes = parseInt(deliveryConfig.cancelTimeMin) || 5;
 
         let securityCode = null;
+
+        // GERA CÓDIGO APENAS SE:
+        // 1. O modo escolhido for 'delivery' (Pagar na Entrega)
+        // 2. A loja exige código (reqCustomerCode é true)
         if (payMode === 'delivery' && deliveryConfig.reqCustomerCode === true) {
-            securityCode = Math.floor(1000 + Math.random() * 9000);
+            securityCode = Math.floor(1000 + Math.random() * 9000); // Gera entre 1000 e 9999
         }
 
         const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
+
+        // 1. Gera o número sequencial
         const nextCode = await getNextOrderNumber(state.siteId);
 
-        // Frete
+        // --- CÁLCULO DE FRETE (Lógica Correta para Salvar) ---
+        // Precisamos recalcular aqui para garantir que a regra (Online/Entrega) seja respeitada no banco de dados
+        // --- RECALCULA FRETE PARA SALVAR CORRETAMENTE ---
         const dConfig = state.storeProfile.deliveryConfig || {};
         const shipRule = dConfig.shippingRule || 'none';
         const shipValue = parseFloat(dConfig.shippingValue) || 0;
 
+        // Precisamos saber se o modo atual (online/delivery) ativa o frete
         let valueToSave = 0;
         if (checkoutState.isValidDelivery && shipValue > 0) {
             if (shipRule === 'both') valueToSave = shipValue;
@@ -5459,36 +5169,42 @@ window.submitOrder = async () => {
             else if (shipRule === 'delivery' && payMode === 'delivery') valueToSave = shipValue;
         }
 
-        // Cria o objeto do pedido
+        // 2. Cria o objeto do pedido
         const order = {
             code: nextCode,
             date: new Date().toISOString(),
             customer: {
                 name, phone, address: fullAddress,
-                addressNum: number, cep, district, street, comp: comp
+                addressNum: number, cep, district, street,
+                comp: comp
             },
             items: state.cart || [],
-            total: finalValue,
+
+            total: finalValue, // Valor final da tela (já inclui frete)
+
             status: 'Aguardando aprovação',
             paymentMethod: paymentDetails,
             securityCode: securityCode,
-            shippingFee: valueToSave,
 
-            // --- SALVA DADOS DO CUPOM ---
-            couponData: couponData, // Objeto { code: 'NOME', value: 10.00 }
-            cupom: couponData ? couponData.code : null, // Mantém compatibilidade simples
+            // --- CORREÇÃO AQUI ---
+            // Usar valueToSave (que respeita a regra Online/Entrega) e não shippingFee (que é fixo)
+            shippingFee: valueToSave,
 
             cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
         };
+        // ... resto da função continua igual (addDoc, etc) ...
 
+        // Feedback visual
         const btnSubmit = document.getElementById('btn-finish-payment');
         if (btnSubmit) {
             btnSubmit.disabled = true;
             btnSubmit.innerText = "⏳ Enviando...";
         }
 
+        // Salvar no Firebase
         const docRef = await addDoc(collection(db, `sites/${state.siteId}/sales`), order);
 
+        // Atualiza Local e Redireciona
         const newOrderLocal = { id: docRef.id, ...order };
         if (!Array.isArray(state.myOrders)) state.myOrders = [];
         state.myOrders.push(newOrderLocal);
@@ -5497,7 +5213,6 @@ window.submitOrder = async () => {
         startBackgroundListeners();
         checkActiveOrders();
         state.cart = [];
-        state.currentCoupon = null; // Limpa cupom da memória
         localStorage.setItem('cart', JSON.stringify([]));
         updateCartUI();
 
@@ -6339,137 +6054,6 @@ function formatMoneyForInput(value) {
 window.addEventListener('DOMContentLoaded', () => {
     setupCurrencyMasks();
 });
-
-
-
-// Retorna objeto { isOpen: boolean, nextOpen: string }
-window.getStoreStatus = () => {
-    // 1. Verifica se existe configuração
-    const config = state.storeProfile.openingHours;
-    if (!config || config.active !== true) return { isOpen: true };
-
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-    // Parse seguro dos horários
-    if (!config.start || !config.end) return { isOpen: true };
-
-    const [startH, startM] = config.start.split(':').map(Number);
-    const [endH, endM] = config.end.split(':').map(Number);
-
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-
-    let isOpen = false;
-
-    // Cenário 1: Vira a noite (Ex: Abre 18:00, Fecha 02:00)
-    // O horário de fim é MENOR que o de início
-    if (endMinutes < startMinutes) {
-        // Está aberto se for MAIOR que o início (ex: 20:00) OU MENOR que o fim (ex: 01:00)
-        isOpen = currentMinutes >= startMinutes || currentMinutes < endMinutes;
-    }
-    // Cenário 2: Mesmo dia (Ex: Abre 08:00, Fecha 18:00)
-    else {
-        isOpen = currentMinutes >= startMinutes && currentMinutes < endMinutes;
-    }
-
-    return {
-        isOpen: isOpen,
-        start: config.start,
-        end: config.end,
-        block: config.block === true // Garante booleano
-    };
-};
-
-// Atualiza a UI globalmente (Badge e Modal de Bloqueio)
-// Atualiza a UI globalmente (Badge e Modal de Bloqueio)
-window.updateStoreStatusUI = () => {
-    const status = getStoreStatus();
-    const badgeBtn = document.getElementById('store-status-badge');
-    const modalBlock = document.getElementById('modal-store-closed');
-    const displayTime = document.getElementById('store-opens-at-display');
-
-    // 1. ATUALIZA BADGE NA SIDEBAR
-    if (badgeBtn) {
-        // Se não tiver horário configurado, esconde o badge
-        if (!state.storeProfile.openingHours?.active) {
-            badgeBtn.classList.add('hidden');
-            badgeBtn.classList.remove('flex');
-        } else {
-            badgeBtn.classList.remove('hidden');
-            badgeBtn.classList.add('flex');
-
-            // Reseta classes base
-            badgeBtn.className = "flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mt-2 border transition hover:opacity-80 mx-auto cursor-pointer";
-
-            let dotHtml = "";
-            let labelText = "";
-            let alertMsg = `🕒 Horário de Funcionamento:\n\nDas ${status.start} às ${status.end}`;
-
-            if (status.isOpen) {
-                // VERDE: Aberto
-                badgeBtn.classList.add('border-green-500/30', 'bg-green-500/10', 'text-green-400');
-                dotHtml = `<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] animate-pulse"></div>`;
-                labelText = "Aberto";
-
-                // Mensagem padrão
-                alertMsg += `\n\n✅ Estamos abertos!`;
-            }
-            else if (status.block) {
-                // VERMELHO: Fechado e Bloqueado
-                badgeBtn.classList.add('border-red-500/30', 'bg-red-500/10', 'text-red-400');
-                dotHtml = `<div class="w-2 h-2 rounded-full bg-red-500"></div>`;
-                labelText = "Fechado";
-
-                // Mensagem de fechado
-                alertMsg += `\n\n⛔ Estamos fechados no momento.`;
-            }
-            else {
-                // LARANJA: Fechado mas Aceitando (Recebendo)
-                badgeBtn.classList.add('border-orange-500/30', 'bg-orange-500/10', 'text-orange-400');
-                dotHtml = `<div class="w-2 h-2 rounded-full bg-orange-500"></div>`;
-                labelText = "Fechado (Recebendo)";
-
-                // --- AQUI ESTÁ A MENSAGEM QUE VOCÊ PEDIU ---
-                alertMsg += `\n\n⚠️ Atenção:\nEstamos fechados, mas aceitando encomendas.\n\nOs pedidos feitos agora serão preparados e enviados assim que iniciarmos ás ${status.start}.`;
-            }
-
-            badgeBtn.innerHTML = `${dotHtml}<span>${labelText}</span>`;
-
-            // Define o clique com a mensagem personalizada calculada acima
-            badgeBtn.onclick = () => alert(alertMsg);
-        }
-    }
-
-    // 2. LÓGICA DE BLOQUEIO (MODAL NA TELA)
-    // Só bloqueia se: (Loja Fechada) E (Opção Bloquear Ativada) E (Usuário NÃO é Admin)
-    if (!status.isOpen && status.block && modalBlock) {
-        if (!state.user) {
-            modalBlock.classList.remove('hidden');
-            modalBlock.classList.add('flex');
-            modalBlock.style.zIndex = "9999";
-
-            if (displayTime) displayTime.innerText = `Abriremos às ${status.start}`;
-
-            const cartModal = document.getElementById('cart-modal');
-            const prodModal = document.getElementById('product-modal');
-            if (cartModal) cartModal.classList.add('hidden');
-            if (prodModal) prodModal.classList.add('hidden');
-
-            return;
-        }
-    }
-
-    if (modalBlock) {
-        modalBlock.classList.add('hidden');
-        modalBlock.classList.remove('flex');
-    }
-};
-
-
-
-
-
 
 // E TAMBÉM chame ao abrir o modal de criar produto,
 // caso o modal seja criado dinamicamente, para garantir que o evento pegue.

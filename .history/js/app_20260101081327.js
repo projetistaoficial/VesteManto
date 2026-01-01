@@ -2964,41 +2964,19 @@ function toggleTheme(save = true) {
     const body = document.body;
     const nav = document.querySelector('nav');
     const icon = getEl('theme-icon');
-    const text = getEl('theme-text'); // <--- Este elemento pode não existir no novo design
+    const text = getEl('theme-text');
 
     if (!state.isDarkMode) {
-        // MODO CLARO
         body.classList.replace('bg-black', 'bg-gray-100');
         body.classList.replace('text-white', 'text-gray-900');
-        
-        if (nav) { 
-            nav.classList.replace('bg-black', 'bg-white'); 
-            nav.classList.remove('border-gray-800'); 
-            nav.classList.add('border-gray-200', 'shadow-sm'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-sun', 'fa-moon');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Escuro";
-        
+        if (nav) { nav.classList.replace('bg-black', 'bg-white'); nav.classList.remove('border-gray-800'); nav.classList.add('border-gray-200', 'shadow-sm'); }
+        if (icon) { icon.classList.replace('fa-sun', 'fa-moon'); text.innerText = "Modo Escuro"; }
         if (save) localStorage.setItem('theme', 'light');
     } else {
-        // MODO ESCURO
         body.classList.replace('bg-gray-100', 'bg-black');
         body.classList.replace('text-gray-900', 'text-white');
-        
-        if (nav) { 
-            nav.classList.replace('bg-white', 'bg-black'); 
-            nav.classList.remove('border-gray-200', 'shadow-sm'); 
-            nav.classList.add('border-gray-800'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-moon', 'fa-sun');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Claro";
-        
+        if (nav) { nav.classList.replace('bg-white', 'bg-black'); nav.classList.remove('border-gray-200', 'shadow-sm'); nav.classList.add('border-gray-800'); }
+        if (icon) { icon.classList.replace('fa-moon', 'fa-sun'); text.innerText = "Modo Claro"; }
         if (save) localStorage.setItem('theme', 'dark');
     }
     updateCardStyles(!state.isDarkMode);
@@ -4116,7 +4094,9 @@ function loadStoreProfile() {
 function renderStoreProfile() {
     const p = state.storeProfile;
 
-    // --- 1. ATUALIZA HEADER (LOGO E NOME) ---
+    // =========================================================
+    // 1. NAVBAR (TOPO) - LOGO
+    // =========================================================
     const navLogo = document.getElementById('navbar-store-logo');
     const navText = document.getElementById('navbar-store-text');
 
@@ -4132,14 +4112,18 @@ function renderStoreProfile() {
         }
     }
 
-    // --- 2. ATUALIZA SIDEBAR (MENU LATERAL) ---
+    // =========================================================
+    // 2. SIDEBAR (MENU LATERAL) - INFORMAÇÕES
+    // =========================================================
     const sideName = document.getElementById('sidebar-store-name');
     const sideDesc = document.getElementById('sidebar-store-desc');
 
     if (sideName) sideName.innerText = p.name || 'Loja Virtual';
     if (sideDesc) sideDesc.innerText = p.description || '';
 
-    // --- 3. FUNÇÃO UNIFICADA PARA LINKS (TOPO E MENU) ---
+    // =========================================================
+    // 3. ATUALIZAÇÃO UNIFICADA DE LINKS (HEADER + SIDEBAR)
+    // =========================================================
     const updateLink = (elementId, value, urlPrefix = '') => {
         const el = document.getElementById(elementId);
         if (!el) return;
@@ -4151,40 +4135,45 @@ function renderStoreProfile() {
             
             el.href = finalUrl;
             el.classList.remove('hidden');
-            el.classList.add('flex');
+            
+            // Se for o do header, precisa de flex para alinhar icone e texto
+            if(elementId.includes('header')) el.classList.add('flex');
+            
+            // Se for o da sidebar, também
+            if(elementId.includes('sidebar')) el.classList.add('flex');
+            
         } else {
             el.classList.add('hidden');
             el.classList.remove('flex');
         }
     };
 
-    // Header Links
+    // Atualiza Header (Topo)
     updateLink('header-link-insta', p.instagram, 'https://instagram.com/');
     updateLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
 
-    // Sidebar Links
+    // Atualiza Sidebar (Menu Lateral)
     updateLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
     updateLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
     updateLink('sidebar-link-facebook', p.facebook);
 
+    // Endereço (Sidebar)
     const btnAddr = document.getElementById('btn-show-address');
     if (btnAddr) {
         if (p.address) {
             btnAddr.classList.remove('hidden');
-            btnAddr.classList.add('flex');
+            btnAddr.classList.add('flex'); // Garante que o botão apareça
             btnAddr.onclick = () => alert(`📍 Endereço da Loja:\n\n${p.address}`);
         } else {
             btnAddr.classList.add('hidden');
         }
     }
     
-    // Remove a logo duplicada da tela inicial se ainda existir lá
-    const homeLogoOld = document.getElementById('home-screen-logo');
-    if(homeLogoOld) homeLogoOld.classList.add('hidden');
-    const homeTitleOld = document.getElementById('home-screen-title');
-    if(homeTitleOld) homeTitleOld.classList.add('hidden');
+    // Atualiza tela inicial (Opcional, se ainda tiver logo lá)
+    const homeNameText = document.getElementById('home-store-name-text');
+    if(homeNameText) homeNameText.innerText = p.name || 'SUA LOJA';
 
-
+    // Atualiza status (Bolinha)
     if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 }
 

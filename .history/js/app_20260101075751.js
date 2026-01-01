@@ -2964,41 +2964,19 @@ function toggleTheme(save = true) {
     const body = document.body;
     const nav = document.querySelector('nav');
     const icon = getEl('theme-icon');
-    const text = getEl('theme-text'); // <--- Este elemento pode não existir no novo design
+    const text = getEl('theme-text');
 
     if (!state.isDarkMode) {
-        // MODO CLARO
         body.classList.replace('bg-black', 'bg-gray-100');
         body.classList.replace('text-white', 'text-gray-900');
-        
-        if (nav) { 
-            nav.classList.replace('bg-black', 'bg-white'); 
-            nav.classList.remove('border-gray-800'); 
-            nav.classList.add('border-gray-200', 'shadow-sm'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-sun', 'fa-moon');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Escuro";
-        
+        if (nav) { nav.classList.replace('bg-black', 'bg-white'); nav.classList.remove('border-gray-800'); nav.classList.add('border-gray-200', 'shadow-sm'); }
+        if (icon) { icon.classList.replace('fa-sun', 'fa-moon'); text.innerText = "Modo Escuro"; }
         if (save) localStorage.setItem('theme', 'light');
     } else {
-        // MODO ESCURO
         body.classList.replace('bg-gray-100', 'bg-black');
         body.classList.replace('text-gray-900', 'text-white');
-        
-        if (nav) { 
-            nav.classList.replace('bg-white', 'bg-black'); 
-            nav.classList.remove('border-gray-200', 'shadow-sm'); 
-            nav.classList.add('border-gray-800'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-moon', 'fa-sun');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Claro";
-        
+        if (nav) { nav.classList.replace('bg-white', 'bg-black'); nav.classList.remove('border-gray-200', 'shadow-sm'); nav.classList.add('border-gray-800'); }
+        if (icon) { icon.classList.replace('fa-moon', 'fa-sun'); text.innerText = "Modo Claro"; }
         if (save) localStorage.setItem('theme', 'dark');
     }
     updateCardStyles(!state.isDarkMode);
@@ -4132,41 +4110,49 @@ function renderStoreProfile() {
         }
     }
 
-    // --- 2. ATUALIZA SIDEBAR (MENU LATERAL) ---
+    // --- 2. ATUALIZA INFORMAÇÕES DA SIDEBAR (MENU LATERAL) ---
     const sideName = document.getElementById('sidebar-store-name');
     const sideDesc = document.getElementById('sidebar-store-desc');
 
     if (sideName) sideName.innerText = p.name || 'Loja Virtual';
     if (sideDesc) sideDesc.innerText = p.description || '';
 
-    // --- 3. FUNÇÃO UNIFICADA PARA LINKS (TOPO E MENU) ---
-    const updateLink = (elementId, value, urlPrefix = '') => {
+    // --- 3. FUNÇÃO PARA ATUALIZAR LINKS EM QUALQUER LUGAR ---
+    const updateAnyLink = (elementId, value, urlPrefix = '') => {
         const el = document.getElementById(elementId);
         if (!el) return;
 
         if (value) {
             let finalUrl = value;
-            if (urlPrefix.includes('instagram')) finalUrl = urlPrefix + value.replace('@', '').replace('https://instagram.com/', '');
-            else if (urlPrefix.includes('wa.me')) finalUrl = urlPrefix + value.replace(/\D/g, '');
-            
+            if (urlPrefix.includes('instagram')) {
+                finalUrl = urlPrefix + value.replace('@', '').replace('https://instagram.com/', '');
+            } else if (urlPrefix.includes('wa.me')) {
+                finalUrl = urlPrefix + value.replace(/\D/g, '');
+            }
+
             el.href = finalUrl;
             el.classList.remove('hidden');
-            el.classList.add('flex');
+            
+            // Se for link do header ou sidebar que precisa de flex
+            if (el.tagName === 'A' || el.tagName === 'BUTTON') {
+                el.classList.add('flex');
+            }
         } else {
             el.classList.add('hidden');
             el.classList.remove('flex');
         }
     };
 
-    // Header Links
-    updateLink('header-link-insta', p.instagram, 'https://instagram.com/');
-    updateLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
+    // A. Atualiza Links do TOPO (Header)
+    updateAnyLink('header-link-insta', p.instagram, 'https://instagram.com/');
+    updateAnyLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
 
-    // Sidebar Links
-    updateLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
-    updateLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
-    updateLink('sidebar-link-facebook', p.facebook);
+    // B. Atualiza Links do MENU LATERAL (Sidebar)
+    updateAnyLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
+    updateAnyLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
+    updateAnyLink('sidebar-link-facebook', p.facebook);
 
+    // C. Atualiza Endereço (Sidebar)
     const btnAddr = document.getElementById('btn-show-address');
     if (btnAddr) {
         if (p.address) {
@@ -4177,14 +4163,8 @@ function renderStoreProfile() {
             btnAddr.classList.add('hidden');
         }
     }
-    
-    // Remove a logo duplicada da tela inicial se ainda existir lá
-    const homeLogoOld = document.getElementById('home-screen-logo');
-    if(homeLogoOld) homeLogoOld.classList.add('hidden');
-    const homeTitleOld = document.getElementById('home-screen-title');
-    if(homeTitleOld) homeTitleOld.classList.add('hidden');
 
-
+    // Atualiza status (Bolinha)
     if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 }
 

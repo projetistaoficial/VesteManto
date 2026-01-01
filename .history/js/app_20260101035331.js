@@ -321,8 +321,7 @@ const state = {
         whatsapp: '',
         description: '',
         installments: { active: false },
-        deliveryConfig: { ownDelivery: false, cancelTimeMin: 5 },
-        tempLogo: null,
+        deliveryConfig: { ownDelivery: false, cancelTimeMin: 5 }
     },
 
     // Variáveis de Dashboard/Stats
@@ -331,7 +330,6 @@ const state = {
     statsDate: new Date(),
     statsViewMode: 'month',
     statsFilterType: 'all',
-    dailyStats: [],
     siteStats: { visits: 0, shares: 0 },
 
     // UI Helpers
@@ -510,11 +508,6 @@ function initApp() {
 
     initStatsModule();
 
-    // Checa status a cada 60 segundos
-    setInterval(() => {
-        if (state.storeProfile) window.updateStoreStatusUI();
-    }, 60000);
-
 
     // 2. Tema
     if (localStorage.getItem('theme') === 'light') toggleTheme(false);
@@ -626,59 +619,38 @@ function loadAdminSales() {
         if (document.getElementById('admin-product-list')) {
             filterAndRenderProducts();
         }
-        updateStatsData(state.orders, state.products, state.dailyStats);
     });
 }
 
 // Carrega Contadores de Visitas/Compartilhamentos
 function loadSiteStats() {
-    // Carrega a coleção de estatísticas diárias
-    const q = query(collection(db, `sites/${state.siteId}/dailyStats`));
-
-    onSnapshot(q, (snapshot) => {
-        const dailyData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        state.dailyStats = dailyData; // Salva no estado global
-
-        // Atualiza o módulo de estatísticas
-        // IMPORTANTE: O terceiro parâmetro agora é state.dailyStats (array), não mais state.siteStats (objeto)
-        updateStatsData(state.orders, state.products, state.dailyStats);
-    });
-}
-
-
-// Função para registrar estatísticas diárias (Visita ou Share)
-async function logDailyStat(type) {
-    // type deve ser 'visits' ou 'shares'
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const docRef = doc(db, `sites/${state.siteId}/dailyStats`, today);
-
-    try {
-        const docSnap = await getDoc(docRef);
-
+    const docRef = doc(db, `sites/${state.siteId}/stats`, 'general');
+    onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
-            const currentVal = docSnap.data()[type] || 0;
-            await updateDoc(docRef, { [type]: currentVal + 1 });
+            state.siteStats = docSnap.data();
+            if (els.statVisits) els.statVisits.innerText = `${state.siteStats.visits || 0} Usuários`;
+            if (els.statShares) els.statShares.innerText = state.siteStats.shares || 0;
         } else {
-            // Se não existe o dia, cria com o valor inicial
-            await setDoc(docRef, {
-                visits: type === 'visits' ? 1 : 0,
-                shares: type === 'shares' ? 1 : 0
-            });
+            setDoc(docRef, { visits: 0, shares: 0 });
         }
-        console.log(`Stat ${type} registrada para ${today}`);
-    } catch (e) {
-        console.error("Erro ao logar stat:", e);
-    }
+    });
 }
 
 // Incrementa Visitas (Seguro: Não conta Admin)
 async function incrementVisitsCounter() {
-    // Evita contar admin e evita contar F5 repetido na mesma sessão
+    // Se o usuário já estiver autenticado (Admin), não conta
     if (auth.currentUser) return;
-    if (sessionStorage.getItem('visit_logged')) return;
 
-    sessionStorage.setItem('visit_logged', 'true');
-    logDailyStat('visits');
+    const docRef = doc(db, `sites/${state.siteId}/stats`, 'general');
+    try {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+            const current = snap.data().visits || 0;
+            await updateDoc(docRef, { visits: current + 1 });
+        } else {
+            await setDoc(docRef, { visits: 1, shares: 0 });
+        }
+    } catch (e) { console.log("Erro contador visitas (Adblock?):", e); }
 }
 
 // =================================================================
@@ -1728,8 +1700,6 @@ function renderAdminCoupons() {
         `;
     }).join('');
 }
-
-
 
 // =================================================================
 // 7. DASHBOARD E VENDAS SIMPLES
@@ -2911,38 +2881,6 @@ function setupEventListeners() {
     // Aplica a validação nos grupos (adicionei classes no HTML do passo 1)
     validateSubOptions('sub-check-online');
     validateSubOptions('sub-check-delivery');
-
-
-    // UPLOAD DE LOGO DA LOJA
-    const logoInput = getEl('conf-logo-upload');
-    if (logoInput) {
-        logoInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            try {
-                // Reusa a função processImageFile que já existe no seu código
-                const base64 = await processImageFile(file);
-
-                // Salva no estado temporário
-                state.tempLogo = base64;
-
-                // Atualiza o preview na hora
-                const preview = getEl('conf-logo-preview');
-                const placeholder = getEl('conf-logo-placeholder');
-
-                if (preview) {
-                    preview.src = base64;
-                    preview.classList.remove('hidden');
-                }
-                if (placeholder) placeholder.classList.add('hidden');
-
-            } catch (err) {
-                console.error("Erro logo:", err);
-                alert("Erro ao processar imagem.");
-            }
-        });
-    }
 }
 
 function updateCardStyles(isLight) {
@@ -2964,41 +2902,19 @@ function toggleTheme(save = true) {
     const body = document.body;
     const nav = document.querySelector('nav');
     const icon = getEl('theme-icon');
-    const text = getEl('theme-text'); // <--- Este elemento pode não existir no novo design
+    const text = getEl('theme-text');
 
     if (!state.isDarkMode) {
-        // MODO CLARO
         body.classList.replace('bg-black', 'bg-gray-100');
         body.classList.replace('text-white', 'text-gray-900');
-        
-        if (nav) { 
-            nav.classList.replace('bg-black', 'bg-white'); 
-            nav.classList.remove('border-gray-800'); 
-            nav.classList.add('border-gray-200', 'shadow-sm'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-sun', 'fa-moon');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Escuro";
-        
+        if (nav) { nav.classList.replace('bg-black', 'bg-white'); nav.classList.remove('border-gray-800'); nav.classList.add('border-gray-200', 'shadow-sm'); }
+        if (icon) { icon.classList.replace('fa-sun', 'fa-moon'); text.innerText = "Modo Escuro"; }
         if (save) localStorage.setItem('theme', 'light');
     } else {
-        // MODO ESCURO
         body.classList.replace('bg-gray-100', 'bg-black');
         body.classList.replace('text-gray-900', 'text-white');
-        
-        if (nav) { 
-            nav.classList.replace('bg-white', 'bg-black'); 
-            nav.classList.remove('border-gray-200', 'shadow-sm'); 
-            nav.classList.add('border-gray-800'); 
-        }
-        
-        if (icon) icon.classList.replace('fa-moon', 'fa-sun');
-        
-        // CORREÇÃO: Verifica se 'text' existe antes de alterar
-        if (text) text.innerText = "Modo Claro";
-        
+        if (nav) { nav.classList.replace('bg-white', 'bg-black'); nav.classList.remove('border-gray-200', 'shadow-sm'); nav.classList.add('border-gray-800'); }
+        if (icon) { icon.classList.replace('fa-moon', 'fa-sun'); text.innerText = "Modo Claro"; }
         if (save) localStorage.setItem('theme', 'dark');
     }
     updateCardStyles(!state.isDarkMode);
@@ -3775,14 +3691,20 @@ window.toggleProductSelection = (id) => {
 };
 
 window.shareStoreLink = () => {
+    // Incrementa "Shares" no banco (Apenas se não for Admin, mas a regra do design pediu para o botão enviar funcionar para Admin)
+    // Regra do Design: "botão deve funcionar para admin enviar, mas não deve contar nos compartilhamentos"
     const url = window.location.href;
     const text = `Confira nossa loja: ${url}`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(whatsappUrl, '_blank');
 
-    // Se não for admin, conta como share
+    // Incrementa contador (apenas se não for admin)
     if (!auth.currentUser) {
-        logDailyStat('shares');
+        // Lógica simplificada de incremento sem leitura prévia pesada (usando a que já temos carregada)
+        // Para precisão, seria ideal usar increment() do Firestore, mas aqui usamos leitura simples
+        const docRef = doc(db, `sites/${state.siteId}/stats`, 'general');
+        const currentShares = state.siteStats.shares || 0;
+        updateDoc(docRef, { shares: currentShares + 1 }).catch(e => console.log(e));
     }
 };
 
@@ -3792,18 +3714,6 @@ window.shareStoreLink = () => {
 
 function addToCart(product, size) {
     const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
-    // 1. Verifica status da loja
-    const status = getStoreStatus();
-
-    // Se estiver fechado E for para bloquear (Strict Mode)
-    if (!status.isOpen && status.block) {
-        // Se for admin, deixa passar (para testes), senão bloqueia
-        if (!state.user) {
-            alert(`A loja está fechada no momento.\nHorário de funcionamento: ${status.start} às ${status.end}`);
-            window.updateStoreStatusUI(); // Força o modal a aparecer caso não tenha aparecido
-            return; // <--- IMPEDE A ADIÇÃO
-        }
-    }
 
     // 1. Calcula o TOTAL deste produto no carrinho (somando todos os tamanhos: P + M + G...)
     const currentTotalQty = state.cart.reduce((total, item) => {
@@ -4109,83 +4019,50 @@ function loadStoreProfile() {
         // --- ADIÇÃO CRÍTICA: ---
         // Força a vitrine a se redesenhar com as novas regras de parcelamento
         renderCatalog(state.products);
-        window.updateStoreStatusUI();
     });
 }
 
 function renderStoreProfile() {
     const p = state.storeProfile;
 
-    // --- 1. ATUALIZA HEADER (LOGO E NOME) ---
-    const navLogo = document.getElementById('navbar-store-logo');
-    const navText = document.getElementById('navbar-store-text');
+    // 1. Sidebar
+    if (els.sidebarStoreName) els.sidebarStoreName.innerText = p.name || 'Veste Manto';
+    if (els.sidebarStoreDesc) els.sidebarStoreDesc.innerText = p.description || '';
 
-    if (navLogo && navText) {
+    // Logo
+    if (els.sidebarStoreLogo) {
         if (p.logo) {
-            navLogo.src = p.logo;
-            navLogo.classList.remove('hidden');
-            navText.classList.add('hidden');
+            els.sidebarStoreLogo.src = p.logo;
+            els.sidebarStoreLogo.classList.remove('hidden');
         } else {
-            navLogo.classList.add('hidden');
-            navText.innerHTML = p.name || '<span class="text-white">SUA</span><span class="text-yellow-500">LOJA</span>';
-            navText.classList.remove('hidden');
+            els.sidebarStoreLogo.classList.add('hidden');
         }
     }
 
-    // --- 2. ATUALIZA SIDEBAR (MENU LATERAL) ---
-    const sideName = document.getElementById('sidebar-store-name');
-    const sideDesc = document.getElementById('sidebar-store-desc');
-
-    if (sideName) sideName.innerText = p.name || 'Loja Virtual';
-    if (sideDesc) sideDesc.innerText = p.description || '';
-
-    // --- 3. FUNÇÃO UNIFICADA PARA LINKS (TOPO E MENU) ---
-    const updateLink = (elementId, value, urlPrefix = '') => {
-        const el = document.getElementById(elementId);
+    // Redes Sociais
+    const updateLink = (el, val, prefix = '') => {
         if (!el) return;
-
-        if (value) {
-            let finalUrl = value;
-            if (urlPrefix.includes('instagram')) finalUrl = urlPrefix + value.replace('@', '').replace('https://instagram.com/', '');
-            else if (urlPrefix.includes('wa.me')) finalUrl = urlPrefix + value.replace(/\D/g, '');
-            
-            el.href = finalUrl;
+        if (val) {
+            el.href = val.startsWith('http') ? val : prefix + val;
             el.classList.remove('hidden');
-            el.classList.add('flex');
         } else {
             el.classList.add('hidden');
-            el.classList.remove('flex');
         }
     };
 
-    // Header Links
-    updateLink('header-link-insta', p.instagram, 'https://instagram.com/');
-    updateLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
+    updateLink(els.linkWhatsapp, p.whatsapp, 'https://wa.me/');
+    updateLink(els.linkInstagram, p.instagram, 'https://instagram.com/');
+    updateLink(els.linkFacebook, p.facebook);
 
-    // Sidebar Links
-    updateLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
-    updateLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
-    updateLink('sidebar-link-facebook', p.facebook);
-
-    const btnAddr = document.getElementById('btn-show-address');
-    if (btnAddr) {
+    // Endereço (Botão com Alert ou Modal Simples)
+    if (els.btnShowAddress) {
         if (p.address) {
-            btnAddr.classList.remove('hidden');
-            btnAddr.classList.add('flex');
-            btnAddr.onclick = () => alert(`📍 Endereço da Loja:\n\n${p.address}`);
+            els.btnShowAddress.classList.remove('hidden');
+            els.btnShowAddress.onclick = () => alert(`📍 Endereço da Loja:\n\n${p.address}`);
         } else {
-            btnAddr.classList.add('hidden');
+            els.btnShowAddress.classList.add('hidden');
         }
     }
-    
-    // Remove a logo duplicada da tela inicial se ainda existir lá
-    const homeLogoOld = document.getElementById('home-screen-logo');
-    if(homeLogoOld) homeLogoOld.classList.add('hidden');
-    const homeTitleOld = document.getElementById('home-screen-title');
-    if(homeTitleOld) homeTitleOld.classList.add('hidden');
-
-
-    if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 }
 
 // Função para carregar dados nos inputs de configuração
@@ -4318,43 +4195,6 @@ function fillProfileForm() {
     }
     if (groupDelivery) {
         groupDelivery.className = (payConfig.delivery?.active !== false) ? "space-y-3 opacity-100" : "space-y-3 opacity-30 pointer-events-none";
-    };
-
-    // --- HORÁRIO DE FUNCIONAMENTO ---
-    const hours = p.openingHours || { active: false, start: "08:00", end: "18:00", block: false };
-
-    const elHoursCheck = getEl('conf-hours-active');
-    const elHoursDiv = getEl('hours-settings');
-
-    if (elHoursCheck) {
-        elHoursCheck.checked = hours.active;
-        if (hours.active) elHoursDiv.classList.remove('opacity-50', 'pointer-events-none');
-        else elHoursDiv.classList.add('opacity-50', 'pointer-events-none');
-
-        // Listener visual
-        elHoursCheck.addEventListener('change', (e) => {
-            if (e.target.checked) elHoursDiv.classList.remove('opacity-50', 'pointer-events-none');
-            else elHoursDiv.classList.add('opacity-50', 'pointer-events-none');
-        });
-    }
-
-    if (getEl('conf-hours-start')) getEl('conf-hours-start').value = hours.start || "08:00";
-    if (getEl('conf-hours-end')) getEl('conf-hours-end').value = hours.end || "18:00";
-    if (getEl('conf-hours-block')) getEl('conf-hours-block').checked = hours.block || false;
-
-    // Preenche Preview da Logo
-    const preview = getEl('conf-logo-preview');
-    const placeholder = getEl('conf-logo-placeholder');
-
-    if (p.logo) {
-        if (preview) {
-            preview.src = p.logo;
-            preview.classList.remove('hidden');
-        }
-        if (placeholder) placeholder.classList.add('hidden');
-    } else {
-        if (preview) preview.classList.add('hidden');
-        if (placeholder) placeholder.classList.remove('hidden');
     }
 
 }
@@ -4370,20 +4210,12 @@ async function saveStoreProfile() {
     // Monta o objeto com os dados
     const data = {
         name: getVal(els.confStoreName),
-        logo: state.tempLogo ? state.tempLogo : (state.storeProfile.logo || ''),
+        logo: getVal(els.confStoreLogo),
         whatsapp: getVal(els.confStoreWpp).replace(/\D/g, ''),
         instagram: getVal(els.confStoreInsta),
         facebook: getVal(els.confStoreFace),
         address: getVal(els.confStoreAddress),
         description: getVal(els.confStoreDesc),
-
-        // NOVO OBJETO DE HORÁRIO
-        openingHours: {
-            active: getCheck(getEl('conf-hours-active')),
-            start: getVal(getEl('conf-hours-start')),
-            end: getVal(getEl('conf-hours-end')),
-            block: getCheck(getEl('conf-hours-block'))
-        },
 
         // CORREÇÃO DO CEP: Salvando string limpa
         cep: getVal(els.confStoreCep).replace(/\D/g, ''),
@@ -4411,7 +4243,7 @@ async function saveStoreProfile() {
     } catch (error) {
         console.error(error);
         showToast('Erro ao salvar: ' + error.message, 'error');
-    };
+    }
 }
 
 // --- FUNÇÃO DE AUTOSALVAMENTO (LOGÍSTICA E PARCELAMENTO) ---
@@ -5056,17 +4888,6 @@ window.showCartListView = () => {
 
 window.goToCheckoutView = () => {
     if (state.cart.length === 0) return alert("Carrinho vazio!");
-
-    // VERIFICAÇÃO DE LOJA FECHADA (MODO AVISO)
-    const status = getStoreStatus();
-
-    if (!status.isOpen && !status.block) {
-        const confirmMsg = `A loja está FECHADA no momento (Abre às ${status.start}).\n\nSeu pedido será recebido, mas só começará a ser preparado quando a loja abrir.\n\nDeseja continuar?`;
-
-        if (!confirm(confirmMsg)) {
-            return; // Cancela ida ao checkout
-        }
-    }
 
     hideAllViews();
     document.getElementById('view-checkout').classList.remove('hidden');
@@ -6339,137 +6160,6 @@ function formatMoneyForInput(value) {
 window.addEventListener('DOMContentLoaded', () => {
     setupCurrencyMasks();
 });
-
-
-
-// Retorna objeto { isOpen: boolean, nextOpen: string }
-window.getStoreStatus = () => {
-    // 1. Verifica se existe configuração
-    const config = state.storeProfile.openingHours;
-    if (!config || config.active !== true) return { isOpen: true };
-
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-    // Parse seguro dos horários
-    if (!config.start || !config.end) return { isOpen: true };
-
-    const [startH, startM] = config.start.split(':').map(Number);
-    const [endH, endM] = config.end.split(':').map(Number);
-
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-
-    let isOpen = false;
-
-    // Cenário 1: Vira a noite (Ex: Abre 18:00, Fecha 02:00)
-    // O horário de fim é MENOR que o de início
-    if (endMinutes < startMinutes) {
-        // Está aberto se for MAIOR que o início (ex: 20:00) OU MENOR que o fim (ex: 01:00)
-        isOpen = currentMinutes >= startMinutes || currentMinutes < endMinutes;
-    }
-    // Cenário 2: Mesmo dia (Ex: Abre 08:00, Fecha 18:00)
-    else {
-        isOpen = currentMinutes >= startMinutes && currentMinutes < endMinutes;
-    }
-
-    return {
-        isOpen: isOpen,
-        start: config.start,
-        end: config.end,
-        block: config.block === true // Garante booleano
-    };
-};
-
-// Atualiza a UI globalmente (Badge e Modal de Bloqueio)
-// Atualiza a UI globalmente (Badge e Modal de Bloqueio)
-window.updateStoreStatusUI = () => {
-    const status = getStoreStatus();
-    const badgeBtn = document.getElementById('store-status-badge');
-    const modalBlock = document.getElementById('modal-store-closed');
-    const displayTime = document.getElementById('store-opens-at-display');
-
-    // 1. ATUALIZA BADGE NA SIDEBAR
-    if (badgeBtn) {
-        // Se não tiver horário configurado, esconde o badge
-        if (!state.storeProfile.openingHours?.active) {
-            badgeBtn.classList.add('hidden');
-            badgeBtn.classList.remove('flex');
-        } else {
-            badgeBtn.classList.remove('hidden');
-            badgeBtn.classList.add('flex');
-
-            // Reseta classes base
-            badgeBtn.className = "flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mt-2 border transition hover:opacity-80 mx-auto cursor-pointer";
-
-            let dotHtml = "";
-            let labelText = "";
-            let alertMsg = `🕒 Horário de Funcionamento:\n\nDas ${status.start} às ${status.end}`;
-
-            if (status.isOpen) {
-                // VERDE: Aberto
-                badgeBtn.classList.add('border-green-500/30', 'bg-green-500/10', 'text-green-400');
-                dotHtml = `<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] animate-pulse"></div>`;
-                labelText = "Aberto";
-
-                // Mensagem padrão
-                alertMsg += `\n\n✅ Estamos abertos!`;
-            }
-            else if (status.block) {
-                // VERMELHO: Fechado e Bloqueado
-                badgeBtn.classList.add('border-red-500/30', 'bg-red-500/10', 'text-red-400');
-                dotHtml = `<div class="w-2 h-2 rounded-full bg-red-500"></div>`;
-                labelText = "Fechado";
-
-                // Mensagem de fechado
-                alertMsg += `\n\n⛔ Estamos fechados no momento.`;
-            }
-            else {
-                // LARANJA: Fechado mas Aceitando (Recebendo)
-                badgeBtn.classList.add('border-orange-500/30', 'bg-orange-500/10', 'text-orange-400');
-                dotHtml = `<div class="w-2 h-2 rounded-full bg-orange-500"></div>`;
-                labelText = "Fechado (Recebendo)";
-
-                // --- AQUI ESTÁ A MENSAGEM QUE VOCÊ PEDIU ---
-                alertMsg += `\n\n⚠️ Atenção:\nEstamos fechados, mas aceitando encomendas.\n\nOs pedidos feitos agora serão preparados e enviados assim que iniciarmos ás ${status.start}.`;
-            }
-
-            badgeBtn.innerHTML = `${dotHtml}<span>${labelText}</span>`;
-
-            // Define o clique com a mensagem personalizada calculada acima
-            badgeBtn.onclick = () => alert(alertMsg);
-        }
-    }
-
-    // 2. LÓGICA DE BLOQUEIO (MODAL NA TELA)
-    // Só bloqueia se: (Loja Fechada) E (Opção Bloquear Ativada) E (Usuário NÃO é Admin)
-    if (!status.isOpen && status.block && modalBlock) {
-        if (!state.user) {
-            modalBlock.classList.remove('hidden');
-            modalBlock.classList.add('flex');
-            modalBlock.style.zIndex = "9999";
-
-            if (displayTime) displayTime.innerText = `Abriremos às ${status.start}`;
-
-            const cartModal = document.getElementById('cart-modal');
-            const prodModal = document.getElementById('product-modal');
-            if (cartModal) cartModal.classList.add('hidden');
-            if (prodModal) prodModal.classList.add('hidden');
-
-            return;
-        }
-    }
-
-    if (modalBlock) {
-        modalBlock.classList.add('hidden');
-        modalBlock.classList.remove('flex');
-    }
-};
-
-
-
-
-
 
 // E TAMBÉM chame ao abrir o modal de criar produto,
 // caso o modal seja criado dinamicamente, para garantir que o evento pegue.
