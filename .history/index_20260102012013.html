@@ -9,161 +9,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
-
-    <!-- <style id="dynamic-theme-style">
-        /* 1. VARIÁVEIS GLOBAIS (O que o usuário escolhe) */
-        :root {
-            --custom-bg: #000000;
-            --custom-header: #000000;
-            --custom-sidebar: #000000;
-            --custom-highlight: #eab308;
-            /* Amarelo */
-            --custom-text: #ffffff;
-            --custom-icons: #ffffff;
-        }
-
-        /* ============================================================
-       REGRAS PÚBLICAS (Aplicam o tema no site)
-       ============================================================ */
-
-        /* Fundo Principal */
-        body,
-        #main-content {
-            background-color: var(--custom-bg) !important;
-        }
-
-        /* Classes genéricas pretas na vitrine viram a cor do fundo */
-        #view-catalog .bg-black {
-            background-color: var(--custom-bg) !important;
-        }
-
-        /* Topo/Header (Força visual) */
-        nav.bg-black,
-        .bg-black.sticky {
-            background-color: var(--custom-header) !important;
-            border-color: rgba(255, 255, 255, 0.1) !important;
-        }
-
-        /* Barra de Busca Externa */
-        div.bg-\[\#0a0a0a\] {
-            background-color: var(--custom-header) !important;
-            border-color: rgba(255, 255, 255, 0.1) !important;
-        }
-
-        /* Menu Lateral Público */
-        aside#sidebar {
-            background-color: var(--custom-sidebar) !important;
-        }
-
-        /* Textos Gerais (Apenas fora do Admin) */
-        body:not(:has(#view-admin:not(.hidden))) p,
-        body:not(:has(#view-admin:not(.hidden))) span,
-        body:not(:has(#view-admin:not(.hidden))) h1,
-        body:not(:has(#view-admin:not(.hidden))) h2,
-        body:not(:has(#view-admin:not(.hidden))) h3 {
-            color: var(--custom-text);
-        }
-
-        /* Títulos e Destaques Públicos */
-        #view-catalog .text-yellow-500,
-        #sidebar .text-yellow-500,
-        #navbar-store-text .text-yellow-500 {
-            color: var(--custom-highlight) !important;
-        }
-
-        /* Ícones Públicos */
-        #mobile-menu-btn i,
-        #theme-toggle i,
-        #btn-track-icon i,
-        #cart-btn i,
-        .fa-search {
-            color: var(--custom-icons) !important;
-        }
-
-        /* ============================================================
-       BLINDAGEM DO ADMIN (Reseta tudo para o padrão)
-       ============================================================ */
-
-        /* Quando dentro do #view-admin, redefinimos as variáveis para o padrão */
-        #view-admin,
-        #login-modal {
-            --custom-bg: #000000;
-            --custom-header: #000000;
-            --custom-sidebar: #000000;
-            --custom-highlight: #eab308;
-            --custom-text: #ffffff;
-            --custom-icons: #ffffff;
-
-            /* Força fundo preto no painel inteiro */
-            background-color: #0a0a0a !important;
-            color: #ffffff !important;
-        }
-
-        /* Reseta Inputs do Admin para não ficarem ilegíveis */
-        #view-admin input,
-        #view-admin select,
-        #view-admin textarea,
-        #login-modal input {
-            background-color: #111827 !important;
-            /* gray-900 */
-            color: #ffffff !important;
-            border-color: #374151 !important;
-            /* gray-700 */
-        }
-
-        /* Reseta Botões e Cores Específicas do Admin */
-        #view-admin .text-yellow-500 {
-            color: #EAB308 !important;
-        }
-
-        #view-admin .bg-yellow-500 {
-            background-color: #EAB308 !important;
-        }
-
-        #view-admin .text-green-500 {
-            color: #22c55e !important;
-        }
-
-        #view-admin .bg-green-600 {
-            background-color: #16a34a !important;
-        }
-
-        #view-admin .bg-red-600 {
-            background-color: #dc2626 !important;
-        }
-
-        #view-admin .bg-gray-900 {
-            background-color: #111827 !important;
-        }
-
-        #view-admin .bg-black {
-            background-color: #000000 !important;
-        }
-
-        /* Mantém o card de configuração azul (da sua referência) */
-        #view-admin .bg-\[\#020617\] {
-            background-color: #020617 !important;
-        }
-
-        /* Garante que textos dentro do admin sejam brancos/cinzas padrão */
-        #view-admin p,
-        #view-admin span,
-        #view-admin label,
-        #view-admin h1,
-        #view-admin h2,
-        #view-admin h3 {
-            color: inherit;
-            /* Usa a cor definida no container pai ou na classe local */
-        }
-
-        #view-admin .text-gray-400 {
-            color: #9ca3af !important;
-        }
-
-        #view-admin .text-gray-500 {
-            color: #6b7280 !important;
-        }
-    </style> -->
 </head>
 
 <body class="bg-black text-white font-sans antialiased">
@@ -943,7 +788,7 @@
                             </div>
 
                             <div>
-                                <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Facebook
+                                <label class="text-gray-400 w-full flex text-xs font-bold uppercase mb-1 block">Facebook
                                     (Link)</label>
                                 <input type="text" id="conf-store-face" placeholder="https://facebook.com/..."
                                     class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
@@ -1277,169 +1122,12 @@
                     </div>
                 </div>
 
-                <div class=" border border-gray-800 rounded-xl overflow-hidden mt-4 shadow-xl">
-
-                    <div id="btn-acc-theme"
-                        class="p-4 flex justify-between items-center cursor-pointer hover:bg-white/5 transition border-b border-yellow-500/30">
-                        <h3 class="text-xl font-bold text-yellow-500">Tema e Aparência</h3>
-                        <i id="arrow-acc-theme"
-                            class="fas fa-chevron-down text-yellow-500 transition-transform duration-300"></i>
-                    </div>
-
-                    <div id="content-acc-theme" class="hidden p-6 bg-[#020617]">
-
-                        <form id="form-theme-colors" onsubmit="event.preventDefault(); saveThemeColors();">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-
-                                <div class="flex items-center justify-between group">
-                                    <label class="text-yellow-500 font-bold text-sm">Cor do Fundo</label>
-                                    <div class="flex items-center gap-2">
-                                        <span id="hex-bg"
-                                            class="text-gray-500 text-xs font-mono uppercase">#000000</span>
-                                        <input type="color" id="theme-bg-color" value="#000000"
-                                            class="w-10 h-10 rounded cursor-pointer border-none bg-transparent"
-                                            oninput="previewTheme('bg', this.value)">
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center justify-between group">
-                                    <label class="text-yellow-500 font-bold text-sm">Cor do Topo (Cabeçalho)</label>
-                                    <div class="flex items-center gap-2">
-                                        <span id="hex-header"
-                                            class="text-gray-500 text-xs font-mono uppercase">#000000</span>
-                                        <input type="color" id="theme-header-color" value="#000000"
-                                            class="w-10 h-10 rounded cursor-pointer border-none bg-transparent"
-                                            oninput="previewTheme('header', this.value)">
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center justify-between group">
-                                    <label class="text-yellow-500 font-bold text-sm">Cor do Menu Lateral</label>
-                                    <div class="flex items-center gap-2">
-                                        <span id="hex-sidebar"
-                                            class="text-gray-500 text-xs font-mono uppercase">#000000</span>
-                                        <input type="color" id="theme-sidebar-color" value="#000000"
-                                            class="w-10 h-10 rounded cursor-pointer border-none bg-transparent"
-                                            oninput="previewTheme('sidebar', this.value)">
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center justify-between group">
-                                    <label class="text-yellow-500 font-bold text-sm">Cor dos Títulos (Destaque)</label>
-                                    <div class="flex items-center gap-2">
-                                        <span id="hex-highlight"
-                                            class="text-gray-500 text-xs font-mono uppercase">#EAB308</span>
-                                        <input type="color" id="theme-highlight-color" value="#EAB308"
-                                            class="w-10 h-10 rounded cursor-pointer border-none bg-transparent"
-                                            oninput="previewTheme('highlight', this.value)">
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center justify-between group">
-                                    <label class="text-yellow-500 font-bold text-sm">Cor dos Ícones</label>
-                                    <div class="flex items-center gap-2">
-                                        <span id="hex-icons"
-                                            class="text-gray-500 text-xs font-mono uppercase">#FFFFFF</span>
-                                        <input type="color" id="theme-icons-color" value="#FFFFFF"
-                                            class="w-10 h-10 rounded cursor-pointer border-none bg-transparent"
-                                            oninput="previewTheme('icons', this.value)">
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center justify-between group">
-                                    <label class="text-yellow-500 font-bold text-sm">Cor do Texto (Padrão)</label>
-                                    <div class="flex items-center gap-2">
-                                        <span id="hex-text"
-                                            class="text-gray-500 text-xs font-mono uppercase">#FFFFFF</span>
-                                        <input type="color" id="theme-text-color" value="#FFFFFF"
-                                            class="w-10 h-10 rounded cursor-pointer border-none bg-transparent"
-                                            oninput="previewTheme('text', this.value)">
-                                    </div>
-                                </div>
-
-                            </div>
-
-                            <div class="flex justify-between items-center pt-4 border-t border-gray-800">
-                                <button type="button" onclick="resetThemeToDefault()"
-                                    class="text-yellow-500 font-bold text-sm hover:text-white transition">
-                                    Redefinir Padrão
-                                </button>
-
-                                <div class="flex gap-3">
-                                    <button type="button" onclick="cancelThemeChanges()"
-                                        class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded transition shadow-lg">
-                                        Cancelar
-                                    </button>
-                                    <button type="submit"
-                                        class="bg-[#00d65f] hover:bg-green-500 text-white font-bold py-2 px-6 rounded transition shadow-lg">
-                                        Salvar
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
                 <div class="text-center text-gray-500 text-sm mt-8">
                     Mais configurações em breve...
                 </div>
             </div>
         </div>
 
-        <div id="view-support" class="hidden min-h-screen bg-[#050505] p-8 font-mono relative z-50">
-
-            <div class="flex justify-between items-center border-b border-red-900/30 pb-6 mb-10">
-                <div>
-                    <h1 class="text-3xl font-bold text-red-500 tracking-widest flex items-center gap-3">
-                        <i class="fas fa-terminal"></i> MODO MANUTENÇÃO
-                    </h1>
-                    <p class="text-gray-500 text-xs mt-2 uppercase tracking-widest">Acesso Restrito: Desenvolvedor /
-                        Suporte</p>
-                </div>
-
-                <button onclick="exitSupportMode()"
-                    class="border border-red-900 text-red-500 hover:bg-red-900/20 px-6 py-2 rounded text-sm transition uppercase font-bold tracking-wide">
-                    <i class="fas fa-power-off mr-2"></i> Encerrar Sessão
-                </button>
-            </div>
-
-            <div
-                class="flex flex-col items-center justify-center h-96 border border-dashed border-gray-800 rounded-2xl bg-gray-900/20">
-                <i class="fas fa-tools text-6xl text-gray-700 mb-6"></i>
-                <h2 class="text-xl text-gray-400 font-bold mb-2">Ambiente de Configuração Avançada</h2>
-                <p class="text-gray-600 text-sm max-w-md text-center">
-                    Nenhuma configuração visual ou de vendas é carregada aqui.
-                    Utilize o menu abaixo para diagnósticos e reparos no banco de dados.
-                </p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
-
-                <div class="bg-black border border-gray-800 p-6 rounded-lg hover:border-red-500/50 transition cursor-pointer group"
-                    onclick="emergencyClearCache()">
-                    <h3 class="text-white font-bold mb-2 group-hover:text-red-400"><i class="fas fa-trash-alt mr-2"></i>
-                        Wipe Cache</h3>
-                    <p class="text-xs text-gray-500">Limpa LocalStorage e força reload limpo.</p>
-                </div>
-
-                <div class="bg-black border border-gray-800 p-6 rounded-lg hover:border-green-500/50 transition cursor-pointer group"
-                    onclick="emergencyResetOrders()">
-                    <h3 class="text-white font-bold mb-2 group-hover:text-green-400"><i
-                            class="fas fa-sync-alt mr-2"></i> Reset Listeners</h3>
-                    <p class="text-xs text-gray-500">Reinicia conexões com Firebase e limpa fila de pedidos.</p>
-                </div>
-
-                <div class="bg-black border border-gray-800 p-6 rounded-lg hover:border-blue-500/50 transition cursor-pointer group"
-                    onclick="runDiagnostics()">
-                    <h3 class="text-white font-bold mb-2 group-hover:text-blue-400"><i class="fas fa-code mr-2"></i>
-                        System Dump</h3>
-                    <p class="text-xs text-gray-500">Exibe log técnico do estado atual.</p>
-                </div>
-
-            </div>
-
-            <div id="debug-info-box" class="mt-6 font-mono text-xs text-green-500"></div>
-        </div>
     </main>
 
     <div id="product-modal" class="fixed inset-0 z-[70] hidden" aria-labelledby="modal-title" role="dialog"
@@ -1705,21 +1393,17 @@
             </div>
 
             <div class="p-4 bg-[#0f172a] border-t border-gray-800 z-20" id="cart-footer-actions">
-
                 <button id="btn-go-checkout"
-                    class="w-full bg-[#00d65f] hover:bg-green-500 text-white font-bold py-3 rounded-xl shadow-lg transition transform active:scale-95"
+                    class="w-full bg-[#00d65f] hover:bg-green-500 text-white font-bold py-3 rounded text-xl shadow-lg transition"
                     onclick="goToCheckoutView()">
                     Ir para Pagamento
                 </button>
 
-                <div id="checkout-buttons-group" class="hidden flex flex-col md:flex-row gap-3">
-                    <button id="btn-finish-payment"
-                        class="w-full md:w-3/3 bg-[#00d65f] hover:bg-green-500 text-white font-bold py-3 rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2"
-                        onclick="submitOrder()">
-                        Confirmar Pedido <i class="fas fa-check"></i>
-                    </button>
-                </div>
-
+                <button id="btn-finish-payment"
+                    class="hidden w-full bg-[#00d65f] hover:bg-green-500 text-white font-bold py-3 rounded text-xl shadow-lg transition"
+                    onclick="submitOrder()">
+                    Confirmar Pedido
+                </button>
             </div>
         </div>
     </div>
@@ -1795,44 +1479,35 @@
                             step="0.01">
                     </div>
 
-                </div>
-                <div class="md:col-span-2 bg-gray-900 p-4 rounded border border-gray-700 mt-2">
+                    <div class="md:col-span-2 bg-gray-900 p-3 rounded border border-gray-700 mt-2 space-y-3">
 
-                    <div class="flex flex-col gap-4">
-                        <div class="flex items-center gap-3">
-                            <input type="checkbox" id="prod-pix-active"
-                                class="w-5 h-5 rounded text-green-500 bg-gray-700 border-gray-600 focus:ring-green-500 cursor-pointer">
-                            <label for="prod-pix-active"
-                                class="text-white font-bold text-sm cursor-pointer select-none">
-                                Ativar Desconto no Pix
-                            </label>
-                        </div>
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-4 border-b border-gray-800 pb-3">
+                            <div class="flex items-center gap-2 min-w-[150px]">
+                                <input type="checkbox" id="prod-pix-active"
+                                    class="w-5 h-5 rounded text-green-500 bg-gray-700 border-gray-600 focus:ring-green-500">
+                                <label for="prod-pix-active"
+                                    class="text-white font-bold text-sm cursor-pointer select-none">Desconto no
+                                    Pix</label>
+                            </div>
 
-                        <div id="pix-settings"
-                            class="flex flex-col sm:flex-row gap-3 opacity-50 pointer-events-none transition-opacity duration-200 w-full">
-
-                            <div
-                                class="flex items-center gap-2 flex-1 bg-black border border-gray-600 rounded px-3 h-10 focus-within:border-green-500 transition">
-                                <span class="text-gray-400 text-xs uppercase font-bold shrink-0">Valor:</span>
+                            <div id="pix-settings"
+                                class="flex items-center gap-2 opacity-50 pointer-events-none transition-opacity duration-200">
+                                <span class="text-gray-400 text-xs uppercase font-bold">Valor:</span>
                                 <input type="text" id="prod-pix-val" placeholder="0"
-                                    class="bg-transparent border-none text-white text-sm w-full outline-none font-bold h-full">
-                            </div>
+                                    class="w-20 bg-black border border-gray-600 text-white p-1 rounded text-center focus:border-green-500 outline-none">
 
-                            <div
-                                class="flex bg-black rounded border border-gray-600 overflow-hidden h-10 w-full sm:w-auto shrink-0">
-                                <button type="button" id="btn-pix-percent"
-                                    class="flex-1 sm:w-16 px-4 bg-green-600 text-white text-xs font-bold transition flex items-center justify-center hover:bg-green-700">
-                                    %
-                                </button>
-                                <div class="w-px bg-gray-600"></div>
-                                <button type="button" id="btn-pix-fixed"
-                                    class="flex-1 sm:w-16 px-4 bg-black text-gray-400 text-xs font-bold transition flex items-center justify-center hover:text-white hover:bg-gray-800">
-                                    R$
-                                </button>
+                                <div class="flex bg-black rounded border border-gray-600 overflow-hidden">
+                                    <button type="button" id="btn-pix-percent"
+                                        class="px-3 py-1 bg-green-600 text-white text-xs font-bold transition"> %
+                                    </button>
+                                    <button type="button" id="btn-pix-fixed"
+                                        class="px-3 py-1 bg-black text-gray-400 text-xs font-bold hover:text-white transition">
+                                        R$ </button>
+                                </div>
+                                <input type="hidden" id="prod-pix-type" value="percent">
                             </div>
-
-                            <input type="hidden" id="prod-pix-type" value="percent">
                         </div>
+
                     </div>
                 </div>
 
@@ -1947,7 +1622,6 @@
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/app.js"></script>
     <script type="module" src="js/stats.js"></script>
-    <script type="module" src="js/support.js"></script>
 </body>
 
 </html>

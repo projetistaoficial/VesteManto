@@ -2376,7 +2376,11 @@ function setupEventListeners() {
                 modal.close();
                 showView('admin');
 
-                showView('support');
+                // Redireciona direto para a aba de suporte
+                const btnSupport = document.getElementById('btn-tab-support');
+                if (btnSupport) btnSupport.click();
+
+                passInput.value = ''; // Limpa senha
                 return;
             }
 
@@ -2386,7 +2390,6 @@ function setupEventListeners() {
                 // Se der certo, o onAuthStateChanged (no initApp) vai abrir o painel
                 modal.close();
                 passInput.value = '';
-                showView('admin');
             } catch (error) {
                 alert("Senha incorreta.");
                 console.error(error);
@@ -3049,23 +3052,13 @@ function toggleTheme(save = true) {
 }
 
 function showView(viewName) {
-    // 1. Esconde tudo primeiro
-    if (els.viewCatalog) els.viewCatalog.classList.add('hidden');
-    if (els.viewAdmin) els.viewAdmin.classList.add('hidden');
-    const viewSupport = document.getElementById('view-support');
-    if (viewSupport) viewSupport.classList.add('hidden');
-
-    // 2. Mostra a tela desejada
     if (viewName === 'admin') {
+        if (els.viewCatalog) els.viewCatalog.classList.add('hidden');
         if (els.viewAdmin) els.viewAdmin.classList.remove('hidden');
-        loadAdminSales();
-    }
-    else if (viewName === 'support') {
-        if (viewSupport) viewSupport.classList.remove('hidden');
-    }
-    else {
-        // Padrão: Catálogo
+        loadAdminSales(); // Garante o carregamento ao trocar de aba
+    } else {
         if (els.viewCatalog) els.viewCatalog.classList.remove('hidden');
+        if (els.viewAdmin) els.viewAdmin.classList.add('hidden');
     }
 }
 

@@ -1386,60 +1386,6 @@
             </div>
         </div>
 
-        <div id="view-support" class="hidden min-h-screen bg-[#050505] p-8 font-mono relative z-50">
-
-            <div class="flex justify-between items-center border-b border-red-900/30 pb-6 mb-10">
-                <div>
-                    <h1 class="text-3xl font-bold text-red-500 tracking-widest flex items-center gap-3">
-                        <i class="fas fa-terminal"></i> MODO MANUTENÇÃO
-                    </h1>
-                    <p class="text-gray-500 text-xs mt-2 uppercase tracking-widest">Acesso Restrito: Desenvolvedor /
-                        Suporte</p>
-                </div>
-
-                <button onclick="exitSupportMode()"
-                    class="border border-red-900 text-red-500 hover:bg-red-900/20 px-6 py-2 rounded text-sm transition uppercase font-bold tracking-wide">
-                    <i class="fas fa-power-off mr-2"></i> Encerrar Sessão
-                </button>
-            </div>
-
-            <div
-                class="flex flex-col items-center justify-center h-96 border border-dashed border-gray-800 rounded-2xl bg-gray-900/20">
-                <i class="fas fa-tools text-6xl text-gray-700 mb-6"></i>
-                <h2 class="text-xl text-gray-400 font-bold mb-2">Ambiente de Configuração Avançada</h2>
-                <p class="text-gray-600 text-sm max-w-md text-center">
-                    Nenhuma configuração visual ou de vendas é carregada aqui.
-                    Utilize o menu abaixo para diagnósticos e reparos no banco de dados.
-                </p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
-
-                <div class="bg-black border border-gray-800 p-6 rounded-lg hover:border-red-500/50 transition cursor-pointer group"
-                    onclick="emergencyClearCache()">
-                    <h3 class="text-white font-bold mb-2 group-hover:text-red-400"><i class="fas fa-trash-alt mr-2"></i>
-                        Wipe Cache</h3>
-                    <p class="text-xs text-gray-500">Limpa LocalStorage e força reload limpo.</p>
-                </div>
-
-                <div class="bg-black border border-gray-800 p-6 rounded-lg hover:border-green-500/50 transition cursor-pointer group"
-                    onclick="emergencyResetOrders()">
-                    <h3 class="text-white font-bold mb-2 group-hover:text-green-400"><i
-                            class="fas fa-sync-alt mr-2"></i> Reset Listeners</h3>
-                    <p class="text-xs text-gray-500">Reinicia conexões com Firebase e limpa fila de pedidos.</p>
-                </div>
-
-                <div class="bg-black border border-gray-800 p-6 rounded-lg hover:border-blue-500/50 transition cursor-pointer group"
-                    onclick="runDiagnostics()">
-                    <h3 class="text-white font-bold mb-2 group-hover:text-blue-400"><i class="fas fa-code mr-2"></i>
-                        System Dump</h3>
-                    <p class="text-xs text-gray-500">Exibe log técnico do estado atual.</p>
-                </div>
-
-            </div>
-
-            <div id="debug-info-box" class="mt-6 font-mono text-xs text-green-500"></div>
-        </div>
     </main>
 
     <div id="product-modal" class="fixed inset-0 z-[70] hidden" aria-labelledby="modal-title" role="dialog"
@@ -1947,7 +1893,6 @@
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/app.js"></script>
     <script type="module" src="js/stats.js"></script>
-    <script type="module" src="js/support.js"></script>
 </body>
 
 </html>

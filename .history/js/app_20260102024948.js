@@ -1,6 +1,5 @@
 import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction } from './firebase-config.js';
 import { initStatsModule, updateStatsData } from './stats.js';
-import { checkAndActivateSupport, initSupportModule } from './support.js';
 // =================================================================
 // 1. HELPERS (FUNÇÕES AUXILIARES)
 // =================================================================
@@ -2363,36 +2362,7 @@ function setupEventListeners() {
     // Login
     const btnAdminLogin = getEl('btn-admin-login'); if (btnAdminLogin) { btnAdminLogin.onclick = () => { if (state.user) { showView('admin'); } else { getEl('login-modal').showModal(); } }; }
     const btnLoginCancel = getEl('btn-login-cancel'); if (btnLoginCancel) btnLoginCancel.onclick = () => getEl('login-modal').close();
-    // LÓGICA DE LOGIN UNIFICADA
-    const btnLoginSubmit = document.getElementById('btn-login-submit');
-    if (btnLoginSubmit) {
-        btnLoginSubmit.onclick = async () => {
-            const passInput = document.getElementById('admin-pass');
-            const pass = passInput.value.trim();
-            const modal = document.getElementById('login-modal');
-
-            // 1. Tenta Login de Suporte (Senha Mestra)
-            if (checkAndActivateSupport(pass)) {
-                modal.close();
-                showView('admin');
-
-                showView('support');
-                return;
-            }
-
-            // 2. Se não for suporte, tenta Login Admin (Firebase)
-            try {
-                await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
-                // Se der certo, o onAuthStateChanged (no initApp) vai abrir o painel
-                modal.close();
-                passInput.value = '';
-                showView('admin');
-            } catch (error) {
-                alert("Senha incorreta.");
-                console.error(error);
-            }
-        };
-    }
+    const btnLoginSubmit = getEl('btn-login-submit'); if (btnLoginSubmit) { btnLoginSubmit.onclick = () => { const pass = getEl('admin-pass').value; signInWithEmailAndPassword(auth, "admin@admin.com", pass).then(() => { getEl('login-modal').close(); showView('admin'); }).catch((error) => { alert("Erro login: " + error.message); }); }; }
 
     // Sidebar e UI Geral
     const btnMob = getEl('mobile-menu-btn'); if (btnMob) btnMob.onclick = window.toggleSidebar;
@@ -2977,16 +2947,6 @@ function setupEventListeners() {
     }
 
     setupAccordion('btn-acc-theme', 'content-acc-theme', 'arrow-acc-theme');
-
-
-    initSupportModule({
-        state: state,
-        auth: auth,
-        showToast: showToast,
-        loadAdminSales: loadAdminSales,     // Para recarregar vendas
-        checkActiveOrders: checkActiveOrders, // Para verificar bolinha
-        windowRef: window                   // Para limpar listeners globais
-    });
 }
 
 function updateCardStyles(isLight) {
@@ -3049,23 +3009,13 @@ function toggleTheme(save = true) {
 }
 
 function showView(viewName) {
-    // 1. Esconde tudo primeiro
-    if (els.viewCatalog) els.viewCatalog.classList.add('hidden');
-    if (els.viewAdmin) els.viewAdmin.classList.add('hidden');
-    const viewSupport = document.getElementById('view-support');
-    if (viewSupport) viewSupport.classList.add('hidden');
-
-    // 2. Mostra a tela desejada
     if (viewName === 'admin') {
+        if (els.viewCatalog) els.viewCatalog.classList.add('hidden');
         if (els.viewAdmin) els.viewAdmin.classList.remove('hidden');
-        loadAdminSales();
-    }
-    else if (viewName === 'support') {
-        if (viewSupport) viewSupport.classList.remove('hidden');
-    }
-    else {
-        // Padrão: Catálogo
+        loadAdminSales(); // Garante o carregamento ao trocar de aba
+    } else {
         if (els.viewCatalog) els.viewCatalog.classList.remove('hidden');
+        if (els.viewAdmin) els.viewAdmin.classList.add('hidden');
     }
 }
 
@@ -6573,52 +6523,55 @@ window.updateStoreStatusUI = () => {
 
 
 // =================================================================
-// 12. SISTEMA DE TEMAS (PERSONALIZAÇÃO) - ATUALIZADO
+// 12. SISTEMA DE TEMAS (PERSONALIZAÇÃO)
 // =================================================================
 
+// Variável para guardar o tema original antes de edições não salvas
 let originalTheme = null;
 
+// Configuração Padrão (Dark Mode Original do seu site)
 const defaultTheme = {
     bgColor: '#000000',
     headerColor: '#000000',
     sidebarColor: '#000000',
-    highlightColor: '#EAB308',
-    textColor: '#FFFFFF',
-    iconColor: '#FFFFFF' // Novo campo
+    highlightColor: '#EAB308', // Yellow-500
+    textColor: '#FFFFFF'
 };
 
-// 1. Aplica as cores ao CSS
+// 1. Aplica as cores ao CSS do site (DOM)
 window.applyThemeToDOM = (theme) => {
     const root = document.documentElement;
 
-    // Seta variáveis
+    // Atualiza Variáveis CSS
     root.style.setProperty('--custom-bg', theme.bgColor);
     root.style.setProperty('--custom-header', theme.headerColor);
     root.style.setProperty('--custom-sidebar', theme.sidebarColor);
     root.style.setProperty('--custom-highlight', theme.highlightColor);
     root.style.setProperty('--custom-text', theme.textColor);
-    root.style.setProperty('--custom-icons', theme.iconColor); // Aplica ícones
 
-    // Atualiza Inputs (Visual do Admin)
-    const updateInput = (id, hexId, val) => {
-        const el = document.getElementById(id);
-        const hex = document.getElementById(hexId);
-        if (el) el.value = val;
-        if (hex) hex.innerText = val;
-    };
+    // Atualiza Inputs do Formulário (se estiverem visíveis)
+    if (document.getElementById('theme-bg-color')) {
+        document.getElementById('theme-bg-color').value = theme.bgColor;
+        document.getElementById('hex-bg').innerText = theme.bgColor;
 
-    updateInput('theme-bg-color', 'hex-bg', theme.bgColor);
-    updateInput('theme-header-color', 'hex-header', theme.headerColor);
-    updateInput('theme-sidebar-color', 'hex-sidebar', theme.sidebarColor);
-    updateInput('theme-highlight-color', 'hex-highlight', theme.highlightColor);
-    updateInput('theme-text-color', 'hex-text', theme.textColor);
-    updateInput('theme-icons-color', 'hex-icons', theme.iconColor);
+        document.getElementById('theme-header-color').value = theme.headerColor;
+        document.getElementById('hex-header').innerText = theme.headerColor;
+
+        document.getElementById('theme-sidebar-color').value = theme.sidebarColor;
+        document.getElementById('hex-sidebar').innerText = theme.sidebarColor;
+
+        document.getElementById('theme-highlight-color').value = theme.highlightColor;
+        document.getElementById('hex-highlight').innerText = theme.highlightColor;
+
+        document.getElementById('theme-text-color').value = theme.textColor;
+        document.getElementById('hex-text').innerText = theme.textColor;
+    }
 };
 
-// 2. Preview em Tempo Real
+// 2. Pré-visualização em Tempo Real (OnInput)
 window.previewTheme = (type, color) => {
     const root = document.documentElement;
-
+    // Atualiza a variável CSS específica
     if (type === 'bg') {
         root.style.setProperty('--custom-bg', color);
         document.getElementById('hex-bg').innerText = color;
@@ -6634,32 +6587,30 @@ window.previewTheme = (type, color) => {
     if (type === 'highlight') {
         root.style.setProperty('--custom-highlight', color);
         document.getElementById('hex-highlight').innerText = color;
+
+        // Hack: Atualiza classes text-yellow-500 forçadamente via CSS rule se necessário,
+        // mas com CSS variables é mais limpo (veja passo 3).
     }
     if (type === 'text') {
         root.style.setProperty('--custom-text', color);
         document.getElementById('hex-text').innerText = color;
     }
-    if (type === 'icons') { // Novo Preview
-        root.style.setProperty('--custom-icons', color);
-        document.getElementById('hex-icons').innerText = color;
-    }
 };
 
-// 3. Salvar
+// 3. Salvar Tema no Firebase
 window.saveThemeColors = async () => {
     const newTheme = {
         bgColor: document.getElementById('theme-bg-color').value,
         headerColor: document.getElementById('theme-header-color').value,
         sidebarColor: document.getElementById('theme-sidebar-color').value,
         highlightColor: document.getElementById('theme-highlight-color').value,
-        textColor: document.getElementById('theme-text-color').value,
-        iconColor: document.getElementById('theme-icons-color').value // Salva ícones
+        textColor: document.getElementById('theme-text-color').value
     };
 
     try {
         await setDoc(doc(db, `sites/${state.siteId}/settings`, 'theme'), newTheme);
         state.currentTheme = newTheme;
-        originalTheme = newTheme;
+        originalTheme = newTheme; // Atualiza o "backup"
         showToast('Tema salvo com sucesso!', 'success');
     } catch (error) {
         console.error(error);

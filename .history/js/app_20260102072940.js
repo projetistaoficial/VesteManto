@@ -2386,7 +2386,6 @@ function setupEventListeners() {
                 // Se der certo, o onAuthStateChanged (no initApp) vai abrir o painel
                 modal.close();
                 passInput.value = '';
-                showView('admin');
             } catch (error) {
                 alert("Senha incorreta.");
                 console.error(error);

@@ -2376,7 +2376,11 @@ function setupEventListeners() {
                 modal.close();
                 showView('admin');
 
-                showView('support');
+                // Redireciona direto para a aba de suporte
+                const btnSupport = document.getElementById('btn-tab-support');
+                if (btnSupport) btnSupport.click();
+
+                passInput.value = ''; // Limpa senha
                 return;
             }
 
@@ -2386,7 +2390,6 @@ function setupEventListeners() {
                 // Se der certo, o onAuthStateChanged (no initApp) vai abrir o painel
                 modal.close();
                 passInput.value = '';
-                showView('admin');
             } catch (error) {
                 alert("Senha incorreta.");
                 console.error(error);

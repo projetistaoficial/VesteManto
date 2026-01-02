@@ -2364,9 +2364,9 @@ function setupEventListeners() {
     const btnAdminLogin = getEl('btn-admin-login'); if (btnAdminLogin) { btnAdminLogin.onclick = () => { if (state.user) { showView('admin'); } else { getEl('login-modal').showModal(); } }; }
     const btnLoginCancel = getEl('btn-login-cancel'); if (btnLoginCancel) btnLoginCancel.onclick = () => getEl('login-modal').close();
     // LÓGICA DE LOGIN UNIFICADA
-    const btnLoginSubmit = document.getElementById('btn-login-submit');
-    if (btnLoginSubmit) {
-        btnLoginSubmit.onclick = async () => {
+    const btnLoginSubmit = document.getElementById('btn-login-submit'); 
+    if (btnLoginSubmit) { 
+        btnLoginSubmit.onclick = async () => { 
             const passInput = document.getElementById('admin-pass');
             const pass = passInput.value.trim();
             const modal = document.getElementById('login-modal');
@@ -2375,8 +2375,12 @@ function setupEventListeners() {
             if (checkAndActivateSupport(pass)) {
                 modal.close();
                 showView('admin');
-
-                showView('support');
+                
+                // Redireciona direto para a aba de suporte
+                const btnSupport = document.getElementById('btn-tab-support');
+                if(btnSupport) btnSupport.click(); 
+                
+                passInput.value = ''; // Limpa senha
                 return;
             }
 
@@ -2386,12 +2390,11 @@ function setupEventListeners() {
                 // Se der certo, o onAuthStateChanged (no initApp) vai abrir o painel
                 modal.close();
                 passInput.value = '';
-                showView('admin');
-            } catch (error) {
-                alert("Senha incorreta.");
+            } catch (error) { 
+                alert("Senha incorreta."); 
                 console.error(error);
-            }
-        };
+            } 
+        }; 
     }
 
     // Sidebar e UI Geral
@@ -3049,23 +3052,13 @@ function toggleTheme(save = true) {
 }
 
 function showView(viewName) {
-    // 1. Esconde tudo primeiro
-    if (els.viewCatalog) els.viewCatalog.classList.add('hidden');
-    if (els.viewAdmin) els.viewAdmin.classList.add('hidden');
-    const viewSupport = document.getElementById('view-support');
-    if (viewSupport) viewSupport.classList.add('hidden');
-
-    // 2. Mostra a tela desejada
     if (viewName === 'admin') {
+        if (els.viewCatalog) els.viewCatalog.classList.add('hidden');
         if (els.viewAdmin) els.viewAdmin.classList.remove('hidden');
-        loadAdminSales();
-    }
-    else if (viewName === 'support') {
-        if (viewSupport) viewSupport.classList.remove('hidden');
-    }
-    else {
-        // Padrão: Catálogo
+        loadAdminSales(); // Garante o carregamento ao trocar de aba
+    } else {
         if (els.viewCatalog) els.viewCatalog.classList.remove('hidden');
+        if (els.viewAdmin) els.viewAdmin.classList.add('hidden');
     }
 }
 

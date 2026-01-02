@@ -1,0 +1,97 @@
+    /* Regra para impedir zoom em inputs no mobile */
+    @media screen and (max-width: 768px) {
+
+        input,
+        select,
+        textarea {
+            font-size: 16px !important;
+        }
+    }
+
+    /* Custom scrollbar para ficar dark */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #111;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #444;
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #fbbf24;
+        /* yellow-500 */
+    }
+
+    .card-hover:hover {
+        transform: translateY(-5px);
+        transition: transform 0.2s ease;
+        box-shadow: 0 10px 15px -3px rgba(255, 255, 255, 0.1);
+    }
+
+    /* Esconder inputs number arrows */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+
+    <style id="dynamic-theme-style">
+    /* Define os valores padrão das variáveis (Fallback) */
+    :root {
+        --custom-bg: #000000;
+        --custom-header: #000000;
+        --custom-sidebar: #000000;
+        --custom-highlight: #eab308; /* Yellow-500 */
+        --custom-text: #ffffff;
+    }
+
+    /* Aplica as variáveis aos elementos principais */
+    
+    /* 1. FUNDO DO SITE */
+    body, #main-content, .bg-black {
+        background-color: var(--custom-bg) !important;
+    }
+
+    /* 2. TOPO (HEADER) */
+    header, nav, .bg-black.sticky {
+        background-color: var(--custom-header) !important;
+    }
+    
+    /* 3. MENU LATERAL */
+    aside, #sidebar, #sidebar .bg-gray-900 {
+        background-color: var(--custom-sidebar) !important;
+    }
+
+    /* 4. TEXTOS GERAIS */
+    body, p, span, div, button {
+        color: var(--custom-text);
+    }
+    .text-white {
+        color: var(--custom-text) !important;
+    }
+    /* Exceção: Textos cinzas escuros ou placeholders precisam manter contraste */
+    .text-gray-400, .text-gray-500, .text-gray-600 {
+        /* Não sobrescrevemos esses para não quebrar ícones secundários */
+    }
+
+    /* 5. DESTAQUES (AMARELO) */
+    .text-yellow-500, .text-yellow-400 {
+        color: var(--custom-highlight) !important;
+    }
+    .bg-yellow-500 {
+        background-color: var(--custom-highlight) !important;
+    }
+    .border-yellow-500 {
+        border-color: var(--custom-highlight) !important;
+    }
+    /* Ícones de ordenação, setas, etc */
+    .group-hover\:text-yellow-500:hover {
+        color: var(--custom-highlight) !important;
+    }
+</style>

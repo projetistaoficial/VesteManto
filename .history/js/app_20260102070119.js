@@ -1,6 +1,6 @@
 import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction } from './firebase-config.js';
 import { initStatsModule, updateStatsData } from './stats.js';
-import { checkAndActivateSupport, initSupportModule } from './support.js';
+import { initSupportModule } from './support.js';
 // =================================================================
 // 1. HELPERS (FUNÇÕES AUXILIARES)
 // =================================================================
@@ -2363,36 +2363,7 @@ function setupEventListeners() {
     // Login
     const btnAdminLogin = getEl('btn-admin-login'); if (btnAdminLogin) { btnAdminLogin.onclick = () => { if (state.user) { showView('admin'); } else { getEl('login-modal').showModal(); } }; }
     const btnLoginCancel = getEl('btn-login-cancel'); if (btnLoginCancel) btnLoginCancel.onclick = () => getEl('login-modal').close();
-    // LÓGICA DE LOGIN UNIFICADA
-    const btnLoginSubmit = document.getElementById('btn-login-submit');
-    if (btnLoginSubmit) {
-        btnLoginSubmit.onclick = async () => {
-            const passInput = document.getElementById('admin-pass');
-            const pass = passInput.value.trim();
-            const modal = document.getElementById('login-modal');
-
-            // 1. Tenta Login de Suporte (Senha Mestra)
-            if (checkAndActivateSupport(pass)) {
-                modal.close();
-                showView('admin');
-
-                showView('support');
-                return;
-            }
-
-            // 2. Se não for suporte, tenta Login Admin (Firebase)
-            try {
-                await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
-                // Se der certo, o onAuthStateChanged (no initApp) vai abrir o painel
-                modal.close();
-                passInput.value = '';
-                showView('admin');
-            } catch (error) {
-                alert("Senha incorreta.");
-                console.error(error);
-            }
-        };
-    }
+    const btnLoginSubmit = getEl('btn-login-submit'); if (btnLoginSubmit) { btnLoginSubmit.onclick = () => { const pass = getEl('admin-pass').value; signInWithEmailAndPassword(auth, "admin@admin.com", pass).then(() => { getEl('login-modal').close(); showView('admin'); }).catch((error) => { alert("Erro login: " + error.message); }); }; }
 
     // Sidebar e UI Geral
     const btnMob = getEl('mobile-menu-btn'); if (btnMob) btnMob.onclick = window.toggleSidebar;
@@ -2978,6 +2949,7 @@ function setupEventListeners() {
 
     setupAccordion('btn-acc-theme', 'content-acc-theme', 'arrow-acc-theme');
 
+    
 
     initSupportModule({
         state: state,
@@ -3049,23 +3021,13 @@ function toggleTheme(save = true) {
 }
 
 function showView(viewName) {
-    // 1. Esconde tudo primeiro
-    if (els.viewCatalog) els.viewCatalog.classList.add('hidden');
-    if (els.viewAdmin) els.viewAdmin.classList.add('hidden');
-    const viewSupport = document.getElementById('view-support');
-    if (viewSupport) viewSupport.classList.add('hidden');
-
-    // 2. Mostra a tela desejada
     if (viewName === 'admin') {
+        if (els.viewCatalog) els.viewCatalog.classList.add('hidden');
         if (els.viewAdmin) els.viewAdmin.classList.remove('hidden');
-        loadAdminSales();
-    }
-    else if (viewName === 'support') {
-        if (viewSupport) viewSupport.classList.remove('hidden');
-    }
-    else {
-        // Padrão: Catálogo
+        loadAdminSales(); // Garante o carregamento ao trocar de aba
+    } else {
         if (els.viewCatalog) els.viewCatalog.classList.remove('hidden');
+        if (els.viewAdmin) els.viewAdmin.classList.add('hidden');
     }
 }
 
