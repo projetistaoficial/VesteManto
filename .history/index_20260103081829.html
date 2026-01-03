@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Veste Manto - Catálogo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+
+    <!-- <style id="dynamic-theme-style">
+        /* 1. VARIÁVEIS GLOBAIS (O que o usuário escolhe) */
+        :root {
+            --custom-bg: #000000;
+            --custom-header: #000000;
+            --custom-sidebar: #000000;
+            --custom-highlight: #eab308;
+            /* Amarelo */
+            --custom-text: #ffffff;
+            --custom-icons: #ffffff;
+        }
+
+        /* ============================================================
+       REGRAS PÚBLICAS (Aplicam o tema no site)
+       ============================================================ */
+
+        /* Fundo Principal */
+        body,
+        #main-content {
+            background-color: var(--custom-bg) !important;
+        }
+
+        /* Classes genéricas pretas na vitrine viram a cor do fundo */
+        #view-catalog .bg-black {
+            background-color: var(--custom-bg) !important;
+        }
+
+        /* Topo/Header (Força visual) */
+        nav.bg-black,
+        .bg-black.sticky {
+            background-color: var(--custom-header) !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+
+        /* Barra de Busca Externa */
+        div.bg-\[\#0a0a0a\] {
+            background-color: var(--custom-header) !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+
+        /* Menu Lateral Público */
+        aside#sidebar {
+            background-color: var(--custom-sidebar) !important;
+        }
+
+        /* Textos Gerais (Apenas fora do Admin) */
+        body:not(:has(#view-admin:not(.hidden))) p,
+        body:not(:has(#view-admin:not(.hidden))) span,
+        body:not(:has(#view-admin:not(.hidden))) h1,
+        body:not(:has(#view-admin:not(.hidden))) h2,
+        body:not(:has(#view-admin:not(.hidden))) h3 {
+            color: var(--custom-text);
+        }
+
+        /* Títulos e Destaques Públicos */
+        #view-catalog .text-yellow-500,
+        #sidebar .text-yellow-500,
+        #navbar-store-text .text-yellow-500 {
+            color: var(--custom-highlight) !important;
+        }
+
+        /* Ícones Públicos */
+        #mobile-menu-btn i,
+        #theme-toggle i,
+        #btn-track-icon i,
+        #cart-btn i,
+        .fa-search {
+            color: var(--custom-icons) !important;
+        }
+
+        /* ============================================================
+       BLINDAGEM DO ADMIN (Reseta tudo para o padrão)
+       ============================================================ */
+
+        /* Quando dentro do #view-admin, redefinimos as variáveis para o padrão */
+        #view-admin,
+        #login-modal {
+            --custom-bg: #000000;
+            --custom-header: #000000;
+            --custom-sidebar: #000000;
+            --custom-highlight: #eab308;
+            --custom-text: #ffffff;
+            --custom-icons: #ffffff;
+
+            /* Força fundo preto no painel inteiro */
+            background-color: #0a0a0a !important;
+            color: #ffffff !important;
+        }
+
+        /* Reseta Inputs do Admin para não ficarem ilegíveis */
+        #view-admin input,
+        #view-admin select,
+        #view-admin textarea,
+        #login-modal input {
+            background-color: #111827 !important;
+            /* gray-900 */
+            color: #ffffff !important;
+            border-color: #374151 !important;
+            /* gray-700 */
+        }
+
+        /* Reseta Botões e Cores Específicas do Admin */
+        #view-admin .text-yellow-500 {
+            color: #EAB308 !important;
+        }
+
+        #view-admin .bg-yellow-500 {
+            background-color: #EAB308 !important;
+        }
+
+        #view-admin .text-green-500 {
+            color: #22c55e !important;
+        }
+
+        #view-admin .bg-green-600 {
+            background-color: #16a34a !important;
+        }
+
+        #view-admin .bg-red-600 {
+            background-color: #dc2626 !important;
+        }
+
+        #view-admin .bg-gray-900 {
+            background-color: #111827 !important;
+        }
+
+        #view-admin .bg-black {
+            background-color: #000000 !important;
+        }
+
+        /* Mantém o card de configuração azul (da sua referência) */
+        #view-admin .bg-\[\#020617\] {
+            background-color: #020617 !important;
+        }
+
+        /* Garante que textos dentro do admin sejam brancos/cinzas padrão */
+        #view-admin p,
+        #view-admin span,
+        #view-admin label,
+        #view-admin h1,
+        #view-admin h2,
+        #view-admin h3 {
+            color: inherit;
+            /* Usa a cor definida no container pai ou na classe local */
+        }
+
+        #view-admin .text-gray-400 {
+            color: #9ca3af !important;
+        }
+
+        #view-admin .text-gray-500 {
+            color: #6b7280 !important;
+        }
+    </style> -->
+</head>
+
+<body class="bg-black text-white font-sans antialiased">
+
+    <div id="site-floating-capsule"
+        class="fixed top-4 right-4 z-[60] flex items-center gap-2 bg-black/60 backdrop-blur-md p-2 rounded-full border border-gray-700 shadow-2xl animate-fade-in transition-all duration-300 hover:bg-black/80">
+
+        <button id="theme-toggle"
+            class="w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-yellow-400 hover:bg-white/10 transition focus:outline-none">
+            <i id="theme-icon" class="fas fa-sun text-lg"></i>
+        </button>
+
+        <button id="btn-track-icon"
+            class="w-10 h-10 rounded-full flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition relative group"
+            title="Acompanhar Pedido">
+            <i class="fas fa-box-open text-lg"></i>
+            <span id="track-indicator" class="absolute top-2 right-2 flex h-2.5 w-2.5 hidden">
+                <span
+                    class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+            </span>
+        </button>
+
+        <div class="relative cursor-pointer bg-yellow-500 hover:bg-yellow-400 text-black w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-105"
+            id="cart-btn">
+            <i class="fas fa-shopping-bag text-lg"></i>
+            <span id="cart-count"
+                class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-black">0</span>
+        </div>
+    </div>
+
+    <div id="sidebar-overlay"
+        class="fixed inset-0 bg-black bg-opacity-70 z-[60] hidden backdrop-blur-sm transition-opacity"></div>
+
+    <aside id="sidebar"
+        class="fixed inset-y-0 left-0 w-80 bg-black z-[70] transform -translate-x-full transition-transform duration-300 ease-in-out border-r border-gray-800 flex flex-col h-full shadow-2xl">
+
+        <div class="h-16 flex items-center justify-between px-4 border-b border-gray-800 bg-gray-900">
+            <span class="text-yellow-500 font-bold tracking-tighter text-lg">
+                <i class="fas fa-bars mr-2"></i>MENU
+            </span>
+            <button id="close-sidebar" class="text-gray-400 hover:text-white transition">
+                <i class="fas fa-times fa-lg"></i>
+            </button>
+        </div>
+
+        <div class="overflow-y-auto py-4 px-2 space-y-2 flex-shrink-0">
+
+            <a href="#" id="menu-link-home"
+                class="flex items-center px-4 py-3 text-white hover:bg-gray-800 rounded transition group border-l-4 border-transparent hover:border-yellow-500">
+                <i class="fas fa-store w-6 text-yellow-500 group-hover:text-white transition"></i>
+                <span class="font-bold text-lg">Vitrine</span>
+            </a>
+
+            <div class="px-4 py-2 mt-2">
+                <div id="btn-toggle-categories" class="flex justify-between items-center cursor-pointer group">
+                    <h3
+                        class="text-xs font-bold text-gray-500 uppercase tracking-wider group-hover:text-white transition">
+                        Categorias</h3>
+                    <i id="icon-cat-arrow" class="fas fa-chevron-down text-xs text-gray-500 transition-transform"></i>
+                </div>
+                <div id="sidebar-categories-container" class="mt-2 pl-2">
+                    <div id="sidebar-categories" class="space-y-1 border-l-2 border-gray-800 pl-2">
+                        <p class="text-gray-600 text-sm italic">Carregando...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1"></div>
+
+        <div class="bg-gray-900 border-t border-gray-800 p-4">
+
+            <div class="flex flex-col items-center text-center mb-4">
+                <h3 id="sidebar-store-name" class="text-white font-bold text-xl tracking-tight">Nome da Loja</h3>
+
+                <button id="store-status-badge"
+                    class="hidden flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mt-2 border transition hover:opacity-80 mx-auto">
+                </button>
+
+                <p id="sidebar-store-desc" class="text-gray-400 text-xs mt-1 px-2 line-clamp-2">Descrição da loja...</p>
+            </div>
+
+            <div class="flex justify-center gap-4 mb-4">
+
+                <a id="sidebar-link-wpp" href="#" target="_blank"
+                    class="text-gray-400 hover:text-green-500 transition hidden">
+                    <i class="fab fa-whatsapp text-2xl"></i>
+                </a>
+
+                <a id="sidebar-link-insta" href="#" target="_blank"
+                    class="text-gray-400 hover:text-pink-500 transition hidden">
+                    <i class="fab fa-instagram text-2xl"></i>
+                </a>
+
+                <a id="sidebar-link-facebook" href="#" target="_blank"
+                    class="text-gray-400 hover:text-blue-500 transition hidden">
+                    <i class="fab fa-facebook text-2xl"></i>
+                </a>
+
+                <button id="btn-show-address" class="text-gray-400 hover:text-yellow-500 transition hidden"
+                    title="Ver Endereço">
+                    <i class="fas fa-map-marker-alt text-2xl"></i>
+                </button>
+
+            </div>
+
+            <button onclick="shareStoreLink()"
+                class="w-full bg-gray-800 hover:bg-gray-700 text-white py-2 rounded border border-gray-700 hover:border-yellow-500 transition flex items-center justify-center gap-2 mb-3 text-sm group">
+                <i class="fas fa-share-alt text-yellow-500 group-hover:text-white"></i> Compartilhar Loja
+            </button>
+
+            <button id="menu-btn-admin"
+                class="w-full bg-black hover:bg-yellow-500 hover:text-black text-white py-3 rounded font-bold uppercase text-sm tracking-wide transition border border-gray-800">
+                PAINEL ADMINISTRATIVO
+            </button>
+        </div>
+    </aside>
+    <nav id="site-header"
+        class="bg-black border-b border-gray-800 z-50 rounded-b-[40px] md:rounded-b-[50px] shadow-2xl relative overflow-hidden transition-all duration-300">
+
+        <div class="relative z-30 px-5 pt-5 flex justify-between items-start">
+
+            <button id="mobile-menu-btn"
+                class="text-white hover:text-yellow-500 transition-transform transform hover:scale-110 active:scale-95 focus:outline-none p-2 rounded-full hover:bg-white/5">
+                <i class="fas fa-bars fa-2x"></i>
+            </button>
+
+        </div>
+
+        <div class="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none pt-2">
+
+            <a href="index.html">
+                <img id="navbar-store-logo" src="" alt="Logo"
+                    class="h-48 md:h-30 object-contain hidden filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] animate-fade-in pointer-events-auto">
+            </a>
+
+            <h1 id="navbar-store-text"
+                class="text-3xl md:text-5xl font-extrabold text-white tracking-tighter hidden mt-4">
+                <span class="text-white">SUA</span><span class="text-yellow-500">LOJA</span>
+            </h1>
+        </div>
+
+        <div
+            class="relative z-20 px-6 pb-3 mt-14 md:mt-16 flex justify-between items-end text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest">
+
+            <a id="header-link-insta" href="#" target="_blank"
+                class="flex items-center gap-2 hover:text-pink-500 transition hidden group">
+                <div
+                    class="w-6 h-6 rounded-full border border-gray-600 flex items-center justify-center group-hover:border-pink-500 transition">
+                    <i class="fab fa-instagram"></i>
+                </div>
+                <span class="hidden md:inline">Instagram</span>
+            </a>
+
+            <a id="header-link-wpp" href="#" target="_blank"
+                class="flex items-center gap-2 hover:text-green-500 transition hidden text-right group">
+                <span class="hidden md:inline">Fale Conosco</span>
+                <div
+                    class="w-6 h-6 rounded-full border border-gray-600 flex items-center justify-center group-hover:border-green-500 transition">
+                    <i class="fab fa-whatsapp"></i>
+                </div>
+            </a>
+        </div>
+    </nav>
+
+    <div id="site-search-bar" class="w-full px-4 mt-6 mb-0 flex flex-col items-center relative z-40">
+
+        <div class="max-w-3xl w-full relative group z-20">
+            <div
+                class="absolute -inset-0.5 bg-gradient-to-r from-yellow-600 to-yellow-900 rounded-2xl opacity-20 group-hover:opacity-40 transition duration-500">
+            </div>
+            <div class="relative flex items-center bg-[#0a0a0a] rounded-2xl border border-gray-800/80 shadow-2xl">
+                <input type="text" id="search-input"
+                    class="w-full bg-transparent py-4 pl-6 pr-12 text-lg text-white font-medium placeholder-gray-400 outline-none rounded-2xl"
+                    placeholder="Busque o Produto...">
+                <div class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-white/5 rounded-xl">
+                    <i class="fas fa-search text-gray-400 text-xl"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="max-w-3xl w-full flex justify-between items-center mt-3 gap-2 sm:gap-3 relative z-30">
+
+            <div class="relative flex-1 min-w-0">
+                <select id="category-filter" onchange="filterByCat(this.value)" class="w-full appearance-none bg-[#0a0a0a] border border-gray-800 text-gray-300 font-bold uppercase rounded-xl outline-none focus:border-yellow-500 cursor-pointer transition shadow-sm
+                           text-[1px] sm:text-xs 
+                           py-2 sm:py-3 
+                           pl-3 sm:pl-4 
+                           pr-6 sm:pr-8">
+                    <option value="">Categorias</option>
+                </select>
+                <div
+                    class="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 text-[8px] sm:text-[10px]">
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+
+            <div class="relative w-1/3 min-w-[110px] sm:min-w-[130px]">
+                <div
+                    class="flex items-center gap-1.5 bg-[#1a1a1a] border border-gray-800 rounded-xl px-3 py-1.5 text-gray-300 text-xs font-bold uppercase transition hover:border-yellow-500/50 hover:text-white">
+                    <i class="fas fa-sort-amount-down text-yellow-500 text-[10px]"></i>
+                    <span id="sort-label-display" class=" sm:inline text-[10px]">Ordenar</span>
+                </div>
+
+                <select id="sort-filter" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    <option value="newest">✨ Lançamentos</option>
+                    <option value="price-asc">💲 Menor Preço</option>
+                    <option value="price-desc">💰 Maior Preço</option>
+                    <option value="name-asc">🔤 Nome (A-Z)</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+   
+
+    <div id="product-modal" class="fixed inset-0 z-[70] hidden" aria-labelledby="modal-title" role="dialog"
+        aria-modal="true">
+
+        <div id="modal-backdrop" class="absolute inset-0 bg-black/90 backdrop-blur-sm transition-opacity opacity-0">
+        </div>
+
+        <div class="relative w-full h-full flex items-center justify-center p-4 pointer-events-none">
+
+            <div id="modal-card"
+                class="bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform scale-95 opacity-0 transition-all duration-300 pointer-events-auto relative">
+
+                <button id="close-modal-btn"
+                    class="absolute top-4 right-4 z-20 bg-black/50 hover:bg-red-600 text-white w-10 h-10 rounded-full flex items-center justify-center transition duration-300 group">
+                    <i class="fas fa-times text-lg group-hover:rotate-90 transition-transform"></i>
+                </button>
+
+                <div class="w-full md:w-1/2 bg-black flex flex-col relative group select-none h-[50vh] md:h-auto">
+
+                    <div class="relative w-full h-full flex items-center justify-center bg-gray-900 overflow-hidden cursor-zoom-in"
+                        onclick="openImageViewer()">
+
+                        <img id="modal-img" src="" class="w-full h-full object-cover transition-transform duration-300">
+
+                        <div
+                            class="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full backdrop-blur-sm pointer-events-none">
+                            <i class="fas fa-expand"></i>
+                        </div>
+                    </div>
+
+                    <button id="btn-prev-img" onclick="event.stopPropagation(); changeModalImage(-1)"
+                        class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black text-white w-10 h-10 rounded-full flex items-center justify-center transition hidden z-10 border border-gray-600">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+
+                    <button id="btn-next-img" onclick="event.stopPropagation(); changeModalImage(1)"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black text-white w-10 h-10 rounded-full flex items-center justify-center transition hidden z-10 border border-gray-600">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+
+                    <div id="modal-thumbnails"
+                        class="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-4 overflow-x-auto z-10 custom-scrollbar">
+                    </div>
+                </div>
+
+                <div class="w-full md:w-1/2 flex flex-col h-full bg-gray-900">
+
+                    <div class="p-6 md:p-8 border-b border-gray-800 pb-4">
+                        <h2 id="modal-title" class="text-2xl md:text-3xl font-extrabold text-white tracking-tight mb-2">
+                            Nome do Produto</h2>
+                        <p id="modal-price" class="text-3xl font-bold text-green-500">R$ 0,00</p>
+                    </div>
+
+                    <div class="p-6 md:p-8 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+
+                        <div>
+                            <h3 class="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-2">Sobre o Produto
+                            </h3>
+                            <p id="modal-desc"
+                                class="text-gray-300 text-sm leading-relaxed text-justify whitespace-pre-line">
+                            </p>
+                        </div>
+
+                        <div id="modal-sizes-wrapper">
+                            <h3 class="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">Escolha o
+                                Tamanho</h3>
+                            <div id="modal-sizes" class="flex flex-wrap gap-3">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-6 md:p-8 border-t border-gray-800 bg-gray-900 z-10">
+                        <button id="modal-add-cart"
+                            class="w-full bg-green-600 hover:bg-green-500 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-3">
+                            <i class="fas fa-shopping-bag"></i>
+                            <span>ADICIONAR AO CARRINHO</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="cart-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-[60] backdrop-blur-sm">
+        <div
+            class="bg-[#0f172a] w-full max-w-md h-[95vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-gray-700 relative">
+
+            <div class="bg-black p-4 flex justify-between items-center border-b border-gray-800 z-20">
+                <button id="btn-modal-back" class="hidden text-white hover:text-yellow-500 mr-3"
+                    onclick="backToOrderList()">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+
+                <h2 id="cart-modal-title" class="text-yellow-500 font-bold text-xl uppercase tracking-wider flex-1">SEU
+                    CARRINHO</h2>
+
+                <button onclick="closeCartModal()" class="text-gray-400 hover:text-red-500 transition"><i
+                        class="fas fa-times text-xl"></i></button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 custom-scrollbar relative bg-[#0f172a]">
+
+                <div id="view-cart-list">
+                    <div id="cart-items" class="space-y-2 mb-4"></div>
+                </div>
+
+                <div id="view-checkout" class="hidden space-y-4">
+
+                    <div class="space-y-3 pt-2">
+                        <p class="text-yellow-500 text-xs font-bold uppercase ml-1 flex justify-between">
+                            <span>Entrega</span>
+                            <span id="distance-display" class="text-gray-400 font-normal text-[10px] hidden"></span>
+                        </p>
+
+                        <div class="relative">
+                            <input type="tel" id="checkout-cep" placeholder="CEP (00000-000)" maxlength="9"
+                                class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none transition-colors"
+                                onblur="handleCheckoutCep()">
+                            <div id="cep-loading" class="hidden absolute right-3 top-3 text-yellow-500">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+
+                        <div id="delivery-error"
+                            class="hidden bg-red-900/50 border border-red-500 text-red-200 text-xs p-3 rounded font-bold text-center">
+                            <i class="fas fa-ban mr-1"></i> <span id="delivery-error-msg">Entrega indisponível.</span>
+                        </div>
+
+                        <div id="address-fields"
+                            class="space-y-2 opacity-50 pointer-events-none transition-all duration-300">
+                            <div class="grid grid-cols-3 gap-2">
+                                <input type="text" id="checkout-street" placeholder="Rua" readonly
+                                    class="col-span-2 w-full bg-gray-800 text-gray-400 font-bold border-none rounded p-3 text-xs cursor-not-allowed">
+                                <input type="text" id="checkout-district" placeholder="Bairro" readonly
+                                    class="col-span-1 w-full bg-gray-800 text-gray-400 font-bold border-none rounded p-3 text-xs cursor-not-allowed">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="tel" id="checkout-number" placeholder="Número"
+                                    class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none">
+                                <input type="text" id="checkout-comp" placeholder="Complem. (Opc)"
+                                    class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none">
+                            </div>
+
+                            <input type="text" id="checkout-city" placeholder="Cidade/UF" readonly
+                                class="w-full bg-transparent text-gray-500 text-xs px-1 border-none outline-none">
+
+                            <div class="grid grid-cols-1 gap-2 mt-2">
+                                <input type="text" id="checkout-name" placeholder="Seu Nome Completo"
+                                    class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none">
+                                <input type="tel" id="checkout-phone" placeholder="WhatsApp / Telefone"
+                                    class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-700 my-2"></div>
+
+                    <div class="space-y-2" id="checkout-payment-options">
+                        <label class="text-gray-300 text-xs font-bold uppercase ml-1" id="lbl-payment-mode">Modalidade
+                            de Pagamento</label>
+
+                        <label id="label-pay-online"
+                            class="flex items-center justify-between p-3 bg-gray-800 border border-gray-700 rounded cursor-pointer hover:border-yellow-500 transition group">
+                            <div class="flex items-center gap-3">
+                                <input type="radio" name="pay-mode" value="online" checked
+                                    class="accent-yellow-500 w-5 h-5 bg-gray-900 border-gray-600">
+                                <span class="font-bold text-white text-sm">Pagar Agora (Online)</span>
+                            </div>
+                            <i class="fas fa-credit-card text-gray-500 group-hover:text-yellow-500"></i>
+                        </label>
+
+                        <div id="container-delivery-option" class="w-full">
+                            <label
+                                class="flex items-center justify-between p-3 bg-gray-800 border border-gray-700 rounded cursor-pointer hover:border-yellow-500 transition w-full group">
+                                <div class="flex items-center gap-3">
+                                    <input type="radio" name="pay-mode" value="delivery"
+                                        class="accent-yellow-500 w-5 h-5 bg-gray-900 border-gray-600">
+                                    <span class="font-bold text-white text-sm">Pagar na Entrega</span>
+                                </div>
+                                <i class="fas fa-motorcycle text-gray-500 group-hover:text-yellow-500"></i>
+                            </label>
+                        </div>
+
+                        <div class="space-y-3 pt-4">
+                            <p class="text-gray-300 text-xs font-bold uppercase ml-1" id="lbl-payment-method">Forma de
+                                Pagamento:</p>
+
+                            <label
+                                class="flex items-center gap-3 p-3 bg-gray-800 border border-gray-700 rounded cursor-pointer has-[:checked]:border-green-500 transition">
+                                <i class="fab fa-pix text-green-500 text-xl"></i>
+                                <div class="flex-1">
+                                    <span class="font-bold text-white text-sm block">Pix</span>
+                                    <span id="checkout-pix-discount-msg"
+                                        class="text-[10px] text-green-400 font-bold hidden">Desconto disponível</span>
+                                </div>
+                                <input type="radio" name="payment-method-selection" value="pix"
+                                    class="accent-green-500 w-4 h-4" checked>
+                            </label>
+
+                            <div class="bg-gray-800 rounded border border-gray-700 overflow-hidden">
+                                <label
+                                    class="flex items-center gap-3 p-3 cursor-pointer has-[:checked]:border-green-500 relative z-10">
+                                    <i class="far fa-credit-card text-white text-xl"></i>
+                                    <span class="font-bold text-white text-sm flex-1">Cartão Crédito/Débito</span>
+                                    <input type="radio" name="payment-method-selection" value="card"
+                                        class="accent-green-500 w-4 h-4">
+                                </label>
+                                <div id="card-installments-container"
+                                    class="p-2 bg-gray-900 hidden border-t border-gray-700">
+                                    <select id="checkout-installments"
+                                        class="w-full bg-black border border-gray-600 text-white text-sm rounded p-2 outline-none font-bold"></select>
+                                    <p id="installment-obs" class="text-[10px] text-gray-400 mt-1 text-center"></p>
+                                </div>
+                            </div>
+
+                            <div id="container-cash-option" class="hidden">
+                                <div class="bg-gray-800 rounded border border-gray-700 overflow-hidden">
+                                    <label
+                                        class="flex items-center gap-3 p-3 cursor-pointer has-[:checked]:border-green-500">
+                                        <i class="fas fa-money-bill-wave text-green-500 text-xl"></i>
+                                        <span class="font-bold text-white text-sm flex-1">Dinheiro</span>
+                                        <input type="radio" name="payment-method-selection" value="cash"
+                                            class="accent-green-500 w-4 h-4">
+                                    </label>
+                                    <div id="cash-change-container"
+                                        class="p-2 bg-gray-900 hidden border-t border-gray-700 flex items-center gap-2">
+                                        <span class="text-xs font-bold text-gray-400">Troco para:</span>
+                                        <input type="tel" id="checkout-change-for" placeholder="R$ 0,00"
+                                            class="flex-1 bg-black border border-gray-600 rounded p-1 text-sm font-bold text-white outline-none focus:border-green-500"
+                                            oninput="formatMoneyInput(this)">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div
+                            class="bg-gray-800 rounded p-4 flex justify-between items-center mt-4 border border-gray-700">
+                            <span class="text-gray-400 text-xs font-bold uppercase">TOTAL A PAGAR:</span>
+                            <span id="checkout-final-total" class="text-green-400 text-2xl font-bold">R$ 0,00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-order-list" class="hidden space-y-4">
+                    <p class="text-gray-400 text-center text-sm mb-2">Histórico recente:</p>
+                    <div id="orders-list-container" class="space-y-3 pb-4">
+                    </div>
+                </div>
+
+                <div id="view-order-status" class="hidden flex-col w-full h-full p-4 overflow-y-auto">
+                    <div class="mb-6 relative px-4 pt-4">
+                    </div>
+
+                    <div id="order-details-body" class="flex-1 flex flex-col">
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="p-4 bg-[#0f172a] border-t border-gray-800 z-20" id="cart-footer-actions">
+
+                <button id="btn-go-checkout"
+                    class="w-full bg-[#00d65f] hover:bg-green-500 text-white font-bold py-3 rounded-xl shadow-lg transition transform active:scale-95"
+                    onclick="goToCheckoutView()">
+                    Ir para Pagamento
+                </button>
+
+                <div id="checkout-buttons-group" class="hidden flex flex-col md:flex-row gap-3">
+                    <button id="btn-finish-payment"
+                        class="w-full md:w-3/3 bg-[#00d65f] hover:bg-green-500 text-white font-bold py-3 rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2"
+                        onclick="submitOrder()">
+                        Confirmar Pedido <i class="fas fa-check"></i>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <dialog id="login-modal" class="bg-gray-800 p-6 rounded shadow-xl text-white backdrop:bg-black backdrop:opacity-90">
+        <h3 class="text-lg font-bold mb-4">Acesso Restrito</h3>
+        <input type="password" id="admin-pass" placeholder="Senha"
+            class="w-full bg-black border border-gray-600 p-2 mb-4 text-white">
+        <div class="flex justify-end gap-2">
+            <button id="btn-login-cancel" class="text-gray-400 text-sm">Cancelar</button>
+            <button id="btn-login-submit" class="bg-yellow-500 text-black px-4 py-1 rounded font-bold">Entrar</button>
+        </div>
+    </dialog>
+
+    <div id="product-form-modal"
+        class="fixed inset-0 z-[60] hidden bg-black bg-opacity-95 flex items-center justify-center p-4">
+        <div class="bg-gray-800 w-full max-w-2xl rounded p-6 overflow-y-auto max-h-[90vh] border border-gray-700">
+            <h3 class="text-xl font-bold text-white mb-6 border-b border-gray-700 pb-2">Gerenciar Produto</h3>
+
+            <form id="form-product" class="space-y-4">
+                <input type="hidden" id="edit-prod-id">
+
+                <div>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Nome do Produto</label>
+                    <input type="text" id="prod-name" placeholder="Ex: Camisa Oficial 2025"
+                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
+                        required>
+                </div>
+
+                <div>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Categoria</label>
+                    <select id="prod-cat-select"
+                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
+                        <option value="">Selecione...</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Descrição Detalhada</label>
+                    <textarea id="prod-desc" rows="3" placeholder="Detalhes do tecido, modelo, etc..."
+                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço de Venda
+                            (R$)</label>
+                        <input type="text" id="prod-price" placeholder="0.00"
+                            class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
+                            step="0.01" required>
+                    </div>
+                    <div>
+                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço Promocional
+                            (Opcional)</label>
+                        <input type="text" id="prod-promo" placeholder="0.00"
+                            class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
+                            step="0.01">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Estoque Atual</label>
+                        <input type="number" id="prod-stock" placeholder="0"
+                            class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="text-gray-500 text-xs font-bold uppercase mb-1 block">Preço de Custo (Visível só
+                            p/ Admin)</label>
+                        <input type="text" id="prod-cost" placeholder="0.00"
+                            class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
+                            step="0.01">
+                    </div>
+
+                </div>
+                <div class="md:col-span-2 bg-gray-900 p-4 rounded border border-gray-700 mt-2">
+
+                    <div class="flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" id="prod-pix-active"
+                                class="w-5 h-5 rounded text-green-500 bg-gray-700 border-gray-600 focus:ring-green-500 cursor-pointer">
+                            <label for="prod-pix-active"
+                                class="text-white font-bold text-sm cursor-pointer select-none">
+                                Ativar Desconto no Pix
+                            </label>
+                        </div>
+
+                        <div id="pix-settings"
+                            class="flex flex-col sm:flex-row gap-3 opacity-50 pointer-events-none transition-opacity duration-200 w-full">
+
+                            <div
+                                class="flex items-center gap-2 flex-1 bg-black border border-gray-600 rounded px-3 h-10 focus-within:border-green-500 transition">
+                                <span class="text-gray-400 text-xs uppercase font-bold shrink-0">Valor:</span>
+                                <input type="text" id="prod-pix-val" placeholder="0"
+                                    class="bg-transparent border-none text-white text-sm w-full outline-none font-bold h-full">
+                            </div>
+
+                            <div
+                                class="flex bg-black rounded border border-gray-600 overflow-hidden h-10 w-full sm:w-auto shrink-0">
+                                <button type="button" id="btn-pix-percent"
+                                    class="flex-1 sm:w-16 px-4 bg-green-600 text-white text-xs font-bold transition flex items-center justify-center hover:bg-green-700">
+                                    %
+                                </button>
+                                <div class="w-px bg-gray-600"></div>
+                                <button type="button" id="btn-pix-fixed"
+                                    class="flex-1 sm:w-16 px-4 bg-black text-gray-400 text-xs font-bold transition flex items-center justify-center hover:text-white hover:bg-gray-800">
+                                    R$
+                                </button>
+                            </div>
+
+                            <input type="hidden" id="prod-pix-type" value="percent">
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Tamanhos (Separados por
+                        vírgula)</label>
+                    <input type="text" id="prod-sizes" placeholder="Ex: P, M, G, GG"
+                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
+                </div>
+                <div>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Imagens do Produto</label>
+
+                    <input type="file" id="prod-imgs-input" multiple accept="image/*" class="hidden">
+
+                    <button type="button" onclick="document.getElementById('prod-imgs-input').click()"
+                        class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm mb-2 transition border border-gray-600 flex items-center gap-2">
+                        <i class="fas fa-camera text-yellow-500"></i> Escolher Fotos (Do Dispositivo)
+                    </button>
+
+                    <div id="prod-imgs-preview"
+                        class="flex gap-2 flex-wrap min-h-[80px] bg-black/50 p-2 rounded border border-gray-700">
+                        <p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada</p>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-700">
+                    <button type="button" id="btn-cancel-prod"
+                        class="bg-gray-600 hover:bg-gray-500 px-6 py-2 rounded text-white font-medium">Cancelar</button>
+                    <button type="submit"
+                        class="bg-yellow-500 hover:bg-yellow-400 px-6 py-2 rounded text-black font-bold shadow-lg transform hover:scale-105 transition">Salvar
+                        Produto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="image-viewer"
+        class="fixed inset-0 bg-black/95 z-[100] hidden items-center justify-center backdrop-blur-sm select-none">
+
+        <button onclick="closeImageViewer()" class="absolute top-4 right-4 text-gray-400 hover:text-white z-50 p-2">
+            <i class="fas fa-times fa-2x"></i>
+        </button>
+
+        <img id="image-viewer-src" src=""
+            class="max-h-screen max-w-full object-contain transition-transform duration-200 cursor-zoom-in">
+
+        <button id="viewer-prev" onclick="event.stopPropagation(); changeViewerImage(-1)"
+            class="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white p-4 hover:bg-white/10 rounded-full transition z-40">
+            <i class="fas fa-chevron-left fa-2x"></i>
+        </button>
+
+        <button id="viewer-next" onclick="event.stopPropagation(); changeViewerImage(1)"
+            class="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white p-4 hover:bg-white/10 rounded-full transition z-40">
+            <i class="fas fa-chevron-right fa-2x"></i>
+        </button>
+    </div>
+
+
+    <div id="modal-product-selector"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-[60]">
+        <div
+            class="bg-[#151720] w-full max-w-md rounded-2xl border border-gray-800 shadow-2xl flex flex-col max-h-[80vh] m-4 animate-scale-up">
+
+            <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+                <h3 class="text-white font-bold text-lg">Selecionar Produto</h3>
+                <button onclick="closeProductSelectorModal()"
+                    class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-800 flex items-center justify-center transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="p-4 pb-2">
+                <div
+                    class="bg-black border border-gray-700 rounded-lg flex items-center px-3 h-10 focus-within:border-yellow-500 transition">
+                    <i class="fas fa-search text-gray-500 mr-2"></i>
+                    <input type="text" id="selector-internal-search" oninput="renderProductSelectorList(this.value)"
+                        placeholder="Buscar na lista..."
+                        class="bg-transparent border-none text-white text-sm w-full outline-none">
+                </div>
+            </div>
+
+            <div id="product-selector-list" class="flex-1 overflow-y-auto p-2 custom-scrollbar">
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-store-closed"
+        class="fixed inset-0 bg-black/95 z-[90] hidden flex-col items-center justify-center p-6 text-center backdrop-blur-md">
+        <div
+            class="bg-gray-900 border border-gray-700 p-8 rounded-2xl shadow-2xl max-w-sm w-full relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-red-600"></div>
+            <div
+                class="w-20 h-20 bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 border border-red-500/30">
+                <i class="fas fa-store-slash text-3xl"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-white mb-2">Loja Fechada</h2>
+            <p class="text-gray-400 text-sm mb-6">
+                No momento não estamos aceitando pedidos.
+                <br>
+                <span class="block mt-2 text-yellow-500 font-bold" id="store-opens-at-display">
+                    Abriremos às --:--
+                </span>
+            </p>
+
+            <button onclick="document.getElementById('modal-store-closed').classList.add('hidden')"
+                class="text-gray-600 text-2xl hover:text-white underline">
+                Navegar sem Comprar
+            </button>
+        </div>
+    </div>
+
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/app.js"></script>
+    <script type="module" src="js/stats.js"></script>
+    <script type="module" src="js/support.js"></script>
+</body>
+
+</html>

@@ -883,128 +883,78 @@ function calculateTrend30() {
 // 6. RENDERIZADORES DE CATÁLOGO E ADMIN (MANTIDOS)
 // =================================================================
 
-function renderCatalog(productsToRender) {
+function renderCatalog(products) {
     if (!els.grid) return;
     els.grid.innerHTML = '';
 
-    // 1. FILTRAGEM (Recupera filtros ativos se a lista passada for a completa)
-    // Se productsToRender for igual a state.products, aplicamos filtros de busca/categoria
-    let filtered = [...productsToRender];
-
-    const searchTerm = document.getElementById('search-input')?.value.toLowerCase();
-    const catTerm = document.getElementById('category-filter')?.value;
-
-    // Se a lista passada for a "bruta" (state.products), aplicamos os filtros da tela
-    if (productsToRender === state.products) {
-        if (searchTerm) {
-            filtered = filtered.filter(p => p.name.toLowerCase().includes(searchTerm) || (p.code && String(p.code).includes(searchTerm)));
-        }
-        if (catTerm) {
-            filtered = filtered.filter(p => p.category === catTerm || (p.category && p.category.startsWith(catTerm + ' -')));
-        }
-    }
-
-    // 2. ORDENAÇÃO (Aqui está a mágica)
-    const sortMode = document.getElementById('sort-filter')?.value || 'newest';
-
-    filtered.sort((a, b) => {
-        // Prepara valores seguros
-        const priceA = parseFloat(a.promoPrice || a.price) || 0;
-        const priceB = parseFloat(b.promoPrice || b.price) || 0;
-        const codeA = parseInt(a.code) || 0;
-        const codeB = parseInt(b.code) || 0;
-        const nameA = a.name.toLowerCase();
-        const nameB = b.name.toLowerCase();
-
-        // Lógica de Esgotado (Sempre no fim, independente da ordenação)
+    // --- ORDENAÇÃO: Esgotados vão para o final ---
+    // Cria uma cópia para não bagunçar o estado original
+    const sortedProducts = [...products].sort((a, b) => {
+        // Define o que é "Esgotado" (Estoque <= 0 E não permite venda negativa)
         const isSoldOutA = a.stock <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
         const isSoldOutB = b.stock <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
 
-        if (isSoldOutA && !isSoldOutB) return 1;
-        if (!isSoldOutA && isSoldOutB) return -1;
-
-        // Lógica Selecionada
-        switch (sortMode) {
-            case 'price-asc': // Menor Preço
-                return priceA - priceB;
-
-            case 'price-desc': // Maior Preço
-                return priceB - priceA;
-
-            case 'name-asc': // A-Z
-                return nameA.localeCompare(nameB);
-
-            case 'newest': // Lançamentos (Código Maior = Mais Novo)
-            default:
-                return codeB - codeA;
-        }
+        if (isSoldOutA && !isSoldOutB) return 1; // A é esgotado, vai pro fim
+        if (!isSoldOutA && isSoldOutB) return -1; // B é esgotado, vai pro fim
+        return 0; // Mantém a ordem atual (alfabética ou filtro)
     });
 
-    // 3. RENDERIZAÇÃO (Mantém seu código visual)
-    if (filtered.length === 0) {
-        els.grid.innerHTML = `
-            <div class="col-span-2 md:col-span-4 text-center py-10 opacity-50">
-                <i class="fas fa-search text-4xl mb-2"></i>
-                <p>Nenhum produto encontrado.</p>
-            </div>`;
-        return;
-    }
-
+    // Pega configuração global de parcelamento
     const globalInst = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3 };
 
-    filtered.forEach(p => {
+    sortedProducts.forEach(p => {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
         const isOut = p.stock <= 0 && !allowNegative;
 
-        // ... (resto do seu código de renderização do card: pixHtml, installmentHtml, etc) ...
-        // Copie o conteúdo original de dentro do forEach do seu app.js aqui
-        // Para facilitar, vou colocar o bloco padrão do card:
-
+        // --- LÓGICA DO PIX ---
         let pixHtml = '';
         if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
             const pix = p.paymentOptions.pix;
             const valDisplay = pix.type === 'percent' ? `${pix.val}%` : `R$ ${pix.val}`;
-            pixHtml = `<p class="text-green-500 text-[10px] font-bold mt-1"><i class="fas fa-bolt mr-1"></i>${valDisplay} OFF no Pix</p>`;
+            pixHtml = `<p class="text-green-500 text-xs font-bold mt-1">${valDisplay} OFF no Pix</p>`;
         }
 
+        // --- LÓGICA DO PARCELAMENTO ---
         let installmentHtml = '';
         if (globalInst.active) {
             const price = p.promoPrice || p.price;
             if (globalInst.freeUntil > 1) {
                 const parcVal = price / globalInst.freeUntil;
-                installmentHtml = `<p class="text-gray-400 text-[10px] mt-0.5">${globalInst.freeUntil}x de ${formatCurrency(parcVal)} sem juros</p>`;
+                installmentHtml = `<p class="text-gray-400 text-xs mt-0.5">Ou ${globalInst.freeUntil}x de ${formatCurrency(parcVal)} sem juros</p>`;
             } else {
-                installmentHtml = `<p class="text-gray-400 text-[10px] mt-0.5">Em até ${globalInst.max}x no cartão</p>`;
+                installmentHtml = `<p class="text-gray-400 text-xs mt-0.5">Em até ${globalInst.max}x no cartão</p>`;
             }
         }
 
+        // --- CARD ---
         const imgUrl = p.images && p.images.length > 0 ? p.images[0] : 'https://placehold.co/400?text=Sem+Foto';
 
         const priceDisplay = p.promoPrice ?
             `<div class="flex flex-col">
-                <span class="text-gray-500 line-through text-[10px]">${formatCurrency(p.price)}</span>
-                <span class="text-white font-bold text-base">${formatCurrency(p.promoPrice)}</span>
+                <span class="text-gray-500 line-through text-xs">${formatCurrency(p.price)}</span>
+                <span class="text-white font-bold text-lg">${formatCurrency(p.promoPrice)}</span>
              </div>` :
             `<div class="flex flex-col">
-                <span class="text-white font-bold text-base">${formatCurrency(p.price)}</span>
+                <span class="text-white font-bold text-lg">${formatCurrency(p.price)}</span>
              </div>`;
 
+        // Se estiver esgotado, diminui a opacidade da imagem
         const imgOpacity = isOut ? 'opacity-50 grayscale' : '';
 
         const card = document.createElement('div');
-        card.className = "product-card bg-[#151720] border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative cursor-pointer active:scale-95";
+        card.className = "bg-black border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative cursor-pointer";
         card.onclick = () => openProductModal(p.id);
 
         card.innerHTML = `
             <div class="relative w-full aspect-[4/5] bg-gray-900 overflow-hidden">
                 <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${imgOpacity}">
-                ${isOut ? `<div class="absolute inset-0 flex items-center justify-center z-10"><span class="bg-red-600 text-white font-bold px-4 py-1 rounded shadow-lg transform -rotate-6 text-xs uppercase tracking-wide">Esgotado</span></div>` : ''}
-                ${p.promoPrice ? `<div class="absolute top-2 left-2 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow">OFERTA</div>` : ''}
+                ${isOut ? `<div class="absolute inset-0 flex items-center justify-center z-10"><span class="bg-red-600 text-white font-bold px-4 py-1 rounded shadow-lg transform -rotate-6 text-sm uppercase tracking-wide">Esgotado</span></div>` : ''}
             </div>
 
             <div class="p-3 flex flex-col flex-1">
-                <h3 class="text-gray-200 font-bold text-xs leading-tight line-clamp-2 mb-1 group-hover:text-yellow-500 transition">${p.name}</h3>
-                <div class="mt-auto pt-2 border-t border-gray-800/50">
+                <h3 class="text-white font-bold text-sm leading-tight line-clamp-2 mb-1">${p.name}</h3>
+                
+                <div class="mt-auto pt-2 border-t border-gray-800">
                     ${priceDisplay}
                     ${pixHtml}
                     ${installmentHtml}
@@ -2433,15 +2383,10 @@ function setupEventListeners() {
             // 2. Se não for suporte, tenta Login Admin (Firebase)
             try {
                 await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
-
-                // --- CORREÇÃO: Mata o modo suporte se entrar como Admin ---
-                sessionStorage.removeItem('support_mode');
-                // ----------------------------------------------------------
-
+                // Se der certo, o onAuthStateChanged (no initApp) vai abrir o painel
                 modal.close();
                 passInput.value = '';
                 showView('admin');
-
             } catch (error) {
                 alert("Senha incorreta.");
                 console.error(error);
@@ -3042,30 +2987,6 @@ function setupEventListeners() {
         checkActiveOrders: checkActiveOrders, // Para verificar bolinha
         windowRef: window                   // Para limpar listeners globais
     });
-
-
-
-    // Listener para Ordenação da Vitrine
-    const sortSelect = document.getElementById('sort-filter');
-    if (sortSelect) {
-        sortSelect.addEventListener('change', () => {
-            // Chama o renderCatalog passando a lista completa atual para ele reordenar
-            renderCatalog(state.products);
-        });
-    }
-
-    // Listener para Categoria (Já devia ter, mas certifique-se que chama renderCatalog)
-    const catSelect = document.getElementById('category-filter');
-    if (catSelect) {
-        catSelect.addEventListener('change', (e) => {
-            const cat = e.target.value;
-            if (!cat) renderCatalog(state.products);
-            else {
-                const filtered = state.products.filter(p => p.category === cat || p.category.startsWith(cat + ' -'));
-                renderCatalog(filtered);
-            }
-        });
-    }
 }
 
 function updateCardStyles(isLight) {
@@ -3128,52 +3049,58 @@ function toggleTheme(save = true) {
 }
 
 function showView(viewName) {
-    // IDs dos elementos do Topo
+    // Referências aos elementos do topo
     const header = document.getElementById('site-header');
     const searchBar = document.getElementById('site-search-bar');
     const floatCapsule = document.getElementById('site-floating-capsule');
-
-    // IDs das Telas
+    
+    // Referências às telas (Views)
     const viewCatalog = document.getElementById('view-catalog');
     const viewAdmin = document.getElementById('view-admin');
     const viewSupport = document.getElementById('view-support');
 
-    // 1. Esconde TODAS as telas
+    // 1. ESCONDE TODAS AS TELAS PRIMEIRO
     if (viewCatalog) viewCatalog.classList.add('hidden');
     if (viewAdmin) viewAdmin.classList.add('hidden');
     if (viewSupport) viewSupport.classList.add('hidden');
 
-    // 2. Lógica do TOPO (Cabeçalho)
+    // 2. LÓGICA DE VISIBILIDADE DO TOPO
+    // Se for Admin ou Suporte -> ESCONDE O TOPO
     if (viewName === 'admin' || viewName === 'support') {
-        // Se for Admin/Suporte -> ESCONDE o topo
         if (header) header.classList.add('hidden');
         if (searchBar) searchBar.classList.add('hidden');
         if (floatCapsule) floatCapsule.classList.add('hidden');
-        document.body.classList.remove('pt-6'); // Remove espaçamento extra se houver
-    } else {
-        // Se for Loja -> MOSTRA o topo
+        
+        // Ajuste de espaçamento (opcional): Remove padding do body se necessário
+        document.body.classList.remove('pt-6'); 
+    } 
+    // Se for Vitrine (Catalog) -> MOSTRA O TOPO
+    else {
         if (header) header.classList.remove('hidden');
         if (searchBar) searchBar.classList.remove('hidden');
         if (floatCapsule) floatCapsule.classList.remove('hidden');
     }
 
-    // 3. Mostra a tela específica
+    // 3. MOSTRA A TELA SOLICITADA
     if (viewName === 'admin') {
         if (viewAdmin) viewAdmin.classList.remove('hidden');
+        
+        // Garante que o painel admin tenha um espaçamento no topo já que o header sumiu
+        viewAdmin.classList.add('pt-6'); 
+        
         if (typeof loadAdminSales === 'function') loadAdminSales();
-    }
+    } 
     else if (viewName === 'support') {
         if (viewSupport) viewSupport.classList.remove('hidden');
-    }
+    } 
     else {
         // Padrão: Catálogo
         if (viewCatalog) viewCatalog.classList.remove('hidden');
+        
+        // Garante que a vitrine role para o topo ao voltar
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 }
-
-// OBRIGATÓRIO: EXPOR PARA O HTML
-window.showView = showView;
 
 function setupKeyboardListeners() {
     document.addEventListener('keydown', (e) => {
@@ -5749,7 +5676,7 @@ window.sendOrderToWhatsapp = (order) => {
     msg += `\n📍 *Entrega: ${order.customer.cep}*,
     ${order.customer.district}, ${order.customer.street} - ${order.customer.addressNum}, ${order.customer.comp}\n`;
     msg += `\n👤 *Cliente: ${order.customer.name}*`;
-
+     
 
     msg += `\n\nAguardo confirmação!`;
 
@@ -6182,7 +6109,7 @@ window.updateStatusUI = (order) => {
     }
 
     steps.forEach((step, index) => {
-        let circleClass = "bg-[#1f2937] border-2 border-gray-600 text-gray-500";
+        let circleClass = "bg-[#1f2937] border-2 border-gray-600 text-gray-500"; 
         let iconClass = step.icon;
         let labelClass = "text-gray-500";
         let glowEffect = "";
@@ -6244,11 +6171,11 @@ window.updateStatusUI = (order) => {
     // --- NOVA LÓGICA: BOTÃO REENVIAR WHATSAPP ---
     // 1. Verifica se é pagamento online
     const isOnline = (order.paymentMethod || '').includes('Online');
-
+    
     // 2. Verifica se o status permite reenviar (Até "Preparando pedido")
     const allowedResendStatuses = ['Aguardando aprovação', 'Aprovado', 'Preparando pedido'];
     const canResend = isOnline && allowedResendStatuses.includes(order.status);
-
+    
     // 3. Monta o botão
     const resendBtnHTML = canResend ? `
         <div class="mt-4 pt-3 border-t border-gray-700/50">

@@ -532,20 +532,33 @@ function initApp() {
                 <i class="fas fa-user-shield text-yellow-500 group-hover:text-white transition"></i>
                 <span class="font-bold uppercase text-sm tracking-wide">${btnText}</span>
             `;
-        }
-
-        // Compatibilidade
-        const btnLoginNav = getEl('btn-admin-login');
-        if (btnLoginNav) btnLoginNav.innerText = btnText;
-
-        if (user) {
+            sessionStorage.removeItem('support_mode');
             filterAndRenderProducts();
-            loadAdminSales(); // Carrega vendas apenas se for admin
+            loadAdminSales();
+
+            // Força a visualização do admin ao recarregar logado
+            // (Coloque isso dentro de um pequeno timeout para garantir que o support.js não atrapalhe)
+            setTimeout(() => {
+                showView('admin');
+            }, 100);
         } else {
-            showView('catalog');
-            // Se não é admin, não precisamos carregar todas as vendas do site, economiza dados
-        }
-    });
+            // Se não tá logado no Firebase, verifica se não está no modo suporte
+            if (sessionStorage.getItem('support_mode') !== 'true') {
+                showView('catalog');
+            }
+
+            // Compatibilidade
+            const btnLoginNav = getEl('btn-admin-login');
+            if (btnLoginNav) btnLoginNav.innerText = btnText;
+
+            if (user) {
+                filterAndRenderProducts();
+                loadAdminSales(); // Carrega vendas apenas se for admin
+            } else {
+                showView('catalog');
+                // Se não é admin, não precisamos carregar todas as vendas do site, economiza dados
+            }
+        });
 
     // 4. Timer de atualização de cupons (mantém)
     setInterval(() => {

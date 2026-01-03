@@ -532,7 +532,20 @@ function initApp() {
                 <i class="fas fa-user-shield text-yellow-500 group-hover:text-white transition"></i>
                 <span class="font-bold uppercase text-sm tracking-wide">${btnText}</span>
             `;
-        }
+            sessionStorage.removeItem('support_mode');
+            filterAndRenderProducts();
+            loadAdminSales(); 
+            
+            // Força a visualização do admin ao recarregar logado
+            // (Coloque isso dentro de um pequeno timeout para garantir que o support.js não atrapalhe)
+            setTimeout(() => {
+                showView('admin');
+            }, 100);
+        }else {
+            // Se não tá logado no Firebase, verifica se não está no modo suporte
+            if (sessionStorage.getItem('support_mode') !== 'true') {
+                showView('catalog');
+            }F
 
         // Compatibilidade
         const btnLoginNav = getEl('btn-admin-login');

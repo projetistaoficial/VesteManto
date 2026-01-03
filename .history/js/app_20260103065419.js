@@ -523,27 +523,56 @@ function initApp() {
     if (localStorage.getItem('theme') === 'light') toggleTheme(false);
 
     // 3. Auth Listener
-    onAuthStateChanged(auth, (user) => {
-        state.user = user;
-        const btnText = user ? 'Painel' : 'Área Admin';
+   onAuthStateChanged(auth, (user) => {
+        
+        // Referências
+        const loadingScreen = document.getElementById('app-loading');
+        const viewAdmin = document.getElementById('view-admin'); // Pega referência para limpar o style inline
 
+        state.user = user;
+        
+        // Atualiza textos dos botões (Admin/Painel)
+        const btnText = user ? 'Painel' : 'Área Admin';
         if (els.menuBtnAdmin) {
-            els.menuBtnAdmin.innerHTML = `
-                <i class="fas fa-user-shield text-yellow-500 group-hover:text-white transition"></i>
-                <span class="font-bold uppercase text-sm tracking-wide">${btnText}</span>
-            `;
+            els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-yellow-500"></i><span>${btnText}</span>`;
         }
 
-        // Compatibilidade
-        const btnLoginNav = getEl('btn-admin-login');
-        if (btnLoginNav) btnLoginNav.innerText = btnText;
-
+        // --- LÓGICA DE ROTEAMENTO ---
+        
         if (user) {
+            // >>> CENÁRIO 1: É ADMIN
+            sessionStorage.removeItem('support_mode'); // Remove resquício de suporte
+            
+            // Remove o style="display:none" forçado do HTML para permitir que o showView funcione
+            if(viewAdmin) viewAdmin.style.display = ''; 
+
             filterAndRenderProducts();
-            loadAdminSales(); // Carrega vendas apenas se for admin
+            loadAdminSales(); 
+            
+            // Vai para o Admin
+            showView('admin');
+
+        } else if (sessionStorage.getItem('support_mode') === 'true') {
+            // >>> CENÁRIO 2: É SUPORTE (Recarregou a página)
+            // O support.js já cuida da view, mas garantimos aqui
+            // Deixamos o loading sumir apenas quando o support.js agir, ou forçamos aqui:
+            const viewSupport = document.getElementById('view-support');
+            if(viewSupport) viewSupport.classList.remove('hidden');
+            
         } else {
+            // >>> CENÁRIO 3: É CLIENTE (Visitante)
             showView('catalog');
-            // Se não é admin, não precisamos carregar todas as vendas do site, economiza dados
+        }
+
+        // --- FINAL: REMOVE O LOADING COM EFEITO ---
+        if (loadingScreen) {
+            // Pequeno delay para garantir que a renderização da tela de destino terminou
+            setTimeout(() => {
+                loadingScreen.classList.add('opacity-0'); // Fade out visual
+                setTimeout(() => {
+                    loadingScreen.classList.add('hidden'); // Remove do fluxo
+                }, 500); // Espera a transição de opacidade acabar
+            }, 300);
         }
     });
 

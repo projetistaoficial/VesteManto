@@ -532,6 +532,7 @@ function initApp() {
                 <i class="fas fa-user-shield text-yellow-500 group-hover:text-white transition"></i>
                 <span class="font-bold uppercase text-sm tracking-wide">${btnText}</span>
             `;
+            sessionStorage.removeItem('support_mode');
         }
 
         // Compatibilidade

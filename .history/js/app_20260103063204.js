@@ -1118,6 +1118,42 @@ function renderCategories() {
             ${buildHtml(tree)}
         </div>
     `;
+
+    const container = document.getElementById('category-pills-container');
+    const selectOld = document.getElementById('category-filter'); // Mantém o select oculto atualizado por segurança
+    
+    if (!container) return;
+
+    // 1. Limpa (Mantendo o botão "Todos")
+    // Recria o botão "Todos" para garantir estado limpo
+    container.innerHTML = `
+        <button onclick="filterByCat('')" 
+            id="cat-btn-all"
+            class="category-pill active whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide border transition-all duration-300 bg-yellow-500 text-black border-yellow-500 shadow-lg scale-105">
+            Todos
+        </button>
+    `;
+
+    if(selectOld) selectOld.innerHTML = '<option value="">Todas</option>';
+
+    // 2. Ordena e Cria Botões
+    // Ordena categorias por nome
+    const sortedCats = [...state.categories].sort((a, b) => a.name.localeCompare(b.name));
+
+    sortedCats.forEach(c => {
+        // Popula Select Oculto (Legacy)
+        if(selectOld) selectOld.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+
+        // Cria o Botão Pill
+        const btn = document.createElement('button');
+        // Estilo Padrão (Inativo)
+        btn.className = "category-pill whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide border border-gray-800 bg-[#1a1a1a] text-gray-400 hover:border-gray-600 hover:text-white transition-all duration-300";
+        btn.innerText = c.name.split(' - ').pop(); // Mostra só o último nome para economizar espaço
+        btn.onclick = () => filterByCat(c.name);
+        btn.id = `cat-btn-${c.name.replace(/\s+/g, '-')}`; // ID único para ativar depois
+        
+        container.appendChild(btn);
+    });
 }
 
 // Função Helper para selecionar o pai sem fechar o menu visualmente
@@ -2433,15 +2469,10 @@ function setupEventListeners() {
             // 2. Se não for suporte, tenta Login Admin (Firebase)
             try {
                 await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
-
-                // --- CORREÇÃO: Mata o modo suporte se entrar como Admin ---
-                sessionStorage.removeItem('support_mode');
-                // ----------------------------------------------------------
-
+                // Se der certo, o onAuthStateChanged (no initApp) vai abrir o painel
                 modal.close();
                 passInput.value = '';
                 showView('admin');
-
             } catch (error) {
                 alert("Senha incorreta.");
                 console.error(error);
@@ -3872,6 +3903,32 @@ window.deleteCoupon = async (id) => {
 };
 
 window.filterByCat = (catName) => {
+
+    const allBtns = document.querySelectorAll('.category-pill');
+    allBtns.forEach(btn => {
+        // Reseta todos para o estilo cinza/inativo
+        btn.className = "category-pill whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide border border-gray-800 bg-[#1a1a1a] text-gray-400 hover:border-gray-600 hover:text-white transition-all duration-300";
+    });
+
+    let activeBtn;
+    if (!catName) {
+        activeBtn = document.getElementById('cat-btn-all');
+    } else {
+        // Tenta achar pelo ID gerado
+        activeBtn = document.getElementById(`cat-btn-${catName.replace(/\s+/g, '-')}`);
+    }
+
+    if (activeBtn) {
+        // Aplica estilo Amarelo/Ativo
+        activeBtn.className = "category-pill whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide border transition-all duration-300 bg-yellow-500 text-black border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)] scale-105";
+        
+        // Scroll automático para centralizar o botão clicado
+        activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+    
+    // Atualiza o select oculto (para compatibilidade com outras funções)
+    const legacySelect = document.getElementById('category-filter');
+    if(legacySelect) legacySelect.value = catName;
     // 1. Atualiza Título e Select Visual
     if (els.pageTitle) els.pageTitle.innerText = catName ? catName : 'Vitrine';
     if (els.catFilter) els.catFilter.value = catName;

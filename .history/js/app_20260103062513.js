@@ -2433,15 +2433,10 @@ function setupEventListeners() {
             // 2. Se não for suporte, tenta Login Admin (Firebase)
             try {
                 await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
-
-                // --- CORREÇÃO: Mata o modo suporte se entrar como Admin ---
-                sessionStorage.removeItem('support_mode');
-                // ----------------------------------------------------------
-
+                // Se der certo, o onAuthStateChanged (no initApp) vai abrir o painel
                 modal.close();
                 passInput.value = '';
                 showView('admin');
-
             } catch (error) {
                 alert("Senha incorreta.");
                 console.error(error);

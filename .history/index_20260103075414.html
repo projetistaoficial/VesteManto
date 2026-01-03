@@ -283,7 +283,7 @@
         </div>
     </aside>
     <nav id="site-header"
-        class="mx-4 md:mx-auto max-w-6xl bg-black border-b border-gray-800 z-50 rounded-b-[40px] md:rounded-b-[50px] shadow-2xl relative overflow-hidden transition-all duration-300">
+        class="bg-black border-b border-gray-800 z-50 rounded-b-[40px] md:rounded-b-[50px] shadow-2xl relative overflow-hidden transition-all duration-300">
 
         <div class="relative z-30 px-5 pt-5 flex justify-between items-start">
 
@@ -331,63 +331,52 @@
     </nav>
 
     <div id="site-search-bar" class="w-full px-4 mt-6 mb-0 flex flex-col items-center relative z-40">
-
-        <div class="max-w-3xl w-full relative group z-20">
-        
-        <div class="absolute -inset-0.5 bg-gradient-to-r from-gray-600 to-gray-900 rounded-xl opacity-20 group-hover:opacity-40 transition duration-500"></div>
-        
-        <div class="relative flex items-center bg-[#0a0a0a] rounded-xl border border-gray-800/80 shadow-2xl">
-            
-            <input type="text" id="search-input" 
-                   class="w-full bg-transparent py-3 pl-5 pr-10 text-sm text-white font-medium placeholder-gray-500 outline-none rounded-xl" 
-                   placeholder="Busque o Produto...">
-            
-            <div class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white/5 rounded-lg">
-                <i class="fas fa-search text-gray-400 text-xs"></i>
+    
+    <div class="max-w-3xl w-full relative group z-20">
+        <div class="absolute -inset-0.5 bg-gradient-to-r from-yellow-600 to-yellow-900 rounded-2xl opacity-20 group-hover:opacity-40 transition duration-500"></div>
+        <div class="relative flex items-center bg-[#0a0a0a] rounded-2xl border border-gray-800/80 shadow-2xl">
+            <input type="text" id="search-input" class="w-full bg-transparent py-4 pl-6 pr-12 text-lg text-white font-medium placeholder-gray-400 outline-none rounded-2xl" placeholder="Busque o Produto...">
+            <div class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-white/5 rounded-xl">
+                <i class="fas fa-search text-gray-400 text-xl"></i>
             </div>
         </div>
     </div>
 
-        <div class="max-w-3xl w-full flex justify-between items-center mt-3 gap-2 sm:gap-3 relative z-30">
-
-            <div class="relative flex-1 min-w-0">
-                <select id="category-filter" onchange="filterByCat(this.value)" class="w-full appearance-none bg-[#0a0a0a] border border-gray-800 text-gray-300 font-bold uppercase rounded-xl outline-none focus:border-yellow-500 cursor-pointer transition shadow-sm
-                       text-[10px] sm:text-xs 
-                       py-2 sm:py-3 
-                       pl-3 sm:pl-4 
-                       pr-6 sm:pr-8">
-                    <option value="">Categorias</option>
+    <div class="max-w-3xl w-full flex justify-between items-center mt-3 gap-2 sm:gap-3 relative z-30">
+        
+        <div class="relative flex-1 min-w-0">
+            <select id="category-filter" onchange="filterByCat(this.value)"
+                    class="w-full appearance-none bg-[#0a0a0a] border border-gray-800 text-gray-300 font-bold uppercase rounded-xl outline-none focus:border-yellow-500 cursor-pointer transition shadow-sm
+                           text-[10px] sm:text-xs 
+                           py-2 sm:py-3 
+                           pl-3 sm:pl-4 
+                           pr-6 sm:pr-8">
+                <option value="">Todas as Categorias</option>
                 </select>
-                <div
-                    class="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 text-[8px] sm:text-[10px]">
-                    <i class="fas fa-chevron-down"></i>
-                </div>
+            <div class="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 text-[8px] sm:text-[10px]">
+                <i class="fas fa-chevron-down"></i>
             </div>
-
-            <div class="relative w-1/3 min-w-[110px] sm:min-w-[130px]">
-                <div class="flex items-center justify-between bg-[#0a0a0a] border border-gray-800 rounded-xl text-gray-300 font-bold uppercase transition hover:border-yellow-500/50 hover:text-white w-full
-                    text-[10px] sm:text-xs 
-                    py-2 sm:py-3 
-                    px-3 sm:px-4">
-
-                    <div class="flex items-center gap-2 overflow-hidden">
-                        <i class="fas fa-sort-amount-down text-yellow-500 text-[10px] sm:text-xs shrink-0"></i>
-                        <span id="sort-label-display" class="truncate">Ordenar</span>
-                    </div>
-
-                    <i class="fas fa-chevron-down text-gray-500 text-[8px] sm:text-[10px] shrink-0"></i>
-                </div>
-
-                <select id="sort-filter" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-gray-500">
-                    <option class="bg-[#0a0a0a] text-white" value="newest">Lançamentos</option>
-                    <option class="bg-[#0a0a0a] text-white" value="price-asc">Menor Preço</option>
-                    <option class="bg-[#0a0a0a] text-white" value="price-desc">Maior Preço</option>
-                    <option class="bg-[#0a0a0a] text-white" value="name-asc">Nome (A-Z)</option>
-                </select>
-            </div>
-
         </div>
+
+        <div class="relative w-1/3 min-w-[110px] sm:min-w-[130px]">
+            <select id="sort-filter" 
+                    class="w-full appearance-none bg-[#0a0a0a] border border-gray-800 text-yellow-500 font-bold uppercase rounded-xl outline-none focus:border-yellow-500 cursor-pointer transition shadow-sm
+                           text-[10px] sm:text-xs 
+                           py-2 sm:py-3 
+                           pl-3 sm:pl-4 
+                           pr-6 sm:pr-8">
+                <option value="newest">✨ Novos</option>
+                <option value="price-asc">💲 Menor $</option>
+                <option value="price-desc">💰 Maior $</option>
+                <option value="name-asc">🔤 A-Z</option>
+            </select>
+            <div class="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none text-yellow-500 text-[8px] sm:text-[10px]">
+                <i class="fas fa-sort"></i>
+            </div>
+        </div>
+
     </div>
+</div>
 
     <main id="main-content" class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
 

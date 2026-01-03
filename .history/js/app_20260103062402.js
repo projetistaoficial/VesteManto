@@ -890,7 +890,7 @@ function renderCatalog(productsToRender) {
     // 1. FILTRAGEM (Recupera filtros ativos se a lista passada for a completa)
     // Se productsToRender for igual a state.products, aplicamos filtros de busca/categoria
     let filtered = [...productsToRender];
-
+    
     const searchTerm = document.getElementById('search-input')?.value.toLowerCase();
     const catTerm = document.getElementById('category-filter')?.value;
 
@@ -927,13 +927,13 @@ function renderCatalog(productsToRender) {
         switch (sortMode) {
             case 'price-asc': // Menor Preço
                 return priceA - priceB;
-
+            
             case 'price-desc': // Maior Preço
                 return priceB - priceA;
-
+            
             case 'name-asc': // A-Z
                 return nameA.localeCompare(nameB);
-
+            
             case 'newest': // Lançamentos (Código Maior = Mais Novo)
             default:
                 return codeB - codeA;
@@ -959,7 +959,7 @@ function renderCatalog(productsToRender) {
         // ... (resto do seu código de renderização do card: pixHtml, installmentHtml, etc) ...
         // Copie o conteúdo original de dentro do forEach do seu app.js aqui
         // Para facilitar, vou colocar o bloco padrão do card:
-
+        
         let pixHtml = '';
         if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
             const pix = p.paymentOptions.pix;
@@ -979,7 +979,7 @@ function renderCatalog(productsToRender) {
         }
 
         const imgUrl = p.images && p.images.length > 0 ? p.images[0] : 'https://placehold.co/400?text=Sem+Foto';
-
+        
         const priceDisplay = p.promoPrice ?
             `<div class="flex flex-col">
                 <span class="text-gray-500 line-through text-[10px]">${formatCurrency(p.price)}</span>
@@ -2433,15 +2433,10 @@ function setupEventListeners() {
             // 2. Se não for suporte, tenta Login Admin (Firebase)
             try {
                 await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
-
-                // --- CORREÇÃO: Mata o modo suporte se entrar como Admin ---
-                sessionStorage.removeItem('support_mode');
-                // ----------------------------------------------------------
-
+                // Se der certo, o onAuthStateChanged (no initApp) vai abrir o painel
                 modal.close();
                 passInput.value = '';
                 showView('admin');
-
             } catch (error) {
                 alert("Senha incorreta.");
                 console.error(error);
@@ -3042,30 +3037,6 @@ function setupEventListeners() {
         checkActiveOrders: checkActiveOrders, // Para verificar bolinha
         windowRef: window                   // Para limpar listeners globais
     });
-
-
-
-    // Listener para Ordenação da Vitrine
-    const sortSelect = document.getElementById('sort-filter');
-    if (sortSelect) {
-        sortSelect.addEventListener('change', () => {
-            // Chama o renderCatalog passando a lista completa atual para ele reordenar
-            renderCatalog(state.products);
-        });
-    }
-
-    // Listener para Categoria (Já devia ter, mas certifique-se que chama renderCatalog)
-    const catSelect = document.getElementById('category-filter');
-    if (catSelect) {
-        catSelect.addEventListener('change', (e) => {
-            const cat = e.target.value;
-            if (!cat) renderCatalog(state.products);
-            else {
-                const filtered = state.products.filter(p => p.category === cat || p.category.startsWith(cat + ' -'));
-                renderCatalog(filtered);
-            }
-        });
-    }
 }
 
 function updateCardStyles(isLight) {
@@ -3132,7 +3103,7 @@ function showView(viewName) {
     const header = document.getElementById('site-header');
     const searchBar = document.getElementById('site-search-bar');
     const floatCapsule = document.getElementById('site-floating-capsule');
-
+    
     // IDs das Telas
     const viewCatalog = document.getElementById('view-catalog');
     const viewAdmin = document.getElementById('view-admin');
@@ -3161,10 +3132,10 @@ function showView(viewName) {
     if (viewName === 'admin') {
         if (viewAdmin) viewAdmin.classList.remove('hidden');
         if (typeof loadAdminSales === 'function') loadAdminSales();
-    }
+    } 
     else if (viewName === 'support') {
         if (viewSupport) viewSupport.classList.remove('hidden');
-    }
+    } 
     else {
         // Padrão: Catálogo
         if (viewCatalog) viewCatalog.classList.remove('hidden');
