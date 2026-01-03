@@ -5646,22 +5646,11 @@ window.sendOrderToWhatsapp = (order) => {
 
     // 5. Envio
     const sellerPhone = state.storeProfile.whatsapp || "";
+    // Remove caracteres não numéricos do telefone para evitar erros no link
     const cleanPhone = sellerPhone.replace(/\D/g, '');
 
     if (cleanPhone) {
-        const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
-
-        // --- CORREÇÃO PARA SAFARI (iOS/Mac) ---
-        // Tenta abrir em nova aba ('_blank'). 
-        // O Safari geralmente retorna 'null' se bloquear o popup por causa do delay do banco de dados.
-        const newWindow = window.open(url, '_blank');
-
-        // Se newWindow for null (bloqueado) ou undefined, forçamos o redirecionamento na mesma aba.
-        // Isso ativa o "Deep Link" que abre o aplicativo do WhatsApp no celular.
-        if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
-            window.location.href = url;
-        }
-
+        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
     } else {
         alert("Número de WhatsApp da loja não configurado no Admin!");
     }

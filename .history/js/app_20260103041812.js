@@ -5646,6 +5646,7 @@ window.sendOrderToWhatsapp = (order) => {
 
     // 5. Envio
     const sellerPhone = state.storeProfile.whatsapp || "";
+    // Remove caracteres não numéricos do telefone para evitar erros no link
     const cleanPhone = sellerPhone.replace(/\D/g, '');
 
     if (cleanPhone) {
@@ -5660,310 +5661,308 @@ window.sendOrderToWhatsapp = (order) => {
         // Isso ativa o "Deep Link" que abre o aplicativo do WhatsApp no celular.
         if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
             window.location.href = url;
-        }
-
-    } else {
-        alert("Número de WhatsApp da loja não configurado no Admin!");
-    }
-};
-
-
-
-function getStepIcon(step) {
-    return ["", "fa-clock", "fa-box-open", "fa-motorcycle", "fa-check"][step];
-}
-
-//Esta função configura o modal para exibir o status, inicia o "ouvinte" em tempo real do Firebase e ajusta a barra de progresso conforme seu design
-window.showOrderStatusView = () => {
-    // 1. Configura Visibilidade do Modal
-    const modal = document.getElementById('cart-modal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-
-    document.getElementById('view-cart-list').classList.add('hidden');
-    document.getElementById('view-checkout').classList.add('hidden');
-    document.getElementById('view-order-status').classList.remove('hidden');
-
-    document.getElementById('cart-modal-title').innerText = "STATUS DE PEDIDO";
-    document.getElementById('cart-footer-actions').classList.add('hidden'); // Esconde botões de checkout
-
-    // Ativa o indicador no ícone da navbar
-    const indicator = document.getElementById('track-indicator');
-    if (indicator) indicator.classList.remove('hidden');
-
-    // 2. Inicia Listener em Tempo Real (Se já não tiver um rodando para esse ID)
-    if (state.activeOrder && state.activeOrder.id) {
-        // Cancela listener anterior se existir (boa prática)
-        if (window.currentOrderListener) window.currentOrderListener();
-
-        window.currentOrderListener = onSnapshot(doc(db, `sites/${state.siteId}/sales`, orderId), (snap) => {
-            if (snap.exists()) {
-                const data = snap.data();
-                const fullOrder = { id: snap.id, ...data };
-
-                updateStatusUI(fullOrder);
-
-                // Atualiza array local
-                const idx = state.myOrders.findIndex(o => o.id === orderId);
-                if (idx > -1) {
-                    state.myOrders[idx] = fullOrder;
-                    localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
-
-                    // --- ADICIONE ISTO AQUI ---
-                    // Verifica a bolinha toda vez que o status mudar em tempo real
-                    checkActiveOrders();
-                }
-            }
-        });
-    }
-};
-
-
-
-// --- LÓGICA DE STATUS DE PEDIDOS (ADMIN) ---
-// 1. Mudança via Dropdown (Select)
-window.handleStatusChange = async (selectEl, orderId) => {
-    const newStatus = selectEl.value;
-
-    // REGRA: Se selecionar "Entregue", pergunta se quer finalizar
-    if (newStatus === 'Entregue') {
-        const confirmFinalize = confirm("O pedido foi entregue. Deseja marcar como FINALIZADO (Concluído)?\n\nOK = Sim, Finalizar.\nCancelar = Não, manter apenas como 'Entregue'.");
-
-        if (confirmFinalize) {
-            // Marca direto como Concluído
-            await updateOrderStatusDB(orderId, 'Concluído');
         } else {
-            // Marca apenas como Entregue
-            await updateOrderStatusDB(orderId, 'Entregue');
+            alert("Número de WhatsApp da loja não configurado no Admin!");
         }
-    } else {
-        // Outros status (Aprovado, Preparando, etc) apenas atualizam
-        await updateOrderStatusDB(orderId, newStatus);
+    };
+
+
+
+    function getStepIcon(step) {
+        return ["", "fa-clock", "fa-box-open", "fa-motorcycle", "fa-check"][step];
     }
-};
 
-// 2. Botão Cancelar
-window.adminCancelOrder = async (orderId) => {
-    if (confirm("Tem certeza que deseja CANCELAR este pedido?")) {
-        await updateOrderStatusDB(orderId, 'Cancelado');
-    }
-};
+    //Esta função configura o modal para exibir o status, inicia o "ouvinte" em tempo real do Firebase e ajusta a barra de progresso conforme seu design
+    window.showOrderStatusView = () => {
+        // 1. Configura Visibilidade do Modal
+        const modal = document.getElementById('cart-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
 
-// 3. Botão Finalizado
-window.adminFinalizeOrder = async (orderId) => {
-    if (confirm("Confirmar finalização do pedido?\nIsso arquiva a venda como concluída.")) {
-        await updateOrderStatusDB(orderId, 'Concluído');
-    }
-};
+        document.getElementById('view-cart-list').classList.add('hidden');
+        document.getElementById('view-checkout').classList.add('hidden');
+        document.getElementById('view-order-status').classList.remove('hidden');
 
-// 4. Botão Estornar (Reabrir pedido fechado)
-window.adminRevertStatus = async (orderId) => {
-    if (confirm("Deseja reabrir este pedido? Ele voltará para 'Aguardando aprovação'.")) {
-        await updateOrderStatusDB(orderId, 'Aguardando aprovação');
-    }
-};
+        document.getElementById('cart-modal-title').innerText = "STATUS DE PEDIDO";
+        document.getElementById('cart-footer-actions').classList.add('hidden'); // Esconde botões de checkout
 
-// Função auxiliar para atualizar no Firebase com BAIXA DE ESTOQUE AUTOMÁTICA
-async function updateOrderStatusDB(orderId, newStatus) {
-    try {
-        const orderRef = doc(db, `sites/${state.siteId}/sales`, orderId);
+        // Ativa o indicador no ícone da navbar
+        const indicator = document.getElementById('track-indicator');
+        if (indicator) indicator.classList.remove('hidden');
 
-        // 1. Busca o pedido ATUAL
-        const docSnap = await getDoc(orderRef);
-        if (!docSnap.exists()) return alert("Pedido não encontrado.");
+        // 2. Inicia Listener em Tempo Real (Se já não tiver um rodando para esse ID)
+        if (state.activeOrder && state.activeOrder.id) {
+            // Cancela listener anterior se existir (boa prática)
+            if (window.currentOrderListener) window.currentOrderListener();
 
-        const currentOrder = docSnap.data();
-        const oldStatus = currentOrder.status || 'Aguardando aprovação';
+            window.currentOrderListener = onSnapshot(doc(db, `sites/${state.siteId}/sales`, orderId), (snap) => {
+                if (snap.exists()) {
+                    const data = snap.data();
+                    const fullOrder = { id: snap.id, ...data };
 
-        // 2. CONFIGURAÇÃO DAS REGRAS
-        const stockConsumingStatuses = [
-            'Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'
-        ];
+                    updateStatusUI(fullOrder);
 
-        const wasConsuming = stockConsumingStatuses.includes(oldStatus);
-        const isConsuming = stockConsumingStatuses.includes(newStatus);
-        const items = currentOrder.items || [];
+                    // Atualiza array local
+                    const idx = state.myOrders.findIndex(o => o.id === orderId);
+                    if (idx > -1) {
+                        state.myOrders[idx] = fullOrder;
+                        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
 
-        // --- CENÁRIO A: BAIXA DE ESTOQUE (Entrou em status válido) ---
-        if (!wasConsuming && isConsuming) {
-            for (const item of items) {
-                if (item.id) {
-                    const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
-                    const pSnap = await getDoc(prodRef);
-                    if (pSnap.exists()) {
-                        const currentStock = parseInt(pSnap.data().stock) || 0;
-                        const qty = parseInt(item.qty) || 0;
-                        let newStock = currentStock - qty;
-                        if (newStock < 0) newStock = 0;
-                        await updateDoc(prodRef, { stock: newStock });
+                        // --- ADICIONE ISTO AQUI ---
+                        // Verifica a bolinha toda vez que o status mudar em tempo real
+                        checkActiveOrders();
                     }
                 }
-            }
-            showToast(`Estoque baixado!`, 'success');
+            });
         }
+    };
 
-        // --- CENÁRIO B: DEVOLUÇÃO DE ESTOQUE (Saiu de status válido) ---
-        else if (wasConsuming && !isConsuming) {
-            for (const item of items) {
-                if (item.id) {
-                    const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
-                    const pSnap = await getDoc(prodRef);
-                    if (pSnap.exists()) {
-                        const currentStock = parseInt(pSnap.data().stock) || 0;
-                        const qty = parseInt(item.qty) || 0;
-                        await updateDoc(prodRef, { stock: currentStock + qty });
+
+
+    // --- LÓGICA DE STATUS DE PEDIDOS (ADMIN) ---
+    // 1. Mudança via Dropdown (Select)
+    window.handleStatusChange = async (selectEl, orderId) => {
+        const newStatus = selectEl.value;
+
+        // REGRA: Se selecionar "Entregue", pergunta se quer finalizar
+        if (newStatus === 'Entregue') {
+            const confirmFinalize = confirm("O pedido foi entregue. Deseja marcar como FINALIZADO (Concluído)?\n\nOK = Sim, Finalizar.\nCancelar = Não, manter apenas como 'Entregue'.");
+
+            if (confirmFinalize) {
+                // Marca direto como Concluído
+                await updateOrderStatusDB(orderId, 'Concluído');
+            } else {
+                // Marca apenas como Entregue
+                await updateOrderStatusDB(orderId, 'Entregue');
+            }
+        } else {
+            // Outros status (Aprovado, Preparando, etc) apenas atualizam
+            await updateOrderStatusDB(orderId, newStatus);
+        }
+    };
+
+    // 2. Botão Cancelar
+    window.adminCancelOrder = async (orderId) => {
+        if (confirm("Tem certeza que deseja CANCELAR este pedido?")) {
+            await updateOrderStatusDB(orderId, 'Cancelado');
+        }
+    };
+
+    // 3. Botão Finalizado
+    window.adminFinalizeOrder = async (orderId) => {
+        if (confirm("Confirmar finalização do pedido?\nIsso arquiva a venda como concluída.")) {
+            await updateOrderStatusDB(orderId, 'Concluído');
+        }
+    };
+
+    // 4. Botão Estornar (Reabrir pedido fechado)
+    window.adminRevertStatus = async (orderId) => {
+        if (confirm("Deseja reabrir este pedido? Ele voltará para 'Aguardando aprovação'.")) {
+            await updateOrderStatusDB(orderId, 'Aguardando aprovação');
+        }
+    };
+
+    // Função auxiliar para atualizar no Firebase com BAIXA DE ESTOQUE AUTOMÁTICA
+    async function updateOrderStatusDB(orderId, newStatus) {
+        try {
+            const orderRef = doc(db, `sites/${state.siteId}/sales`, orderId);
+
+            // 1. Busca o pedido ATUAL
+            const docSnap = await getDoc(orderRef);
+            if (!docSnap.exists()) return alert("Pedido não encontrado.");
+
+            const currentOrder = docSnap.data();
+            const oldStatus = currentOrder.status || 'Aguardando aprovação';
+
+            // 2. CONFIGURAÇÃO DAS REGRAS
+            const stockConsumingStatuses = [
+                'Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'
+            ];
+
+            const wasConsuming = stockConsumingStatuses.includes(oldStatus);
+            const isConsuming = stockConsumingStatuses.includes(newStatus);
+            const items = currentOrder.items || [];
+
+            // --- CENÁRIO A: BAIXA DE ESTOQUE (Entrou em status válido) ---
+            if (!wasConsuming && isConsuming) {
+                for (const item of items) {
+                    if (item.id) {
+                        const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+                        const pSnap = await getDoc(prodRef);
+                        if (pSnap.exists()) {
+                            const currentStock = parseInt(pSnap.data().stock) || 0;
+                            const qty = parseInt(item.qty) || 0;
+                            let newStock = currentStock - qty;
+                            if (newStock < 0) newStock = 0;
+                            await updateDoc(prodRef, { stock: newStock });
+                        }
                     }
                 }
+                showToast(`Estoque baixado!`, 'success');
             }
-            showToast(`Estoque devolvido.`, 'info');
+
+            // --- CENÁRIO B: DEVOLUÇÃO DE ESTOQUE (Saiu de status válido) ---
+            else if (wasConsuming && !isConsuming) {
+                for (const item of items) {
+                    if (item.id) {
+                        const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+                        const pSnap = await getDoc(prodRef);
+                        if (pSnap.exists()) {
+                            const currentStock = parseInt(pSnap.data().stock) || 0;
+                            const qty = parseInt(item.qty) || 0;
+                            await updateDoc(prodRef, { stock: currentStock + qty });
+                        }
+                    }
+                }
+                showToast(`Estoque devolvido.`, 'info');
+            }
+
+            // 3. Atualiza o pedido
+            const updateData = { status: newStatus };
+            if (newStatus === 'Concluído' && oldStatus !== 'Concluído') {
+                updateData.completedAt = new Date().toISOString();
+            }
+
+            await updateDoc(orderRef, updateData);
+            // O onSnapshot do loadAdminSales cuidará de atualizar a tela automaticamente.
+
+        } catch (error) {
+            console.error("Erro ao atualizar status:", error);
+            alert("Erro ao atualizar: " + error.message);
         }
-
-        // 3. Atualiza o pedido
-        const updateData = { status: newStatus };
-        if (newStatus === 'Concluído' && oldStatus !== 'Concluído') {
-            updateData.completedAt = new Date().toISOString();
-        }
-
-        await updateDoc(orderRef, updateData);
-        // O onSnapshot do loadAdminSales cuidará de atualizar a tela automaticamente.
-
-    } catch (error) {
-        console.error("Erro ao atualizar status:", error);
-        alert("Erro ao atualizar: " + error.message);
     }
-}
 
 
-// ÍCONE DE RASTREIO CHAMA ISSO:
-window.openTrackModal = async () => {
-    const modal = document.getElementById('cart-modal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
+    // ÍCONE DE RASTREIO CHAMA ISSO:
+    window.openTrackModal = async () => {
+        const modal = document.getElementById('cart-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
 
-    if (!state.myOrders || state.myOrders.length === 0) {
+        if (!state.myOrders || state.myOrders.length === 0) {
+            document.getElementById('view-cart-list').classList.add('hidden');
+            document.getElementById('view-checkout').classList.add('hidden');
+            document.getElementById('view-order-status').classList.add('hidden');
+            document.getElementById('view-order-list').classList.remove('hidden');
+
+            const container = document.getElementById('orders-list-container');
+            container.innerHTML = '<div class="text-gray-500 text-center mt-10 p-4">Você ainda não fez pedidos.</div>';
+
+            // Configura Header Básico
+            document.getElementById('cart-modal-title').innerText = "ACOMPANHAMENTO";
+            document.getElementById('cart-footer-actions').classList.add('hidden');
+            document.getElementById('btn-modal-back').classList.add('hidden');
+            return;
+        }
+
+        // --- CORREÇÃO DE SINCRONIA: ATUALIZA TUDO ANTES DE MOSTRAR ---
+        // Mostra um carregando simples se quiser, ou apenas atualiza rápido
+        const container = document.getElementById('orders-list-container');
+        container.innerHTML = '<div class="text-white text-center mt-10"><i class="fas fa-circle-notch fa-spin"></i> Atualizando pedidos...</div>';
+
+        showOrderListView(); // Mostra a estrutura da tela
+
+        // Atualiza os dados de cada pedido no banco
+        const freshOrders = [];
+        for (const localOrder of state.myOrders) {
+            try {
+                // Busca o documento atualizado no Firebase
+                const docRef = doc(db, `sites/${state.siteId}/sales`, localOrder.id);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    // Se existe, usa os dados novos
+                    freshOrders.push({ id: docSnap.id, ...docSnap.data() });
+                } else {
+                    // Se não existe mais (foi deletado), mantém o antigo ou ignora
+                    // Opção: Manter histórico para o cliente não achar que sumiu
+                    freshOrders.push(localOrder);
+                }
+            } catch (e) {
+                console.error("Erro ao atualizar pedido:", e);
+                freshOrders.push(localOrder); // Fallback para o local se der erro de rede
+            }
+        }
+
+        // Salva a lista atualizada e renderiza
+        state.myOrders = freshOrders;
+        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+
+        // Agora renderiza a lista com dados frescos
+        showOrderListView();
+    };
+
+    window.showOrderListView = () => {
+        // Esconde tudo, mostra Lista
         document.getElementById('view-cart-list').classList.add('hidden');
         document.getElementById('view-checkout').classList.add('hidden');
         document.getElementById('view-order-status').classList.add('hidden');
         document.getElementById('view-order-list').classList.remove('hidden');
 
-        const container = document.getElementById('orders-list-container');
-        container.innerHTML = '<div class="text-gray-500 text-center mt-10 p-4">Você ainda não fez pedidos.</div>';
-
-        // Configura Header Básico
+        // Configura Header
         document.getElementById('cart-modal-title').innerText = "ACOMPANHAMENTO";
         document.getElementById('cart-footer-actions').classList.add('hidden');
         document.getElementById('btn-modal-back').classList.add('hidden');
-        return;
-    }
 
-    // --- CORREÇÃO DE SINCRONIA: ATUALIZA TUDO ANTES DE MOSTRAR ---
-    // Mostra um carregando simples se quiser, ou apenas atualiza rápido
-    const container = document.getElementById('orders-list-container');
-    container.innerHTML = '<div class="text-white text-center mt-10"><i class="fas fa-circle-notch fa-spin"></i> Atualizando pedidos...</div>';
+        const container = document.getElementById('orders-list-container');
+        container.innerHTML = '';
 
-    showOrderListView(); // Mostra a estrutura da tela
+        // Ordena: Mais recente em cima
+        const sortedList = [...state.myOrders].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // Atualiza os dados de cada pedido no banco
-    const freshOrders = [];
-    for (const localOrder of state.myOrders) {
-        try {
-            // Busca o documento atualizado no Firebase
-            const docRef = doc(db, `sites/${state.siteId}/sales`, localOrder.id);
-            const docSnap = await getDoc(docRef);
+        sortedList.forEach(order => {
+            // --- Definição de Cores e Status ---
+            let statusColor = 'bg-gray-400';
+            let statusLabel = order.status; // Padrão: usa o texto do próprio status
 
-            if (docSnap.exists()) {
-                // Se existe, usa os dados novos
-                freshOrders.push({ id: docSnap.id, ...docSnap.data() });
-            } else {
-                // Se não existe mais (foi deletado), mantém o antigo ou ignora
-                // Opção: Manter histórico para o cliente não achar que sumiu
-                freshOrders.push(localOrder);
+            // Mapeamento visual
+            switch (order.status) {
+                case 'Aguardando aprovação':
+                    statusColor = 'bg-gray-400';
+                    break;
+
+                // --- CORREÇÃO: SEPARANDO OS STATUS ---
+                case 'Aprovado':
+                    statusColor = 'bg-yellow-500';
+                    statusLabel = 'Aprovado'; // Exibe exatamente "Aprovado"
+                    break;
+
+                case 'Preparando pedido':
+                    statusColor = 'bg-yellow-600';
+                    statusLabel = 'Preparando Pedido';
+                    break;
+                // -------------------------------------
+
+                case 'Saiu para entrega':
+                    statusColor = 'bg-orange-500';
+                    statusLabel = 'Saiu para Entrega';
+                    break;
+                case 'Entregue':
+                    statusColor = 'bg-green-500'; // Entregue mas não finalizado
+                    statusLabel = 'Entregue';
+                    break;
+                case 'Concluído':
+                    statusColor = 'bg-green-600';
+                    statusLabel = 'Concluído';
+                    break;
+                case 'Cancelado':
+                case 'Cancelado pelo Cliente':
+                    statusColor = 'bg-red-600';
+                    statusLabel = 'Cancelado';
+                    break;
             }
-        } catch (e) {
-            console.error("Erro ao atualizar pedido:", e);
-            freshOrders.push(localOrder); // Fallback para o local se der erro de rede
-        }
-    }
 
-    // Salva a lista atualizada e renderiza
-    state.myOrders = freshOrders;
-    localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+            // --- Legenda Superior ---
+            let metaLabel = "Em andamento";
+            if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente'].includes(order.status)) {
+                metaLabel = "Finalizado";
+            }
 
-    // Agora renderiza a lista com dados frescos
-    showOrderListView();
-};
+            const item = document.createElement('div');
+            item.className = "bg-[#0f111a] border border-gray-800 rounded-2xl p-4 flex justify-between items-center cursor-pointer hover:border-gray-600 transition mb-3 relative group";
+            item.onclick = () => showOrderDetail(order.id);
 
-window.showOrderListView = () => {
-    // Esconde tudo, mostra Lista
-    document.getElementById('view-cart-list').classList.add('hidden');
-    document.getElementById('view-checkout').classList.add('hidden');
-    document.getElementById('view-order-status').classList.add('hidden');
-    document.getElementById('view-order-list').classList.remove('hidden');
-
-    // Configura Header
-    document.getElementById('cart-modal-title').innerText = "ACOMPANHAMENTO";
-    document.getElementById('cart-footer-actions').classList.add('hidden');
-    document.getElementById('btn-modal-back').classList.add('hidden');
-
-    const container = document.getElementById('orders-list-container');
-    container.innerHTML = '';
-
-    // Ordena: Mais recente em cima
-    const sortedList = [...state.myOrders].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    sortedList.forEach(order => {
-        // --- Definição de Cores e Status ---
-        let statusColor = 'bg-gray-400';
-        let statusLabel = order.status; // Padrão: usa o texto do próprio status
-
-        // Mapeamento visual
-        switch (order.status) {
-            case 'Aguardando aprovação':
-                statusColor = 'bg-gray-400';
-                break;
-
-            // --- CORREÇÃO: SEPARANDO OS STATUS ---
-            case 'Aprovado':
-                statusColor = 'bg-yellow-500';
-                statusLabel = 'Aprovado'; // Exibe exatamente "Aprovado"
-                break;
-
-            case 'Preparando pedido':
-                statusColor = 'bg-yellow-600';
-                statusLabel = 'Preparando Pedido';
-                break;
-            // -------------------------------------
-
-            case 'Saiu para entrega':
-                statusColor = 'bg-orange-500';
-                statusLabel = 'Saiu para Entrega';
-                break;
-            case 'Entregue':
-                statusColor = 'bg-green-500'; // Entregue mas não finalizado
-                statusLabel = 'Entregue';
-                break;
-            case 'Concluído':
-                statusColor = 'bg-green-600';
-                statusLabel = 'Concluído';
-                break;
-            case 'Cancelado':
-            case 'Cancelado pelo Cliente':
-                statusColor = 'bg-red-600';
-                statusLabel = 'Cancelado';
-                break;
-        }
-
-        // --- Legenda Superior ---
-        let metaLabel = "Em andamento";
-        if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente'].includes(order.status)) {
-            metaLabel = "Finalizado";
-        }
-
-        const item = document.createElement('div');
-        item.className = "bg-[#0f111a] border border-gray-800 rounded-2xl p-4 flex justify-between items-center cursor-pointer hover:border-gray-600 transition mb-3 relative group";
-        item.onclick = () => showOrderDetail(order.id);
-
-        item.innerHTML = `
+            item.innerHTML = `
             <div class="flex flex-col">
                 <span class="text-yellow-500 font-bold text-xs mb-1">Pedido ${order.code}</span>
                 <span class="text-white font-bold text-lg leading-tight">${statusLabel}</span>
@@ -5977,133 +5976,133 @@ window.showOrderListView = () => {
                 </div>
             </div>
         `;
-        container.appendChild(item);
-    });
-};
-
-window.showOrderDetail = (orderId) => {
-    // Esconde as outras views
-    document.getElementById('view-cart-list').classList.add('hidden');
-    document.getElementById('view-checkout').classList.add('hidden');
-    document.getElementById('view-order-list').classList.add('hidden');
-    document.getElementById('view-order-status').classList.remove('hidden');
-
-    document.getElementById('cart-modal-title').innerText = "DETALHES";
-    document.getElementById('cart-footer-actions').classList.add('hidden');
-
-    // Botão Voltar para Lista
-    const btnBack = document.getElementById('btn-modal-back');
-    btnBack.classList.remove('hidden');
-    btnBack.onclick = () => {
-        // Ao voltar, atualiza a lista novamente para garantir sincronia
-        openTrackModal();
+            container.appendChild(item);
+        });
     };
 
-    // Renderiza inicial com o que tem na memória (pra não piscar tela branca)
-    const localOrder = state.myOrders.find(o => o.id === orderId);
-    if (localOrder) updateStatusUI(localOrder);
+    window.showOrderDetail = (orderId) => {
+        // Esconde as outras views
+        document.getElementById('view-cart-list').classList.add('hidden');
+        document.getElementById('view-checkout').classList.add('hidden');
+        document.getElementById('view-order-list').classList.add('hidden');
+        document.getElementById('view-order-status').classList.remove('hidden');
 
-    // --- LISTENER EM TEMPO REAL ---
-    if (window.currentOrderListener) window.currentOrderListener();
+        document.getElementById('cart-modal-title').innerText = "DETALHES";
+        document.getElementById('cart-footer-actions').classList.add('hidden');
 
-    // Listener no documento específico
-    window.currentOrderListener = onSnapshot(doc(db, `sites/${state.siteId}/sales`, orderId), (snap) => {
-        if (snap.exists()) {
-            const data = snap.data();
-            // --- CORREÇÃO CRÍTICA DO UNDEFINED ---
-            // O objeto 'data' do firebase NÃO tem o ID dentro dele por padrão.
-            // Precisamos criar um novo objeto com o ID e os dados.
-            const fullOrder = { id: snap.id, ...data };
+        // Botão Voltar para Lista
+        const btnBack = document.getElementById('btn-modal-back');
+        btnBack.classList.remove('hidden');
+        btnBack.onclick = () => {
+            // Ao voltar, atualiza a lista novamente para garantir sincronia
+            openTrackModal();
+        };
 
-            // Atualiza a UI de Detalhes
-            updateStatusUI(fullOrder);
+        // Renderiza inicial com o que tem na memória (pra não piscar tela branca)
+        const localOrder = state.myOrders.find(o => o.id === orderId);
+        if (localOrder) updateStatusUI(localOrder);
 
-            // Atualiza também o array local para manter tudo sincronizado
-            const idx = state.myOrders.findIndex(o => o.id === orderId);
-            if (idx > -1) {
-                state.myOrders[idx] = fullOrder;
-                localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+        // --- LISTENER EM TEMPO REAL ---
+        if (window.currentOrderListener) window.currentOrderListener();
+
+        // Listener no documento específico
+        window.currentOrderListener = onSnapshot(doc(db, `sites/${state.siteId}/sales`, orderId), (snap) => {
+            if (snap.exists()) {
+                const data = snap.data();
+                // --- CORREÇÃO CRÍTICA DO UNDEFINED ---
+                // O objeto 'data' do firebase NÃO tem o ID dentro dele por padrão.
+                // Precisamos criar um novo objeto com o ID e os dados.
+                const fullOrder = { id: snap.id, ...data };
+
+                // Atualiza a UI de Detalhes
+                updateStatusUI(fullOrder);
+
+                // Atualiza também o array local para manter tudo sincronizado
+                const idx = state.myOrders.findIndex(o => o.id === orderId);
+                if (idx > -1) {
+                    state.myOrders[idx] = fullOrder;
+                    localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+                }
             }
-        }
-    });
-};
+        });
+    };
 
 
 
-// Variável global para controlar o timer e não criar múltiplos intervalos
-window.cancelTimerInterval = null;
+    // Variável global para controlar o timer e não criar múltiplos intervalos
+    window.cancelTimerInterval = null;
 
-window.updateStatusUI = (order) => {
-    if (window.cancelTimerInterval) clearInterval(window.cancelTimerInterval);
+    window.updateStatusUI = (order) => {
+        if (window.cancelTimerInterval) clearInterval(window.cancelTimerInterval);
 
-    const detailsContainer = document.getElementById('order-details-body');
-    if (!detailsContainer) return;
+        const detailsContainer = document.getElementById('order-details-body');
+        if (!detailsContainer) return;
 
-    const s = order.status;
-    const isCancelled = s.includes('Cancelado');
+        const s = order.status;
+        const isCancelled = s.includes('Cancelado');
 
-    // 1. LÓGICA DA TIMELINE
-    let currentStep = 0;
+        // 1. LÓGICA DA TIMELINE
+        let currentStep = 0;
 
-    // Mapeamento
-    if (s === 'Aguardando aprovação') currentStep = 0;
-    else if (s === 'Aprovado') currentStep = 1;
-    else if (s === 'Preparando pedido') currentStep = 1;
-    else if (s === 'Saiu para entrega') currentStep = 2;
-    else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
+        // Mapeamento
+        if (s === 'Aguardando aprovação') currentStep = 0;
+        else if (s === 'Aprovado') currentStep = 1;
+        else if (s === 'Preparando pedido') currentStep = 1;
+        else if (s === 'Saiu para entrega') currentStep = 2;
+        else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
 
-    // Configuração da primeira bolinha
-    const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
-    const step0Icon = (s === 'Aguardando aprovação' || isCancelled) ? 'fa-clock' : 'fa-thumbs-up';
+        // Configuração da primeira bolinha
+        const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
+        const step0Icon = (s === 'Aguardando aprovação' || isCancelled) ? 'fa-clock' : 'fa-thumbs-up';
 
-    const steps = [
-        { label: step0Label, icon: step0Icon },
-        { label: 'Preparando', icon: 'fa-box-open' },
-        { label: 'Saiu', icon: 'fa-motorcycle' },
-        { label: 'Entregue', icon: 'fa-check' }
-    ];
+        const steps = [
+            { label: step0Label, icon: step0Icon },
+            { label: 'Preparando', icon: 'fa-box-open' },
+            { label: 'Saiu', icon: 'fa-motorcycle' },
+            { label: 'Entregue', icon: 'fa-check' }
+        ];
 
-    // --- HTML DA TIMELINE (AJUSTADO) ---
-    let timelineHTML = `<div class="flex justify-between items-start mb-8 relative px-2">`;
+        // --- HTML DA TIMELINE (AJUSTADO) ---
+        let timelineHTML = `<div class="flex justify-between items-start mb-8 relative px-2">`;
 
-    // Linha de Fundo (Cinza) - Ajustei left/right de 4 para 7 para esconder a ponta
-    // Ajustei top para 18px (metade exata da altura da bolinha de 36px/w-9)
-    timelineHTML += `<div class="absolute top-[18px] left-7 right-7 h-0.5 bg-gray-700 -z-0"></div>`;
+        // Linha de Fundo (Cinza) - Ajustei left/right de 4 para 7 para esconder a ponta
+        // Ajustei top para 18px (metade exata da altura da bolinha de 36px/w-9)
+        timelineHTML += `<div class="absolute top-[18px] left-7 right-7 h-0.5 bg-gray-700 -z-0"></div>`;
 
-    // Linha de Progresso (Verde)
-    const progressWidth = Math.min(currentStep * 33.33, 100);
-    if (!isCancelled) {
-        // Ajustei o cálculo da largura (subtraindo 3.5rem) para compensar o novo recuo
-        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
-    }
-
-    steps.forEach((step, index) => {
-        let circleClass = "bg-[#1f2937] border-2 border-gray-600 text-gray-500"; // Padrão Inativo
-        let iconClass = step.icon;
-        let labelClass = "text-gray-500";
-        let glowEffect = "";
-
-        if (isCancelled) {
-            if (index === 0) {
-                circleClass = "bg-red-900 border-2 border-red-500 text-red-500";
-                iconClass = "fa-times";
-                labelClass = "text-red-500 font-bold";
-            }
-        } else {
-            // Passos Concluídos
-            if (index < currentStep) {
-                circleClass = "bg-green-500 border-2 border-green-500 text-black";
-                labelClass = "text-green-500 font-bold";
-            }
-            // Passo Atual (Preenchido + Brilho)
-            else if (index === currentStep) {
-                circleClass = "bg-green-500 border-2 border-green-500 text-white";
-                glowEffect = "shadow-[0_0_15px_rgba(34,197,94,0.8)] scale-110";
-                labelClass = "text-white font-bold";
-            }
+        // Linha de Progresso (Verde)
+        const progressWidth = Math.min(currentStep * 33.33, 100);
+        if (!isCancelled) {
+            // Ajustei o cálculo da largura (subtraindo 3.5rem) para compensar o novo recuo
+            timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
         }
 
-        timelineHTML += `
+        steps.forEach((step, index) => {
+            let circleClass = "bg-[#1f2937] border-2 border-gray-600 text-gray-500"; // Padrão Inativo
+            let iconClass = step.icon;
+            let labelClass = "text-gray-500";
+            let glowEffect = "";
+
+            if (isCancelled) {
+                if (index === 0) {
+                    circleClass = "bg-red-900 border-2 border-red-500 text-red-500";
+                    iconClass = "fa-times";
+                    labelClass = "text-red-500 font-bold";
+                }
+            } else {
+                // Passos Concluídos
+                if (index < currentStep) {
+                    circleClass = "bg-green-500 border-2 border-green-500 text-black";
+                    labelClass = "text-green-500 font-bold";
+                }
+                // Passo Atual (Preenchido + Brilho)
+                else if (index === currentStep) {
+                    circleClass = "bg-green-500 border-2 border-green-500 text-white";
+                    glowEffect = "shadow-[0_0_15px_rgba(34,197,94,0.8)] scale-110";
+                    labelClass = "text-white font-bold";
+                }
+            }
+
+            timelineHTML += `
             <div class="flex flex-col items-center relative z-10">
                 <div class="w-9 h-9 rounded-full flex items-center justify-center text-xs transition-all duration-500 ${circleClass} ${glowEffect}">
                     <i class="fas ${iconClass}"></i>
@@ -6111,12 +6110,12 @@ window.updateStatusUI = (order) => {
                 <span class="text-[10px] uppercase mt-2 tracking-wide ${labelClass}">${step.label}</span>
             </div>
         `;
-    });
-    timelineHTML += `</div>`;
+        });
+        timelineHTML += `</div>`;
 
 
-    // 2. CONTEÚDO DOS ITENS
-    let itemsHtml = order.items.map(i => `
+        // 2. CONTEÚDO DOS ITENS
+        let itemsHtml = order.items.map(i => `
         <div class="flex justify-between items-center text-sm text-gray-300 mb-2 border-b border-gray-800 pb-2 last:border-0">
             <div class="flex items-center gap-2">
                  <span class="text-yellow-500 font-bold font-mono text-xs bg-yellow-900/20 px-1.5 rounded">${i.qty}x</span>
@@ -6126,7 +6125,7 @@ window.updateStatusUI = (order) => {
         </div>
     `).join('');
 
-    const addressBlock = `
+        const addressBlock = `
         <div class="flex items-start gap-3 mt-4 bg-gray-900 p-3 rounded-lg border border-gray-800">
             <i class="fas fa-map-marker-alt text-red-500 mt-1"></i>
             <div class="flex-1">
@@ -6139,8 +6138,8 @@ window.updateStatusUI = (order) => {
         </div>
     `;
 
-    // 3. RENDERIZAÇÃO
-    detailsContainer.innerHTML = `
+        // 3. RENDERIZAÇÃO
+        detailsContainer.innerHTML = `
         <div class="mb-6">
             <h2 class="text-2xl font-extrabold text-yellow-500 tracking-tight">PEDIDO #${order.code}</h2>
             <p class="text-xs text-gray-500 uppercase font-bold tracking-widest mt-1">
@@ -6187,530 +6186,530 @@ window.updateStatusUI = (order) => {
         <div id="cancel-btn-area" class="mt-6"></div>
     `;
 
-    // 4. LÓGICA DO BOTÃO CANCELAR
-    const btnArea = document.getElementById('cancel-btn-area');
-    if (!btnArea || isCancelled || currentStep > 0) {
-        if (btnArea) btnArea.innerHTML = '';
-        return;
-    }
+        // 4. LÓGICA DO BOTÃO CANCELAR
+        const btnArea = document.getElementById('cancel-btn-area');
+        if (!btnArea || isCancelled || currentStep > 0) {
+            if (btnArea) btnArea.innerHTML = '';
+            return;
+        }
 
-    if (order.status === 'Aguardando aprovação' || order.status === 'Pendente') {
-        const checkTimer = () => {
-            const now = new Date().getTime();
-            const limit = new Date(order.cancelLimit).getTime();
-            const distance = limit - now;
+        if (order.status === 'Aguardando aprovação' || order.status === 'Pendente') {
+            const checkTimer = () => {
+                const now = new Date().getTime();
+                const limit = new Date(order.cancelLimit).getTime();
+                const distance = limit - now;
 
-            if (distance < 0) {
-                btnArea.innerHTML = `
+                if (distance < 0) {
+                    btnArea.innerHTML = `
                     <div class="text-center">
                         <p class="text-[10px] text-gray-600 mb-2">Tempo para cancelamento automático expirado</p>
                         <button disabled class="w-full bg-gray-800 text-gray-600 font-bold py-3 rounded-xl cursor-not-allowed border border-gray-700 text-sm">Cancelamento indisponível</button>
                     </div>`;
-                clearInterval(window.cancelTimerInterval);
-            } else {
-                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-                const fmtSec = seconds < 10 ? `0${seconds}` : seconds;
+                    clearInterval(window.cancelTimerInterval);
+                } else {
+                    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                    const fmtSec = seconds < 10 ? `0${seconds}` : seconds;
 
-                btnArea.innerHTML = `
+                    btnArea.innerHTML = `
                     <button onclick="clientCancelOrder('${order.id}')" class="w-full bg-red-900/20 hover:bg-red-900/40 border border-red-900 text-red-500 hover:text-red-400 font-bold py-3 rounded-xl flex justify-between px-6 transition group">
                         <span class="text-xs uppercase tracking-wide">Cancelar Pedido</span>
                         <span class="font-mono text-sm bg-red-900/50 px-2 rounded text-white group-hover:bg-red-600 transition">${minutes}:${fmtSec}</span>
                     </button>
                     <p class="text-[10px] text-center text-gray-500 mt-2">Você pode cancelar até o cronômetro zerar.</p>
                 `;
-            }
-        };
-        checkTimer();
-        window.cancelTimerInterval = setInterval(checkTimer, 1000);
-    }
-};
-
-// Nova função helper para o cliente cancelar
-window.clientCancelOrder = async (orderId) => {
-    if (!confirm("Tem certeza que deseja cancelar seu pedido?")) return;
-
-    try {
-        // --- AQUI MUDA O STATUS PARA O QUE VAI APARECER NO ADMIN ---
-        await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), {
-            status: 'Cancelado pelo Cliente',
-            cancelReason: 'Cancelado pelo cliente no app'
-        });
-
-        // Não precisa de alert, a UI vai atualizar sozinha pelo listener
-    } catch (e) {
-        console.error(e);
-        alert("Erro ao cancelar: " + e.message);
-    }
-};
-
-
-
-// Função Auxiliar: Controla a bolinha vermelha da moto
-function checkActiveOrders() {
-    const indicator = document.getElementById('track-indicator');
-    if (!indicator) return;
-
-    // Se não tiver lista ou estiver vazia, esconde a bolinha
-    if (!state.myOrders || state.myOrders.length === 0) {
-        indicator.classList.add('hidden');
-        return;
-    }
-
-    // Filtra para contar apenas os pedidos que AINDA estão ativos/vivos
-    const activeOrders = state.myOrders.filter(o => {
-        const s = o.status;
-
-        // Verifica se o status é considerado "Finalizado"
-        // (Inclui: Concluído, Entregue, e qualquer tipo de Cancelado)
-        const isFinished =
-            s === 'Concluído' ||
-            s === 'Entregue' ||
-            s.includes('Cancelado'); // Pega 'Cancelado' e 'Cancelado pelo Cliente'
-
-        // Retorna TRUE se o pedido NÃO estiver finalizado (ou seja, é um pedido ativo)
-        return !isFinished;
-    });
-
-    // Se tiver pelo menos 1 pedido ativo, mostra a bolinha. Senão, esconde.
-    if (activeOrders.length > 0) {
-        indicator.classList.remove('hidden');
-    } else {
-        indicator.classList.add('hidden');
-    }
-}
-
-// Variável para guardar os ouvintes e evitar duplicidade
-window.activeListeners = [];
-
-function startBackgroundListeners() {
-    // Se não tem histórico, não faz nada
-    if (!state.myOrders || state.myOrders.length === 0) {
-        checkActiveOrders();
-        return;
-    }
-
-    // Limpa ouvintes antigos para não duplicar se chamar a função de novo
-    window.activeListeners.forEach(unsubscribe => unsubscribe());
-    window.activeListeners = [];
-
-    // Para cada pedido no histórico local...
-    state.myOrders.forEach(localOrder => {
-        // ... cria um ouvinte em tempo real no Firebase
-        const unsub = onSnapshot(doc(db, `sites/${state.siteId}/sales`, localOrder.id), (docSnap) => {
-            if (docSnap.exists()) {
-                const freshData = docSnap.data();
-
-                // 1. Atualiza os dados na memória local
-                const index = state.myOrders.findIndex(o => o.id === localOrder.id);
-                if (index !== -1) {
-                    // Mantém o ID e atualiza o resto
-                    state.myOrders[index] = { id: localOrder.id, ...freshData };
-
-                    // 2. Salva no LocalStorage para persistir
-                    localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
-
-                    // 3. O MAIS IMPORTANTE: Verifica a bolinha imediatamente
-                    checkActiveOrders();
-
-                    // Se o modal de lista estiver aberto, atualiza a lista visualmente também
-                    const listModal = document.getElementById('view-order-list');
-                    if (listModal && !listModal.classList.contains('hidden')) {
-                        showOrderListView();
-                    }
                 }
-            }
-        });
-
-        // Guarda o ouvinte para poder limpar depois se precisar
-        window.activeListeners.push(unsub);
-    });
-}
-
-//recebe a lista de pedidos, conta quantos tem em cada status e monta os botões coloridos.
-function renderOrdersSummary(orders, filterStatus = '') {
-    const container = document.getElementById('orders-summary-bar');
-    if (!container) return;
-
-    // 1. Inicializa Contadores
-    const counts = {
-        'Aguardando aprovação': 0,
-        'Aprovado': 0,
-        'Preparando pedido': 0,
-        'Saiu para entrega': 0,
-        'Entregue': 0,
-        'Concluído': 0,
-        'Cancelado': 0
+            };
+            checkTimer();
+            window.cancelTimerInterval = setInterval(checkTimer, 1000);
+        }
     };
 
-    let totalItensVendidos = 0;
+    // Nova função helper para o cliente cancelar
+    window.clientCancelOrder = async (orderId) => {
+        if (!confirm("Tem certeza que deseja cancelar seu pedido?")) return;
 
-    // 2. Processa os totais
-    orders.forEach(o => {
-        // A. Contagem de Status (Conta tudo para exibir nas caixinhas normais)
-        if (o.status.includes('Cancelado')) {
-            counts['Cancelado']++;
-        } else if (counts.hasOwnProperty(o.status)) {
-            counts[o.status]++;
+        try {
+            // --- AQUI MUDA O STATUS PARA O QUE VAI APARECER NO ADMIN ---
+            await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), {
+                status: 'Cancelado pelo Cliente',
+                cancelReason: 'Cancelado pelo cliente no app'
+            });
+
+            // Não precisa de alert, a UI vai atualizar sozinha pelo listener
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao cancelar: " + e.message);
+        }
+    };
+
+
+
+    // Função Auxiliar: Controla a bolinha vermelha da moto
+    function checkActiveOrders() {
+        const indicator = document.getElementById('track-indicator');
+        if (!indicator) return;
+
+        // Se não tiver lista ou estiver vazia, esconde a bolinha
+        if (!state.myOrders || state.myOrders.length === 0) {
+            indicator.classList.add('hidden');
+            return;
         }
 
-        // B. Contagem de Itens Vendidos (Regra Ajustada)
-        // Só conta se NÃO for Cancelado E se NÃO estiver Aguardando Aprovação
-        const isCancelado = o.status.includes('Cancelado');
-        const isAguardando = o.status === 'Aguardando aprovação';
+        // Filtra para contar apenas os pedidos que AINDA estão ativos/vivos
+        const activeOrders = state.myOrders.filter(o => {
+            const s = o.status;
 
-        if (!isCancelado && !isAguardando) {
-            const itensDoPedido = o.items ? o.items.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0) : 0;
-            totalItensVendidos += itensDoPedido;
-        }
-    });
+            // Verifica se o status é considerado "Finalizado"
+            // (Inclui: Concluído, Entregue, e qualquer tipo de Cancelado)
+            const isFinished =
+                s === 'Concluído' ||
+                s === 'Entregue' ||
+                s.includes('Cancelado'); // Pega 'Cancelado' e 'Cancelado pelo Cliente'
 
-    // 3. Definição dos Cards
-    let cards = [
-        { label: 'Aguardando', key: 'Aguardando aprovação', bg: 'bg-gray-600' },
-        { label: 'Aprovados', key: 'Aprovado', bg: 'bg-yellow-600' },
-        { label: 'Preparando', key: 'Preparando pedido', bg: 'bg-yellow-700' },
-        { label: 'Na Entrega', key: 'Saiu para entrega', bg: 'bg-orange-600' },
-        { label: 'Entregues', key: 'Entregue', bg: 'bg-green-500' },
-        { label: 'Concluídos', key: 'Concluído', bg: 'bg-green-700' },
-        { label: 'Cancelados', key: 'Cancelado', bg: 'bg-red-600' }
-    ];
+            // Retorna TRUE se o pedido NÃO estiver finalizado (ou seja, é um pedido ativo)
+            return !isFinished;
+        });
 
-    // 4. Filtro de Visibilidade (Se selecionou um status, mostra só ele)
-    if (filterStatus && filterStatus !== '') {
-        if (filterStatus === 'Cancelado_All') {
-            cards = cards.filter(c => c.key === 'Cancelado');
+        // Se tiver pelo menos 1 pedido ativo, mostra a bolinha. Senão, esconde.
+        if (activeOrders.length > 0) {
+            indicator.classList.remove('hidden');
         } else {
-            cards = cards.filter(c => c.key === filterStatus);
+            indicator.classList.add('hidden');
         }
     }
 
-    // Adiciona o card de ITENS no final (Sempre mostra itens REAIS vendidos/aprovados)
-    cards.push({ label: 'Itens Vendidos', val: totalItensVendidos, bg: 'bg-blue-600', key: 'total_items' });
+    // Variável para guardar os ouvintes e evitar duplicidade
+    window.activeListeners = [];
 
-    // 5. Renderiza
-    let html = '';
-    cards.forEach(card => {
-        const value = card.val !== undefined ? card.val : (counts[card.key] || 0);
+    function startBackgroundListeners() {
+        // Se não tem histórico, não faz nada
+        if (!state.myOrders || state.myOrders.length === 0) {
+            checkActiveOrders();
+            return;
+        }
 
-        html += `
+        // Limpa ouvintes antigos para não duplicar se chamar a função de novo
+        window.activeListeners.forEach(unsubscribe => unsubscribe());
+        window.activeListeners = [];
+
+        // Para cada pedido no histórico local...
+        state.myOrders.forEach(localOrder => {
+            // ... cria um ouvinte em tempo real no Firebase
+            const unsub = onSnapshot(doc(db, `sites/${state.siteId}/sales`, localOrder.id), (docSnap) => {
+                if (docSnap.exists()) {
+                    const freshData = docSnap.data();
+
+                    // 1. Atualiza os dados na memória local
+                    const index = state.myOrders.findIndex(o => o.id === localOrder.id);
+                    if (index !== -1) {
+                        // Mantém o ID e atualiza o resto
+                        state.myOrders[index] = { id: localOrder.id, ...freshData };
+
+                        // 2. Salva no LocalStorage para persistir
+                        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+
+                        // 3. O MAIS IMPORTANTE: Verifica a bolinha imediatamente
+                        checkActiveOrders();
+
+                        // Se o modal de lista estiver aberto, atualiza a lista visualmente também
+                        const listModal = document.getElementById('view-order-list');
+                        if (listModal && !listModal.classList.contains('hidden')) {
+                            showOrderListView();
+                        }
+                    }
+                }
+            });
+
+            // Guarda o ouvinte para poder limpar depois se precisar
+            window.activeListeners.push(unsub);
+        });
+    }
+
+    //recebe a lista de pedidos, conta quantos tem em cada status e monta os botões coloridos.
+    function renderOrdersSummary(orders, filterStatus = '') {
+        const container = document.getElementById('orders-summary-bar');
+        if (!container) return;
+
+        // 1. Inicializa Contadores
+        const counts = {
+            'Aguardando aprovação': 0,
+            'Aprovado': 0,
+            'Preparando pedido': 0,
+            'Saiu para entrega': 0,
+            'Entregue': 0,
+            'Concluído': 0,
+            'Cancelado': 0
+        };
+
+        let totalItensVendidos = 0;
+
+        // 2. Processa os totais
+        orders.forEach(o => {
+            // A. Contagem de Status (Conta tudo para exibir nas caixinhas normais)
+            if (o.status.includes('Cancelado')) {
+                counts['Cancelado']++;
+            } else if (counts.hasOwnProperty(o.status)) {
+                counts[o.status]++;
+            }
+
+            // B. Contagem de Itens Vendidos (Regra Ajustada)
+            // Só conta se NÃO for Cancelado E se NÃO estiver Aguardando Aprovação
+            const isCancelado = o.status.includes('Cancelado');
+            const isAguardando = o.status === 'Aguardando aprovação';
+
+            if (!isCancelado && !isAguardando) {
+                const itensDoPedido = o.items ? o.items.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0) : 0;
+                totalItensVendidos += itensDoPedido;
+            }
+        });
+
+        // 3. Definição dos Cards
+        let cards = [
+            { label: 'Aguardando', key: 'Aguardando aprovação', bg: 'bg-gray-600' },
+            { label: 'Aprovados', key: 'Aprovado', bg: 'bg-yellow-600' },
+            { label: 'Preparando', key: 'Preparando pedido', bg: 'bg-yellow-700' },
+            { label: 'Na Entrega', key: 'Saiu para entrega', bg: 'bg-orange-600' },
+            { label: 'Entregues', key: 'Entregue', bg: 'bg-green-500' },
+            { label: 'Concluídos', key: 'Concluído', bg: 'bg-green-700' },
+            { label: 'Cancelados', key: 'Cancelado', bg: 'bg-red-600' }
+        ];
+
+        // 4. Filtro de Visibilidade (Se selecionou um status, mostra só ele)
+        if (filterStatus && filterStatus !== '') {
+            if (filterStatus === 'Cancelado_All') {
+                cards = cards.filter(c => c.key === 'Cancelado');
+            } else {
+                cards = cards.filter(c => c.key === filterStatus);
+            }
+        }
+
+        // Adiciona o card de ITENS no final (Sempre mostra itens REAIS vendidos/aprovados)
+        cards.push({ label: 'Itens Vendidos', val: totalItensVendidos, bg: 'bg-blue-600', key: 'total_items' });
+
+        // 5. Renderiza
+        let html = '';
+        cards.forEach(card => {
+            const value = card.val !== undefined ? card.val : (counts[card.key] || 0);
+
+            html += `
             <div class="${card.bg} text-white rounded p-3 flex flex-col items-center justify-center border border-white/10 min-h-[70px] animate-fade-in">
                 <span class="text-2xl font-bold leading-none mb-1">${value}</span>
                 <span class="text-[10px] uppercase font-medium tracking-wider opacity-90">${card.label}</span>
             </div>
         `;
+        });
+
+        const gridCols = cards.length > 4 ? 'lg:grid-cols-8' : `lg:grid-cols-${cards.length}`;
+        container.className = `grid grid-cols-2 md:grid-cols-4 ${gridCols} gap-2 mb-6 transition-all`;
+
+        container.innerHTML = html;
+    }
+
+    // --- MÁSCARA DE MOEDA (Input Mask) ---
+    function setupCurrencyMasks() {
+        const ids = ['prod-price', 'prod-promo', 'prod-cost', 'prod-pix-val'];
+
+        ids.forEach(id => {
+            const input = document.getElementById(id);
+            if (!input) return;
+
+            // Evento ao digitar
+            input.addEventListener('input', (e) => {
+                let value = e.target.value.replace(/\D/g, ""); // Remove tudo que não é número
+
+                // Se o campo estiver vazio, mantém vazio ou 0,00
+                if (value === "") {
+                    e.target.value = "";
+                    return;
+                }
+
+                // Converte para decimal (divide por 100)
+                value = (parseFloat(value) / 100).toFixed(2) + '';
+
+                // Troca ponto por vírgula
+                value = value.replace('.', ',');
+
+                // Adiciona ponto de milhar (ex: 1.000,00)
+                value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+
+                e.target.value = value;
+            });
+        });
+    };
+    // Formata números do banco (1250.90) para o padrão do input (1.250,90)
+    function formatMoneyForInput(value) {
+        if (value === null || value === undefined || value === '') return '';
+        return parseFloat(value).toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    // IMPORTANTE: Adicione essa chamada dentro do seu initApp ou logo após carregar 
+
+    // Ativa as máscaras assim que o site carregar
+    window.addEventListener('DOMContentLoaded', () => {
+        setupCurrencyMasks();
     });
 
-    const gridCols = cards.length > 4 ? 'lg:grid-cols-8' : `lg:grid-cols-${cards.length}`;
-    container.className = `grid grid-cols-2 md:grid-cols-4 ${gridCols} gap-2 mb-6 transition-all`;
 
-    container.innerHTML = html;
-}
 
-// --- MÁSCARA DE MOEDA (Input Mask) ---
-function setupCurrencyMasks() {
-    const ids = ['prod-price', 'prod-promo', 'prod-cost', 'prod-pix-val'];
+    // Retorna objeto { isOpen: boolean, nextOpen: string }
+    window.getStoreStatus = () => {
+        // 1. Verifica se existe configuração
+        const config = state.storeProfile.openingHours;
+        if (!config || config.active !== true) return { isOpen: true };
 
-    ids.forEach(id => {
-        const input = document.getElementById(id);
-        if (!input) return;
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-        // Evento ao digitar
-        input.addEventListener('input', (e) => {
-            let value = e.target.value.replace(/\D/g, ""); // Remove tudo que não é número
+        // Parse seguro dos horários
+        if (!config.start || !config.end) return { isOpen: true };
 
-            // Se o campo estiver vazio, mantém vazio ou 0,00
-            if (value === "") {
-                e.target.value = "";
+        const [startH, startM] = config.start.split(':').map(Number);
+        const [endH, endM] = config.end.split(':').map(Number);
+
+        const startMinutes = startH * 60 + startM;
+        const endMinutes = endH * 60 + endM;
+
+        let isOpen = false;
+
+        // Cenário 1: Vira a noite (Ex: Abre 18:00, Fecha 02:00)
+        // O horário de fim é MENOR que o de início
+        if (endMinutes < startMinutes) {
+            // Está aberto se for MAIOR que o início (ex: 20:00) OU MENOR que o fim (ex: 01:00)
+            isOpen = currentMinutes >= startMinutes || currentMinutes < endMinutes;
+        }
+        // Cenário 2: Mesmo dia (Ex: Abre 08:00, Fecha 18:00)
+        else {
+            isOpen = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+        }
+
+        return {
+            isOpen: isOpen,
+            start: config.start,
+            end: config.end,
+            block: config.block === true // Garante booleano
+        };
+    };
+
+    // Atualiza a UI globalmente (Badge e Modal de Bloqueio)
+    // Atualiza a UI globalmente (Badge e Modal de Bloqueio)
+    window.updateStoreStatusUI = () => {
+        const status = getStoreStatus();
+        const badgeBtn = document.getElementById('store-status-badge');
+        const modalBlock = document.getElementById('modal-store-closed');
+        const displayTime = document.getElementById('store-opens-at-display');
+
+        // 1. ATUALIZA BADGE NA SIDEBAR
+        if (badgeBtn) {
+            // Se não tiver horário configurado, esconde o badge
+            if (!state.storeProfile.openingHours?.active) {
+                badgeBtn.classList.add('hidden');
+                badgeBtn.classList.remove('flex');
+            } else {
+                badgeBtn.classList.remove('hidden');
+                badgeBtn.classList.add('flex');
+
+                // Reseta classes base
+                badgeBtn.className = "flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mt-2 border transition hover:opacity-80 mx-auto cursor-pointer";
+
+                let dotHtml = "";
+                let labelText = "";
+                let alertMsg = `🕒 Horário de Funcionamento:\n\nDas ${status.start} às ${status.end}`;
+
+                if (status.isOpen) {
+                    // VERDE: Aberto
+                    badgeBtn.classList.add('border-green-500/30', 'bg-green-500/10', 'text-green-400');
+                    dotHtml = `<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] animate-pulse"></div>`;
+                    labelText = "Aberto";
+
+                    // Mensagem padrão
+                    alertMsg += `\n\n✅ Estamos abertos!`;
+                }
+                else if (status.block) {
+                    // VERMELHO: Fechado e Bloqueado
+                    badgeBtn.classList.add('border-red-500/30', 'bg-red-500/10', 'text-red-400');
+                    dotHtml = `<div class="w-2 h-2 rounded-full bg-red-500"></div>`;
+                    labelText = "Fechado";
+
+                    // Mensagem de fechado
+                    alertMsg += `\n\n⛔ Estamos fechados no momento.`;
+                }
+                else {
+                    // LARANJA: Fechado mas Aceitando (Recebendo)
+                    badgeBtn.classList.add('border-orange-500/30', 'bg-orange-500/10', 'text-orange-400');
+                    dotHtml = `<div class="w-2 h-2 rounded-full bg-orange-500"></div>`;
+                    labelText = "Fechado (Recebendo)";
+
+                    // --- AQUI ESTÁ A MENSAGEM QUE VOCÊ PEDIU ---
+                    alertMsg += `\n\n⚠️ Atenção:\nEstamos fechados, mas aceitando encomendas.\n\nOs pedidos feitos agora serão preparados e enviados assim que iniciarmos ás ${status.start}.`;
+                }
+
+                badgeBtn.innerHTML = `${dotHtml}<span>${labelText}</span>`;
+
+                // Define o clique com a mensagem personalizada calculada acima
+                badgeBtn.onclick = () => alert(alertMsg);
+            }
+        }
+
+        // 2. LÓGICA DE BLOQUEIO (MODAL NA TELA)
+        // Só bloqueia se: (Loja Fechada) E (Opção Bloquear Ativada) E (Usuário NÃO é Admin)
+        if (!status.isOpen && status.block && modalBlock) {
+            if (!state.user) {
+                modalBlock.classList.remove('hidden');
+                modalBlock.classList.add('flex');
+                modalBlock.style.zIndex = "9999";
+
+                if (displayTime) displayTime.innerText = `Abriremos às ${status.start}`;
+
+                const cartModal = document.getElementById('cart-modal');
+                const prodModal = document.getElementById('product-modal');
+                if (cartModal) cartModal.classList.add('hidden');
+                if (prodModal) prodModal.classList.add('hidden');
+
                 return;
             }
+        }
 
-            // Converte para decimal (divide por 100)
-            value = (parseFloat(value) / 100).toFixed(2) + '';
-
-            // Troca ponto por vírgula
-            value = value.replace('.', ',');
-
-            // Adiciona ponto de milhar (ex: 1.000,00)
-            value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
-
-            e.target.value = value;
-        });
-    });
-};
-// Formata números do banco (1250.90) para o padrão do input (1.250,90)
-function formatMoneyForInput(value) {
-    if (value === null || value === undefined || value === '') return '';
-    return parseFloat(value).toLocaleString('pt-BR', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    });
-}
-
-// IMPORTANTE: Adicione essa chamada dentro do seu initApp ou logo após carregar 
-
-// Ativa as máscaras assim que o site carregar
-window.addEventListener('DOMContentLoaded', () => {
-    setupCurrencyMasks();
-});
-
-
-
-// Retorna objeto { isOpen: boolean, nextOpen: string }
-window.getStoreStatus = () => {
-    // 1. Verifica se existe configuração
-    const config = state.storeProfile.openingHours;
-    if (!config || config.active !== true) return { isOpen: true };
-
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-    // Parse seguro dos horários
-    if (!config.start || !config.end) return { isOpen: true };
-
-    const [startH, startM] = config.start.split(':').map(Number);
-    const [endH, endM] = config.end.split(':').map(Number);
-
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-
-    let isOpen = false;
-
-    // Cenário 1: Vira a noite (Ex: Abre 18:00, Fecha 02:00)
-    // O horário de fim é MENOR que o de início
-    if (endMinutes < startMinutes) {
-        // Está aberto se for MAIOR que o início (ex: 20:00) OU MENOR que o fim (ex: 01:00)
-        isOpen = currentMinutes >= startMinutes || currentMinutes < endMinutes;
-    }
-    // Cenário 2: Mesmo dia (Ex: Abre 08:00, Fecha 18:00)
-    else {
-        isOpen = currentMinutes >= startMinutes && currentMinutes < endMinutes;
-    }
-
-    return {
-        isOpen: isOpen,
-        start: config.start,
-        end: config.end,
-        block: config.block === true // Garante booleano
+        if (modalBlock) {
+            modalBlock.classList.add('hidden');
+            modalBlock.classList.remove('flex');
+        }
     };
-};
 
-// Atualiza a UI globalmente (Badge e Modal de Bloqueio)
-// Atualiza a UI globalmente (Badge e Modal de Bloqueio)
-window.updateStoreStatusUI = () => {
-    const status = getStoreStatus();
-    const badgeBtn = document.getElementById('store-status-badge');
-    const modalBlock = document.getElementById('modal-store-closed');
-    const displayTime = document.getElementById('store-opens-at-display');
 
-    // 1. ATUALIZA BADGE NA SIDEBAR
-    if (badgeBtn) {
-        // Se não tiver horário configurado, esconde o badge
-        if (!state.storeProfile.openingHours?.active) {
-            badgeBtn.classList.add('hidden');
-            badgeBtn.classList.remove('flex');
+
+
+    // =================================================================
+    // 12. SISTEMA DE TEMAS (PERSONALIZAÇÃO) - ATUALIZADO
+    // =================================================================
+
+    let originalTheme = null;
+
+    const defaultTheme = {
+        bgColor: '#000000',
+        headerColor: '#000000',
+        sidebarColor: '#000000',
+        highlightColor: '#EAB308',
+        textColor: '#FFFFFF',
+        iconColor: '#FFFFFF' // Novo campo
+    };
+
+    // 1. Aplica as cores ao CSS
+    window.applyThemeToDOM = (theme) => {
+        const root = document.documentElement;
+
+        // Seta variáveis
+        root.style.setProperty('--custom-bg', theme.bgColor);
+        root.style.setProperty('--custom-header', theme.headerColor);
+        root.style.setProperty('--custom-sidebar', theme.sidebarColor);
+        root.style.setProperty('--custom-highlight', theme.highlightColor);
+        root.style.setProperty('--custom-text', theme.textColor);
+        root.style.setProperty('--custom-icons', theme.iconColor); // Aplica ícones
+
+        // Atualiza Inputs (Visual do Admin)
+        const updateInput = (id, hexId, val) => {
+            const el = document.getElementById(id);
+            const hex = document.getElementById(hexId);
+            if (el) el.value = val;
+            if (hex) hex.innerText = val;
+        };
+
+        updateInput('theme-bg-color', 'hex-bg', theme.bgColor);
+        updateInput('theme-header-color', 'hex-header', theme.headerColor);
+        updateInput('theme-sidebar-color', 'hex-sidebar', theme.sidebarColor);
+        updateInput('theme-highlight-color', 'hex-highlight', theme.highlightColor);
+        updateInput('theme-text-color', 'hex-text', theme.textColor);
+        updateInput('theme-icons-color', 'hex-icons', theme.iconColor);
+    };
+
+    // 2. Preview em Tempo Real
+    window.previewTheme = (type, color) => {
+        const root = document.documentElement;
+
+        if (type === 'bg') {
+            root.style.setProperty('--custom-bg', color);
+            document.getElementById('hex-bg').innerText = color;
+        }
+        if (type === 'header') {
+            root.style.setProperty('--custom-header', color);
+            document.getElementById('hex-header').innerText = color;
+        }
+        if (type === 'sidebar') {
+            root.style.setProperty('--custom-sidebar', color);
+            document.getElementById('hex-sidebar').innerText = color;
+        }
+        if (type === 'highlight') {
+            root.style.setProperty('--custom-highlight', color);
+            document.getElementById('hex-highlight').innerText = color;
+        }
+        if (type === 'text') {
+            root.style.setProperty('--custom-text', color);
+            document.getElementById('hex-text').innerText = color;
+        }
+        if (type === 'icons') { // Novo Preview
+            root.style.setProperty('--custom-icons', color);
+            document.getElementById('hex-icons').innerText = color;
+        }
+    };
+
+    // 3. Salvar
+    window.saveThemeColors = async () => {
+        const newTheme = {
+            bgColor: document.getElementById('theme-bg-color').value,
+            headerColor: document.getElementById('theme-header-color').value,
+            sidebarColor: document.getElementById('theme-sidebar-color').value,
+            highlightColor: document.getElementById('theme-highlight-color').value,
+            textColor: document.getElementById('theme-text-color').value,
+            iconColor: document.getElementById('theme-icons-color').value // Salva ícones
+        };
+
+        try {
+            await setDoc(doc(db, `sites/${state.siteId}/settings`, 'theme'), newTheme);
+            state.currentTheme = newTheme;
+            originalTheme = newTheme;
+            showToast('Tema salvo com sucesso!', 'success');
+        } catch (error) {
+            console.error(error);
+            alert('Erro ao salvar tema.');
+        }
+    };
+
+    // 4. Cancelar Mudanças (Reverte para o salvo)
+    window.cancelThemeChanges = () => {
+        if (originalTheme) {
+            applyThemeToDOM(originalTheme);
         } else {
-            badgeBtn.classList.remove('hidden');
-            badgeBtn.classList.add('flex');
-
-            // Reseta classes base
-            badgeBtn.className = "flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mt-2 border transition hover:opacity-80 mx-auto cursor-pointer";
-
-            let dotHtml = "";
-            let labelText = "";
-            let alertMsg = `🕒 Horário de Funcionamento:\n\nDas ${status.start} às ${status.end}`;
-
-            if (status.isOpen) {
-                // VERDE: Aberto
-                badgeBtn.classList.add('border-green-500/30', 'bg-green-500/10', 'text-green-400');
-                dotHtml = `<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] animate-pulse"></div>`;
-                labelText = "Aberto";
-
-                // Mensagem padrão
-                alertMsg += `\n\n✅ Estamos abertos!`;
-            }
-            else if (status.block) {
-                // VERMELHO: Fechado e Bloqueado
-                badgeBtn.classList.add('border-red-500/30', 'bg-red-500/10', 'text-red-400');
-                dotHtml = `<div class="w-2 h-2 rounded-full bg-red-500"></div>`;
-                labelText = "Fechado";
-
-                // Mensagem de fechado
-                alertMsg += `\n\n⛔ Estamos fechados no momento.`;
-            }
-            else {
-                // LARANJA: Fechado mas Aceitando (Recebendo)
-                badgeBtn.classList.add('border-orange-500/30', 'bg-orange-500/10', 'text-orange-400');
-                dotHtml = `<div class="w-2 h-2 rounded-full bg-orange-500"></div>`;
-                labelText = "Fechado (Recebendo)";
-
-                // --- AQUI ESTÁ A MENSAGEM QUE VOCÊ PEDIU ---
-                alertMsg += `\n\n⚠️ Atenção:\nEstamos fechados, mas aceitando encomendas.\n\nOs pedidos feitos agora serão preparados e enviados assim que iniciarmos ás ${status.start}.`;
-            }
-
-            badgeBtn.innerHTML = `${dotHtml}<span>${labelText}</span>`;
-
-            // Define o clique com a mensagem personalizada calculada acima
-            badgeBtn.onclick = () => alert(alertMsg);
+            resetThemeToDefault();
         }
-    }
-
-    // 2. LÓGICA DE BLOQUEIO (MODAL NA TELA)
-    // Só bloqueia se: (Loja Fechada) E (Opção Bloquear Ativada) E (Usuário NÃO é Admin)
-    if (!status.isOpen && status.block && modalBlock) {
-        if (!state.user) {
-            modalBlock.classList.remove('hidden');
-            modalBlock.classList.add('flex');
-            modalBlock.style.zIndex = "9999";
-
-            if (displayTime) displayTime.innerText = `Abriremos às ${status.start}`;
-
-            const cartModal = document.getElementById('cart-modal');
-            const prodModal = document.getElementById('product-modal');
-            if (cartModal) cartModal.classList.add('hidden');
-            if (prodModal) prodModal.classList.add('hidden');
-
-            return;
-        }
-    }
-
-    if (modalBlock) {
-        modalBlock.classList.add('hidden');
-        modalBlock.classList.remove('flex');
-    }
-};
-
-
-
-
-// =================================================================
-// 12. SISTEMA DE TEMAS (PERSONALIZAÇÃO) - ATUALIZADO
-// =================================================================
-
-let originalTheme = null;
-
-const defaultTheme = {
-    bgColor: '#000000',
-    headerColor: '#000000',
-    sidebarColor: '#000000',
-    highlightColor: '#EAB308',
-    textColor: '#FFFFFF',
-    iconColor: '#FFFFFF' // Novo campo
-};
-
-// 1. Aplica as cores ao CSS
-window.applyThemeToDOM = (theme) => {
-    const root = document.documentElement;
-
-    // Seta variáveis
-    root.style.setProperty('--custom-bg', theme.bgColor);
-    root.style.setProperty('--custom-header', theme.headerColor);
-    root.style.setProperty('--custom-sidebar', theme.sidebarColor);
-    root.style.setProperty('--custom-highlight', theme.highlightColor);
-    root.style.setProperty('--custom-text', theme.textColor);
-    root.style.setProperty('--custom-icons', theme.iconColor); // Aplica ícones
-
-    // Atualiza Inputs (Visual do Admin)
-    const updateInput = (id, hexId, val) => {
-        const el = document.getElementById(id);
-        const hex = document.getElementById(hexId);
-        if (el) el.value = val;
-        if (hex) hex.innerText = val;
     };
 
-    updateInput('theme-bg-color', 'hex-bg', theme.bgColor);
-    updateInput('theme-header-color', 'hex-header', theme.headerColor);
-    updateInput('theme-sidebar-color', 'hex-sidebar', theme.sidebarColor);
-    updateInput('theme-highlight-color', 'hex-highlight', theme.highlightColor);
-    updateInput('theme-text-color', 'hex-text', theme.textColor);
-    updateInput('theme-icons-color', 'hex-icons', theme.iconColor);
-};
-
-// 2. Preview em Tempo Real
-window.previewTheme = (type, color) => {
-    const root = document.documentElement;
-
-    if (type === 'bg') {
-        root.style.setProperty('--custom-bg', color);
-        document.getElementById('hex-bg').innerText = color;
-    }
-    if (type === 'header') {
-        root.style.setProperty('--custom-header', color);
-        document.getElementById('hex-header').innerText = color;
-    }
-    if (type === 'sidebar') {
-        root.style.setProperty('--custom-sidebar', color);
-        document.getElementById('hex-sidebar').innerText = color;
-    }
-    if (type === 'highlight') {
-        root.style.setProperty('--custom-highlight', color);
-        document.getElementById('hex-highlight').innerText = color;
-    }
-    if (type === 'text') {
-        root.style.setProperty('--custom-text', color);
-        document.getElementById('hex-text').innerText = color;
-    }
-    if (type === 'icons') { // Novo Preview
-        root.style.setProperty('--custom-icons', color);
-        document.getElementById('hex-icons').innerText = color;
-    }
-};
-
-// 3. Salvar
-window.saveThemeColors = async () => {
-    const newTheme = {
-        bgColor: document.getElementById('theme-bg-color').value,
-        headerColor: document.getElementById('theme-header-color').value,
-        sidebarColor: document.getElementById('theme-sidebar-color').value,
-        highlightColor: document.getElementById('theme-highlight-color').value,
-        textColor: document.getElementById('theme-text-color').value,
-        iconColor: document.getElementById('theme-icons-color').value // Salva ícones
+    // 5. Redefinir para Padrão
+    window.resetThemeToDefault = () => {
+        applyThemeToDOM(defaultTheme);
     };
 
-    try {
-        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'theme'), newTheme);
-        state.currentTheme = newTheme;
-        originalTheme = newTheme;
-        showToast('Tema salvo com sucesso!', 'success');
-    } catch (error) {
-        console.error(error);
-        alert('Erro ao salvar tema.');
-    }
-};
-
-// 4. Cancelar Mudanças (Reverte para o salvo)
-window.cancelThemeChanges = () => {
-    if (originalTheme) {
-        applyThemeToDOM(originalTheme);
-    } else {
-        resetThemeToDefault();
-    }
-};
-
-// 5. Redefinir para Padrão
-window.resetThemeToDefault = () => {
-    applyThemeToDOM(defaultTheme);
-};
-
-// 6. Carregar Tema ao Iniciar
-async function loadTheme() {
-    try {
-        const docSnap = await getDoc(doc(db, `sites/${state.siteId}/settings`, 'theme'));
-        if (docSnap.exists()) {
-            state.currentTheme = docSnap.data();
-            originalTheme = state.currentTheme;
-            applyThemeToDOM(state.currentTheme);
-        } else {
-            // Se não tem tema salvo, usa o padrão
-            state.currentTheme = defaultTheme;
-            originalTheme = defaultTheme;
-            // Não precisa aplicar pois o CSS já é o padrão, mas preenche os inputs
-            applyThemeToDOM(defaultTheme);
+    // 6. Carregar Tema ao Iniciar
+    async function loadTheme() {
+        try {
+            const docSnap = await getDoc(doc(db, `sites/${state.siteId}/settings`, 'theme'));
+            if (docSnap.exists()) {
+                state.currentTheme = docSnap.data();
+                originalTheme = state.currentTheme;
+                applyThemeToDOM(state.currentTheme);
+            } else {
+                // Se não tem tema salvo, usa o padrão
+                state.currentTheme = defaultTheme;
+                originalTheme = defaultTheme;
+                // Não precisa aplicar pois o CSS já é o padrão, mas preenche os inputs
+                applyThemeToDOM(defaultTheme);
+            }
+        } catch (e) {
+            console.error("Erro ao carregar tema:", e);
         }
-    } catch (e) {
-        console.error("Erro ao carregar tema:", e);
     }
-}
 
 
 

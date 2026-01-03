@@ -5646,6 +5646,7 @@ window.sendOrderToWhatsapp = (order) => {
 
     // 5. Envio
     const sellerPhone = state.storeProfile.whatsapp || "";
+    // Remove caracteres não numéricos do telefone para evitar erros no link
     const cleanPhone = sellerPhone.replace(/\D/g, '');
 
     if (cleanPhone) {
@@ -5660,9 +5661,7 @@ window.sendOrderToWhatsapp = (order) => {
         // Isso ativa o "Deep Link" que abre o aplicativo do WhatsApp no celular.
         if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
             window.location.href = url;
-        }
-
-    } else {
+        }else {
         alert("Número de WhatsApp da loja não configurado no Admin!");
     }
 };
