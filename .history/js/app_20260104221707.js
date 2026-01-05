@@ -614,51 +614,22 @@ function loadCoupons() {
 
 // Carrega TODAS as vendas (Usado para ambos dashboards)
 function loadAdminSales() {
-    // 1. Query no Banco de Dados
     const q = query(collection(db, `sites/${state.siteId}/sales`), orderBy('date', 'desc'));
 
     onSnapshot(q, (snapshot) => {
-        // 2. Salva os dados no State
         state.orders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // --- PARTE 1: NOTIFICAÇÕES (O que estava faltando) ---
-        // Conta quantos pedidos não foram vistos (!o.viewed)
-        const newOrdersCount = state.orders.filter(o => !o.viewed).length;
-
-        // Atualiza o Botão "Vendas" no Menu
-        const salesBtn = document.getElementById('admin-menu-sales');
-        if (salesBtn) {
-            if (newOrdersCount > 0) {
-                salesBtn.innerHTML = `
-                    Vendas 
-                    <span class="ml-2 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg animate-pulse">
-                        ${newOrdersCount}
-                    </span>`;
-            } else {
-                salesBtn.innerText = 'Vendas';
-            }
-        }
-
-        // Atualiza o Título da Aba do Navegador
-        document.title = newOrdersCount > 0 ? `(${newOrdersCount}) Painel Admin` : 'Painel Admin';
-        // -----------------------------------------------------
-
-        // --- PARTE 2: ATUALIZAÇÃO DE DADOS (O que você pediu para manter) ---
-        
         // Atualiza Dashboard e Tabela de Vendas
         if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
         if (typeof updateDashboardMetrics === 'function') updateDashboardMetrics();
 
-        // Atualiza a tabela de produtos (para preencher colunas "Vendas" e "Data")
-        // Só roda se a tabela de produtos estiver na tela
+        // --- CORREÇÃO IMPORTANTE ---
+        // Assim que as vendas chegarem, redesenha os produtos para preencher a coluna "Vendas" e "Data"
+        // Verifica se a tabela de produtos está na tela antes de chamar
         if (document.getElementById('admin-product-list')) {
             filterAndRenderProducts();
         }
-
-        // Atualiza Estatísticas Gerais (Financeiro, Gráficos)
-        if (typeof updateStatsData === 'function') {
-            updateStatsData(state.orders, state.products, state.dailyStats);
-        }
+        updateStatsData(state.orders, state.products, state.dailyStats);
     });
 }
 
@@ -994,7 +965,6 @@ function renderCatalog(productsToRender) {
     const searchTerm = document.getElementById('search-input')?.value.toLowerCase();
     const catTerm = document.getElementById('category-filter')?.value;
 
-    // Aplica filtros apenas se for a lista completa
     if (productsToRender === state.products) {
         if (searchTerm) {
             filtered = filtered.filter(p => p.name.toLowerCase().includes(searchTerm) || (p.code && String(p.code).includes(searchTerm)));
@@ -1004,42 +974,39 @@ function renderCatalog(productsToRender) {
         }
     }
 
-    // 2. ORDENAÇÃO (CORRIGIDA E BLINDADA)
+    // 2. ORDENAÇÃO (ATUALIZADA COM DESTAQUE)
     const sortMode = document.getElementById('sort-filter')?.value || 'newest';
 
     filtered.sort((a, b) => {
-        // Força converter para verdadeiro/falso (evita undefined)
-        const destaqueA = !!a.highlight;
-        const destaqueB = !!b.highlight;
+        // --- LÓGICA DE DESTAQUE (PRIORIDADE MÁXIMA) ---
+        // Se A é destaque e B não, A vem primeiro (-1)
+        if ((a.highlight === true) && (b.highlight !== true)) return -1;
+        // Se B é destaque e A não, B vem primeiro (1)
+        if ((a.highlight !== true) && (b.highlight === true)) return 1;
+        // Se ambos forem iguais (ambos destaque ou ambos normal), segue para a ordenação padrão abaixo
+        // -----------------------------------------------
 
-        // PRIORIDADE 1: Destaque
-        if (destaqueA && !destaqueB) return -1; // A sobe
-        if (!destaqueA && destaqueB) return 1;  // B sobe
-        
-        // Se empatou no destaque (ambos sim ou ambos não), segue ordenação normal
-        
-        // Prepara valores
+        // Prepara valores seguros
         const priceA = parseFloat(a.promoPrice || a.price) || 0;
         const priceB = parseFloat(b.promoPrice || b.price) || 0;
         const codeA = parseInt(a.code) || 0;
         const codeB = parseInt(b.code) || 0;
-        const nameA = (a.name || '').toLowerCase();
-        const nameB = (b.name || '').toLowerCase();
+        const nameA = a.name.toLowerCase();
+        const nameB = b.name.toLowerCase();
 
-        // Prioridade 2: Esgotado sempre no fim
+        // Esgotado sempre no fim
         const isSoldOutA = a.stock <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
         const isSoldOutB = b.stock <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
 
         if (isSoldOutA && !isSoldOutB) return 1;
         if (!isSoldOutA && isSoldOutB) return -1;
 
-        // Prioridade 3: Filtro selecionado pelo usuário
         switch (sortMode) {
             case 'price-asc': return priceA - priceB;
             case 'price-desc': return priceB - priceA;
             case 'name-asc': return nameA.localeCompare(nameB);
             case 'newest': 
-            default: return codeB - codeA; // Criação (Código maior primeiro = mais novo)
+            default: return codeB - codeA; // Criação (Código maior primeiro)
         }
     });
 
@@ -1059,7 +1026,6 @@ function renderCatalog(productsToRender) {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
         const isOut = p.stock <= 0 && !allowNegative;
 
-        // Pagamento Pix
         let pixHtml = '';
         if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
             const pix = p.paymentOptions.pix;
@@ -1067,7 +1033,6 @@ function renderCatalog(productsToRender) {
             pixHtml = `<p class="text-green-500 text-[10px] font-bold mt-1"><i class="fas fa-bolt mr-1"></i>${valDisplay} OFF no Pix</p>`;
         }
 
-        // Parcelamento
         let installmentHtml = '';
         if (globalInst.active) {
             const price = p.promoPrice || p.price;
@@ -1093,21 +1058,18 @@ function renderCatalog(productsToRender) {
         // --- CONSTRUÇÃO DAS ETIQUETAS (BADGES) ---
         let badgesHtml = '';
         
-        // Verifica se tem destaque ou promo
+        // Container para as etiquetas (Flex column para empilhar)
         if (p.highlight || p.promoPrice) {
-            badgesHtml = `<div class="absolute top-2 left-2 flex flex-col gap-1 z-20 pointer-events-none">`;
+            badgesHtml += `<div class="absolute top-2 left-2 flex flex-col gap-1 z-10">`;
             
-            // 1. Etiqueta DESTAQUE (Roxo) - Visível e forçada
-            if (!!p.highlight) {
-                badgesHtml += `
-                    <span class="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-lg flex items-center gap-1 animate-pulse">
-                        <i class="fas fa-star text-[8px]"></i> DESTAQUE
-                    </span>`;
+            // Etiqueta DESTAQUE (Roxo)
+            if (p.highlight) {
+                badgesHtml += `<span class="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow flex items-center gap-1"><i class="fas fa-star text-[8px]"></i> DESTAQUE</span>`;
             }
             
-            // 2. Etiqueta OFERTA (Amarelo)
+            // Etiqueta OFERTA (Amarelo)
             if (p.promoPrice) {
-                badgesHtml += `<span class="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">OFERTA</span>`;
+                badgesHtml += `<span class="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow">OFERTA</span>`;
             }
             
             badgesHtml += `</div>`;
@@ -2803,21 +2765,11 @@ function setupEventListeners() {
         };
     }
 
-   // --- LOCALIZAR DENTRO DE setupEventListeners ---
     const formProd = getEl('form-product');
     if (formProd) {
         formProd.onsubmit = async (e) => {
             e.preventDefault();
-            const btnSave = document.querySelector('#form-product button[type="submit"]');
-            const originalText = btnSave ? btnSave.innerText : 'Salvar';
-
             try {
-                if(btnSave) {
-                    btnSave.innerText = "Salvando...";
-                    btnSave.disabled = true;
-                }
-
-                // 1. CAPTURA IDS DOS CAMPOS
                 const idEl = getEl('edit-prod-id');
                 const nameEl = getEl('prod-name');
                 const catEl = getEl('prod-cat-select');
@@ -2827,27 +2779,21 @@ function setupEventListeners() {
                 const stockEl = getEl('prod-stock');
                 const costEl = getEl('prod-cost');
                 const sizesEl = getEl('prod-sizes');
-                
-                // 2. CAPTURA CHECKBOXES (AQUI ESTÁ A CORREÇÃO)
                 const noStockEl = getEl('prod-allow-no-stock');
-                const highlightEl = getEl('prod-highlight'); // <--- CAPTURA O NOVO CAMPO
 
-                // Helper de formatação
                 const parseVal = (val) => val ? parseFloat(val.replace(/\./g, '').replace(',', '.')) : 0;
 
                 // Validação de Imagem
                 if (state.tempImages.length === 0) {
-                    alert("Adicione pelo menos uma imagem!");
-                    return;
+                    return alert("Adicione pelo menos uma imagem!");
                 }
 
-                // 3. CAPTURA PIX
+                // --- CORREÇÃO: Captura dos Dados do PIX ---
                 const pixActive = getEl('prod-pix-active').checked;
-                const pixValRaw = getEl('prod-pix-val').value;
-                const pixVal = parseVal(pixValRaw);
-                const pixType = getEl('prod-pix-type').value;
+                const pixVal = parseFloat(getEl('prod-pix-val').value) || 0;
+                const pixType = getEl('prod-pix-type').value || 'percent';
 
-                // 4. MONTA O OBJETO
+                // --- Captura Dados Básicos ---
                 const data = {
                     name: nameEl ? nameEl.value : 'Sem Nome',
                     category: catEl ? catEl.value : "Geral",
@@ -2857,53 +2803,46 @@ function setupEventListeners() {
                     stock: stockEl ? parseInt(stockEl.value) : 0,
                     cost: costEl ? parseVal(costEl.value) : 0,
                     sizes: sizesEl ? sizesEl.value.split(',').map(s => s.trim()).filter(s => s !== '') : [],
-                    images: state.tempImages, 
-                    
-                    // --- BOOLEANOS (AQUI O SEGREDO) ---
+                    images: state.tempImages, // Usa as imagens processadas
                     allowNoStock: noStockEl ? noStockEl.checked : false,
-                    highlight: highlightEl ? highlightEl.checked : false, // <--- AGORA VAI SALVAR!
 
+                    // --- CORREÇÃO: Objeto de Pagamento Inserido Corretamente ---
                     paymentOptions: {
                         pix: {
                             active: pixActive,
                             val: pixVal,
                             type: pixType
                         }
+                        // Futuramente pode adicionar 'card' aqui se for configuração individual
                     }
                 };
 
-                // 5. SALVA NO BANCO
+                // Gera código se for novo produto
+                if (!idEl.value) {
+                    // Chama a função que conta 1, 2, 3...
+                    const nextCode = await getNextProductCode(state.siteId);
+
+                    data.code = nextCode;
+                    data.createdAt = new Date().toISOString();
+                }
+
                 const id = idEl.value;
 
                 if (id) {
-                    // Edição
                     await updateDoc(doc(db, `sites/${state.siteId}/products`, id), data);
                     showToast('Produto atualizado!');
                 } else {
-                    // Criação
-                    const nextCode = await getNextProductCode(state.siteId);
-                    data.code = nextCode;
-                    data.createdAt = new Date().toISOString();
                     await addDoc(collection(db, `sites/${state.siteId}/products`), data);
                     showToast('Produto criado!');
                 }
 
-                // 6. LIMPEZA
                 if (els.productFormModal) els.productFormModal.classList.add('hidden');
                 e.target.reset();
                 state.tempImages = [];
-                
-                // Força atualização da lista para ver o destaque imediatamente
-                if(typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
 
             } catch (err) {
                 console.error(err);
                 alert("Erro ao salvar produto: " + err.message);
-            } finally {
-                if(btnSave) {
-                    btnSave.innerText = originalText;
-                    btnSave.disabled = false;
-                }
             }
         };
     }
@@ -3840,129 +3779,179 @@ window.confirmDeleteProduct = async (id) => {
     }
 };
 
-window.saveProduct = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    const btnSave = document.querySelector('#form-product button[type="submit"]');
+window.saveProduct = async () => {
+    const btnSave = getEl('btn-save-product') || document.querySelector('button[onclick="saveProduct()"]');
     const originalText = btnSave ? btnSave.innerText : 'Salvar';
 
+    // 1. Pega os inputs
+    const id = getEl('edit-prod-id').value;
+    const name = getEl('prod-name').value;
+    const cat = getEl('prod-cat-select').value;
+
+    const priceRaw = getEl('prod-price').value;
+    const promoRaw = getEl('prod-promo').value;
+    const costRaw = getEl('prod-cost').value;
+    const stockRaw = getEl('prod-stock').value;
+
+    const desc = getEl('prod-desc').value;
+    const sizesStr = getEl('prod-sizes').value;
+    const allowNoStock = getEl('prod-allow-no-stock').checked;
+
+    const isHighlight = getEl('prod-highlight').checked;
+
+    // --- NOVA FUNÇÃO DE CONVERSÃO (BRL -> FLOAT) ---
+    // Transforma "1.250,90" em 1250.90 para o banco de dados
+    const parseBRL = (val) => {
+        if (!val) return 0;
+        // Remove os pontos de milhar (.) e troca a vírgula decimal por ponto (.)
+        const cleanVal = val.toString().replace(/\./g, '').replace(',', '.');
+        return parseFloat(cleanVal);
+    };
+
+    const price = parseBRL(priceRaw);
+
+    // Validação
+    if (!name || isNaN(price) || price <= 0) {
+        return alert('Preencha o Nome e o Preço corretamente.');
+    }
+
+    if (btnSave) {
+        btnSave.innerText = 'Salvando...';
+        btnSave.disabled = true;
+    }
+
     try {
-        if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
-
-        // --- CORREÇÃO DE LEITURA DO CHECKBOX ---
-        // 1. Tenta pegar pelo ID direto
-        let elHighlight = document.getElementById('prod-highlight');
-        let elNoStock = document.getElementById('prod-allow-no-stock');
-
-        // 2. Se falhar, tenta pegar dentro do form (caso haja duplicidade externa)
-        const form = document.getElementById('form-product');
-        if (form) {
-            if (!elHighlight) elHighlight = form.querySelector('#prod-highlight');
-            if (!elNoStock) elNoStock = form.querySelector('#prod-allow-no-stock');
-        }
-
-        // 3. Converte para Booleano (true/false)
-        const isHighlight = elHighlight ? elHighlight.checked : false;
-        const allowNoStock = elNoStock ? elNoStock.checked : false;
-
-        // DEBUG: Veja isso no console ao salvar
-        console.log("--> SALVANDO. Destaque marcado?", isHighlight); 
-
-        // 4. Monta o Objeto
+        // 2. Monta o Objeto
         const productData = {
-            name: document.getElementById('prod-name').value,
-            category: document.getElementById('prod-cat-select').value,
-            description: document.getElementById('prod-desc').value,
-            price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
-            promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
-            stock: parseInt(document.getElementById('prod-stock').value) || 0,
-            cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
-            sizes: document.getElementById('prod-sizes').value.split(',').map(s => s.trim()).filter(s => s),
-            images: state.tempImages || [],
-            
-            // GRAVA OS VALORES CAPTURADOS
+            name: name,
+            description: desc,
+            category: cat,
+            price: price, // Valor numérico limpo
+            promoPrice: promoRaw ? parseBRL(promoRaw) : null,
+            stock: parseInt(stockRaw) || 0,
+            cost: costRaw ? parseBRL(costRaw) : null,
             allowNoStock: allowNoStock,
-            highlight: isHighlight, 
+            sizes: sizesStr ? sizesStr.split(',').map(s => s.trim()) : [],
+            images: state.tempImages || [],
+            highlight: isHighlight,
+        };
 
-            paymentOptions: {
-                pix: {
-                    active: document.getElementById('prod-pix-active').checked,
-                    val: parseFloat(document.getElementById('prod-pix-val').value.replace(/\./g, '').replace(',', '.')) || 0,
-                    type: document.getElementById('prod-pix-type').value
-                }
+        // 3. PIX
+        const pixActive = getEl('prod-pix-active').checked;
+        const pixValRaw = getEl('prod-pix-val').value;
+        const pixType = getEl('prod-pix-type').value;
+
+        productData.paymentOptions = {
+            pix: {
+                active: pixActive,
+                val: parseBRL(pixValRaw),
+                type: pixType
             }
         };
 
-        const id = document.getElementById('edit-prod-id').value;
+        // 4. Salva no Firebase
+        if (!id) { // Se não tem ID, é CRIAÇÃO
 
-        // 5. Envia
-        if (!id) {
+            // AQUI ESTAVA O ERRO: Chamamos a função sequencial agora
             const nextCode = await getNextProductCode(state.siteId);
-            productData.code = nextCode;
+
+            productData.code = nextCode; // Grava o 1, 2, 3...
             productData.createdAt = new Date().toISOString();
+
             await addDoc(collection(db, `sites/${state.siteId}/products`), productData);
             showToast(`Produto #${nextCode} criado!`);
+
         } else {
+            // Se tem ID, é EDIÇÃO (não muda o código)
             await updateDoc(doc(db, `sites/${state.siteId}/products`, id), productData);
             showToast('Produto atualizado!');
         }
 
-        // 6. Limpa e Fecha
-        document.getElementById('product-form-modal').classList.add('hidden');
-        document.getElementById('form-product').reset();
-        state.tempImages = [];
-        if(typeof renderImagePreviews === 'function') renderImagePreviews();
+        // 5. Fecha Modal e Atualiza
+        if (els.productFormModal) els.productFormModal.classList.add('hidden');
+
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+        else window.location.reload();
 
     } catch (error) {
-        console.error(error);
-        alert('Erro ao salvar: ' + error.message);
+        console.error("Erro ao salvar:", error);
+        alert('Erro: ' + error.message);
     } finally {
-        if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
+        if (btnSave) {
+            btnSave.innerText = originalText;
+            btnSave.disabled = false;
+        }
     }
 };
 
 window.editProduct = (id) => {
-    const p = state.products.find(x => x.id === id); 
-    if (!p) return;
+    const p = state.products.find(x => x.id === id); if (!p) return;
 
-    console.log(`Abrindo edição: ${p.name}`);
-    console.log(`Valor de 'highlight' no banco:`, p.highlight); // Deve mostrar true, false ou undefined
+    getEl('edit-prod-id').value = p.id;
+    getEl('prod-name').value = p.name;
 
-    // Inputs de texto
-    document.getElementById('edit-prod-id').value = p.id;
-    document.getElementById('prod-name').value = p.name;
-    document.getElementById('prod-cat-select').value = p.category || "";
-    document.getElementById('prod-desc').value = p.description || "";
-    document.getElementById('prod-price').value = formatMoneyForInput(p.price);
-    document.getElementById('prod-promo').value = formatMoneyForInput(p.promoPrice);
-    document.getElementById('prod-stock').value = p.stock;
-    document.getElementById('prod-cost').value = formatMoneyForInput(p.cost);
-    document.getElementById('prod-sizes').value = p.sizes ? p.sizes.join(', ') : '';
+    const catSelect = getEl('prod-cat-select');
+    if (catSelect && p.category) catSelect.value = p.category;
 
-    // --- CHECKBOXES (LEITURA) ---
-    const elHighlight = document.getElementById('prod-highlight');
-    const elNoStock = document.getElementById('prod-allow-no-stock');
+    getEl('prod-desc').value = p.description;
+    getEl('prod-price').value = formatMoneyForInput(p.price);
+    getEl('prod-promo').value = formatMoneyForInput(p.promoPrice);
+    getEl('prod-stock').value = p.stock; // Estoque continua igual (número inteiro)
+    getEl('prod-cost').value = formatMoneyForInput(p.cost);
+    getEl('prod-sizes').value = p.sizes ? p.sizes.join(',') : '';
 
-    // Usa !!p.highlight para forçar que undefined vire false e true vire true
-    if (elHighlight) elHighlight.checked = !!p.highlight;
-    if (elNoStock) elNoStock.checked = !!p.allowNoStock;
-
-    // Imagens e Pix
+    // CARREGA IMAGENS EXISTENTES NO STATE TEMPORÁRIO
     state.tempImages = p.images ? [...p.images] : [];
-    if(typeof renderImagePreviews === 'function') renderImagePreviews();
+    renderImagePreviews();
 
-    const pixData = p.paymentOptions?.pix || { active: false, val: 0, type: 'percent' };
-    document.getElementById('prod-pix-active').checked = pixData.active;
-    document.getElementById('prod-pix-val').value = pixData.type === 'percent' ? pixData.val : formatMoneyForInput(pixData.val);
-    document.getElementById('prod-pix-type').value = pixData.type;
-    
-    const settingsPix = document.getElementById('pix-settings');
-    if(settingsPix) {
-        settingsPix.classList.toggle('opacity-50', !pixData.active);
-        settingsPix.classList.toggle('pointer-events-none', !pixData.active);
+    const checkNoStock = getEl('prod-allow-no-stock');
+    if (checkNoStock) checkNoStock.checked = p.allowNoStock || false;
+
+    const checkHighlight = getEl('prod-highlight');
+    if (checkHighlight) checkHighlight.checked = p.highlight || false;
+
+    if (els.productFormModal) els.productFormModal.classList.remove('hidden');
+
+    // --- CORREÇÃO: CARREGAMENTO DO PIX ---
+    const pixOptions = (p.paymentOptions && p.paymentOptions.pix) ? p.paymentOptions.pix : { active: false, val: 0, type: 'percent' };
+
+    const checkPix = getEl('prod-pix-active');
+    const inputPixVal = getEl('prod-pix-val');
+    const inputPixType = getEl('prod-pix-type');
+    const settingsPix = getEl('pix-settings');
+
+    if (checkPix) {
+        checkPix.checked = pixOptions.active;
+        // Ativa visualmente a área se estiver marcado
+        if (pixOptions.active) settingsPix.classList.remove('opacity-50', 'pointer-events-none');
+        else settingsPix.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    document.getElementById('product-form-modal').classList.remove('hidden');
+    // Só formata se o tipo for fixo (dinheiro). Se for porcentagem, deixa normal.
+    if (inputPixVal) {
+        if (pixOptions.type === 'percent') {
+            inputPixVal.value = pixOptions.val;
+        } else {
+            inputPixVal.value = formatMoneyForInput(pixOptions.val);
+        }
+    }
+    if (inputPixType) inputPixType.value = pixOptions.type;
+
+    // Atualiza visual dos botões % / R$
+    const btnPercent = getEl('btn-pix-percent');
+    const btnFixed = getEl('btn-pix-fixed');
+    if (btnPercent && btnFixed) {
+        if (pixOptions.type === 'fixed') {
+            btnFixed.className = "px-3 py-1 bg-green-600 text-white text-xs font-bold transition";
+            btnPercent.className = "px-3 py-1 bg-black text-gray-400 text-xs font-bold hover:text-white transition";
+        } else {
+            btnPercent.className = "px-3 py-1 bg-green-600 text-white text-xs font-bold transition";
+            btnFixed.className = "px-3 py-1 bg-black text-gray-400 text-xs font-bold hover:text-white transition";
+        }
+    }
+
+    // Exibe Modal
+    if (els.productFormModal) els.productFormModal.classList.remove('hidden');
 };
 
 window.deleteCoupon = async (id) => {

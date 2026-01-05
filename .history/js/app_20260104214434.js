@@ -2803,21 +2803,11 @@ function setupEventListeners() {
         };
     }
 
-   // --- LOCALIZAR DENTRO DE setupEventListeners ---
     const formProd = getEl('form-product');
     if (formProd) {
         formProd.onsubmit = async (e) => {
             e.preventDefault();
-            const btnSave = document.querySelector('#form-product button[type="submit"]');
-            const originalText = btnSave ? btnSave.innerText : 'Salvar';
-
             try {
-                if(btnSave) {
-                    btnSave.innerText = "Salvando...";
-                    btnSave.disabled = true;
-                }
-
-                // 1. CAPTURA IDS DOS CAMPOS
                 const idEl = getEl('edit-prod-id');
                 const nameEl = getEl('prod-name');
                 const catEl = getEl('prod-cat-select');
@@ -2827,27 +2817,21 @@ function setupEventListeners() {
                 const stockEl = getEl('prod-stock');
                 const costEl = getEl('prod-cost');
                 const sizesEl = getEl('prod-sizes');
-                
-                // 2. CAPTURA CHECKBOXES (AQUI ESTÁ A CORREÇÃO)
                 const noStockEl = getEl('prod-allow-no-stock');
-                const highlightEl = getEl('prod-highlight'); // <--- CAPTURA O NOVO CAMPO
 
-                // Helper de formatação
                 const parseVal = (val) => val ? parseFloat(val.replace(/\./g, '').replace(',', '.')) : 0;
 
                 // Validação de Imagem
                 if (state.tempImages.length === 0) {
-                    alert("Adicione pelo menos uma imagem!");
-                    return;
+                    return alert("Adicione pelo menos uma imagem!");
                 }
 
-                // 3. CAPTURA PIX
+                // --- CORREÇÃO: Captura dos Dados do PIX ---
                 const pixActive = getEl('prod-pix-active').checked;
-                const pixValRaw = getEl('prod-pix-val').value;
-                const pixVal = parseVal(pixValRaw);
-                const pixType = getEl('prod-pix-type').value;
+                const pixVal = parseFloat(getEl('prod-pix-val').value) || 0;
+                const pixType = getEl('prod-pix-type').value || 'percent';
 
-                // 4. MONTA O OBJETO
+                // --- Captura Dados Básicos ---
                 const data = {
                     name: nameEl ? nameEl.value : 'Sem Nome',
                     category: catEl ? catEl.value : "Geral",
@@ -2857,53 +2841,46 @@ function setupEventListeners() {
                     stock: stockEl ? parseInt(stockEl.value) : 0,
                     cost: costEl ? parseVal(costEl.value) : 0,
                     sizes: sizesEl ? sizesEl.value.split(',').map(s => s.trim()).filter(s => s !== '') : [],
-                    images: state.tempImages, 
-                    
-                    // --- BOOLEANOS (AQUI O SEGREDO) ---
+                    images: state.tempImages, // Usa as imagens processadas
                     allowNoStock: noStockEl ? noStockEl.checked : false,
-                    highlight: highlightEl ? highlightEl.checked : false, // <--- AGORA VAI SALVAR!
 
+                    // --- CORREÇÃO: Objeto de Pagamento Inserido Corretamente ---
                     paymentOptions: {
                         pix: {
                             active: pixActive,
                             val: pixVal,
                             type: pixType
                         }
+                        // Futuramente pode adicionar 'card' aqui se for configuração individual
                     }
                 };
 
-                // 5. SALVA NO BANCO
+                // Gera código se for novo produto
+                if (!idEl.value) {
+                    // Chama a função que conta 1, 2, 3...
+                    const nextCode = await getNextProductCode(state.siteId);
+
+                    data.code = nextCode;
+                    data.createdAt = new Date().toISOString();
+                }
+
                 const id = idEl.value;
 
                 if (id) {
-                    // Edição
                     await updateDoc(doc(db, `sites/${state.siteId}/products`, id), data);
                     showToast('Produto atualizado!');
                 } else {
-                    // Criação
-                    const nextCode = await getNextProductCode(state.siteId);
-                    data.code = nextCode;
-                    data.createdAt = new Date().toISOString();
                     await addDoc(collection(db, `sites/${state.siteId}/products`), data);
                     showToast('Produto criado!');
                 }
 
-                // 6. LIMPEZA
                 if (els.productFormModal) els.productFormModal.classList.add('hidden');
                 e.target.reset();
                 state.tempImages = [];
-                
-                // Força atualização da lista para ver o destaque imediatamente
-                if(typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
 
             } catch (err) {
                 console.error(err);
                 alert("Erro ao salvar produto: " + err.message);
-            } finally {
-                if(btnSave) {
-                    btnSave.innerText = originalText;
-                    btnSave.disabled = false;
-                }
             }
         };
     }
@@ -3841,128 +3818,173 @@ window.confirmDeleteProduct = async (id) => {
 };
 
 window.saveProduct = async (e) => {
+    // Se for chamado via submit do form, previne reload
     if (e && e.preventDefault) e.preventDefault();
+
     const btnSave = document.querySelector('#form-product button[type="submit"]');
     const originalText = btnSave ? btnSave.innerText : 'Salvar';
 
     try {
-        if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
-
-        // --- CORREÇÃO DE LEITURA DO CHECKBOX ---
-        // 1. Tenta pegar pelo ID direto
-        let elHighlight = document.getElementById('prod-highlight');
-        let elNoStock = document.getElementById('prod-allow-no-stock');
-
-        // 2. Se falhar, tenta pegar dentro do form (caso haja duplicidade externa)
-        const form = document.getElementById('form-product');
-        if (form) {
-            if (!elHighlight) elHighlight = form.querySelector('#prod-highlight');
-            if (!elNoStock) elNoStock = form.querySelector('#prod-allow-no-stock');
+        if (btnSave) {
+            btnSave.innerText = 'Salvando...';
+            btnSave.disabled = true;
         }
 
-        // 3. Converte para Booleano (true/false)
-        const isHighlight = elHighlight ? elHighlight.checked : false;
-        const allowNoStock = elNoStock ? elNoStock.checked : false;
+        // 1. Captura IDs
+        const idEl = document.getElementById('edit-prod-id');
+        const nameEl = document.getElementById('prod-name');
+        const catEl = document.getElementById('prod-cat-select');
+        const priceEl = document.getElementById('prod-price');
+        
+        // Validação básica
+        if (!nameEl.value || !priceEl.value) {
+            alert('Preencha nome e preço.');
+            return;
+        }
 
-        // DEBUG: Veja isso no console ao salvar
-        console.log("--> SALVANDO. Destaque marcado?", isHighlight); 
+        // 2. Funções de valor
+        const parseBRL = (val) => {
+            if (!val) return 0;
+            return parseFloat(val.toString().replace(/\./g, '').replace(',', '.'));
+        };
 
-        // 4. Monta o Objeto
+        // 3. Captura Checkboxes (AQUI ESTÁ A GARANTIA DE SALVAR O DESTAQUE)
+        const checkNoStock = document.getElementById('prod-allow-no-stock');
+        const checkHighlight = document.getElementById('prod-highlight');
+        
+        const allowNoStock = checkNoStock ? checkNoStock.checked : false;
+        const isHighlight = checkHighlight ? checkHighlight.checked : false; // <--- Importante
+
+        // 4. Monta Objeto
         const productData = {
-            name: document.getElementById('prod-name').value,
-            category: document.getElementById('prod-cat-select').value,
+            name: nameEl.value,
+            category: catEl.value,
             description: document.getElementById('prod-desc').value,
-            price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
-            promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
+            price: parseBRL(priceEl.value),
+            promoPrice: parseBRL(document.getElementById('prod-promo').value) || null,
             stock: parseInt(document.getElementById('prod-stock').value) || 0,
-            cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
+            cost: parseBRL(document.getElementById('prod-cost').value) || null,
             sizes: document.getElementById('prod-sizes').value.split(',').map(s => s.trim()).filter(s => s),
             images: state.tempImages || [],
             
-            // GRAVA OS VALORES CAPTURADOS
+            // Campos Booleanos
             allowNoStock: allowNoStock,
-            highlight: isHighlight, 
+            highlight: isHighlight, // Salva true ou false no banco
 
+            // Pix
             paymentOptions: {
                 pix: {
                     active: document.getElementById('prod-pix-active').checked,
-                    val: parseFloat(document.getElementById('prod-pix-val').value.replace(/\./g, '').replace(',', '.')) || 0,
+                    val: parseBRL(document.getElementById('prod-pix-val').value),
                     type: document.getElementById('prod-pix-type').value
                 }
             }
         };
 
-        const id = document.getElementById('edit-prod-id').value;
+        const id = idEl.value;
 
-        // 5. Envia
+        // 5. Salva no Firebase
         if (!id) {
+            // Criar
             const nextCode = await getNextProductCode(state.siteId);
             productData.code = nextCode;
             productData.createdAt = new Date().toISOString();
             await addDoc(collection(db, `sites/${state.siteId}/products`), productData);
             showToast(`Produto #${nextCode} criado!`);
         } else {
+            // Editar
             await updateDoc(doc(db, `sites/${state.siteId}/products`, id), productData);
             showToast('Produto atualizado!');
         }
 
-        // 6. Limpa e Fecha
-        document.getElementById('product-form-modal').classList.add('hidden');
+        // 6. Limpeza
+        const modal = document.getElementById('product-form-modal');
+        if (modal) modal.classList.add('hidden');
+        
         document.getElementById('form-product').reset();
         state.tempImages = [];
         if(typeof renderImagePreviews === 'function') renderImagePreviews();
-        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
 
     } catch (error) {
         console.error(error);
         alert('Erro ao salvar: ' + error.message);
     } finally {
-        if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
+        if (btnSave) {
+            btnSave.innerText = originalText;
+            btnSave.disabled = false;
+        }
     }
 };
 
 window.editProduct = (id) => {
+    // 1. Encontra o produto na memória
     const p = state.products.find(x => x.id === id); 
     if (!p) return;
 
-    console.log(`Abrindo edição: ${p.name}`);
-    console.log(`Valor de 'highlight' no banco:`, p.highlight); // Deve mostrar true, false ou undefined
+    // 2. Preenche os campos de texto
+    const idEl = document.getElementById('edit-prod-id');
+    const nameEl = document.getElementById('prod-name');
+    const catEl = document.getElementById('prod-cat-select');
+    const descEl = document.getElementById('prod-desc');
+    const priceEl = document.getElementById('prod-price');
+    const promoEl = document.getElementById('prod-promo');
+    const stockEl = document.getElementById('prod-stock');
+    const costEl = document.getElementById('prod-cost');
+    const sizesEl = document.getElementById('prod-sizes');
 
-    // Inputs de texto
-    document.getElementById('edit-prod-id').value = p.id;
-    document.getElementById('prod-name').value = p.name;
-    document.getElementById('prod-cat-select').value = p.category || "";
-    document.getElementById('prod-desc').value = p.description || "";
-    document.getElementById('prod-price').value = formatMoneyForInput(p.price);
-    document.getElementById('prod-promo').value = formatMoneyForInput(p.promoPrice);
-    document.getElementById('prod-stock').value = p.stock;
-    document.getElementById('prod-cost').value = formatMoneyForInput(p.cost);
-    document.getElementById('prod-sizes').value = p.sizes ? p.sizes.join(', ') : '';
+    if(idEl) idEl.value = p.id;
+    if(nameEl) nameEl.value = p.name;
+    if(catEl && p.category) catEl.value = p.category;
+    if(descEl) descEl.value = p.description || '';
+    
+    // Formata valores monetários
+    if(priceEl) priceEl.value = formatMoneyForInput(p.price);
+    if(promoEl) promoEl.value = formatMoneyForInput(p.promoPrice);
+    if(stockEl) stockEl.value = p.stock; 
+    if(costEl) costEl.value = formatMoneyForInput(p.cost);
+    if(sizesEl) sizesEl.value = p.sizes ? p.sizes.join(', ') : '';
 
-    // --- CHECKBOXES (LEITURA) ---
-    const elHighlight = document.getElementById('prod-highlight');
-    const elNoStock = document.getElementById('prod-allow-no-stock');
-
-    // Usa !!p.highlight para forçar que undefined vire false e true vire true
-    if (elHighlight) elHighlight.checked = !!p.highlight;
-    if (elNoStock) elNoStock.checked = !!p.allowNoStock;
-
-    // Imagens e Pix
+    // 3. Carrega Imagens
     state.tempImages = p.images ? [...p.images] : [];
     if(typeof renderImagePreviews === 'function') renderImagePreviews();
 
-    const pixData = p.paymentOptions?.pix || { active: false, val: 0, type: 'percent' };
-    document.getElementById('prod-pix-active').checked = pixData.active;
-    document.getElementById('prod-pix-val').value = pixData.type === 'percent' ? pixData.val : formatMoneyForInput(pixData.val);
-    document.getElementById('prod-pix-type').value = pixData.type;
+    // 4. PREENCHE OS CHECKBOXES (AQUI ESTÁ A CORREÇÃO)
     
-    const settingsPix = document.getElementById('pix-settings');
-    if(settingsPix) {
-        settingsPix.classList.toggle('opacity-50', !pixData.active);
-        settingsPix.classList.toggle('pointer-events-none', !pixData.active);
+    // Checkbox Sem Estoque
+    const checkNoStock = document.getElementById('prod-allow-no-stock');
+    if (checkNoStock) {
+        checkNoStock.checked = !!p.allowNoStock;
     }
 
-    document.getElementById('product-form-modal').classList.remove('hidden');
+    // Checkbox DESTAQUE (Correção Principal)
+    const checkHighlight = document.getElementById('prod-highlight');
+    if (checkHighlight) {
+        // Marca se for true, desmarca se for false/undefined
+        checkHighlight.checked = !!p.highlight; 
+    }
+
+    // 5. Carrega Configurações do Pix
+    const checkPix = document.getElementById('prod-pix-active');
+    const inputPixVal = document.getElementById('prod-pix-val');
+    const inputPixType = document.getElementById('prod-pix-type');
+    const settingsPix = document.getElementById('pix-settings');
+    const pixData = p.paymentOptions?.pix || { active: false, val: 0, type: 'percent' };
+
+    if (checkPix) {
+        checkPix.checked = pixData.active;
+        if (settingsPix) {
+            settingsPix.classList.toggle('opacity-50', !pixData.active);
+            settingsPix.classList.toggle('pointer-events-none', !pixData.active);
+        }
+    }
+    if (inputPixVal) {
+        inputPixVal.value = pixData.type === 'percent' ? pixData.val : formatMoneyForInput(pixData.val);
+    }
+    if (inputPixType) inputPixType.value = pixData.type;
+
+    // 6. Abre o Modal
+    const modal = document.getElementById('product-form-modal');
+    if (modal) modal.classList.remove('hidden');
 };
 
 window.deleteCoupon = async (id) => {

@@ -614,126 +614,36 @@ function loadCoupons() {
 
 // Carrega TODAS as vendas (Usado para ambos dashboards)
 function loadAdminSales() {
-    // 1. Query no Banco de Dados
+    // 1. Conecta ao banco (Mantém sua query original)
     const q = query(collection(db, `sites/${state.siteId}/sales`), orderBy('date', 'desc'));
 
     onSnapshot(q, (snapshot) => {
-        // 2. Salva os dados no State
+        // 2. Salva dados
         state.orders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // --- PARTE 1: NOTIFICAÇÕES (O que estava faltando) ---
-        // Conta quantos pedidos não foram vistos (!o.viewed)
+        // 3. CONTA SOMENTE OS NOVOS (que não tem viewed: true)
         const newOrdersCount = state.orders.filter(o => !o.viewed).length;
 
-        // Atualiza o Botão "Vendas" no Menu
-        const salesBtn = document.getElementById('admin-menu-sales');
-        if (salesBtn) {
+        // 4. Atualiza o Botão "Vendas" no Menu
+        const btnVendas = document.getElementById('admin-menu-sales'); // Certifique-se de ter id="admin-menu-sales" no botão do HTML
+        if (btnVendas) {
             if (newOrdersCount > 0) {
-                salesBtn.innerHTML = `
-                    Vendas 
-                    <span class="ml-2 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg animate-pulse">
-                        ${newOrdersCount}
-                    </span>`;
+                // Adiciona a bolinha vermelha piscando
+                btnVendas.innerHTML = `Vendas <span class="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 animate-pulse shadow-lg">${newOrdersCount}</span>`;
             } else {
-                salesBtn.innerText = 'Vendas';
+                btnVendas.innerText = 'Vendas';
             }
         }
 
-        // Atualiza o Título da Aba do Navegador
-        document.title = newOrdersCount > 0 ? `(${newOrdersCount}) Painel Admin` : 'Painel Admin';
-        // -----------------------------------------------------
-
-        // --- PARTE 2: ATUALIZAÇÃO DE DADOS (O que você pediu para manter) ---
+        // 5. Renderiza a tela (Chama sua função de filtro que chama o renderizador)
+        if (typeof filterAndRenderSales === 'function') {
+            filterAndRenderSales();
+        }
         
-        // Atualiza Dashboard e Tabela de Vendas
-        if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
+        // Atualiza Dashboard se existir
         if (typeof updateDashboardMetrics === 'function') updateDashboardMetrics();
-
-        // Atualiza a tabela de produtos (para preencher colunas "Vendas" e "Data")
-        // Só roda se a tabela de produtos estiver na tela
-        if (document.getElementById('admin-product-list')) {
-            filterAndRenderProducts();
-        }
-
-        // Atualiza Estatísticas Gerais (Financeiro, Gráficos)
-        if (typeof updateStatsData === 'function') {
-            updateStatsData(state.orders, state.products, state.dailyStats);
-        }
     });
 }
-
-
-window.openAdminOrderDetail = async (order) => {
-    // 1. Marca como visualizado no banco (Remove o "NOVO")
-    if (!order.viewed) {
-        try {
-            const orderRef = doc(db, `sites/${state.siteId}/sales`, order.id);
-            updateDoc(orderRef, { viewed: true });
-        } catch (e) { console.error("Erro ao marcar visto:", e); }
-    }
-
-    // 2. Preenche o Modal de Detalhes
-    // IDs baseados no padrão comum. Verifique se o seu HTML usa estes IDs.
-    const idEl = document.getElementById('admin-order-id-display');
-    const nameEl = document.getElementById('admin-client-name');
-    const phoneEl = document.getElementById('admin-client-phone');
-    const addrEl = document.getElementById('admin-client-address');
-    const itemsEl = document.getElementById('admin-order-items');
-    const totalEl = document.getElementById('admin-order-total');
-    const statusSelect = document.getElementById('admin-order-status-select');
-
-    // Preenche textos
-    if (idEl) idEl.innerText = `#${order.code || order.id.slice(0,6)}`;
-    if (nameEl) nameEl.innerText = order.customer?.name || 'Cliente Sem Nome';
-    if (phoneEl) phoneEl.innerText = order.customer?.phone || '-';
-    
-    // Preenche Endereço
-    if (addrEl) {
-        if (typeof formatarEnderecoAdmin === 'function') {
-            addrEl.innerHTML = formatarEnderecoAdmin(order.customer);
-        } else {
-            addrEl.innerText = order.customer?.address || 'Endereço não informado';
-        }
-    }
-
-    // Preenche Itens
-    if (itemsEl) {
-        itemsEl.innerHTML = (order.items || []).map(i => `
-            <div class="flex justify-between py-2 border-b border-gray-700 text-sm">
-                <div><span class="text-yellow-500 font-bold">${i.qty}x</span> ${i.name}</div>
-                <div class="text-white">${formatCurrency(i.price * i.qty)}</div>
-            </div>
-        `).join('');
-        
-        // Adiciona Frete se houver
-        if (order.shippingFee > 0) {
-            itemsEl.innerHTML += `
-                <div class="flex justify-between py-2 border-b border-gray-700 text-sm text-gray-400">
-                    <div>Frete</div>
-                    <div>+ ${formatCurrency(order.shippingFee)}</div>
-                </div>`;
-        }
-    }
-
-    // Preenche Total
-    if (totalEl) totalEl.innerText = formatCurrency(order.total);
-
-    // Configura o Select de Status
-    if (statusSelect) {
-        statusSelect.value = order.status;
-        statusSelect.setAttribute('onchange', `handleStatusChange(this, '${order.id}')`);
-    }
-
-    // Configura Botões de Ação do Modal
-    const btnCancel = document.getElementById('btn-admin-cancel-order');
-    const btnFinish = document.getElementById('btn-admin-finish-order');
-    if (btnCancel) btnCancel.onclick = () => adminCancelOrder(order.id);
-    if (btnFinish) btnFinish.onclick = () => adminFinalizeOrder(order.id);
-
-    // 3. Exibe o Modal
-    const modal = document.getElementById('modal-admin-order');
-    if (modal) modal.classList.remove('hidden');
-};
 
 // Carrega Contadores de Visitas/Compartilhamentos
 function loadSiteStats() {
@@ -989,12 +899,14 @@ function renderCatalog(productsToRender) {
     if (!els.grid) return;
     els.grid.innerHTML = '';
 
-    // 1. FILTRAGEM (Mantém sua lógica atual)
+    // 1. FILTRAGEM (Recupera filtros ativos se a lista passada for a completa)
+    // Se productsToRender for igual a state.products, aplicamos filtros de busca/categoria
     let filtered = [...productsToRender];
+
     const searchTerm = document.getElementById('search-input')?.value.toLowerCase();
     const catTerm = document.getElementById('category-filter')?.value;
 
-    // Aplica filtros apenas se for a lista completa
+    // Se a lista passada for a "bruta" (state.products), aplicamos os filtros da tela
     if (productsToRender === state.products) {
         if (searchTerm) {
             filtered = filtered.filter(p => p.name.toLowerCase().includes(searchTerm) || (p.code && String(p.code).includes(searchTerm)));
@@ -1004,46 +916,43 @@ function renderCatalog(productsToRender) {
         }
     }
 
-    // 2. ORDENAÇÃO (CORRIGIDA E BLINDADA)
+    // 2. ORDENAÇÃO (Aqui está a mágica)
     const sortMode = document.getElementById('sort-filter')?.value || 'newest';
 
     filtered.sort((a, b) => {
-        // Força converter para verdadeiro/falso (evita undefined)
-        const destaqueA = !!a.highlight;
-        const destaqueB = !!b.highlight;
-
-        // PRIORIDADE 1: Destaque
-        if (destaqueA && !destaqueB) return -1; // A sobe
-        if (!destaqueA && destaqueB) return 1;  // B sobe
-        
-        // Se empatou no destaque (ambos sim ou ambos não), segue ordenação normal
-        
-        // Prepara valores
+        // Prepara valores seguros
         const priceA = parseFloat(a.promoPrice || a.price) || 0;
         const priceB = parseFloat(b.promoPrice || b.price) || 0;
         const codeA = parseInt(a.code) || 0;
         const codeB = parseInt(b.code) || 0;
-        const nameA = (a.name || '').toLowerCase();
-        const nameB = (b.name || '').toLowerCase();
+        const nameA = a.name.toLowerCase();
+        const nameB = b.name.toLowerCase();
 
-        // Prioridade 2: Esgotado sempre no fim
+        // Lógica de Esgotado (Sempre no fim, independente da ordenação)
         const isSoldOutA = a.stock <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
         const isSoldOutB = b.stock <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
 
         if (isSoldOutA && !isSoldOutB) return 1;
         if (!isSoldOutA && isSoldOutB) return -1;
 
-        // Prioridade 3: Filtro selecionado pelo usuário
+        // Lógica Selecionada
         switch (sortMode) {
-            case 'price-asc': return priceA - priceB;
-            case 'price-desc': return priceB - priceA;
-            case 'name-asc': return nameA.localeCompare(nameB);
-            case 'newest': 
-            default: return codeB - codeA; // Criação (Código maior primeiro = mais novo)
+            case 'price-asc': // Menor Preço
+                return priceA - priceB;
+
+            case 'price-desc': // Maior Preço
+                return priceB - priceA;
+
+            case 'name-asc': // A-Z
+                return nameA.localeCompare(nameB);
+
+            case 'newest': // Lançamentos (Código Maior = Mais Novo)
+            default:
+                return codeB - codeA;
         }
     });
 
-    // 3. RENDERIZAÇÃO
+    // 3. RENDERIZAÇÃO (Mantém seu código visual)
     if (filtered.length === 0) {
         els.grid.innerHTML = `
             <div class="col-span-2 md:col-span-4 text-center py-10 opacity-50">
@@ -1059,7 +968,10 @@ function renderCatalog(productsToRender) {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
         const isOut = p.stock <= 0 && !allowNegative;
 
-        // Pagamento Pix
+        // ... (resto do seu código de renderização do card: pixHtml, installmentHtml, etc) ...
+        // Copie o conteúdo original de dentro do forEach do seu app.js aqui
+        // Para facilitar, vou colocar o bloco padrão do card:
+
         let pixHtml = '';
         if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
             const pix = p.paymentOptions.pix;
@@ -1067,7 +979,6 @@ function renderCatalog(productsToRender) {
             pixHtml = `<p class="text-green-500 text-[10px] font-bold mt-1"><i class="fas fa-bolt mr-1"></i>${valDisplay} OFF no Pix</p>`;
         }
 
-        // Parcelamento
         let installmentHtml = '';
         if (globalInst.active) {
             const price = p.promoPrice || p.price;
@@ -1084,50 +995,29 @@ function renderCatalog(productsToRender) {
         const priceDisplay = p.promoPrice ?
             `<div class="flex flex-col">
                 <span class="text-gray-500 line-through text-[10px]">${formatCurrency(p.price)}</span>
-                <span class="text-[var(--txt-price)] font-bold text-base">${formatCurrency(p.promoPrice)}</span>
+                <span class="text-[var(--txt-price)] font-bold text-base">
+    ${formatCurrency(p.price)}
+</span>
              </div>` :
-            `<span class="text-[var(--txt-price)] font-bold text-base">${formatCurrency(p.price)}</span>`;
+            `<span class="text-[var(--txt-price)] font-bold text-base">
+    ${formatCurrency(p.price)}
+</span>`;
 
         const imgOpacity = isOut ? 'opacity-50 grayscale' : '';
 
-        // --- CONSTRUÇÃO DAS ETIQUETAS (BADGES) ---
-        let badgesHtml = '';
-        
-        // Verifica se tem destaque ou promo
-        if (p.highlight || p.promoPrice) {
-            badgesHtml = `<div class="absolute top-2 left-2 flex flex-col gap-1 z-20 pointer-events-none">`;
-            
-            // 1. Etiqueta DESTAQUE (Roxo) - Visível e forçada
-            if (!!p.highlight) {
-                badgesHtml += `
-                    <span class="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-lg flex items-center gap-1 animate-pulse">
-                        <i class="fas fa-star text-[8px]"></i> DESTAQUE
-                    </span>`;
-            }
-            
-            // 2. Etiqueta OFERTA (Amarelo)
-            if (p.promoPrice) {
-                badgesHtml += `<span class="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">OFERTA</span>`;
-            }
-            
-            badgesHtml += `</div>`;
-        }
-        // -----------------------------------------
-
         const card = document.createElement('div');
-        card.className = "product-card bg-[var(--bg-card)] border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative cursor-pointer active:scale-95";
+        card.className = "product-card bg-[#151720] border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative cursor-pointer active:scale-95";
         card.onclick = () => openProductModal(p.id);
 
         card.innerHTML = `
             <div class="relative w-full aspect-[4/5] bg-gray-900 overflow-hidden">
                 <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${imgOpacity}">
-                
                 ${isOut ? `<div class="absolute inset-0 flex items-center justify-center z-10"><span class="bg-red-600 text-white font-bold px-4 py-1 rounded shadow-lg transform -rotate-6 text-xs uppercase tracking-wide">Esgotado</span></div>` : ''}
-                
-                ${badgesHtml} </div>
+                ${p.promoPrice ? `<div class="absolute top-2 left-2 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow">OFERTA</div>` : ''}
+            </div>
 
             <div class="p-3 flex flex-col flex-1">
-                <h3 class="text-[var(--txt-title)] font-bold text-xs leading-tight line-clamp-2 mb-1 group-hover:text-yellow-500 transition">${p.name}</h3>
+                <h3 class="text-gray-200 font-bold text-xs leading-tight line-clamp-2 mb-1 group-hover:text-yellow-500 transition">${p.name}</h3>
                 <div class="mt-auto pt-2 border-t border-gray-800/50">
                     ${priceDisplay}
                     ${pixHtml}
@@ -2089,16 +1979,6 @@ function renderSalesList(orders) {
     const listEl = document.getElementById('orders-list');
     if (!listEl) return;
 
-    // --- 1. MEMÓRIA: Guarda quais pedidos estão abertos antes de apagar tudo ---
-    const openOrderIds = new Set();
-    // Procura todos os conteúdos que NÃO tem a classe 'hidden'
-    listEl.querySelectorAll('[id^="order-content-"]:not(.hidden)').forEach(el => {
-        // Pega o ID do pedido a partir do ID do elemento (order-content-123 -> 123)
-        const id = el.id.replace('order-content-', '');
-        openOrderIds.add(id);
-    });
-    // -------------------------------------------------------------------------
-
     listEl.innerHTML = '';
 
     if (orders.length === 0) {
@@ -2107,22 +1987,20 @@ function renderSalesList(orders) {
     }
 
     orders.forEach(o => {
-        // --- Lógica do Visual NOVO ---
-        const isNew = !o.viewed; 
+        // --- LÓGICA DO NOVO (ADICIONADA) ---
+        const isNew = !o.viewed; // Se não foi visto, é novo
+        
+        // 1. Borda Verde se for novo, Cinza padrão se não
         const borderClass = isNew ? "border-green-500 border-l-4 bg-green-900/10" : "border-gray-800 bg-black";
-        const badgeHtml = isNew ? `<span class="ml-2 bg-green-600 text-white text-[9px] font-bold px-2 py-0.5 rounded animate-pulse shadow-lg">NOVO</span>` : "";
         
+        // 2. Etiqueta NOVO
+        const badgeHtml = isNew ? `<span class="ml-2 bg-green-600 text-white text-[9px] font-bold px-2 py-0.5 rounded animate-pulse">NOVO</span>` : "";
+
+        // 3. Ação ao clicar: Abre o acordeão E marca como visto
         const clickAction = `toggleOrderAccordion('${o.id}'); markAsViewed('${o.id}')`;
+        // ------------------------------------
 
-        // --- 2. RESTAURAÇÃO: Verifica se este pedido estava aberto ---
-        const isOpen = openOrderIds.has(o.id);
-        
-        // Se estava aberto, não coloca 'hidden' e gira a seta
-        const contentVisibility = isOpen ? "" : "hidden";
-        const arrowRotation = isOpen ? "rotate(180deg)" : "rotate(0deg)";
-        // ------------------------------------------------------------
-
-        // Formatação de Dados
+        // Formatação de dados (Mantida do seu original)
         const dataObj = new Date(o.date);
         const dataHoraFormatada = `${dataObj.toLocaleDateString('pt-BR')} às ${dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 
@@ -2141,41 +2019,64 @@ function renderSalesList(orders) {
             </div>
         `).join('');
 
-        // Lógica de Desconto e Pagamento (Mantida igual)
-        const subTotalItens = o.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
-        const valFrete = o.shippingFee || 0;
-        const valTotalPago = o.total || 0;
-        const valDescontoTotal = Math.max(0, (subTotalItens + valFrete) - valTotalPago);
+        // Renderiza o Card (Usando borderClass e badgeHtml criados acima)
+        const cardWrapper = document.createElement('div');
+        cardWrapper.className = "mb-4";
 
-        let discountHtml = '';
-        if (valDescontoTotal > 0.05) {
-            let descTexto = 'Desconto';
-            if ((o.paymentMethod || '').toLowerCase().includes('pix')) descTexto = 'Desconto Pix';
-            if (o.cupom) descTexto = `Cupom: ${o.cupom}`;
-            
-            discountHtml = `
-            <div class="mt-2 mb-2 border-y border-gray-700/50 py-2 flex justify-between text-xs text-gray-300">
-                <span>${descTexto}</span>
-                <span class="text-green-400 font-bold">- ${formatCurrency(valDescontoTotal)}</span>
-            </div>`;
-        }
+        cardWrapper.innerHTML = `
+            <div id="order-header-${o.id}" onclick="${clickAction}" 
+                 class="${borderClass} border p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-gray-600 transition-all shadow-md relative z-10">
+                <div class="flex items-center gap-4 flex-1">
+                    <div class="flex items-center">
+                        <span class="text-yellow-500 font-bold text-xl tracking-wide">Pedidos #${o.code}</span>
+                        ${badgeHtml}
+                    </div>
+                    <div id="order-header-info-${o.id}" class="hidden md:flex items-center gap-4 text-sm transition-opacity duration-200">
+                        <span class="${statusColorClass} font-bold uppercase text-xs tracking-wider">${o.status}</span>
+                        <span class="text-gray-500 text-xs border-l border-gray-800 pl-3">${dataHoraFormatada}</span>
+                    </div>
+                </div>
+                <i id="order-arrow-${o.id}" class="fas fa-chevron-down text-yellow-500 text-xl transition-transform duration-300"></i>
+            </div>
 
-        const rawMethod = o.paymentMethod || '';
-        const isOnline = rawMethod.includes('Online');
-        const isDelivery = rawMethod.includes('Entrega');
-        const cleanMethodName = rawMethod.split('[')[0].trim();
-
-        let typeBadge = '';
-        if (isOnline) typeBadge = `<span class="text-[10px] bg-green-900/40 text-green-400 border border-green-600/50 px-2 py-0.5 rounded uppercase font-bold tracking-wide mt-1 inline-block">Online</span>`;
-        else if (isDelivery) typeBadge = `<span class="text-[10px] bg-orange-900/40 text-orange-400 border border-orange-600/50 px-2 py-0.5 rounded uppercase font-bold tracking-wide mt-1 inline-block">Na Entrega</span>`;
-
-        let controlsHtml = '';
-        if (o.status.includes('Cancelado')) {
-            controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span></div>`;
-        } else if (o.status === 'Concluído') {
-            controlsHtml = `<div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700"><span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs">FINALIZADO</span><button onclick="adminRevertStatus('${o.id}')" class="border border-gray-500 text-gray-400 hover:text-white px-3 py-2 rounded text-xs transition">Reabrir</button></div>`;
-        } else {
-            controlsHtml = `
+            <div id="order-content-${o.id}" class="hidden bg-[#0f172a] border-x border-b border-gray-800 rounded-b-xl p-4 -mt-1 pt-6 shadow-inner">
+                <div class="flex justify-between items-start mb-4 pb-4 border-b border-gray-800">
+                    <div>
+                         <p class="text-gray-500 text-xs uppercase">Data do Pedido</p>
+                         <p class="text-white font-bold text-sm">${dataHoraFormatada}</p>
+                    </div>
+                    <div class="text-right">
+                         <p class="text-gray-500 text-xs uppercase">Status Atual</p>
+                         <p class="${statusColorClass} font-bold text-sm uppercase">${o.status}</p>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <p class="text-xs text-gray-500 uppercase font-bold mb-2">Itens do Pedido</p>
+                    ${itemsHtml}
+                    <div class="text-right mt-2 bg-black/20 p-2 rounded border border-gray-700/50">
+                        <div class="flex justify-between items-center pt-2 border-t border-gray-700 mt-1">
+                            <span class="text-gray-400 text-xs font-bold uppercase">Total Final</span>
+                            <span class="text-white font-bold text-xl">${formatCurrency(o.total)}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-900 p-3 rounded border border-gray-800 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mb-4">
+                    <div class="flex flex-col">
+                        <span class="text-gray-500 font-bold mb-1">Cliente:</span>
+                        <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center truncate flex items-center justify-center h-full">${o.customer?.name || '-'}</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-gray-500 font-bold mb-1">Telefone:</span>
+                        <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center flex items-center justify-center h-full">${o.customer?.phone || '-'}</span>
+                    </div>
+                    <div class="col-span-1 md:col-span-3 mt-1">
+                        <span class="text-gray-500 font-bold block mb-1 uppercase">Endereço de Entrega:</span>
+                        <div class="bg-gray-800 p-2 rounded border border-gray-700 w-full">
+                            ${typeof formatarEnderecoAdmin === 'function' ? formatarEnderecoAdmin(o.customer) : (o.customer?.address || '')}
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="flex flex-col md:flex-row gap-4 justify-end items-center mt-4 border-t border-gray-700 pt-4">
                     <div class="flex items-center gap-2">
                         <label class="text-gray-500 text-xs uppercase font-bold">Status:</label>
@@ -2192,106 +2093,24 @@ function renderSalesList(orders) {
                         <button onclick="adminFinalizeOrder('${o.id}')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-xs font-bold transition">Finalizar</button>
                     </div>
                 </div>
-            `;
-        }
-
-        const cardWrapper = document.createElement('div');
-        cardWrapper.className = "mb-4";
-
-        // Apliquei contentVisibility e arrowRotation no HTML abaixo
-        cardWrapper.innerHTML = `
-            <div id="order-header-${o.id}" onclick="${clickAction}" 
-                 class="bg-black border ${borderClass} p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-gray-600 transition-all shadow-md relative z-10">
-                <div class="flex items-center gap-4 flex-1">
-                    <div class="flex items-center">
-                        <span class="text-yellow-500 font-bold text-xl tracking-wide">Pedidos #${o.code}</span>
-                        ${badgeHtml}
-                    </div>
-                    <div id="order-header-info-${o.id}" class="${isOpen ? 'hidden' : 'hidden md:flex'} items-center gap-4 text-sm transition-opacity duration-200">
-                        <span class="${statusColorClass} font-bold uppercase text-xs tracking-wider">${o.status}</span>
-                        <span class="text-gray-500 text-xs border-l border-gray-800 pl-3">${dataHoraFormatada}</span>
-                    </div>
-                </div>
-                <i id="order-arrow-${o.id}" class="fas fa-chevron-down text-yellow-500 text-xl transition-transform duration-300" style="transform: ${arrowRotation}"></i>
-            </div>
-
-            <div id="order-content-${o.id}" class="${contentVisibility} bg-[#0f172a] border-x border-b border-gray-800 rounded-b-xl p-4 -mt-1 pt-6 shadow-inner">
-                <div class="flex justify-between items-start mb-4 pb-4 border-b border-gray-800">
-                    <div>
-                         <p class="text-gray-500 text-xs uppercase">Data do Pedido</p>
-                         <p class="text-white font-bold text-sm">${dataHoraFormatada}</p>
-                    </div>
-                    <div class="text-right">
-                         <p class="text-gray-500 text-xs uppercase">Status Atual</p>
-                         <p class="${statusColorClass} font-bold text-sm uppercase">${o.status}</p>
-                    </div>
-                </div>
-
-                <div class="mb-4">
-                    <p class="text-xs text-gray-500 uppercase font-bold mb-2">Itens do Pedido</p>
-                    ${itemsHtml}
-                    <div class="text-right mt-2 bg-black/20 p-2 rounded border border-gray-700/50">
-                        ${o.shippingFee && o.shippingFee > 0 ? `
-                        <div class="mb-1 flex justify-between text-xs">
-                            <span class="text-gray-500">Frete</span>
-                            <span class="text-yellow-500 font-bold">+ ${formatCurrency(o.shippingFee)}</span>
-                        </div>` : ''}
-                        ${discountHtml}
-                        <div class="flex justify-between items-center pt-2 border-t border-gray-700 mt-1">
-                            <span class="text-gray-400 text-xs font-bold uppercase">Total Final</span>
-                            <span class="text-white font-bold text-xl">${formatCurrency(o.total)}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-gray-900 p-3 rounded border border-gray-800 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mb-4">
-                    <div class="flex flex-col">
-                        <span class="text-gray-500 font-bold mb-1">Cliente:</span>
-                        <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center truncate flex items-center justify-center h-full">${o.customer?.name || '-'}</span>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="text-gray-500 font-bold mb-1">Telefone:</span>
-                        <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center flex items-center justify-center h-full">${o.customer?.phone || '-'}</span>
-                    </div>
-                    
-                    <div class="flex flex-col">
-                        <span class="text-gray-500 font-bold mb-1">Pagamento:</span>
-                        <div class="bg-gray-800 text-white px-2 py-2 rounded border border-gray-700 w-full text-center flex flex-col items-center justify-center h-full">
-                            <span class="truncate w-full font-bold" title="${rawMethod}">${cleanMethodName}</span>
-                            ${typeBadge}
-                        </div>
-                    </div>
-                    <div class="col-span-1 md:col-span-3 mt-1">
-                        <span class="text-gray-500 font-bold block mb-1 uppercase">Endereço de Entrega:</span>
-                        <div class="bg-gray-800 p-2 rounded border border-gray-700 w-full">
-                            ${typeof formatarEnderecoAdmin === 'function' ? formatarEnderecoAdmin(o.customer) : (o.customer?.address || '')}
-                        </div>
-                    </div>
-                </div>
-
-                ${controlsHtml}
             </div>
         `;
         listEl.appendChild(cardWrapper);
     });
 }
-// --- FUNÇÃO PARA MARCAR COMO VISTO ---
+
+// 3. Pequena função auxiliar para marcar como visto ao clicar
 window.markAsViewed = async (id) => {
-    // 1. Encontra o pedido na memória
-    const order = state.orders ? state.orders.find(o => o.id === id) : null;
-    
-    // 2. Se o pedido existe E ainda está como não visto (!viewed)
+    // Busca o pedido na memória
+    const order = state.orders.find(o => o.id === id);
+    // Se ele ainda não foi visto (é novo), atualiza no banco
     if (order && !order.viewed) {
         try {
-            // Atualiza no Firebase
-            const orderRef = doc(db, `sites/${state.siteId}/sales`, id);
-            await updateDoc(orderRef, { viewed: true });
-            // O onSnapshot vai detectar essa mudança e remover o estilo automaticamente
-        } catch (e) {
-            console.error("Erro ao marcar como visto:", e);
-        }
+            await updateDoc(doc(db, `sites/${state.siteId}/sales`, id), { viewed: true });
+        } catch (e) { console.log(e); }
     }
 };
+
 // =================================================================
 // 8. EVENT LISTENERS
 // =================================================================
@@ -2803,21 +2622,11 @@ function setupEventListeners() {
         };
     }
 
-   // --- LOCALIZAR DENTRO DE setupEventListeners ---
     const formProd = getEl('form-product');
     if (formProd) {
         formProd.onsubmit = async (e) => {
             e.preventDefault();
-            const btnSave = document.querySelector('#form-product button[type="submit"]');
-            const originalText = btnSave ? btnSave.innerText : 'Salvar';
-
             try {
-                if(btnSave) {
-                    btnSave.innerText = "Salvando...";
-                    btnSave.disabled = true;
-                }
-
-                // 1. CAPTURA IDS DOS CAMPOS
                 const idEl = getEl('edit-prod-id');
                 const nameEl = getEl('prod-name');
                 const catEl = getEl('prod-cat-select');
@@ -2827,27 +2636,21 @@ function setupEventListeners() {
                 const stockEl = getEl('prod-stock');
                 const costEl = getEl('prod-cost');
                 const sizesEl = getEl('prod-sizes');
-                
-                // 2. CAPTURA CHECKBOXES (AQUI ESTÁ A CORREÇÃO)
                 const noStockEl = getEl('prod-allow-no-stock');
-                const highlightEl = getEl('prod-highlight'); // <--- CAPTURA O NOVO CAMPO
 
-                // Helper de formatação
                 const parseVal = (val) => val ? parseFloat(val.replace(/\./g, '').replace(',', '.')) : 0;
 
                 // Validação de Imagem
                 if (state.tempImages.length === 0) {
-                    alert("Adicione pelo menos uma imagem!");
-                    return;
+                    return alert("Adicione pelo menos uma imagem!");
                 }
 
-                // 3. CAPTURA PIX
+                // --- CORREÇÃO: Captura dos Dados do PIX ---
                 const pixActive = getEl('prod-pix-active').checked;
-                const pixValRaw = getEl('prod-pix-val').value;
-                const pixVal = parseVal(pixValRaw);
-                const pixType = getEl('prod-pix-type').value;
+                const pixVal = parseFloat(getEl('prod-pix-val').value) || 0;
+                const pixType = getEl('prod-pix-type').value || 'percent';
 
-                // 4. MONTA O OBJETO
+                // --- Captura Dados Básicos ---
                 const data = {
                     name: nameEl ? nameEl.value : 'Sem Nome',
                     category: catEl ? catEl.value : "Geral",
@@ -2857,53 +2660,46 @@ function setupEventListeners() {
                     stock: stockEl ? parseInt(stockEl.value) : 0,
                     cost: costEl ? parseVal(costEl.value) : 0,
                     sizes: sizesEl ? sizesEl.value.split(',').map(s => s.trim()).filter(s => s !== '') : [],
-                    images: state.tempImages, 
-                    
-                    // --- BOOLEANOS (AQUI O SEGREDO) ---
+                    images: state.tempImages, // Usa as imagens processadas
                     allowNoStock: noStockEl ? noStockEl.checked : false,
-                    highlight: highlightEl ? highlightEl.checked : false, // <--- AGORA VAI SALVAR!
 
+                    // --- CORREÇÃO: Objeto de Pagamento Inserido Corretamente ---
                     paymentOptions: {
                         pix: {
                             active: pixActive,
                             val: pixVal,
                             type: pixType
                         }
+                        // Futuramente pode adicionar 'card' aqui se for configuração individual
                     }
                 };
 
-                // 5. SALVA NO BANCO
+                // Gera código se for novo produto
+                if (!idEl.value) {
+                    // Chama a função que conta 1, 2, 3...
+                    const nextCode = await getNextProductCode(state.siteId);
+
+                    data.code = nextCode;
+                    data.createdAt = new Date().toISOString();
+                }
+
                 const id = idEl.value;
 
                 if (id) {
-                    // Edição
                     await updateDoc(doc(db, `sites/${state.siteId}/products`, id), data);
                     showToast('Produto atualizado!');
                 } else {
-                    // Criação
-                    const nextCode = await getNextProductCode(state.siteId);
-                    data.code = nextCode;
-                    data.createdAt = new Date().toISOString();
                     await addDoc(collection(db, `sites/${state.siteId}/products`), data);
                     showToast('Produto criado!');
                 }
 
-                // 6. LIMPEZA
                 if (els.productFormModal) els.productFormModal.classList.add('hidden');
                 e.target.reset();
                 state.tempImages = [];
-                
-                // Força atualização da lista para ver o destaque imediatamente
-                if(typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
 
             } catch (err) {
                 console.error(err);
                 alert("Erro ao salvar produto: " + err.message);
-            } finally {
-                if(btnSave) {
-                    btnSave.innerText = originalText;
-                    btnSave.disabled = false;
-                }
             }
         };
     }
@@ -3840,129 +3636,173 @@ window.confirmDeleteProduct = async (id) => {
     }
 };
 
-window.saveProduct = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    const btnSave = document.querySelector('#form-product button[type="submit"]');
+window.saveProduct = async () => {
+    const btnSave = getEl('btn-save-product') || document.querySelector('button[onclick="saveProduct()"]');
     const originalText = btnSave ? btnSave.innerText : 'Salvar';
 
+    // 1. Pega os inputs
+    const id = getEl('edit-prod-id').value;
+    const name = getEl('prod-name').value;
+    const cat = getEl('prod-cat-select').value;
+
+    const priceRaw = getEl('prod-price').value;
+    const promoRaw = getEl('prod-promo').value;
+    const costRaw = getEl('prod-cost').value;
+    const stockRaw = getEl('prod-stock').value;
+
+    const desc = getEl('prod-desc').value;
+    const sizesStr = getEl('prod-sizes').value;
+    const allowNoStock = getEl('prod-allow-no-stock').checked;
+
+    // --- NOVA FUNÇÃO DE CONVERSÃO (BRL -> FLOAT) ---
+    // Transforma "1.250,90" em 1250.90 para o banco de dados
+    const parseBRL = (val) => {
+        if (!val) return 0;
+        // Remove os pontos de milhar (.) e troca a vírgula decimal por ponto (.)
+        const cleanVal = val.toString().replace(/\./g, '').replace(',', '.');
+        return parseFloat(cleanVal);
+    };
+
+    const price = parseBRL(priceRaw);
+
+    // Validação
+    if (!name || isNaN(price) || price <= 0) {
+        return alert('Preencha o Nome e o Preço corretamente.');
+    }
+
+    if (btnSave) {
+        btnSave.innerText = 'Salvando...';
+        btnSave.disabled = true;
+    }
+
     try {
-        if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
-
-        // --- CORREÇÃO DE LEITURA DO CHECKBOX ---
-        // 1. Tenta pegar pelo ID direto
-        let elHighlight = document.getElementById('prod-highlight');
-        let elNoStock = document.getElementById('prod-allow-no-stock');
-
-        // 2. Se falhar, tenta pegar dentro do form (caso haja duplicidade externa)
-        const form = document.getElementById('form-product');
-        if (form) {
-            if (!elHighlight) elHighlight = form.querySelector('#prod-highlight');
-            if (!elNoStock) elNoStock = form.querySelector('#prod-allow-no-stock');
-        }
-
-        // 3. Converte para Booleano (true/false)
-        const isHighlight = elHighlight ? elHighlight.checked : false;
-        const allowNoStock = elNoStock ? elNoStock.checked : false;
-
-        // DEBUG: Veja isso no console ao salvar
-        console.log("--> SALVANDO. Destaque marcado?", isHighlight); 
-
-        // 4. Monta o Objeto
+        // 2. Monta o Objeto
         const productData = {
-            name: document.getElementById('prod-name').value,
-            category: document.getElementById('prod-cat-select').value,
-            description: document.getElementById('prod-desc').value,
-            price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
-            promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
-            stock: parseInt(document.getElementById('prod-stock').value) || 0,
-            cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
-            sizes: document.getElementById('prod-sizes').value.split(',').map(s => s.trim()).filter(s => s),
-            images: state.tempImages || [],
-            
-            // GRAVA OS VALORES CAPTURADOS
+            name: name,
+            description: desc,
+            category: cat,
+            price: price, // Valor numérico limpo
+            promoPrice: promoRaw ? parseBRL(promoRaw) : null,
+            stock: parseInt(stockRaw) || 0,
+            cost: costRaw ? parseBRL(costRaw) : null,
             allowNoStock: allowNoStock,
-            highlight: isHighlight, 
+            sizes: sizesStr ? sizesStr.split(',').map(s => s.trim()) : [],
+            images: state.tempImages || []
+        };
 
-            paymentOptions: {
-                pix: {
-                    active: document.getElementById('prod-pix-active').checked,
-                    val: parseFloat(document.getElementById('prod-pix-val').value.replace(/\./g, '').replace(',', '.')) || 0,
-                    type: document.getElementById('prod-pix-type').value
-                }
+        // 3. PIX
+        const pixActive = getEl('prod-pix-active').checked;
+        const pixValRaw = getEl('prod-pix-val').value;
+        const pixType = getEl('prod-pix-type').value;
+
+        productData.paymentOptions = {
+            pix: {
+                active: pixActive,
+                val: parseBRL(pixValRaw),
+                type: pixType
             }
         };
 
-        const id = document.getElementById('edit-prod-id').value;
+        // 4. Salva no Firebase
+        if (!id) { // Se não tem ID, é CRIAÇÃO
 
-        // 5. Envia
-        if (!id) {
+            // AQUI ESTAVA O ERRO: Chamamos a função sequencial agora
             const nextCode = await getNextProductCode(state.siteId);
-            productData.code = nextCode;
+
+            productData.code = nextCode; // Grava o 1, 2, 3...
             productData.createdAt = new Date().toISOString();
+
             await addDoc(collection(db, `sites/${state.siteId}/products`), productData);
             showToast(`Produto #${nextCode} criado!`);
+
         } else {
+            // Se tem ID, é EDIÇÃO (não muda o código)
             await updateDoc(doc(db, `sites/${state.siteId}/products`, id), productData);
             showToast('Produto atualizado!');
         }
 
-        // 6. Limpa e Fecha
-        document.getElementById('product-form-modal').classList.add('hidden');
-        document.getElementById('form-product').reset();
-        state.tempImages = [];
-        if(typeof renderImagePreviews === 'function') renderImagePreviews();
+        // 5. Fecha Modal e Atualiza
+        if (els.productFormModal) els.productFormModal.classList.add('hidden');
+
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+        else window.location.reload();
 
     } catch (error) {
-        console.error(error);
-        alert('Erro ao salvar: ' + error.message);
+        console.error("Erro ao salvar:", error);
+        alert('Erro: ' + error.message);
     } finally {
-        if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
+        if (btnSave) {
+            btnSave.innerText = originalText;
+            btnSave.disabled = false;
+        }
     }
 };
 
 window.editProduct = (id) => {
-    const p = state.products.find(x => x.id === id); 
-    if (!p) return;
+    const p = state.products.find(x => x.id === id); if (!p) return;
 
-    console.log(`Abrindo edição: ${p.name}`);
-    console.log(`Valor de 'highlight' no banco:`, p.highlight); // Deve mostrar true, false ou undefined
+    getEl('edit-prod-id').value = p.id;
+    getEl('prod-name').value = p.name;
 
-    // Inputs de texto
-    document.getElementById('edit-prod-id').value = p.id;
-    document.getElementById('prod-name').value = p.name;
-    document.getElementById('prod-cat-select').value = p.category || "";
-    document.getElementById('prod-desc').value = p.description || "";
-    document.getElementById('prod-price').value = formatMoneyForInput(p.price);
-    document.getElementById('prod-promo').value = formatMoneyForInput(p.promoPrice);
-    document.getElementById('prod-stock').value = p.stock;
-    document.getElementById('prod-cost').value = formatMoneyForInput(p.cost);
-    document.getElementById('prod-sizes').value = p.sizes ? p.sizes.join(', ') : '';
+    const catSelect = getEl('prod-cat-select');
+    if (catSelect && p.category) catSelect.value = p.category;
 
-    // --- CHECKBOXES (LEITURA) ---
-    const elHighlight = document.getElementById('prod-highlight');
-    const elNoStock = document.getElementById('prod-allow-no-stock');
+    getEl('prod-desc').value = p.description;
+    getEl('prod-price').value = formatMoneyForInput(p.price);
+    getEl('prod-promo').value = formatMoneyForInput(p.promoPrice);
+    getEl('prod-stock').value = p.stock; // Estoque continua igual (número inteiro)
+    getEl('prod-cost').value = formatMoneyForInput(p.cost);
+    getEl('prod-sizes').value = p.sizes ? p.sizes.join(',') : '';
 
-    // Usa !!p.highlight para forçar que undefined vire false e true vire true
-    if (elHighlight) elHighlight.checked = !!p.highlight;
-    if (elNoStock) elNoStock.checked = !!p.allowNoStock;
-
-    // Imagens e Pix
+    // CARREGA IMAGENS EXISTENTES NO STATE TEMPORÁRIO
     state.tempImages = p.images ? [...p.images] : [];
-    if(typeof renderImagePreviews === 'function') renderImagePreviews();
+    renderImagePreviews();
 
-    const pixData = p.paymentOptions?.pix || { active: false, val: 0, type: 'percent' };
-    document.getElementById('prod-pix-active').checked = pixData.active;
-    document.getElementById('prod-pix-val').value = pixData.type === 'percent' ? pixData.val : formatMoneyForInput(pixData.val);
-    document.getElementById('prod-pix-type').value = pixData.type;
-    
-    const settingsPix = document.getElementById('pix-settings');
-    if(settingsPix) {
-        settingsPix.classList.toggle('opacity-50', !pixData.active);
-        settingsPix.classList.toggle('pointer-events-none', !pixData.active);
+    const checkNoStock = getEl('prod-allow-no-stock');
+    if (checkNoStock) checkNoStock.checked = p.allowNoStock || false;
+
+    if (els.productFormModal) els.productFormModal.classList.remove('hidden');
+
+    // --- CORREÇÃO: CARREGAMENTO DO PIX ---
+    const pixOptions = (p.paymentOptions && p.paymentOptions.pix) ? p.paymentOptions.pix : { active: false, val: 0, type: 'percent' };
+
+    const checkPix = getEl('prod-pix-active');
+    const inputPixVal = getEl('prod-pix-val');
+    const inputPixType = getEl('prod-pix-type');
+    const settingsPix = getEl('pix-settings');
+
+    if (checkPix) {
+        checkPix.checked = pixOptions.active;
+        // Ativa visualmente a área se estiver marcado
+        if (pixOptions.active) settingsPix.classList.remove('opacity-50', 'pointer-events-none');
+        else settingsPix.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    document.getElementById('product-form-modal').classList.remove('hidden');
+    // Só formata se o tipo for fixo (dinheiro). Se for porcentagem, deixa normal.
+    if (inputPixVal) {
+        if (pixOptions.type === 'percent') {
+            inputPixVal.value = pixOptions.val;
+        } else {
+            inputPixVal.value = formatMoneyForInput(pixOptions.val);
+        }
+    }
+    if (inputPixType) inputPixType.value = pixOptions.type;
+
+    // Atualiza visual dos botões % / R$
+    const btnPercent = getEl('btn-pix-percent');
+    const btnFixed = getEl('btn-pix-fixed');
+    if (btnPercent && btnFixed) {
+        if (pixOptions.type === 'fixed') {
+            btnFixed.className = "px-3 py-1 bg-green-600 text-white text-xs font-bold transition";
+            btnPercent.className = "px-3 py-1 bg-black text-gray-400 text-xs font-bold hover:text-white transition";
+        } else {
+            btnPercent.className = "px-3 py-1 bg-green-600 text-white text-xs font-bold transition";
+            btnFixed.className = "px-3 py-1 bg-black text-gray-400 text-xs font-bold hover:text-white transition";
+        }
+    }
+
+    // Exibe Modal
+    if (els.productFormModal) els.productFormModal.classList.remove('hidden');
 };
 
 window.deleteCoupon = async (id) => {
@@ -7003,3 +6843,74 @@ window.loadTheme = loadTheme;
 // location.reload();
 
 
+window.openAdminOrderDetail = async (order) => {
+    // 1. Marca como visualizado no banco (Remove o "NOVO")
+    if (!order.viewed) {
+        try {
+            const orderRef = doc(db, `sites/${state.siteId}/sales`, order.id);
+            updateDoc(orderRef, { viewed: true });
+        } catch (e) { console.error("Erro ao marcar visto:", e); }
+    }
+
+    // 2. Preenche o Modal de Detalhes
+    // IDs baseados no padrão comum. Verifique se o seu HTML usa estes IDs.
+    const idEl = document.getElementById('admin-order-id-display');
+    const nameEl = document.getElementById('admin-client-name');
+    const phoneEl = document.getElementById('admin-client-phone');
+    const addrEl = document.getElementById('admin-client-address');
+    const itemsEl = document.getElementById('admin-order-items');
+    const totalEl = document.getElementById('admin-order-total');
+    const statusSelect = document.getElementById('admin-order-status-select');
+
+    // Preenche textos
+    if (idEl) idEl.innerText = `#${order.code || order.id.slice(0,6)}`;
+    if (nameEl) nameEl.innerText = order.customer?.name || 'Cliente Sem Nome';
+    if (phoneEl) phoneEl.innerText = order.customer?.phone || '-';
+    
+    // Preenche Endereço
+    if (addrEl) {
+        if (typeof formatarEnderecoAdmin === 'function') {
+            addrEl.innerHTML = formatarEnderecoAdmin(order.customer);
+        } else {
+            addrEl.innerText = order.customer?.address || 'Endereço não informado';
+        }
+    }
+
+    // Preenche Itens
+    if (itemsEl) {
+        itemsEl.innerHTML = (order.items || []).map(i => `
+            <div class="flex justify-between py-2 border-b border-gray-700 text-sm">
+                <div><span class="text-yellow-500 font-bold">${i.qty}x</span> ${i.name}</div>
+                <div class="text-white">${formatCurrency(i.price * i.qty)}</div>
+            </div>
+        `).join('');
+        
+        // Adiciona Frete se houver
+        if (order.shippingFee > 0) {
+            itemsEl.innerHTML += `
+                <div class="flex justify-between py-2 border-b border-gray-700 text-sm text-gray-400">
+                    <div>Frete</div>
+                    <div>+ ${formatCurrency(order.shippingFee)}</div>
+                </div>`;
+        }
+    }
+
+    // Preenche Total
+    if (totalEl) totalEl.innerText = formatCurrency(order.total);
+
+    // Configura o Select de Status
+    if (statusSelect) {
+        statusSelect.value = order.status;
+        statusSelect.setAttribute('onchange', `handleStatusChange(this, '${order.id}')`);
+    }
+
+    // Configura Botões de Ação do Modal
+    const btnCancel = document.getElementById('btn-admin-cancel-order');
+    const btnFinish = document.getElementById('btn-admin-finish-order');
+    if (btnCancel) btnCancel.onclick = () => adminCancelOrder(order.id);
+    if (btnFinish) btnFinish.onclick = () => adminFinalizeOrder(order.id);
+
+    // 3. Exibe o Modal
+    const modal = document.getElementById('modal-admin-order');
+    if (modal) modal.classList.remove('hidden');
+};

@@ -10,20 +10,163 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 
-    <style id="dynamic-theme-style">
-        /* 1. VARIÁVEIS GLOBAIS */
+    <!-- <style id="dynamic-theme-style">
+        /* 1. VARIÁVEIS GLOBAIS (O que o usuário escolhe) */
         :root {
-            --bg-main: #050505;
-            --bg-header: #000000;
-            --bg-card: #151720;
-            --clr-accent: #EAB308;
-            --txt-body: #9ca3af;
-            --txt-title: #ffffff;
+            --custom-bg: #000000;
+            --custom-header: #000000;
+            --custom-sidebar: #000000;
+            --custom-highlight: #eab308;
+            /* Amarelo */
+            --custom-text: #ffffff;
+            --custom-icons: #ffffff;
         }
-    </style>
+
+        /* ============================================================
+       REGRAS PÚBLICAS (Aplicam o tema no site)
+       ============================================================ */
+
+        /* Fundo Principal */
+        body,
+        #main-content {
+            background-color: var(--custom-bg) !important;
+        }
+
+        /* Classes genéricas pretas na vitrine viram a cor do fundo */
+        #view-catalog .bg-black {
+            background-color: var(--custom-bg) !important;
+        }
+
+        /* Topo/Header (Força visual) */
+        nav.bg-black,
+        .bg-black.sticky {
+            background-color: var(--custom-header) !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+
+        /* Barra de Busca Externa */
+        div.bg-\[\#0a0a0a\] {
+            background-color: var(--custom-header) !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+
+        /* Menu Lateral Público */
+        aside#sidebar {
+            background-color: var(--custom-sidebar) !important;
+        }
+
+        /* Textos Gerais (Apenas fora do Admin) */
+        body:not(:has(#view-admin:not(.hidden))) p,
+        body:not(:has(#view-admin:not(.hidden))) span,
+        body:not(:has(#view-admin:not(.hidden))) h1,
+        body:not(:has(#view-admin:not(.hidden))) h2,
+        body:not(:has(#view-admin:not(.hidden))) h3 {
+            color: var(--custom-text);
+        }
+
+        /* Títulos e Destaques Públicos */
+        #view-catalog .text-yellow-500,
+        #sidebar .text-yellow-500,
+        #navbar-store-text .text-yellow-500 {
+            color: var(--custom-highlight) !important;
+        }
+
+        /* Ícones Públicos */
+        #mobile-menu-btn i,
+        #theme-toggle i,
+        #btn-track-icon i,
+        #cart-btn i,
+        .fa-search {
+            color: var(--custom-icons) !important;
+        }
+
+        /* ============================================================
+       BLINDAGEM DO ADMIN (Reseta tudo para o padrão)
+       ============================================================ */
+
+        /* Quando dentro do #view-admin, redefinimos as variáveis para o padrão */
+        #view-admin,
+        #login-modal {
+            --custom-bg: #000000;
+            --custom-header: #000000;
+            --custom-sidebar: #000000;
+            --custom-highlight: #eab308;
+            --custom-text: #ffffff;
+            --custom-icons: #ffffff;
+
+            /* Força fundo preto no painel inteiro */
+            background-color: #0a0a0a !important;
+            color: #ffffff !important;
+        }
+
+        /* Reseta Inputs do Admin para não ficarem ilegíveis */
+        #view-admin input,
+        #view-admin select,
+        #view-admin textarea,
+        #login-modal input {
+            background-color: #111827 !important;
+            /* gray-900 */
+            color: #ffffff !important;
+            border-color: #374151 !important;
+            /* gray-700 */
+        }
+
+        /* Reseta Botões e Cores Específicas do Admin */
+        #view-admin .text-yellow-500 {
+            color: #EAB308 !important;
+        }
+
+        #view-admin .bg-yellow-500 {
+            background-color: #EAB308 !important;
+        }
+
+        #view-admin .text-green-500 {
+            color: #22c55e !important;
+        }
+
+        #view-admin .bg-green-600 {
+            background-color: #16a34a !important;
+        }
+
+        #view-admin .bg-red-600 {
+            background-color: #dc2626 !important;
+        }
+
+        #view-admin .bg-gray-900 {
+            background-color: #111827 !important;
+        }
+
+        #view-admin .bg-black {
+            background-color: #000000 !important;
+        }
+
+        /* Mantém o card de configuração azul (da sua referência) */
+        #view-admin .bg-\[\#020617\] {
+            background-color: #020617 !important;
+        }
+
+        /* Garante que textos dentro do admin sejam brancos/cinzas padrão */
+        #view-admin p,
+        #view-admin span,
+        #view-admin label,
+        #view-admin h1,
+        #view-admin h2,
+        #view-admin h3 {
+            color: inherit;
+            /* Usa a cor definida no container pai ou na classe local */
+        }
+
+        #view-admin .text-gray-400 {
+            color: #9ca3af !important;
+        }
+
+        #view-admin .text-gray-500 {
+            color: #6b7280 !important;
+        }
+    </style> -->
 </head>
 
-<body class="bg-[var(--bg-main)] text-[var(--txt-body)] text-white font-sans antialiased ">
+<body class="bg-black text-white font-sans antialiased bg-[var(--bg-main)] text-[var(--txt-body)]">
 
     <div id="site-floating-capsule"
         class="fixed top-4 right-4 z-[60] flex items-center gap-2 bg-black/60 backdrop-blur-md p-2 rounded-full border border-gray-700 shadow-2xl animate-fade-in transition-all duration-300 hover:bg-black/80">
@@ -60,7 +203,7 @@
 
         <div class="h-16 flex items-center justify-between px-4 border-b border-gray-800 bg-gray-900">
             <span class="text-yellow-500 font-bold tracking-tighter text-lg">
-                MENU
+                <i class="fas fa-bars mr-2"></i>MENU
             </span>
             <button id="close-sidebar" class="text-gray-400 hover:text-white transition">
                 <i class="fas fa-times fa-lg"></i>
@@ -140,7 +283,7 @@
         </div>
     </aside>
     <nav id="site-header"
-        class="mx-4 md:mx-auto max-w-6xl bg-[var(--bg-header)] border-b border-gray-800 z-50 rounded-b-[40px] md:rounded-b-[50px] shadow-2xl relative overflow-hidden transition-all duration-300">
+        class="mx-4 md:mx-auto max-w-6xl bg-black border-b border-gray-800 z-50 rounded-b-[40px] md:rounded-b-[50px] shadow-2xl relative overflow-hidden transition-all duration-300">
 
         <div class="relative z-30 px-5 pt-5 flex justify-between items-start">
 
@@ -190,27 +333,25 @@
     <div id="site-search-bar" class="w-full px-4 mt-6 mb-0 flex flex-col items-center relative z-40">
 
         <div class="max-w-3xl w-full relative group z-20">
-
-            <div
-                class="absolute -inset-0.5 bg-gradient-to-r from-gray-600 to-gray-900 rounded-xl opacity-20 group-hover:opacity-40 transition duration-500">
-            </div>
-
-            <div class="relative flex items-center bg-[#0a0a0a] rounded-xl border border-gray-800/80 shadow-2xl">
-
-                <input type="text" id="search-input"
-                    class="w-full bg-[var(--bg-main)] py-3 pl-5 pr-10 text-sm text-white font-medium placeholder-gray-500 outline-none rounded-xl"
-                    placeholder="Busque o Produto...">
-
-                <div class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white/5 rounded-lg">
-                    <i class="fas fa-search text-gray-400 text-xs"></i>
-                </div>
+        
+        <div class="absolute -inset-0.5 bg-gradient-to-r from-gray-600 to-gray-900 rounded-xl opacity-20 group-hover:opacity-40 transition duration-500"></div>
+        
+        <div class="relative flex items-center bg-[#0a0a0a] rounded-xl border border-gray-800/80 shadow-2xl">
+            
+            <input type="text" id="search-input" 
+                   class="w-full bg-transparent py-3 pl-5 pr-10 text-sm text-white font-medium placeholder-gray-500 outline-none rounded-xl" 
+                   placeholder="Busque o Produto...">
+            
+            <div class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white/5 rounded-lg">
+                <i class="fas fa-search text-gray-400 text-xs"></i>
             </div>
         </div>
+    </div>
 
         <div class="max-w-3xl w-full flex justify-between items-center mt-3 gap-2 sm:gap-3 relative z-30">
 
             <div class="relative flex-1 min-w-0">
-                <select id="category-filter" onchange="filterByCat(this.value)" class="w-full appearance-none bg-[var(--bg-main)] border border-gray-800 text-gray-300 font-bold uppercase rounded-xl outline-none focus:border-yellow-500 cursor-pointer transition shadow-sm
+                <select id="category-filter" onchange="filterByCat(this.value)" class="w-full appearance-none bg-[#0a0a0a] border border-gray-800 text-gray-300 font-bold uppercase rounded-xl outline-none focus:border-yellow-500 cursor-pointer transition shadow-sm
                        text-[10px] sm:text-xs 
                        py-2 sm:py-3 
                        pl-3 sm:pl-4 
@@ -224,13 +365,13 @@
             </div>
 
             <div class="relative w-1/3 min-w-[110px] sm:min-w-[130px]">
-                <div class="flex items-center justify-between bg-[var(--bg-main)] border border-gray-800 rounded-xl text-gray-300 font-bold uppercase transition hover:border-yellow-500/50 hover:text-white w-full
+                <div class="flex items-center justify-between bg-[#0a0a0a] border border-gray-800 rounded-xl text-gray-300 font-bold uppercase transition hover:border-yellow-500/50 hover:text-white w-full
                     text-[10px] sm:text-xs 
                     py-2 sm:py-3 
                     px-3 sm:px-4">
 
                     <div class="flex items-center gap-2 overflow-hidden">
-                        <i class="fas fa-sort-amount-down text-white-500 text-[10px] sm:text-xs shrink-0"></i>
+                        <i class="fas fa-sort-amount-down text-yellow-500 text-[10px] sm:text-xs shrink-0"></i>
                         <span id="sort-label-display" class="truncate">Ordenar</span>
                     </div>
 
@@ -261,8 +402,7 @@
                 </h1>
             </div>
 
-            <h2 id="page-title"
-                class="text-2xl font-bold text-[var(--txt-title)] mb-6 px-4 border-l-4 border-yellow-500">
+            <h2 id="page-title" class="text-2xl font-bold text-gray-200 mb-6 px-4 border-l-4 border-yellow-500">
                 Vitrine</h2>
 
             <div id="product-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-4">
@@ -290,11 +430,8 @@
             </div>
 
             <div class="flex border-b border-gray-700 mb-6 overflow-x-auto">
-                <button id="admin-menu-sales"
-                    class="tab-btn px-4 py-2 text-yellow-500 border-b-2 border-yellow-500 flex items-center gap-2"
-                    data-tab="tab-vendas">
-                    Vendas
-                </button>
+                <button class="tab-btn px-4 py-2 text-yellow-500 border-b-2 border-yellow-500"
+                    data-tab="tab-vendas">Vendas</button>
                 <button class="tab-btn px-4 py-2 text-gray-400 hover:text-white"
                     data-tab="tab-produtos">Produtos</button>
                 <button class="tab-btn px-4 py-2 text-gray-400 hover:text-white" data-tab="tab-loja">Categorias &
@@ -1213,13 +1350,11 @@
                                 <div class="flex items-center justify-between group">
                                     <label class="text-yellow-500 font-bold text-sm">Cor dos Títulos (Destaque)</label>
                                     <div class="flex items-center gap-2">
-
-                                        <span id="hex-title"
-                                            class="text-gray-500 text-xs font-mono uppercase">#FFFFFF</span>
-
-                                        <input type="color" id="theme-title-color" value="#ffffff"
+                                        <span id="hex-highlight"
+                                            class="text-gray-500 text-xs font-mono uppercase">#EAB308</span>
+                                        <input type="color" id="theme-highlight-color" value="#EAB308"
                                             class="w-10 h-10 rounded cursor-pointer border-none bg-transparent"
-                                            oninput="previewTheme('title', this.value)">
+                                            oninput="previewTheme('highlight', this.value)">
                                     </div>
                                 </div>
 
@@ -1729,30 +1864,6 @@
 
                             <input type="hidden" id="prod-pix-type" value="percent">
                         </div>
-                    </div>
-
-
-                    <div
-                        class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 p-4 bg-gray-900 rounded border border-gray-700 mt-2">
-
-                        <div class="flex items-center">
-                            <input type="checkbox" id="prod-allow-no-stock"
-                                class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-yellow-500 focus:ring-yellow-500 cursor-pointer">
-                            <label for="prod-allow-no-stock"
-                                class="ml-2 text-sm font-medium text-gray-300 cursor-pointer select-none">
-                                Vender sem estoque
-                            </label>
-                        </div>
-
-                        <div class="flex items-center">
-                            <input type="checkbox" id="prod-highlight"
-                                class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-purple-500 focus:ring-purple-500 cursor-pointer">
-                            <label for="prod-highlight"
-                                class="ml-2 text-sm font-bold text-purple-400 cursor-pointer select-none flex items-center gap-1">
-                                <i class="fas fa-star text-xs"></i> Destaque
-                            </label>
-                        </div>
-
                     </div>
                 </div>
 

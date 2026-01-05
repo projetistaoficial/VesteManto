@@ -2803,21 +2803,11 @@ function setupEventListeners() {
         };
     }
 
-   // --- LOCALIZAR DENTRO DE setupEventListeners ---
     const formProd = getEl('form-product');
     if (formProd) {
         formProd.onsubmit = async (e) => {
             e.preventDefault();
-            const btnSave = document.querySelector('#form-product button[type="submit"]');
-            const originalText = btnSave ? btnSave.innerText : 'Salvar';
-
             try {
-                if(btnSave) {
-                    btnSave.innerText = "Salvando...";
-                    btnSave.disabled = true;
-                }
-
-                // 1. CAPTURA IDS DOS CAMPOS
                 const idEl = getEl('edit-prod-id');
                 const nameEl = getEl('prod-name');
                 const catEl = getEl('prod-cat-select');
@@ -2827,27 +2817,21 @@ function setupEventListeners() {
                 const stockEl = getEl('prod-stock');
                 const costEl = getEl('prod-cost');
                 const sizesEl = getEl('prod-sizes');
-                
-                // 2. CAPTURA CHECKBOXES (AQUI ESTÁ A CORREÇÃO)
                 const noStockEl = getEl('prod-allow-no-stock');
-                const highlightEl = getEl('prod-highlight'); // <--- CAPTURA O NOVO CAMPO
 
-                // Helper de formatação
                 const parseVal = (val) => val ? parseFloat(val.replace(/\./g, '').replace(',', '.')) : 0;
 
                 // Validação de Imagem
                 if (state.tempImages.length === 0) {
-                    alert("Adicione pelo menos uma imagem!");
-                    return;
+                    return alert("Adicione pelo menos uma imagem!");
                 }
 
-                // 3. CAPTURA PIX
+                // --- CORREÇÃO: Captura dos Dados do PIX ---
                 const pixActive = getEl('prod-pix-active').checked;
-                const pixValRaw = getEl('prod-pix-val').value;
-                const pixVal = parseVal(pixValRaw);
-                const pixType = getEl('prod-pix-type').value;
+                const pixVal = parseFloat(getEl('prod-pix-val').value) || 0;
+                const pixType = getEl('prod-pix-type').value || 'percent';
 
-                // 4. MONTA O OBJETO
+                // --- Captura Dados Básicos ---
                 const data = {
                     name: nameEl ? nameEl.value : 'Sem Nome',
                     category: catEl ? catEl.value : "Geral",
@@ -2857,53 +2841,46 @@ function setupEventListeners() {
                     stock: stockEl ? parseInt(stockEl.value) : 0,
                     cost: costEl ? parseVal(costEl.value) : 0,
                     sizes: sizesEl ? sizesEl.value.split(',').map(s => s.trim()).filter(s => s !== '') : [],
-                    images: state.tempImages, 
-                    
-                    // --- BOOLEANOS (AQUI O SEGREDO) ---
+                    images: state.tempImages, // Usa as imagens processadas
                     allowNoStock: noStockEl ? noStockEl.checked : false,
-                    highlight: highlightEl ? highlightEl.checked : false, // <--- AGORA VAI SALVAR!
 
+                    // --- CORREÇÃO: Objeto de Pagamento Inserido Corretamente ---
                     paymentOptions: {
                         pix: {
                             active: pixActive,
                             val: pixVal,
                             type: pixType
                         }
+                        // Futuramente pode adicionar 'card' aqui se for configuração individual
                     }
                 };
 
-                // 5. SALVA NO BANCO
+                // Gera código se for novo produto
+                if (!idEl.value) {
+                    // Chama a função que conta 1, 2, 3...
+                    const nextCode = await getNextProductCode(state.siteId);
+
+                    data.code = nextCode;
+                    data.createdAt = new Date().toISOString();
+                }
+
                 const id = idEl.value;
 
                 if (id) {
-                    // Edição
                     await updateDoc(doc(db, `sites/${state.siteId}/products`, id), data);
                     showToast('Produto atualizado!');
                 } else {
-                    // Criação
-                    const nextCode = await getNextProductCode(state.siteId);
-                    data.code = nextCode;
-                    data.createdAt = new Date().toISOString();
                     await addDoc(collection(db, `sites/${state.siteId}/products`), data);
                     showToast('Produto criado!');
                 }
 
-                // 6. LIMPEZA
                 if (els.productFormModal) els.productFormModal.classList.add('hidden');
                 e.target.reset();
                 state.tempImages = [];
-                
-                // Força atualização da lista para ver o destaque imediatamente
-                if(typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
 
             } catch (err) {
                 console.error(err);
                 alert("Erro ao salvar produto: " + err.message);
-            } finally {
-                if(btnSave) {
-                    btnSave.innerText = originalText;
-                    btnSave.disabled = false;
-                }
             }
         };
     }
@@ -3848,26 +3825,20 @@ window.saveProduct = async (e) => {
     try {
         if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
 
-        // --- CORREÇÃO DE LEITURA DO CHECKBOX ---
-        // 1. Tenta pegar pelo ID direto
-        let elHighlight = document.getElementById('prod-highlight');
-        let elNoStock = document.getElementById('prod-allow-no-stock');
+        // 1. CAPTURA O ESTADO DOS CHECKBOXES
+        const elHighlight = document.getElementById('prod-highlight');
+        const elNoStock = document.getElementById('prod-allow-no-stock');
 
-        // 2. Se falhar, tenta pegar dentro do form (caso haja duplicidade externa)
-        const form = document.getElementById('form-product');
-        if (form) {
-            if (!elHighlight) elHighlight = form.querySelector('#prod-highlight');
-            if (!elNoStock) elNoStock = form.querySelector('#prod-allow-no-stock');
-        }
-
-        // 3. Converte para Booleano (true/false)
+        // Garante booleano (true/false)
         const isHighlight = elHighlight ? elHighlight.checked : false;
         const allowNoStock = elNoStock ? elNoStock.checked : false;
 
-        // DEBUG: Veja isso no console ao salvar
-        console.log("--> SALVANDO. Destaque marcado?", isHighlight); 
+        // --- DEBUG VISUAL (Pode remover depois que funcionar) ---
+        // alert(`Salvando produto...\nDestaque: ${isHighlight ? 'ATIVADO' : 'DESATIVADO'}`);
+        console.log("Salvando - Destaque:", isHighlight);
+        // -------------------------------------------------------
 
-        // 4. Monta o Objeto
+        // 2. MONTA O OBJETO
         const productData = {
             name: document.getElementById('prod-name').value,
             category: document.getElementById('prod-cat-select').value,
@@ -3879,7 +3850,7 @@ window.saveProduct = async (e) => {
             sizes: document.getElementById('prod-sizes').value.split(',').map(s => s.trim()).filter(s => s),
             images: state.tempImages || [],
             
-            // GRAVA OS VALORES CAPTURADOS
+            // Grava os checkboxes
             allowNoStock: allowNoStock,
             highlight: isHighlight, 
 
@@ -3894,7 +3865,7 @@ window.saveProduct = async (e) => {
 
         const id = document.getElementById('edit-prod-id').value;
 
-        // 5. Envia
+        // 3. ENVIA PRO FIREBASE
         if (!id) {
             const nextCode = await getNextProductCode(state.siteId);
             productData.code = nextCode;
@@ -3906,11 +3877,13 @@ window.saveProduct = async (e) => {
             showToast('Produto atualizado!');
         }
 
-        // 6. Limpa e Fecha
+        // 4. LIMPEZA
         document.getElementById('product-form-modal').classList.add('hidden');
         document.getElementById('form-product').reset();
         state.tempImages = [];
         if(typeof renderImagePreviews === 'function') renderImagePreviews();
+
+        // Força atualização da tela
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
 
     } catch (error) {
@@ -3925,10 +3898,7 @@ window.editProduct = (id) => {
     const p = state.products.find(x => x.id === id); 
     if (!p) return;
 
-    console.log(`Abrindo edição: ${p.name}`);
-    console.log(`Valor de 'highlight' no banco:`, p.highlight); // Deve mostrar true, false ou undefined
-
-    // Inputs de texto
+    // Preenche campos de texto
     document.getElementById('edit-prod-id').value = p.id;
     document.getElementById('prod-name').value = p.name;
     document.getElementById('prod-cat-select').value = p.category || "";
@@ -3939,12 +3909,15 @@ window.editProduct = (id) => {
     document.getElementById('prod-cost').value = formatMoneyForInput(p.cost);
     document.getElementById('prod-sizes').value = p.sizes ? p.sizes.join(', ') : '';
 
-    // --- CHECKBOXES (LEITURA) ---
+    // Preenche Checkboxes (AQUI ESTÁ O SEGREDO)
     const elHighlight = document.getElementById('prod-highlight');
     const elNoStock = document.getElementById('prod-allow-no-stock');
 
-    // Usa !!p.highlight para forçar que undefined vire false e true vire true
-    if (elHighlight) elHighlight.checked = !!p.highlight;
+    if (elHighlight) {
+        // Usa !! para garantir que undefined vire false
+        elHighlight.checked = !!p.highlight;
+        console.log(`Editando ${p.name} - Destaque no banco:`, p.highlight);
+    }
     if (elNoStock) elNoStock.checked = !!p.allowNoStock;
 
     // Imagens e Pix

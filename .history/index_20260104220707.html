@@ -1630,164 +1630,111 @@
         </div>
     </dialog>
 
-    <div id="product-form-modal"
-        class="fixed inset-0 z-[60] hidden bg-black bg-opacity-95 flex items-center justify-center p-4">
-        <div class="bg-gray-800 w-full max-w-2xl rounded p-6 overflow-y-auto max-h-[90vh] border border-gray-700">
-            <h3 class="text-xl font-bold text-white mb-6 border-b border-gray-700 pb-2">Gerenciar Produto</h3>
+   <div id="product-form-modal" class="fixed inset-0 z-[60] hidden bg-black bg-opacity-95 flex items-center justify-center p-4">
+    <div class="bg-gray-800 w-full max-w-2xl rounded p-6 overflow-y-auto max-h-[90vh] border border-gray-700">
+        <h3 class="text-xl font-bold text-white mb-6 border-b border-gray-700 pb-2">Gerenciar Produto</h3>
 
-            <form id="form-product" class="space-y-4">
-                <input type="hidden" id="edit-prod-id">
+        <form id="form-product" class="space-y-4">
+            <input type="hidden" id="edit-prod-id">
 
+            <div>
+                <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Nome do Produto</label>
+                <input type="text" id="prod-name" placeholder="Ex: Camisa Oficial 2025"
+                    class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none" required>
+            </div>
+
+            <div>
+                <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Categoria</label>
+                <select id="prod-cat-select"
+                    class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
+                    <option value="">Selecione...</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Descrição Detalhada</label>
+                <textarea id="prod-desc" rows="3" placeholder="Detalhes..."
+                    class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Nome do Produto</label>
-                    <input type="text" id="prod-name" placeholder="Ex: Camisa Oficial 2025"
-                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
-                        required>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço (R$)</label>
+                    <input type="text" id="prod-price" placeholder="0.00"
+                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none" step="0.01" required>
                 </div>
-
                 <div>
-                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Categoria</label>
-                    <select id="prod-cat-select"
-                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
-                        <option value="">Selecione...</option>
-                    </select>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Promoção (R$)</label>
+                    <input type="text" id="prod-promo" placeholder="0.00"
+                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none" step="0.01">
                 </div>
+            </div>
 
+            <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Descrição Detalhada</label>
-                    <textarea id="prod-desc" rows="3" placeholder="Detalhes do tecido, modelo, etc..."
-                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"></textarea>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço de Venda
-                            (R$)</label>
-                        <input type="text" id="prod-price" placeholder="0.00"
-                            class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
-                            step="0.01" required>
-                    </div>
-                    <div>
-                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço Promocional
-                            (Opcional)</label>
-                        <input type="text" id="prod-promo" placeholder="0.00"
-                            class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
-                            step="0.01">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Estoque Atual</label>
-                        <input type="number" id="prod-stock" placeholder="0"
-                            class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
-                    </div>
-
-                    <div>
-                        <label class="text-gray-500 text-xs font-bold uppercase mb-1 block">Preço de Custo (Visível só
-                            p/ Admin)</label>
-                        <input type="text" id="prod-cost" placeholder="0.00"
-                            class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
-                            step="0.01">
-                    </div>
-
-                </div>
-                <div class="md:col-span-2 bg-gray-900 p-4 rounded border border-gray-700 mt-2">
-
-                    <div class="flex flex-col gap-4">
-                        <div class="flex items-center gap-3">
-                            <input type="checkbox" id="prod-pix-active"
-                                class="w-5 h-5 rounded text-green-500 bg-gray-700 border-gray-600 focus:ring-green-500 cursor-pointer">
-                            <label for="prod-pix-active"
-                                class="text-white font-bold text-sm cursor-pointer select-none">
-                                Ativar Desconto no Pix
-                            </label>
-                        </div>
-
-                        <div id="pix-settings"
-                            class="flex flex-col sm:flex-row gap-3 opacity-50 pointer-events-none transition-opacity duration-200 w-full">
-
-                            <div
-                                class="flex items-center gap-2 flex-1 bg-black border border-gray-600 rounded px-3 h-10 focus-within:border-green-500 transition">
-                                <span class="text-gray-400 text-xs uppercase font-bold shrink-0">Valor:</span>
-                                <input type="text" id="prod-pix-val" placeholder="0"
-                                    class="bg-transparent border-none text-white text-sm w-full outline-none font-bold h-full">
-                            </div>
-
-                            <div
-                                class="flex bg-black rounded border border-gray-600 overflow-hidden h-10 w-full sm:w-auto shrink-0">
-                                <button type="button" id="btn-pix-percent"
-                                    class="flex-1 sm:w-16 px-4 bg-green-600 text-white text-xs font-bold transition flex items-center justify-center hover:bg-green-700">
-                                    %
-                                </button>
-                                <div class="w-px bg-gray-600"></div>
-                                <button type="button" id="btn-pix-fixed"
-                                    class="flex-1 sm:w-16 px-4 bg-black text-gray-400 text-xs font-bold transition flex items-center justify-center hover:text-white hover:bg-gray-800">
-                                    R$
-                                </button>
-                            </div>
-
-                            <input type="hidden" id="prod-pix-type" value="percent">
-                        </div>
-                    </div>
-
-
-                    <div
-                        class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 p-4 bg-gray-900 rounded border border-gray-700 mt-2">
-
-                        <div class="flex items-center">
-                            <input type="checkbox" id="prod-allow-no-stock"
-                                class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-yellow-500 focus:ring-yellow-500 cursor-pointer">
-                            <label for="prod-allow-no-stock"
-                                class="ml-2 text-sm font-medium text-gray-300 cursor-pointer select-none">
-                                Vender sem estoque
-                            </label>
-                        </div>
-
-                        <div class="flex items-center">
-                            <input type="checkbox" id="prod-highlight"
-                                class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-purple-500 focus:ring-purple-500 cursor-pointer">
-                            <label for="prod-highlight"
-                                class="ml-2 text-sm font-bold text-purple-400 cursor-pointer select-none flex items-center gap-1">
-                                <i class="fas fa-star text-xs"></i> Destaque
-                            </label>
-                        </div>
-
-                    </div>
-                </div>
-
-                <div>
-                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Tamanhos (Separados por
-                        vírgula)</label>
-                    <input type="text" id="prod-sizes" placeholder="Ex: P, M, G, GG"
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Estoque</label>
+                    <input type="number" id="prod-stock" placeholder="0"
                         class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
                 </div>
                 <div>
-                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Imagens do Produto</label>
+                    <label class="text-gray-500 text-xs font-bold uppercase mb-1 block">Custo (Admin)</label>
+                    <input type="text" id="prod-cost" placeholder="0.00"
+                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none" step="0.01">
+                </div>
+            </div>
 
-                    <input type="file" id="prod-imgs-input" multiple accept="image/*" class="hidden">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-gray-900 rounded border border-gray-600">
+                <div class="flex items-center">
+                    <input type="checkbox" id="prod-allow-no-stock" class="w-5 h-5 rounded bg-gray-700 border-gray-500 text-yellow-500 focus:ring-yellow-500 cursor-pointer">
+                    <label for="prod-allow-no-stock" class="ml-2 text-sm font-medium text-gray-300 cursor-pointer select-none">Vender sem estoque</label>
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" id="prod-highlight" class="w-5 h-5 rounded bg-gray-700 border-gray-500 text-purple-500 focus:ring-purple-500 cursor-pointer">
+                    <label for="prod-highlight" class="ml-2 text-sm font-bold text-purple-400 cursor-pointer select-none flex items-center gap-1">
+                        <i class="fas fa-star text-xs"></i> Destaque
+                    </label>
+                </div>
+            </div>
 
-                    <button type="button" onclick="document.getElementById('prod-imgs-input').click()"
-                        class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm mb-2 transition border border-gray-600 flex items-center gap-2">
-                        <i class="fas fa-camera text-yellow-500"></i> Escolher Fotos (Do Dispositivo)
-                    </button>
-
-                    <div id="prod-imgs-preview"
-                        class="flex gap-2 flex-wrap min-h-[80px] bg-black/50 p-2 rounded border border-gray-700">
-                        <p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada</p>
+            <div class="bg-gray-900 p-4 rounded border border-gray-700">
+                <div class="flex flex-col gap-4">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="prod-pix-active" class="w-5 h-5 rounded text-green-500 bg-gray-700 border-gray-600 focus:ring-green-500 cursor-pointer">
+                        <label for="prod-pix-active" class="text-white font-bold text-sm cursor-pointer select-none">Ativar Desconto no Pix</label>
+                    </div>
+                    <div id="pix-settings" class="flex flex-col sm:flex-row gap-3 opacity-50 pointer-events-none transition-opacity duration-200 w-full">
+                        <div class="flex items-center gap-2 flex-1 bg-black border border-gray-600 rounded px-3 h-10 focus-within:border-green-500 transition">
+                            <span class="text-gray-400 text-xs uppercase font-bold shrink-0">Valor:</span>
+                            <input type="text" id="prod-pix-val" placeholder="0" class="bg-transparent border-none text-white text-sm w-full outline-none font-bold h-full">
+                        </div>
+                        <div class="flex bg-black rounded border border-gray-600 overflow-hidden h-10 w-full sm:w-auto shrink-0">
+                            <button type="button" id="btn-pix-percent" class="flex-1 sm:w-16 px-4 bg-green-600 text-white text-xs font-bold transition flex items-center justify-center hover:bg-green-700">%</button>
+                            <div class="w-px bg-gray-600"></div>
+                            <button type="button" id="btn-pix-fixed" class="flex-1 sm:w-16 px-4 bg-black text-gray-400 text-xs font-bold transition flex items-center justify-center hover:text-white hover:bg-gray-800">R$</button>
+                        </div>
+                        <input type="hidden" id="prod-pix-type" value="percent">
                     </div>
                 </div>
+            </div>
 
-                <div class="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-700">
-                    <button type="button" id="btn-cancel-prod"
-                        class="bg-gray-600 hover:bg-gray-500 px-6 py-2 rounded text-white font-medium">Cancelar</button>
-                    <button type="submit"
-                        class="bg-yellow-500 hover:bg-yellow-400 px-6 py-2 rounded text-black font-bold shadow-lg transform hover:scale-105 transition">Salvar
-                        Produto</button>
-                </div>
-            </form>
-        </div>
+            <div>
+                <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Tamanhos</label>
+                <input type="text" id="prod-sizes" placeholder="Ex: P, M, G" class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
+            </div>
+            <div>
+                <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Imagens</label>
+                <input type="file" id="prod-imgs-input" multiple accept="image/*" class="hidden">
+                <button type="button" onclick="document.getElementById('prod-imgs-input').click()" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm mb-2 transition border border-gray-600 flex items-center gap-2"><i class="fas fa-camera text-yellow-500"></i> Escolher Fotos</button>
+                <div id="prod-imgs-preview" class="flex gap-2 flex-wrap min-h-[80px] bg-black/50 p-2 rounded border border-gray-700"><p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem</p></div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-700">
+                <button type="button" id="btn-cancel-prod" class="bg-gray-600 hover:bg-gray-500 px-6 py-2 rounded text-white font-medium">Cancelar</button>
+                <button type="submit" class="bg-yellow-500 hover:bg-yellow-400 px-6 py-2 rounded text-black font-bold shadow-lg transform hover:scale-105 transition">Salvar Produto</button>
+            </div>
+        </form>
     </div>
+</div>
 
     <div id="image-viewer"
         class="fixed inset-0 bg-black/95 z-[100] hidden items-center justify-center backdrop-blur-sm select-none">

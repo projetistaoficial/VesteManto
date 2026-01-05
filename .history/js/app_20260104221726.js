@@ -2906,7 +2906,7 @@ function setupEventListeners() {
                 }
             }
         };
-    }
+    }editproc
 
 
     const btnLogout = getEl('btn-logout'); if (btnLogout) btnLogout.onclick = () => signOut(auth);
