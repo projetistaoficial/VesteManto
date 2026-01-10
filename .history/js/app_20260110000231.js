@@ -2092,12 +2092,15 @@ function renderSalesList(orders) {
     const listEl = document.getElementById('orders-list');
     if (!listEl) return;
 
-    // Memória de acordeão
+    // --- 1. MEMÓRIA: Guarda quais pedidos estão abertos antes de apagar tudo ---
     const openOrderIds = new Set();
+    // Procura todos os conteúdos que NÃO tem a classe 'hidden'
     listEl.querySelectorAll('[id^="order-content-"]:not(.hidden)').forEach(el => {
+        // Pega o ID do pedido a partir do ID do elemento (order-content-123 -> 123)
         const id = el.id.replace('order-content-', '');
         openOrderIds.add(id);
     });
+    // -------------------------------------------------------------------------
 
     listEl.innerHTML = '';
 
@@ -2107,15 +2110,22 @@ function renderSalesList(orders) {
     }
 
     orders.forEach(o => {
+        // --- Lógica do Visual NOVO ---
         const isNew = !o.viewed;
         const borderClass = isNew ? "border-green-500 border-l-4 bg-green-900/10" : "border-gray-800 bg-black";
         const badgeHtml = isNew ? `<span class="ml-2 bg-green-600 text-white text-[9px] font-bold px-2 py-0.5 rounded animate-pulse shadow-lg">NOVO</span>` : "";
+
         const clickAction = `toggleOrderAccordion('${o.id}'); markAsViewed('${o.id}')`;
 
+        // --- 2. RESTAURAÇÃO: Verifica se este pedido estava aberto ---
         const isOpen = openOrderIds.has(o.id);
+
+        // Se estava aberto, não coloca 'hidden' e gira a seta
         const contentVisibility = isOpen ? "" : "hidden";
         const arrowRotation = isOpen ? "rotate(180deg)" : "rotate(0deg)";
+        // ------------------------------------------------------------
 
+        // Formatação de Dados
         const dataObj = new Date(o.date);
         const dataHoraFormatada = `${dataObj.toLocaleDateString('pt-BR')} às ${dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 
@@ -2124,7 +2134,6 @@ function renderSalesList(orders) {
             case 'Aprovado': case 'Preparando pedido': statusColorClass = 'text-yellow-500'; break;
             case 'Saiu para entrega': statusColorClass = 'text-orange-500'; break;
             case 'Entregue': case 'Concluído': statusColorClass = 'text-green-500'; break;
-            case 'Reembolsado': statusColorClass = 'text-purple-500'; break;
         }
         if (o.status.includes('Cancelado')) statusColorClass = 'text-red-500';
 
@@ -2135,75 +2144,24 @@ function renderSalesList(orders) {
             </div>
         `).join('');
 
-        // --- LÓGICA FINANCEIRA DETALHADA ---
+        // Lógica de Desconto e Pagamento (Mantida igual)
         const subTotalItens = o.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
         const valFrete = o.shippingFee || 0;
         const valTotalPago = o.total || 0;
         const valDescontoTotal = Math.max(0, (subTotalItens + valFrete) - valTotalPago);
 
         let discountHtml = '';
-        
-        // Se houver algum desconto (maior que 5 centavos para evitar erro de arredondamento)
         if (valDescontoTotal > 0.05) {
-            const isPix = (o.paymentMethod || '').toLowerCase().includes('pix');
-            const hasCupom = (o.cupom && o.cupom.trim().length > 0);
+            let descTexto = 'Desconto';
+            if ((o.paymentMethod || '').toLowerCase().includes('pix')) descTexto = 'Desconto Pix';
+            if (o.cupom) descTexto = `Cupom: ${o.cupom}`;
 
-            // 1. Tenta descobrir o valor do cupom
-            let valDescontoCupom = 0;
-            let nomeCupom = null;
-
-            // Se temos os dados salvos do cupom (Checkout novo)
-            if (o.couponData && o.couponData.value) {
-                valDescontoCupom = o.couponData.value;
-                nomeCupom = o.couponData.code;
-            } 
-            // Fallback para pedidos antigos (Se tem nome de cupom mas não dados, tenta inferir)
-            else if (o.cupom) {
-                nomeCupom = o.cupom;
-                // Se não foi Pix, todo o desconto é do cupom
-                if (!isPix) valDescontoCupom = valDescontoTotal;
-            }
-
-            // 2. O que sobrar do desconto total é Pix (ou ajuste manual)
-            // (Total de Descontos - Valor do Cupom)
-            const totalEsperadoSemPix = (subTotalItens + valFrete) - valDescontoCupom;
-            const valDescontoPix = Math.max(0, totalEsperadoSemPix - valTotalPago);
-
-            discountHtml += `<div class="mt-2 mb-2 border-y border-gray-700/50 py-2 space-y-1">`;
-
-            // Exibe Linha do Cupom
-            if (nomeCupom) {
-                discountHtml += `
-                    <div class="flex justify-between text-xs text-gray-300">
-                        <span>Cupom: <span class="text-yellow-500 font-bold uppercase tracking-wider border border-yellow-500/30 px-1 rounded bg-yellow-500/10">${nomeCupom}</span></span>
-                        ${valDescontoCupom > 0 ? `<span>- ${formatCurrency(valDescontoCupom)}</span>` : ''}
-                    </div>
-                `;
-            }
-
-            // Exibe Linha do Pix (Se houver valor sobrando e for Pix)
-            if (valDescontoPix > 0.05) {
-                discountHtml += `
-                    <div class="flex justify-between text-xs text-gray-300">
-                        <span>Desconto Pix:</span>
-                        <span class="text-green-400 font-bold">- ${formatCurrency(valDescontoPix)}</span>
-                    </div>
-                `;
-            }
-            
-            // Exibe Genérico (Caso não tenha cupom identificado nem pix, mas tenha desconto)
-            if (!nomeCupom && valDescontoPix <= 0.05) {
-                 discountHtml += `
-                    <div class="flex justify-between text-xs text-gray-300">
-                        <span>Desconto:</span>
-                        <span class="text-green-400 font-bold">- ${formatCurrency(valDescontoTotal)}</span>
-                    </div>
-                `;
-            }
-
-            discountHtml += `</div>`;
+            discountHtml = `
+            <div class="mt-2 mb-2 border-y border-gray-700/50 py-2 flex justify-between text-xs text-gray-300">
+                <span>${descTexto}</span>
+                <span class="text-green-400 font-bold">- ${formatCurrency(valDescontoTotal)}</span>
+            </div>`;
         }
-        // -----------------------------------
 
         const rawMethod = o.paymentMethod || '';
         const isOnline = rawMethod.includes('Online');
@@ -2217,16 +2175,8 @@ function renderSalesList(orders) {
         let controlsHtml = '';
         if (o.status.includes('Cancelado')) {
             controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span></div>`;
-        } else if (o.status === 'Reembolsado') {
-             controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span></div>`;
         } else if (o.status === 'Concluído') {
-            controlsHtml = `
-                <div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700">
-                    <span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs">FINALIZADO</span>
-                    <button onclick="adminRefundOrder('${o.id}')" class="border border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-2 rounded text-xs transition font-bold">
-                        <i class="fas fa-undo mr-1"></i> Reembolsar
-                    </button>
-                </div>`;
+            controlsHtml = `<div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700"><span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs">FINALIZADO</span><button onclick="adminRevertStatus('${o.id}')" class="border border-gray-500 text-gray-400 hover:text-white px-3 py-2 rounded text-xs transition">Reabrir</button></div>`;
         } else {
             controlsHtml = `
                 <div class="flex flex-col md:flex-row gap-4 justify-end items-center mt-4 border-t border-gray-700 pt-4">
@@ -2251,6 +2201,7 @@ function renderSalesList(orders) {
         const cardWrapper = document.createElement('div');
         cardWrapper.className = "mb-4";
 
+        // Apliquei contentVisibility e arrowRotation no HTML abaixo
         cardWrapper.innerHTML = `
             <div id="order-header-${o.id}" onclick="${clickAction}" 
                  class="bg-black border ${borderClass} p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-gray-600 transition-all shadow-md relative z-10">
@@ -4881,18 +4832,19 @@ window.openCheckoutModal = () => {
         const el = document.getElementById(id); if (el) el.classList.add('hidden');
     });
 
-    // 2. RECUPERA CONFIGURAÇÕES
+    // 2. RECUPERA CONFIGURAÇÕES (Com Defaults Seguros)
+    // Se active for undefined, assume true (ativado)
     const pm = state.storeProfile.paymentMethods || {};
-    const dConfig = state.storeProfile.deliveryConfig || {};
 
-    // Configurações Financeiras (Verifica se está ativo)
+    // --- CORREÇÃO AQUI: FORÇAR BOOLEANO ---
+    // Verifica explicitamente se é false. Se for undefined ou true, considera ativo.
     const onlineActive = pm.online?.active !== false;
     const deliveryActive = pm.delivery?.active !== false;
 
-    // --- CORREÇÃO AQUI: LOGÍSTICA ESTRITA ---
-    // Verifica se a Entrega Própria está explicitamente ATIVADA (true).
-    // Se você desmarcar no admin, isso será false.
-    const isLogisticsActive = dConfig.ownDelivery === true;
+    // Compatibilidade com logística antiga (opcional, mas vamos priorizar o botão financeiro)
+    // Se quiser que o botão financeiro seja SOBERANO, ignore o oldOwnDelivery.
+    // Vou manter apenas para garantir que não quebre lojas antigas, mas a prioridade é o novo botão.
+    const logisticsActive = state.storeProfile.deliveryConfig?.ownDelivery !== false;
 
     // 3. REFERÊNCIAS AOS ELEMENTOS
     const containerDelivery = document.getElementById('container-delivery-option'); // Div do Pagar na Entrega
@@ -4901,51 +4853,51 @@ window.openCheckoutModal = () => {
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
     const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
 
+    console.log("Status Online:", onlineActive);
+    console.log("Status Entrega (Fin):", deliveryActive);
+    console.log("Status Entrega (Log):", logisticsActive);
+
     // --- A. VISIBILIDADE ONLINE ---
     if (!onlineActive) {
         if (labelOnline) {
             labelOnline.classList.add('hidden');
-            labelOnline.style.setProperty('display', 'none', 'important');
+            labelOnline.style.setProperty('display', 'none', 'important'); // Força ocultar
         }
     } else {
         if (labelOnline) {
             labelOnline.classList.remove('hidden');
-            labelOnline.style.display = '';
+            labelOnline.style.display = ''; // Volta ao padrão (flex)
         }
     }
 
-    // --- B. VISIBILIDADE ENTREGA (Lógica Combinada) ---
-    // Só mostra a opção "Pagar na Entrega" se:
-    // 1. O Financeiro permitir (deliveryActive) E
-    // 2. A Logística Própria estiver LIGADA (isLogisticsActive)
-    const showDeliveryOption = deliveryActive && isLogisticsActive;
+    // --- B. VISIBILIDADE ENTREGA ---
+    // AQUI ESTAVA O ERRO: A lógica deve ser restritiva.
+    // Se o botão financeiro estiver OFF, some. Ponto final.
+    // Se o botão financeiro estiver ON, mas a logística OFF, também some.
 
-    if (showDeliveryOption) {
-        if (containerDelivery) {
-            containerDelivery.classList.remove('hidden');
-            containerDelivery.style.display = '';
-        }
-    } else {
-        // Se a entrega própria estiver OFF (ou financeiro OFF), esconde
+    const showDelivery = deliveryActive && logisticsActive;
+
+    if (!showDelivery) {
         if (containerDelivery) {
             containerDelivery.classList.add('hidden');
             containerDelivery.style.setProperty('display', 'none', 'important');
         }
+    } else {
+        if (containerDelivery) {
+            containerDelivery.classList.remove('hidden');
+            containerDelivery.style.display = ''; // Volta ao padrão (block)
+        }
     }
 
-    // --- C. AUTO-SELEÇÃO DO RADIO (Atualizado) ---
+    // --- C. AUTO-SELEÇÃO DO RADIO (Para não ficar nenhum marcado) ---
 
-    // 1. Se a opção de Entrega sumiu (por logística ou financeiro), força marcar Online
-    if (!showDeliveryOption && onlineActive) {
+    // Se o Online está ativo, marcamos ele por padrão
+    if (onlineActive) {
         if (radioOnline) radioOnline.checked = true;
     }
-    // 2. Se a opção Online sumiu, força marcar Entrega (se estiver disponível)
-    else if (!onlineActive && showDeliveryOption) {
+    // Se o Online está OFF, mas Entrega está ON, marcamos a Entrega
+    else if (showDelivery) {
         if (radioDelivery) radioDelivery.checked = true;
-    }
-    // 3. Se ambos estão disponíveis, prioriza Online como padrão
-    else if (onlineActive) {
-        if (radioOnline) radioOnline.checked = true;
     }
 
     // 4. Atualiza Interface Interna
@@ -4968,7 +4920,7 @@ window.openCheckoutModal = () => {
     const btnFinish = document.getElementById('btn-finish-payment');
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = false; // Garante que o botão comece habilitado
+        btnFinish.disabled = true;
     }
 };
 
@@ -6023,28 +5975,6 @@ window.handleStatusChange = async (selectEl, orderId) => {
     }
 };
 
-
-// --- FUNÇÕES DE AÇÃO DOS PEDIDOS (GLOBAL) ---
-
-// 1. Botão Finalizar Pedido
-window.adminFinalizeOrder = async (orderId) => {
-    if (confirm("Confirmar finalização do pedido?\nIsso arquiva a venda como concluída.")) {
-        // Chama a função central que atualiza o banco e baixa estoque se necessário
-        if (typeof updateOrderStatusDB === 'function') {
-            await updateOrderStatusDB(orderId, 'Concluído');
-        } else {
-            console.error("Função updateOrderStatusDB não encontrada.");
-            // Fallback simples caso a função auxiliar não exista
-            try {
-                await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), { 
-                    status: 'Concluído',
-                    completedAt: new Date().toISOString()
-                });
-            } catch(e) { alert("Erro ao finalizar: " + e.message); }
-        }
-    }
-};
-
 // 2. Botão Cancelar
 window.adminCancelOrder = async (orderId) => {
     if (confirm("Tem certeza que deseja CANCELAR este pedido?")) {
@@ -6052,12 +5982,10 @@ window.adminCancelOrder = async (orderId) => {
     }
 };
 
-// 5. Botão Reembolsar (Novo)
-window.adminRefundOrder = async (orderId) => {
-    if (confirm("Deseja REEMBOLSAR este pedido?\n\nIsso irá devolver os itens ao estoque e mudar o status para 'Reembolsado'.\nEsta ação é irreversível.")) {
-        // A função updateOrderStatusDB já lida com a devolução de estoque automaticamente
-        // porque "Reembolsado" não está na lista de status que "consomem" estoque.
-        await updateOrderStatusDB(orderId, 'Reembolsado');
+// 3. Botão Finalizado
+window.adminFinalizeOrder = async (orderId) => {
+    if (confirm("Confirmar finalização do pedido?\nIsso arquiva a venda como concluída.")) {
+        await updateOrderStatusDB(orderId, 'Concluído');
     }
 };
 
@@ -6347,13 +6275,17 @@ window.updateStatusUI = (order) => {
     const s = order.status;
     const isCancelled = s.includes('Cancelado');
 
-    // 1. LÓGICA DA TIMELINE (Mantida igual)
+    // 1. LÓGICA DA TIMELINE
     let currentStep = 0;
+
+    // Mapeamento
     if (s === 'Aguardando aprovação') currentStep = 0;
-    else if (s === 'Aprovado' || s === 'Preparando pedido') currentStep = 1;
+    else if (s === 'Aprovado') currentStep = 1;
+    else if (s === 'Preparando pedido') currentStep = 1;
     else if (s === 'Saiu para entrega') currentStep = 2;
     else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
 
+    // Configuração da primeira bolinha
     const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
     const step0Icon = (s === 'Aguardando aprovação' || isCancelled) ? 'fa-clock' : 'fa-thumbs-up';
 
@@ -6364,6 +6296,7 @@ window.updateStatusUI = (order) => {
         { label: 'Entregue', icon: 'fa-check' }
     ];
 
+    // --- HTML DA TIMELINE ---
     let timelineHTML = `<div class="flex justify-between items-start mb-8 relative px-2">`;
     timelineHTML += `<div class="absolute top-[18px] left-7 right-7 h-0.5 bg-gray-700 -z-0"></div>`;
 
@@ -6407,105 +6340,17 @@ window.updateStatusUI = (order) => {
     });
     timelineHTML += `</div>`;
 
-    // 2. CONTEÚDO DOS ITENS E CÁLCULOS
-    let subTotalItems = 0;
-    
-    let itemsHtml = order.items.map(i => {
-        const itemTotal = i.price * i.qty;
-        subTotalItems += itemTotal;
-        return `
+
+    // 2. CONTEÚDO DOS ITENS
+    let itemsHtml = order.items.map(i => `
         <div class="flex justify-between items-center text-sm text-gray-300 mb-2 border-b border-gray-800 pb-2 last:border-0">
             <div class="flex items-center gap-2">
                  <span class="text-yellow-500 font-bold font-mono text-xs bg-yellow-900/20 px-1.5 rounded">${i.qty}x</span>
                  <span>${i.name} ${i.size !== 'U' ? `<span class="text-xs text-gray-500">(${i.size})</span>` : ''}</span>
             </div>
-            <span class="text-white font-bold text-xs">${formatCurrency(itemTotal)}</span>
-        </div>`;
-    }).join('');
-
-    // --- LÓGICA FINANCEIRA (SEPARAÇÃO DE DESCONTOS) ---
-    const valFrete = order.shippingFee || 0;
-    const valTotalPago = order.total || 0;
-    const totalEsperado = subTotalItems + valFrete;
-    
-    // 1. Calcula o total de "dinheiro que falta" (Desconto Total)
-    const valDescontoTotal = Math.max(0, totalEsperado - valTotalPago);
-
-    // 2. Separa o valor do Cupom
-    let valDescontoCupom = 0;
-    let nomeCupom = null;
-
-    if (order.couponData && order.couponData.value) {
-        valDescontoCupom = order.couponData.value;
-        nomeCupom = order.couponData.code;
-    } else if (order.cupom) {
-        // Fallback antigo
-        nomeCupom = order.cupom;
-    }
-
-    // 3. O que sobrar é Pix (Desconto Total - Desconto Cupom)
-    // Usamos Math.max(0, ...) para evitar negativos por arredondamento
-    const valDescontoPix = Math.max(0, valDescontoTotal - valDescontoCupom);
-
-    // --- CONSTROI O HTML FINANCEIRO ---
-    let financialHtml = `
-        <div class="mt-3 pt-3 border-t border-gray-700 flex flex-col gap-1">
-            <div class="flex justify-between text-xs text-gray-400">
-                <span>Subtotal</span>
-                <span>${formatCurrency(subTotalItems)}</span>
-            </div>
-    `;
-
-    if (valFrete > 0) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-gray-400">
-                <span>Taxa de Entrega</span>
-                <span>+ ${formatCurrency(valFrete)}</span>
-            </div>`;
-    }
-
-    // EXIBE CUPOM SEPARADO
-    if (valDescontoCupom > 0.05) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Cupom (${nomeCupom || 'Aplicado'})</span>
-                <span>- ${formatCurrency(valDescontoCupom)}</span>
-            </div>`;
-    }
-
-    // EXIBE PIX SEPARADO
-    if (valDescontoPix > 0.05) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Desconto Pix</span>
-                <span>- ${formatCurrency(valDescontoPix)}</span>
-            </div>`;
-    }
-
-    // Caso genérico (se tiver desconto mas não identificou a origem exata, ex: erro de arredondamento antigo)
-    if (valDescontoTotal > 0.05 && valDescontoCupom < 0.01 && valDescontoPix < 0.01) {
-         financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Descontos</span>
-                <span>- ${formatCurrency(valDescontoTotal)}</span>
-            </div>`;
-    }
-
-    financialHtml += `
-            <div class="flex justify-between items-end mt-2 pt-2 border-t border-gray-700/50">
-                <span class="text-gray-300 font-bold text-sm">Total Final</span>
-                <span class="text-green-400 font-extrabold text-xl">${formatCurrency(valTotalPago)}</span>
-            </div>
+            <span class="text-white font-bold text-xs">${formatCurrency(i.price * i.qty)}</span>
         </div>
-    `;
-
-    // Bloco de Forma de Pagamento
-    const paymentBlock = `
-        <div class="mt-3 bg-black/40 p-3 rounded border border-gray-700/50">
-            <p class="text-[10px] text-gray-500 uppercase font-bold mb-1"><i class="far fa-credit-card mr-1"></i> Forma de Pagamento</p>
-            <p class="text-xs text-white font-medium break-words">${order.paymentMethod || 'Não informado'}</p>
-        </div>
-    `;
+    `).join('');
 
     const addressBlock = `
         <div class="flex items-start gap-3 mt-4 bg-gray-900 p-3 rounded-lg border border-gray-800">
@@ -6520,11 +6365,15 @@ window.updateStatusUI = (order) => {
         </div>
     `;
 
-    // Botão Reenviar WhatsApp
+    // --- NOVA LÓGICA: BOTÃO REENVIAR WHATSAPP ---
+    // 1. Verifica se é pagamento online
     const isOnline = (order.paymentMethod || '').includes('Online');
+
+    // 2. Verifica se o status permite reenviar (Até "Preparando pedido")
     const allowedResendStatuses = ['Aguardando aprovação', 'Aprovado', 'Preparando pedido'];
     const canResend = isOnline && allowedResendStatuses.includes(order.status);
 
+    // 3. Monta o botão
     const resendBtnHTML = canResend ? `
         <div class="mt-4 pt-3 border-t border-gray-700/50">
             <button onclick="retryWhatsapp('${order.id}')" 
@@ -6535,7 +6384,7 @@ window.updateStatusUI = (order) => {
         </div>
     ` : '';
 
-    // 3. RENDERIZAÇÃO FINAL
+    // 3. RENDERIZAÇÃO
     detailsContainer.innerHTML = `
         <div class="mb-6">
             <h2 class="text-2xl font-extrabold text-yellow-500 tracking-tight">PEDIDO #${order.code}</h2>
@@ -6564,9 +6413,21 @@ window.updateStatusUI = (order) => {
             <h3 class="text-xs font-bold text-gray-400 uppercase mb-3">Resumo do Pedido</h3>
             ${itemsHtml}
             
-            ${financialHtml}
-            ${paymentBlock}
-            ${resendBtnHTML}
+            <div class="mt-3 pt-3 border-t border-gray-700 flex flex-col gap-1">
+                ${order.shippingFee > 0 ? `
+                <div class="flex justify-between text-xs text-gray-400">
+                    <span>Taxa de Entrega</span>
+                    <span>${formatCurrency(order.shippingFee)}</span>
+                </div>` : ''}
+                
+                <div class="flex justify-between items-end mt-1">
+                    <span class="text-gray-300 font-bold text-sm">Total</span>
+                    <span class="text-green-400 font-extrabold text-xl">${formatCurrency(order.total)}</span>
+                </div>
+
+                ${resendBtnHTML}
+
+            </div>
         </div>
 
         ${addressBlock}
@@ -6719,7 +6580,7 @@ function renderOrdersSummary(orders, filterStatus = '') {
     const container = document.getElementById('orders-summary-bar');
     if (!container) return;
 
-    // 1. Inicializa Contadores (ADICIONADO REEMBOLSADO)
+    // 1. Inicializa Contadores
     const counts = {
         'Aguardando aprovação': 0,
         'Aprovado': 0,
@@ -6727,7 +6588,6 @@ function renderOrdersSummary(orders, filterStatus = '') {
         'Saiu para entrega': 0,
         'Entregue': 0,
         'Concluído': 0,
-        'Reembolsado': 0, // <--- Novo
         'Cancelado': 0
     };
 
@@ -6735,25 +6595,25 @@ function renderOrdersSummary(orders, filterStatus = '') {
 
     // 2. Processa os totais
     orders.forEach(o => {
-        // A. Contagem de Status
+        // A. Contagem de Status (Conta tudo para exibir nas caixinhas normais)
         if (o.status.includes('Cancelado')) {
             counts['Cancelado']++;
         } else if (counts.hasOwnProperty(o.status)) {
             counts[o.status]++;
         }
 
-        // B. Contagem de Itens Vendidos (Ignora Cancelados e Reembolsados)
+        // B. Contagem de Itens Vendidos (Regra Ajustada)
+        // Só conta se NÃO for Cancelado E se NÃO estiver Aguardando Aprovação
         const isCancelado = o.status.includes('Cancelado');
-        const isReembolsado = o.status === 'Reembolsado'; // <--- Não conta item vendido se foi reembolsado
         const isAguardando = o.status === 'Aguardando aprovação';
 
-        if (!isCancelado && !isReembolsado && !isAguardando) {
+        if (!isCancelado && !isAguardando) {
             const itensDoPedido = o.items ? o.items.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0) : 0;
             totalItensVendidos += itensDoPedido;
         }
     });
 
-    // 3. Definição dos Cards (ADICIONADO CARD ROXO PARA REEMBOLSADO)
+    // 3. Definição dos Cards
     let cards = [
         { label: 'Aguardando', key: 'Aguardando aprovação', bg: 'bg-gray-600' },
         { label: 'Aprovados', key: 'Aprovado', bg: 'bg-yellow-600' },
@@ -6761,11 +6621,10 @@ function renderOrdersSummary(orders, filterStatus = '') {
         { label: 'Na Entrega', key: 'Saiu para entrega', bg: 'bg-orange-600' },
         { label: 'Entregues', key: 'Entregue', bg: 'bg-green-500' },
         { label: 'Concluídos', key: 'Concluído', bg: 'bg-green-700' },
-        { label: 'Reembolsados', key: 'Reembolsado', bg: 'bg-purple-600' }, // <--- Novo Card
         { label: 'Cancelados', key: 'Cancelado', bg: 'bg-red-600' }
     ];
 
-    // 4. Filtro de Visibilidade
+    // 4. Filtro de Visibilidade (Se selecionou um status, mostra só ele)
     if (filterStatus && filterStatus !== '') {
         if (filterStatus === 'Cancelado_All') {
             cards = cards.filter(c => c.key === 'Cancelado');
@@ -6774,11 +6633,14 @@ function renderOrdersSummary(orders, filterStatus = '') {
         }
     }
 
+    // Adiciona o card de ITENS no final (Sempre mostra itens REAIS vendidos/aprovados)
     cards.push({ label: 'Itens Vendidos', val: totalItensVendidos, bg: 'bg-blue-600', key: 'total_items' });
 
+    // 5. Renderiza
     let html = '';
     cards.forEach(card => {
         const value = card.val !== undefined ? card.val : (counts[card.key] || 0);
+
         html += `
             <div class="${card.bg} text-white rounded p-3 flex flex-col items-center justify-center border border-white/10 min-h-[70px] animate-fade-in">
                 <span class="text-2xl font-bold leading-none mb-1">${value}</span>
@@ -6789,6 +6651,7 @@ function renderOrdersSummary(orders, filterStatus = '') {
 
     const gridCols = cards.length > 4 ? 'lg:grid-cols-8' : `lg:grid-cols-${cards.length}`;
     container.className = `grid grid-cols-2 md:grid-cols-4 ${gridCols} gap-2 mb-6 transition-all`;
+
     container.innerHTML = html;
 }
 
@@ -7075,7 +6938,6 @@ window.previewTheme = (type, color) => {
 };
 
 // 3. Salvar no Firebase
-// 3. Salvar no Firebase (Com notificação estilizada)
 window.saveThemeColors = async () => {
     const newTheme = {
         bgColor: document.getElementById('theme-bg-color')?.value || defaultTheme.bgColor,
@@ -7089,18 +6951,12 @@ window.saveThemeColors = async () => {
     try {
         // Salva na coleção da loja
         await setDoc(doc(db, `sites/${state.siteId}/settings`, 'theme'), newTheme);
-        
-        // Atualiza estado local
         state.currentTheme = newTheme;
         originalTheme = newTheme;
-        
-        // --- ALTERADO AQUI: Usa showToast em vez de alert ---
-        showToast('Tema salvo com sucesso!', 'success'); 
-
+        alert('Tema salvo com sucesso!'); // Pode trocar pelo seu showToast
     } catch (error) {
         console.error(error);
-        // Exibe erro estilizado também
-        showToast('Erro ao salvar tema: ' + error.message, 'error');
+        alert('Erro ao salvar tema.');
     }
 };
 

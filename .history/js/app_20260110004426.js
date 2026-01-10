@@ -4881,18 +4881,19 @@ window.openCheckoutModal = () => {
         const el = document.getElementById(id); if (el) el.classList.add('hidden');
     });
 
-    // 2. RECUPERA CONFIGURAÇÕES
+    // 2. RECUPERA CONFIGURAÇÕES (Com Defaults Seguros)
+    // Se active for undefined, assume true (ativado)
     const pm = state.storeProfile.paymentMethods || {};
-    const dConfig = state.storeProfile.deliveryConfig || {};
 
-    // Configurações Financeiras (Verifica se está ativo)
+    // --- CORREÇÃO AQUI: FORÇAR BOOLEANO ---
+    // Verifica explicitamente se é false. Se for undefined ou true, considera ativo.
     const onlineActive = pm.online?.active !== false;
     const deliveryActive = pm.delivery?.active !== false;
 
-    // --- CORREÇÃO AQUI: LOGÍSTICA ESTRITA ---
-    // Verifica se a Entrega Própria está explicitamente ATIVADA (true).
-    // Se você desmarcar no admin, isso será false.
-    const isLogisticsActive = dConfig.ownDelivery === true;
+    // Compatibilidade com logística antiga (opcional, mas vamos priorizar o botão financeiro)
+    // Se quiser que o botão financeiro seja SOBERANO, ignore o oldOwnDelivery.
+    // Vou manter apenas para garantir que não quebre lojas antigas, mas a prioridade é o novo botão.
+    const logisticsActive = state.storeProfile.deliveryConfig?.ownDelivery !== false;
 
     // 3. REFERÊNCIAS AOS ELEMENTOS
     const containerDelivery = document.getElementById('container-delivery-option'); // Div do Pagar na Entrega
@@ -4901,51 +4902,51 @@ window.openCheckoutModal = () => {
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
     const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
 
+    console.log("Status Online:", onlineActive);
+    console.log("Status Entrega (Fin):", deliveryActive);
+    console.log("Status Entrega (Log):", logisticsActive);
+
     // --- A. VISIBILIDADE ONLINE ---
     if (!onlineActive) {
         if (labelOnline) {
             labelOnline.classList.add('hidden');
-            labelOnline.style.setProperty('display', 'none', 'important');
+            labelOnline.style.setProperty('display', 'none', 'important'); // Força ocultar
         }
     } else {
         if (labelOnline) {
             labelOnline.classList.remove('hidden');
-            labelOnline.style.display = '';
+            labelOnline.style.display = ''; // Volta ao padrão (flex)
         }
     }
 
-    // --- B. VISIBILIDADE ENTREGA (Lógica Combinada) ---
-    // Só mostra a opção "Pagar na Entrega" se:
-    // 1. O Financeiro permitir (deliveryActive) E
-    // 2. A Logística Própria estiver LIGADA (isLogisticsActive)
-    const showDeliveryOption = deliveryActive && isLogisticsActive;
+    // --- B. VISIBILIDADE ENTREGA ---
+    // AQUI ESTAVA O ERRO: A lógica deve ser restritiva.
+    // Se o botão financeiro estiver OFF, some. Ponto final.
+    // Se o botão financeiro estiver ON, mas a logística OFF, também some.
 
-    if (showDeliveryOption) {
-        if (containerDelivery) {
-            containerDelivery.classList.remove('hidden');
-            containerDelivery.style.display = '';
-        }
-    } else {
-        // Se a entrega própria estiver OFF (ou financeiro OFF), esconde
+    const showDelivery = deliveryActive && logisticsActive;
+
+    if (!showDelivery) {
         if (containerDelivery) {
             containerDelivery.classList.add('hidden');
             containerDelivery.style.setProperty('display', 'none', 'important');
         }
+    } else {
+        if (containerDelivery) {
+            containerDelivery.classList.remove('hidden');
+            containerDelivery.style.display = ''; // Volta ao padrão (block)
+        }
     }
 
-    // --- C. AUTO-SELEÇÃO DO RADIO (Atualizado) ---
+    // --- C. AUTO-SELEÇÃO DO RADIO (Para não ficar nenhum marcado) ---
 
-    // 1. Se a opção de Entrega sumiu (por logística ou financeiro), força marcar Online
-    if (!showDeliveryOption && onlineActive) {
+    // Se o Online está ativo, marcamos ele por padrão
+    if (onlineActive) {
         if (radioOnline) radioOnline.checked = true;
     }
-    // 2. Se a opção Online sumiu, força marcar Entrega (se estiver disponível)
-    else if (!onlineActive && showDeliveryOption) {
+    // Se o Online está OFF, mas Entrega está ON, marcamos a Entrega
+    else if (showDelivery) {
         if (radioDelivery) radioDelivery.checked = true;
-    }
-    // 3. Se ambos estão disponíveis, prioriza Online como padrão
-    else if (onlineActive) {
-        if (radioOnline) radioOnline.checked = true;
     }
 
     // 4. Atualiza Interface Interna
@@ -4968,7 +4969,7 @@ window.openCheckoutModal = () => {
     const btnFinish = document.getElementById('btn-finish-payment');
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = false; // Garante que o botão comece habilitado
+        btnFinish.disabled = true;
     }
 };
 
@@ -6347,7 +6348,7 @@ window.updateStatusUI = (order) => {
     const s = order.status;
     const isCancelled = s.includes('Cancelado');
 
-    // 1. LÓGICA DA TIMELINE (Mantida igual)
+    // 1. LÓGICA DA TIMELINE (Mantida)
     let currentStep = 0;
     if (s === 'Aguardando aprovação') currentStep = 0;
     else if (s === 'Aprovado' || s === 'Preparando pedido') currentStep = 1;
@@ -6407,7 +6408,7 @@ window.updateStatusUI = (order) => {
     });
     timelineHTML += `</div>`;
 
-    // 2. CONTEÚDO DOS ITENS E CÁLCULOS
+    // 2. CONTEÚDO DOS ITENS (Calculando Subtotal)
     let subTotalItems = 0;
     
     let itemsHtml = order.items.map(i => {
@@ -6423,31 +6424,14 @@ window.updateStatusUI = (order) => {
         </div>`;
     }).join('');
 
-    // --- LÓGICA FINANCEIRA (SEPARAÇÃO DE DESCONTOS) ---
+    // --- CÁLCULO FINANCEIRO DETALHADO ---
     const valFrete = order.shippingFee || 0;
     const valTotalPago = order.total || 0;
-    const totalEsperado = subTotalItems + valFrete;
     
-    // 1. Calcula o total de "dinheiro que falta" (Desconto Total)
-    const valDescontoTotal = Math.max(0, totalEsperado - valTotalPago);
+    // Desconto é a diferença entre (Produtos + Frete) - (O que foi pago)
+    const valDescontoTotal = Math.max(0, (subTotalItems + valFrete) - valTotalPago);
 
-    // 2. Separa o valor do Cupom
-    let valDescontoCupom = 0;
-    let nomeCupom = null;
-
-    if (order.couponData && order.couponData.value) {
-        valDescontoCupom = order.couponData.value;
-        nomeCupom = order.couponData.code;
-    } else if (order.cupom) {
-        // Fallback antigo
-        nomeCupom = order.cupom;
-    }
-
-    // 3. O que sobrar é Pix (Desconto Total - Desconto Cupom)
-    // Usamos Math.max(0, ...) para evitar negativos por arredondamento
-    const valDescontoPix = Math.max(0, valDescontoTotal - valDescontoCupom);
-
-    // --- CONSTROI O HTML FINANCEIRO ---
+    // HTML dos Valores
     let financialHtml = `
         <div class="mt-3 pt-3 border-t border-gray-700 flex flex-col gap-1">
             <div class="flex justify-between text-xs text-gray-400">
@@ -6464,29 +6448,13 @@ window.updateStatusUI = (order) => {
             </div>`;
     }
 
-    // EXIBE CUPOM SEPARADO
-    if (valDescontoCupom > 0.05) {
+    if (valDescontoTotal > 0.05) {
+        // Se tiver cupom salvo, mostra o código
+        const cupomLabel = order.cupom ? `Descontos (Cupom: ${order.cupom})` : 'Descontos (Pix/Cupom)';
+        
         financialHtml += `
             <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Cupom (${nomeCupom || 'Aplicado'})</span>
-                <span>- ${formatCurrency(valDescontoCupom)}</span>
-            </div>`;
-    }
-
-    // EXIBE PIX SEPARADO
-    if (valDescontoPix > 0.05) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Desconto Pix</span>
-                <span>- ${formatCurrency(valDescontoPix)}</span>
-            </div>`;
-    }
-
-    // Caso genérico (se tiver desconto mas não identificou a origem exata, ex: erro de arredondamento antigo)
-    if (valDescontoTotal > 0.05 && valDescontoCupom < 0.01 && valDescontoPix < 0.01) {
-         financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Descontos</span>
+                <span>${cupomLabel}</span>
                 <span>- ${formatCurrency(valDescontoTotal)}</span>
             </div>`;
     }
@@ -6520,7 +6488,7 @@ window.updateStatusUI = (order) => {
         </div>
     `;
 
-    // Botão Reenviar WhatsApp
+    // Botão Reenviar WhatsApp (Mantido)
     const isOnline = (order.paymentMethod || '').includes('Online');
     const allowedResendStatuses = ['Aguardando aprovação', 'Aprovado', 'Preparando pedido'];
     const canResend = isOnline && allowedResendStatuses.includes(order.status);
@@ -6574,7 +6542,7 @@ window.updateStatusUI = (order) => {
         <div id="cancel-btn-area" class="mt-6"></div>
     `;
 
-    // 4. LÓGICA DO BOTÃO CANCELAR
+    // 4. LÓGICA DO BOTÃO CANCELAR (Mantida)
     const btnArea = document.getElementById('cancel-btn-area');
     if (!btnArea || isCancelled || currentStep > 0) {
         if (btnArea) btnArea.innerHTML = '';

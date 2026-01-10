@@ -4881,18 +4881,19 @@ window.openCheckoutModal = () => {
         const el = document.getElementById(id); if (el) el.classList.add('hidden');
     });
 
-    // 2. RECUPERA CONFIGURAÇÕES
+    // 2. RECUPERA CONFIGURAÇÕES (Com Defaults Seguros)
+    // Se active for undefined, assume true (ativado)
     const pm = state.storeProfile.paymentMethods || {};
-    const dConfig = state.storeProfile.deliveryConfig || {};
 
-    // Configurações Financeiras (Verifica se está ativo)
+    // --- CORREÇÃO AQUI: FORÇAR BOOLEANO ---
+    // Verifica explicitamente se é false. Se for undefined ou true, considera ativo.
     const onlineActive = pm.online?.active !== false;
     const deliveryActive = pm.delivery?.active !== false;
 
-    // --- CORREÇÃO AQUI: LOGÍSTICA ESTRITA ---
-    // Verifica se a Entrega Própria está explicitamente ATIVADA (true).
-    // Se você desmarcar no admin, isso será false.
-    const isLogisticsActive = dConfig.ownDelivery === true;
+    // Compatibilidade com logística antiga (opcional, mas vamos priorizar o botão financeiro)
+    // Se quiser que o botão financeiro seja SOBERANO, ignore o oldOwnDelivery.
+    // Vou manter apenas para garantir que não quebre lojas antigas, mas a prioridade é o novo botão.
+    const logisticsActive = state.storeProfile.deliveryConfig?.ownDelivery !== false;
 
     // 3. REFERÊNCIAS AOS ELEMENTOS
     const containerDelivery = document.getElementById('container-delivery-option'); // Div do Pagar na Entrega
@@ -4901,51 +4902,51 @@ window.openCheckoutModal = () => {
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
     const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
 
+    console.log("Status Online:", onlineActive);
+    console.log("Status Entrega (Fin):", deliveryActive);
+    console.log("Status Entrega (Log):", logisticsActive);
+
     // --- A. VISIBILIDADE ONLINE ---
     if (!onlineActive) {
         if (labelOnline) {
             labelOnline.classList.add('hidden');
-            labelOnline.style.setProperty('display', 'none', 'important');
+            labelOnline.style.setProperty('display', 'none', 'important'); // Força ocultar
         }
     } else {
         if (labelOnline) {
             labelOnline.classList.remove('hidden');
-            labelOnline.style.display = '';
+            labelOnline.style.display = ''; // Volta ao padrão (flex)
         }
     }
 
-    // --- B. VISIBILIDADE ENTREGA (Lógica Combinada) ---
-    // Só mostra a opção "Pagar na Entrega" se:
-    // 1. O Financeiro permitir (deliveryActive) E
-    // 2. A Logística Própria estiver LIGADA (isLogisticsActive)
-    const showDeliveryOption = deliveryActive && isLogisticsActive;
+    // --- B. VISIBILIDADE ENTREGA ---
+    // AQUI ESTAVA O ERRO: A lógica deve ser restritiva.
+    // Se o botão financeiro estiver OFF, some. Ponto final.
+    // Se o botão financeiro estiver ON, mas a logística OFF, também some.
 
-    if (showDeliveryOption) {
-        if (containerDelivery) {
-            containerDelivery.classList.remove('hidden');
-            containerDelivery.style.display = '';
-        }
-    } else {
-        // Se a entrega própria estiver OFF (ou financeiro OFF), esconde
+    const showDelivery = deliveryActive && logisticsActive;
+
+    if (!showDelivery) {
         if (containerDelivery) {
             containerDelivery.classList.add('hidden');
             containerDelivery.style.setProperty('display', 'none', 'important');
         }
+    } else {
+        if (containerDelivery) {
+            containerDelivery.classList.remove('hidden');
+            containerDelivery.style.display = ''; // Volta ao padrão (block)
+        }
     }
 
-    // --- C. AUTO-SELEÇÃO DO RADIO (Atualizado) ---
+    // --- C. AUTO-SELEÇÃO DO RADIO (Para não ficar nenhum marcado) ---
 
-    // 1. Se a opção de Entrega sumiu (por logística ou financeiro), força marcar Online
-    if (!showDeliveryOption && onlineActive) {
+    // Se o Online está ativo, marcamos ele por padrão
+    if (onlineActive) {
         if (radioOnline) radioOnline.checked = true;
     }
-    // 2. Se a opção Online sumiu, força marcar Entrega (se estiver disponível)
-    else if (!onlineActive && showDeliveryOption) {
+    // Se o Online está OFF, mas Entrega está ON, marcamos a Entrega
+    else if (showDelivery) {
         if (radioDelivery) radioDelivery.checked = true;
-    }
-    // 3. Se ambos estão disponíveis, prioriza Online como padrão
-    else if (onlineActive) {
-        if (radioOnline) radioOnline.checked = true;
     }
 
     // 4. Atualiza Interface Interna
@@ -4968,7 +4969,7 @@ window.openCheckoutModal = () => {
     const btnFinish = document.getElementById('btn-finish-payment');
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = false; // Garante que o botão comece habilitado
+        btnFinish.disabled = true;
     }
 };
 
@@ -6044,7 +6045,6 @@ window.adminFinalizeOrder = async (orderId) => {
         }
     }
 };
-
 // 2. Botão Cancelar
 window.adminCancelOrder = async (orderId) => {
     if (confirm("Tem certeza que deseja CANCELAR este pedido?")) {
@@ -6052,6 +6052,7 @@ window.adminCancelOrder = async (orderId) => {
     }
 };
 
+// 3. Botão Finalizado
 // 5. Botão Reembolsar (Novo)
 window.adminRefundOrder = async (orderId) => {
     if (confirm("Deseja REEMBOLSAR este pedido?\n\nIsso irá devolver os itens ao estoque e mudar o status para 'Reembolsado'.\nEsta ação é irreversível.")) {
@@ -6347,13 +6348,17 @@ window.updateStatusUI = (order) => {
     const s = order.status;
     const isCancelled = s.includes('Cancelado');
 
-    // 1. LÓGICA DA TIMELINE (Mantida igual)
+    // 1. LÓGICA DA TIMELINE
     let currentStep = 0;
+
+    // Mapeamento
     if (s === 'Aguardando aprovação') currentStep = 0;
-    else if (s === 'Aprovado' || s === 'Preparando pedido') currentStep = 1;
+    else if (s === 'Aprovado') currentStep = 1;
+    else if (s === 'Preparando pedido') currentStep = 1;
     else if (s === 'Saiu para entrega') currentStep = 2;
     else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
 
+    // Configuração da primeira bolinha
     const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
     const step0Icon = (s === 'Aguardando aprovação' || isCancelled) ? 'fa-clock' : 'fa-thumbs-up';
 
@@ -6364,6 +6369,7 @@ window.updateStatusUI = (order) => {
         { label: 'Entregue', icon: 'fa-check' }
     ];
 
+    // --- HTML DA TIMELINE ---
     let timelineHTML = `<div class="flex justify-between items-start mb-8 relative px-2">`;
     timelineHTML += `<div class="absolute top-[18px] left-7 right-7 h-0.5 bg-gray-700 -z-0"></div>`;
 
@@ -6407,105 +6413,17 @@ window.updateStatusUI = (order) => {
     });
     timelineHTML += `</div>`;
 
-    // 2. CONTEÚDO DOS ITENS E CÁLCULOS
-    let subTotalItems = 0;
-    
-    let itemsHtml = order.items.map(i => {
-        const itemTotal = i.price * i.qty;
-        subTotalItems += itemTotal;
-        return `
+
+    // 2. CONTEÚDO DOS ITENS
+    let itemsHtml = order.items.map(i => `
         <div class="flex justify-between items-center text-sm text-gray-300 mb-2 border-b border-gray-800 pb-2 last:border-0">
             <div class="flex items-center gap-2">
                  <span class="text-yellow-500 font-bold font-mono text-xs bg-yellow-900/20 px-1.5 rounded">${i.qty}x</span>
                  <span>${i.name} ${i.size !== 'U' ? `<span class="text-xs text-gray-500">(${i.size})</span>` : ''}</span>
             </div>
-            <span class="text-white font-bold text-xs">${formatCurrency(itemTotal)}</span>
-        </div>`;
-    }).join('');
-
-    // --- LÓGICA FINANCEIRA (SEPARAÇÃO DE DESCONTOS) ---
-    const valFrete = order.shippingFee || 0;
-    const valTotalPago = order.total || 0;
-    const totalEsperado = subTotalItems + valFrete;
-    
-    // 1. Calcula o total de "dinheiro que falta" (Desconto Total)
-    const valDescontoTotal = Math.max(0, totalEsperado - valTotalPago);
-
-    // 2. Separa o valor do Cupom
-    let valDescontoCupom = 0;
-    let nomeCupom = null;
-
-    if (order.couponData && order.couponData.value) {
-        valDescontoCupom = order.couponData.value;
-        nomeCupom = order.couponData.code;
-    } else if (order.cupom) {
-        // Fallback antigo
-        nomeCupom = order.cupom;
-    }
-
-    // 3. O que sobrar é Pix (Desconto Total - Desconto Cupom)
-    // Usamos Math.max(0, ...) para evitar negativos por arredondamento
-    const valDescontoPix = Math.max(0, valDescontoTotal - valDescontoCupom);
-
-    // --- CONSTROI O HTML FINANCEIRO ---
-    let financialHtml = `
-        <div class="mt-3 pt-3 border-t border-gray-700 flex flex-col gap-1">
-            <div class="flex justify-between text-xs text-gray-400">
-                <span>Subtotal</span>
-                <span>${formatCurrency(subTotalItems)}</span>
-            </div>
-    `;
-
-    if (valFrete > 0) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-gray-400">
-                <span>Taxa de Entrega</span>
-                <span>+ ${formatCurrency(valFrete)}</span>
-            </div>`;
-    }
-
-    // EXIBE CUPOM SEPARADO
-    if (valDescontoCupom > 0.05) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Cupom (${nomeCupom || 'Aplicado'})</span>
-                <span>- ${formatCurrency(valDescontoCupom)}</span>
-            </div>`;
-    }
-
-    // EXIBE PIX SEPARADO
-    if (valDescontoPix > 0.05) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Desconto Pix</span>
-                <span>- ${formatCurrency(valDescontoPix)}</span>
-            </div>`;
-    }
-
-    // Caso genérico (se tiver desconto mas não identificou a origem exata, ex: erro de arredondamento antigo)
-    if (valDescontoTotal > 0.05 && valDescontoCupom < 0.01 && valDescontoPix < 0.01) {
-         financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Descontos</span>
-                <span>- ${formatCurrency(valDescontoTotal)}</span>
-            </div>`;
-    }
-
-    financialHtml += `
-            <div class="flex justify-between items-end mt-2 pt-2 border-t border-gray-700/50">
-                <span class="text-gray-300 font-bold text-sm">Total Final</span>
-                <span class="text-green-400 font-extrabold text-xl">${formatCurrency(valTotalPago)}</span>
-            </div>
+            <span class="text-white font-bold text-xs">${formatCurrency(i.price * i.qty)}</span>
         </div>
-    `;
-
-    // Bloco de Forma de Pagamento
-    const paymentBlock = `
-        <div class="mt-3 bg-black/40 p-3 rounded border border-gray-700/50">
-            <p class="text-[10px] text-gray-500 uppercase font-bold mb-1"><i class="far fa-credit-card mr-1"></i> Forma de Pagamento</p>
-            <p class="text-xs text-white font-medium break-words">${order.paymentMethod || 'Não informado'}</p>
-        </div>
-    `;
+    `).join('');
 
     const addressBlock = `
         <div class="flex items-start gap-3 mt-4 bg-gray-900 p-3 rounded-lg border border-gray-800">
@@ -6520,11 +6438,15 @@ window.updateStatusUI = (order) => {
         </div>
     `;
 
-    // Botão Reenviar WhatsApp
+    // --- NOVA LÓGICA: BOTÃO REENVIAR WHATSAPP ---
+    // 1. Verifica se é pagamento online
     const isOnline = (order.paymentMethod || '').includes('Online');
+
+    // 2. Verifica se o status permite reenviar (Até "Preparando pedido")
     const allowedResendStatuses = ['Aguardando aprovação', 'Aprovado', 'Preparando pedido'];
     const canResend = isOnline && allowedResendStatuses.includes(order.status);
 
+    // 3. Monta o botão
     const resendBtnHTML = canResend ? `
         <div class="mt-4 pt-3 border-t border-gray-700/50">
             <button onclick="retryWhatsapp('${order.id}')" 
@@ -6535,7 +6457,7 @@ window.updateStatusUI = (order) => {
         </div>
     ` : '';
 
-    // 3. RENDERIZAÇÃO FINAL
+    // 3. RENDERIZAÇÃO
     detailsContainer.innerHTML = `
         <div class="mb-6">
             <h2 class="text-2xl font-extrabold text-yellow-500 tracking-tight">PEDIDO #${order.code}</h2>
@@ -6564,9 +6486,21 @@ window.updateStatusUI = (order) => {
             <h3 class="text-xs font-bold text-gray-400 uppercase mb-3">Resumo do Pedido</h3>
             ${itemsHtml}
             
-            ${financialHtml}
-            ${paymentBlock}
-            ${resendBtnHTML}
+            <div class="mt-3 pt-3 border-t border-gray-700 flex flex-col gap-1">
+                ${order.shippingFee > 0 ? `
+                <div class="flex justify-between text-xs text-gray-400">
+                    <span>Taxa de Entrega</span>
+                    <span>${formatCurrency(order.shippingFee)}</span>
+                </div>` : ''}
+                
+                <div class="flex justify-between items-end mt-1">
+                    <span class="text-gray-300 font-bold text-sm">Total</span>
+                    <span class="text-green-400 font-extrabold text-xl">${formatCurrency(order.total)}</span>
+                </div>
+
+                ${resendBtnHTML}
+
+            </div>
         </div>
 
         ${addressBlock}

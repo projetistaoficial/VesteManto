@@ -4881,18 +4881,19 @@ window.openCheckoutModal = () => {
         const el = document.getElementById(id); if (el) el.classList.add('hidden');
     });
 
-    // 2. RECUPERA CONFIGURAÇÕES
+    // 2. RECUPERA CONFIGURAÇÕES (Com Defaults Seguros)
+    // Se active for undefined, assume true (ativado)
     const pm = state.storeProfile.paymentMethods || {};
-    const dConfig = state.storeProfile.deliveryConfig || {};
 
-    // Configurações Financeiras (Verifica se está ativo)
+    // --- CORREÇÃO AQUI: FORÇAR BOOLEANO ---
+    // Verifica explicitamente se é false. Se for undefined ou true, considera ativo.
     const onlineActive = pm.online?.active !== false;
     const deliveryActive = pm.delivery?.active !== false;
 
-    // --- CORREÇÃO AQUI: LOGÍSTICA ESTRITA ---
-    // Verifica se a Entrega Própria está explicitamente ATIVADA (true).
-    // Se você desmarcar no admin, isso será false.
-    const isLogisticsActive = dConfig.ownDelivery === true;
+    // Compatibilidade com logística antiga (opcional, mas vamos priorizar o botão financeiro)
+    // Se quiser que o botão financeiro seja SOBERANO, ignore o oldOwnDelivery.
+    // Vou manter apenas para garantir que não quebre lojas antigas, mas a prioridade é o novo botão.
+    const logisticsActive = state.storeProfile.deliveryConfig?.ownDelivery !== false;
 
     // 3. REFERÊNCIAS AOS ELEMENTOS
     const containerDelivery = document.getElementById('container-delivery-option'); // Div do Pagar na Entrega
@@ -4901,51 +4902,51 @@ window.openCheckoutModal = () => {
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
     const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
 
+    console.log("Status Online:", onlineActive);
+    console.log("Status Entrega (Fin):", deliveryActive);
+    console.log("Status Entrega (Log):", logisticsActive);
+
     // --- A. VISIBILIDADE ONLINE ---
     if (!onlineActive) {
         if (labelOnline) {
             labelOnline.classList.add('hidden');
-            labelOnline.style.setProperty('display', 'none', 'important');
+            labelOnline.style.setProperty('display', 'none', 'important'); // Força ocultar
         }
     } else {
         if (labelOnline) {
             labelOnline.classList.remove('hidden');
-            labelOnline.style.display = '';
+            labelOnline.style.display = ''; // Volta ao padrão (flex)
         }
     }
 
-    // --- B. VISIBILIDADE ENTREGA (Lógica Combinada) ---
-    // Só mostra a opção "Pagar na Entrega" se:
-    // 1. O Financeiro permitir (deliveryActive) E
-    // 2. A Logística Própria estiver LIGADA (isLogisticsActive)
-    const showDeliveryOption = deliveryActive && isLogisticsActive;
+    // --- B. VISIBILIDADE ENTREGA ---
+    // AQUI ESTAVA O ERRO: A lógica deve ser restritiva.
+    // Se o botão financeiro estiver OFF, some. Ponto final.
+    // Se o botão financeiro estiver ON, mas a logística OFF, também some.
 
-    if (showDeliveryOption) {
-        if (containerDelivery) {
-            containerDelivery.classList.remove('hidden');
-            containerDelivery.style.display = '';
-        }
-    } else {
-        // Se a entrega própria estiver OFF (ou financeiro OFF), esconde
+    const showDelivery = deliveryActive && logisticsActive;
+
+    if (!showDelivery) {
         if (containerDelivery) {
             containerDelivery.classList.add('hidden');
             containerDelivery.style.setProperty('display', 'none', 'important');
         }
+    } else {
+        if (containerDelivery) {
+            containerDelivery.classList.remove('hidden');
+            containerDelivery.style.display = ''; // Volta ao padrão (block)
+        }
     }
 
-    // --- C. AUTO-SELEÇÃO DO RADIO (Atualizado) ---
+    // --- C. AUTO-SELEÇÃO DO RADIO (Para não ficar nenhum marcado) ---
 
-    // 1. Se a opção de Entrega sumiu (por logística ou financeiro), força marcar Online
-    if (!showDeliveryOption && onlineActive) {
+    // Se o Online está ativo, marcamos ele por padrão
+    if (onlineActive) {
         if (radioOnline) radioOnline.checked = true;
     }
-    // 2. Se a opção Online sumiu, força marcar Entrega (se estiver disponível)
-    else if (!onlineActive && showDeliveryOption) {
+    // Se o Online está OFF, mas Entrega está ON, marcamos a Entrega
+    else if (showDelivery) {
         if (radioDelivery) radioDelivery.checked = true;
-    }
-    // 3. Se ambos estão disponíveis, prioriza Online como padrão
-    else if (onlineActive) {
-        if (radioOnline) radioOnline.checked = true;
     }
 
     // 4. Atualiza Interface Interna
@@ -4968,7 +4969,7 @@ window.openCheckoutModal = () => {
     const btnFinish = document.getElementById('btn-finish-payment');
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = false; // Garante que o botão comece habilitado
+        btnFinish.disabled = true;
     }
 };
 

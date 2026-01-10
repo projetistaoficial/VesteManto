@@ -3073,45 +3073,49 @@ function setupEventListeners() {
         elShipInput.addEventListener('blur', () => autoSaveSettings('orders'));
     }
 
-    if (checkOwnDelivery && checkReqCode) {
-        // Estado inicial
-        toggleReqCodeState(checkOwnDelivery.checked);
-
-        // Ao mudar "Entrega Própria"
-        checkOwnDelivery.addEventListener('change', (e) => {
-            const isActive = e.target.checked;
-            toggleReqCodeState(isActive);
-
-            // Se desativou a entrega, desativa o código obrigatoriamente
-            if (!isActive) {
-                checkReqCode.checked = false;
-            }
-
-            // Salva
-            autoSaveSettings('orders');
-        });
-
-        // Ao mudar "Solicitar Código"
-        checkReqCode.addEventListener('change', () => autoSaveSettings('orders'));
-
-        // Ao mudar Tempo de Cancelamento
-        if (inputCancelTime) {
-            inputCancelTime.addEventListener('blur', () => autoSaveSettings('orders'));
-        }
-    }
-
-    // Função visual para travar/destravar o checkbox dependente
-    function toggleReqCodeState(isActive) {
+    // Função auxiliar visual (para travar/destravar o checkbox de código)
+    const toggleReqCodeState = (isActive) => {
         if (!checkReqCode) return;
-        const parentLabel = checkReqCode.closest('label');
+        const parentLabel = checkReqCode.closest('label'); // Pega o pai para dar opacidade
 
         if (isActive) {
             checkReqCode.disabled = false;
             if (parentLabel) parentLabel.classList.remove('opacity-50', 'pointer-events-none');
         } else {
             checkReqCode.disabled = true;
+            checkReqCode.checked = false; // Desmarca visualmente se desativar a entrega
             if (parentLabel) parentLabel.classList.add('opacity-50', 'pointer-events-none');
         }
+    };
+
+    // 2. Configura o Listener da "Entrega Própria"
+    if (checkOwnDelivery) {
+        // Define o estado visual inicial ao carregar a página
+        toggleReqCodeState(checkOwnDelivery.checked);
+
+        checkOwnDelivery.addEventListener('change', (e) => {
+            const isActive = e.target.checked;
+
+            // 1. Atualiza visual dos dependentes
+            toggleReqCodeState(isActive);
+
+            // 2. DISPARA O SALVAMENTO (Isso atualiza o state.storeProfile)
+            autoSaveSettings('orders');
+        });
+    }
+
+    // 3. Configura Listener do "Código de Segurança"
+    if (checkReqCode) {
+        checkReqCode.addEventListener('change', () => {
+            autoSaveSettings('orders');
+        });
+    }
+
+    // 4. Configura Listener do Tempo (Blur para salvar ao sair do campo)
+    if (inputCancelTime) {
+        inputCancelTime.addEventListener('blur', () => {
+            autoSaveSettings('orders');
+        });
     }
 
     // 2. Lógica do Modal de Carrinho (Botões de Navegação)

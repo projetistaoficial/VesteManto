@@ -4881,18 +4881,17 @@ window.openCheckoutModal = () => {
         const el = document.getElementById(id); if (el) el.classList.add('hidden');
     });
 
-    // 2. RECUPERA CONFIGURAÇÕES
+    // 2. RECUPERA AS CONFIGURAÇÕES
     const pm = state.storeProfile.paymentMethods || {};
     const dConfig = state.storeProfile.deliveryConfig || {};
 
-    // Configurações Financeiras (Verifica se está ativo)
-    const onlineActive = pm.online?.active !== false;
-    const deliveryActive = pm.delivery?.active !== false;
+    // Verifica configurações Financeiras
+    const isOnlineFinanceActive = pm.online?.active !== false; 
+    const isDeliveryFinanceActive = pm.delivery?.active !== false;
 
-    // --- CORREÇÃO AQUI: LOGÍSTICA ESTRITA ---
-    // Verifica se a Entrega Própria está explicitamente ATIVADA (true).
-    // Se você desmarcar no admin, isso será false.
-    const isLogisticsActive = dConfig.ownDelivery === true;
+    // Verifica configuração de Logística (AQUI ESTÁ A CHAVE)
+    // Se ownDelivery for false, a logística própria está desligada.
+    const isLogisticsActive = dConfig.ownDelivery === true; 
 
     // 3. REFERÊNCIAS AOS ELEMENTOS
     const containerDelivery = document.getElementById('container-delivery-option'); // Div do Pagar na Entrega
@@ -4901,24 +4900,24 @@ window.openCheckoutModal = () => {
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
     const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
 
-    // --- A. VISIBILIDADE ONLINE ---
-    if (!onlineActive) {
+    // --- LÓGICA DE EXIBIÇÃO ---
+
+    // A. PAGAMENTO ONLINE
+    if (isOnlineFinanceActive) {
+        if (labelOnline) {
+            labelOnline.classList.remove('hidden');
+            labelOnline.style.display = ''; 
+        }
+    } else {
         if (labelOnline) {
             labelOnline.classList.add('hidden');
             labelOnline.style.setProperty('display', 'none', 'important');
         }
-    } else {
-        if (labelOnline) {
-            labelOnline.classList.remove('hidden');
-            labelOnline.style.display = '';
-        }
     }
 
-    // --- B. VISIBILIDADE ENTREGA (Lógica Combinada) ---
-    // Só mostra a opção "Pagar na Entrega" se:
-    // 1. O Financeiro permitir (deliveryActive) E
-    // 2. A Logística Própria estiver LIGADA (isLogisticsActive)
-    const showDeliveryOption = deliveryActive && isLogisticsActive;
+    // B. PAGAMENTO NA ENTREGA (Regra Combinada)
+    // Só mostra se o financeiro permitir E se a logística própria estiver ATIVA
+    const showDeliveryOption = isDeliveryFinanceActive && isLogisticsActive;
 
     if (showDeliveryOption) {
         if (containerDelivery) {
@@ -4926,33 +4925,34 @@ window.openCheckoutModal = () => {
             containerDelivery.style.display = '';
         }
     } else {
-        // Se a entrega própria estiver OFF (ou financeiro OFF), esconde
+        // Se a entrega própria estiver OFF, esconde isso aqui
         if (containerDelivery) {
             containerDelivery.classList.add('hidden');
             containerDelivery.style.setProperty('display', 'none', 'important');
         }
     }
 
-    // --- C. AUTO-SELEÇÃO DO RADIO (Atualizado) ---
+    // --- SELEÇÃO AUTOMÁTICA (Para não travar o checkout) ---
 
-    // 1. Se a opção de Entrega sumiu (por logística ou financeiro), força marcar Online
-    if (!showDeliveryOption && onlineActive) {
+    // Se "Pagar na Entrega" foi escondido, força marcar "Online"
+    if (!showDeliveryOption && isOnlineFinanceActive) {
         if (radioOnline) radioOnline.checked = true;
     }
-    // 2. Se a opção Online sumiu, força marcar Entrega (se estiver disponível)
-    else if (!onlineActive && showDeliveryOption) {
+    // Se "Online" foi escondido (raro), força marcar "Entrega" (se disponível)
+    else if (!isOnlineFinanceActive && showDeliveryOption) {
         if (radioDelivery) radioDelivery.checked = true;
     }
-    // 3. Se ambos estão disponíveis, prioriza Online como padrão
-    else if (onlineActive) {
+    // Se ambos estiverem ativos, mantém o padrão (Online)
+    else if (isOnlineFinanceActive) {
         if (radioOnline) radioOnline.checked = true;
     }
 
-    // 4. Atualiza Interface Interna
+    // 4. ATUALIZA A INTERFACE INTERNA (Dispara os eventos visuais)
+    // Isso garante que os sub-opções (Pix/Cartão/Dinheiro) apareçam corretamente
     if (typeof window.togglePaymentMode === 'function') window.togglePaymentMode();
     if (typeof window.calcCheckoutTotal === 'function') window.calcCheckoutTotal();
 
-    // 5. NAVEGAÇÃO
+    // 5. NAVEGAÇÃO DE TELAS (Mantida)
     const viewCart = document.getElementById('view-cart-list');
     const viewCheckout = document.getElementById('view-checkout');
 
@@ -4968,7 +4968,7 @@ window.openCheckoutModal = () => {
     const btnFinish = document.getElementById('btn-finish-payment');
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = false; // Garante que o botão comece habilitado
+        btnFinish.disabled = false; // Garante que o botão comece habilitado se tudo estiver certo
     }
 };
 

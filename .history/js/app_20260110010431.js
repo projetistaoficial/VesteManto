@@ -3051,9 +3051,57 @@ function setupEventListeners() {
 
 
     // 1. Lógica Admin: Dependência dos Checkboxes de Entrega
+   // --- DENTRO DE setupEventListeners ---
+
+    // 1. Captura os elementos (Isso você já tinha, mas confirme)
     const checkOwnDelivery = document.getElementById('conf-own-delivery');
     const checkReqCode = document.getElementById('conf-req-code');
     const inputCancelTime = document.getElementById('conf-cancel-time');
+
+    // Função auxiliar visual (para travar/destravar o checkbox de código)
+    const toggleReqCodeState = (isActive) => {
+        if (!checkReqCode) return;
+        const parentLabel = checkReqCode.closest('label'); // Pega o pai para dar opacidade
+
+        if (isActive) {
+            checkReqCode.disabled = false;
+            if (parentLabel) parentLabel.classList.remove('opacity-50', 'pointer-events-none');
+        } else {
+            checkReqCode.disabled = true;
+            checkReqCode.checked = false; // Desmarca visualmente se desativar a entrega
+            if (parentLabel) parentLabel.classList.add('opacity-50', 'pointer-events-none');
+        }
+    };
+
+    // 2. Configura o Listener da "Entrega Própria"
+    if (checkOwnDelivery) {
+        // Define o estado visual inicial ao carregar a página
+        toggleReqCodeState(checkOwnDelivery.checked);
+
+        checkOwnDelivery.addEventListener('change', (e) => {
+            const isActive = e.target.checked;
+            
+            // 1. Atualiza visual dos dependentes
+            toggleReqCodeState(isActive);
+
+            // 2. DISPARA O SALVAMENTO (Isso atualiza o state.storeProfile)
+            autoSaveSettings('orders'); 
+        });
+    }
+
+    // 3. Configura Listener do "Código de Segurança"
+    if (checkReqCode) {
+        checkReqCode.addEventListener('change', () => {
+            autoSaveSettings('orders');
+        });
+    }
+
+    // 4. Configura Listener do Tempo (Blur para salvar ao sair do campo)
+    if (inputCancelTime) {
+        inputCancelTime.addEventListener('blur', () => {
+            autoSaveSettings('orders');
+        });
+    }
 
     // --- LISTENER DO FRETE ---
     const elShipCheck = document.getElementById('conf-shipping-active');
