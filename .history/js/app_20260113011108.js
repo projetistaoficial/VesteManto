@@ -1003,11 +1003,13 @@ function renderCatalog(productsToRender) {
         }
     }
 
-    // 2. ORDENAÇÃO (CORRIGIDA - INCLUINDO LÓGICA DE VITRINE)
-    // Define 'vitrine' como padrão se nada estiver selecionado
-    const sortMode = document.getElementById('sort-filter')?.value || 'vitrine';
+    // 2. ORDENAÇÃO (CORRIGIDA - SEM PRIORIDADE DE DESTAQUE)
+    const sortMode = document.getElementById('sort-filter')?.value || 'newest';
 
     filtered.sort((a, b) => {
+        // --- REMOVIDO: Lógica que jogava Destaque para o topo ---
+        // A ordenação agora obedece estritamente o filtro selecionado abaixo.
+
         // Prepara valores seguros para comparação
         const priceA = parseFloat(a.promoPrice || a.price) || 0;
         const priceB = parseFloat(b.promoPrice || b.price) || 0;
@@ -1018,31 +1020,17 @@ function renderCatalog(productsToRender) {
         const nameA = (a.name || '').toLowerCase();
         const nameB = (b.name || '').toLowerCase();
 
-        // MANTIDO: Esgotado sempre vai para o final
+        // MANTIDO APENAS: Esgotado sempre vai para o final (Padrão de UX)
+        // Se quiser misturar esgotados também, apague este bloco IF
         const isSoldOutA = a.stock <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
         const isSoldOutB = b.stock <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
 
         if (isSoldOutA && !isSoldOutB) return 1;
         if (!isSoldOutA && isSoldOutB) return -1;
+        // -----------------------------------------------------------
 
-        // ORDENAÇÃO ESTRITA
+        // ORDENAÇÃO ESTRITA PELO FILTRO
         switch (sortMode) {
-            case 'vitrine': // --- AQUI ESTÁ A CORREÇÃO SOLICITADA ---
-                // 1. Destaque (Vence tudo)
-                // Se um é destaque e o outro não, o destaque sobe (-1)
-                if (a.highlight === true && b.highlight !== true) return -1;
-                if (a.highlight !== true && b.highlight === true) return 1;
-
-                // 2. Oferta (Desempate se ambos ou nenhum for destaque)
-                const hasOfferA = (a.promoPrice && parseFloat(a.promoPrice) > 0);
-                const hasOfferB = (b.promoPrice && parseFloat(b.promoPrice) > 0);
-                
-                if (hasOfferA && !hasOfferB) return -1; // Com oferta sobe
-                if (!hasOfferA && hasOfferB) return 1;
-
-                // 3. Data de Criação/Código (Desempate final)
-                return codeB - codeA; // Mais recente primeiro
-
             case 'price-asc': // Menor Preço
                 return priceA - priceB;
 
@@ -1052,13 +1040,13 @@ function renderCatalog(productsToRender) {
             case 'name-asc': // Ordem Alfabética
                 return nameA.localeCompare(nameB);
 
-            case 'newest': // Lançamentos (Ignora destaque/oferta)
+            case 'newest': // Lançamentos
             default:
-                return codeB - codeA; 
+                return codeB - codeA; // Código maior = Mais novo
         }
     });
 
-    // 3. RENDERIZAÇÃO (Mantida igual)
+    // 3. RENDERIZAÇÃO (Visual Mantido)
     if (filtered.length === 0) {
         els.grid.innerHTML = `
             <div class="col-span-2 md:col-span-4 text-center py-10 opacity-50">
@@ -1105,21 +1093,28 @@ function renderCatalog(productsToRender) {
 
         const imgOpacity = isOut ? 'opacity-50 grayscale' : '';
 
-        // Badges
+        // --- VISUAL DAS ETIQUETAS (Isso continua aparecendo, mas não afeta ordem) ---
         let badgesHtml = '';
+
         if (p.highlight || p.promoPrice) {
             badgesHtml = `<div class="absolute top-2 left-2 flex flex-col gap-1 z-20 pointer-events-none">`;
+
+            // Etiqueta DESTAQUE
             if (!!p.highlight) {
                 badgesHtml += `
                     <span class="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-lg flex items-center gap-1 animate-pulse">
                         <i class="fas fa-star text-[8px]"></i> DESTAQUE
                     </span>`;
             }
+
+            // Etiqueta OFERTA
             if (p.promoPrice) {
                 badgesHtml += `<span class="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">OFERTA</span>`;
             }
+
             badgesHtml += `</div>`;
         }
+        // -------------------------------------------------------------------------
 
         const card = document.createElement('div');
         card.className = "product-card bg-[var(--bg-card)] border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative cursor-pointer active:scale-95";
@@ -1128,9 +1123,12 @@ function renderCatalog(productsToRender) {
         card.innerHTML = `
             <div class="relative w-full aspect-[4/5] bg-gray-900 overflow-hidden">
                 <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${imgOpacity}">
+                
                 ${isOut ? `<div class="absolute inset-0 flex items-center justify-center z-10"><span class="bg-red-600 text-white font-bold px-4 py-1 rounded shadow-lg transform -rotate-6 text-xs uppercase tracking-wide">Esgotado</span></div>` : ''}
+                
                 ${badgesHtml}
             </div>
+
             <div class="p-3 flex flex-col flex-1">
                 <h3 class="text-[var(--txt-title)] font-bold text-xs leading-tight line-clamp-2 mb-1 group-hover:text-yellow-500 transition">${p.name}</h3>
                 <div class="mt-auto pt-2 border-t border-gray-800/50">
@@ -2998,7 +2996,7 @@ function setupEventListeners() {
             if (state.currentCoupon) msg += `\nCupom: ${state.currentCoupon.code}`;
             msg += `\n*TOTAL: ${document.getElementById('cart-total').innerText}*`;
             msg += `\n\nAguardo link de pagamento!`;
-            const sellerPhone = "11941936976";
+            const sellerPhone = "5511941936976";
             window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
             state.cart = []; state.currentCoupon = null; saveCart();
             els.cartModal.classList.add('hidden');
@@ -4193,7 +4191,7 @@ function updateCartUI() {
     const cartEl = els.cartItems;
     const totalEl = getEl('cart-total');
 
-    // 1. Atualiza contadores
+    // 1. Atualiza contadores (Bolinha)
     const totalQty = state.cart.reduce((acc, item) => acc + item.qty, 0);
     if (els.cartCount) els.cartCount.innerText = totalQty;
     if (els.cartCountMobile) els.cartCountMobile.innerText = totalQty;
@@ -4215,53 +4213,43 @@ function updateCartUI() {
 
     // 2. Renderiza Itens
     let subtotal = 0;
-    let itemsUpdated = false; // Flag para saber se precisamos salvar correções
     
     state.cart.forEach((item, index) => {
         const itemTotal = item.price * item.qty;
         subtotal += itemTotal;
 
-        // --- LÓGICA DE RECUPERAÇÃO E CORREÇÃO DE IMAGEM ---
+        // --- LÓGICA DE IMAGEM BLINDADA ---
         let imgUrl = null;
 
-        // 1. Já tem a imagem salva no item? (Ideal)
-        if (item.image && item.image.length > 5) {
-            imgUrl = item.image;
-        } 
-        // 2. Tem em formato de array?
-        else if (item.images && item.images.length > 0) {
-            imgUrl = item.images[0];
-        }
+        // Tentativa 1: Propriedade 'image' direta no item do carrinho
+        if (item.image && item.image.length > 5) imgUrl = item.image;
+        
+        // Tentativa 2: Propriedade 'images' (array) no item do carrinho
+        else if (item.images && item.images.length > 0) imgUrl = item.images[0];
 
-        // 3. Se não tem, busca desesperadamente no produto original (state.products)
+        // Tentativa 3: Busca no produto original (state.products)
         if (!imgUrl) {
             const originalProduct = state.products.find(p => p.id === item.id);
             if (originalProduct) {
                 if (originalProduct.image) imgUrl = originalProduct.image;
                 else if (originalProduct.images && originalProduct.images.length > 0) imgUrl = originalProduct.images[0];
-
-                // --- O PULO DO GATO: ---
-                // Se achou a imagem no produto agora, SALVA ela no item do carrinho
-                // Isso garante que no próximo F5 ela já esteja lá!
-                if (imgUrl) {
-                    item.image = imgUrl; // Atualiza o objeto na memória
-                    itemsUpdated = true; // Marca para salvar no final
-                }
             }
         }
 
-        // Placeholder final
+        // Fallback: Placeholder se nada funcionar
         if (!imgUrl) imgUrl = 'https://placehold.co/150?text=Sem+Foto';
 
         const div = document.createElement('div');
+        // Layout "Cartão Horizontal" limpo
         div.className = "group flex items-start gap-3 bg-[#151720] p-3 rounded-xl border border-gray-800 shadow-sm relative overflow-hidden transition hover:border-gray-600 mb-3";
         
         div.innerHTML = `
             <div class="w-20 h-20 shrink-0 rounded-lg overflow-hidden border border-gray-700 bg-black relative shadow-lg">
-                <img src="${imgUrl}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500" alt="${item.name}" onerror="this.src='https://placehold.co/150?text=Erro'">
+                <img src="${imgUrl}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500" alt="${item.name}">
             </div>
 
             <div class="flex-1 flex flex-col justify-between min-h-[5rem]">
+                
                 <div class="flex justify-between items-start">
                     <div class="pr-2">
                         <h4 class="text-white font-bold text-sm leading-tight line-clamp-2">${item.name}</h4>
@@ -4299,7 +4287,7 @@ function updateCartUI() {
         cartEl.appendChild(div);
     });
 
-    // 3. Totais e Cupons
+    // 3. Desconto
     let discount = 0;
     if (state.currentCoupon) {
         if (state.currentCoupon.type === 'percent') discount = subtotal * (state.currentCoupon.val / 100);
@@ -4307,10 +4295,12 @@ function updateCartUI() {
         if (discount > subtotal) discount = subtotal;
     }
 
+    // 4. Total Final
     const total = subtotal - discount;
 
+    // 5. Resumo e Cupom
     const summaryDiv = document.createElement('div');
-    summaryDiv.className = "mt-4 pt-4 border-t border-dashed border-gray-700 space-y-4 pb-24 md:pb-4";
+    summaryDiv.className = "mt-4 pt-4 border-t border-dashed border-gray-700 space-y-4 pb-24 md:pb-4"; // Padding extra no mobile
 
     let couponHTML = state.currentCoupon ?
         `<div class="bg-green-900/10 border border-green-500/30 p-3 rounded-lg flex justify-between items-center animate-fade-in">
@@ -4333,9 +4323,11 @@ function updateCartUI() {
 
     summaryDiv.innerHTML = `
         ${couponHTML}
+        
         <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-800 space-y-2 mt-4">
             <div class="flex justify-between text-gray-400 text-sm"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
             ${state.currentCoupon ? `<div class="flex justify-between text-green-500 text-sm font-bold"><span>Desconto</span><span>- ${formatCurrency(discount)}</span></div>` : ''}
+            
             <div class="flex justify-between items-end pt-3 border-t border-gray-700 mt-2">
                 <span class="text-white text-base font-bold">Total</span>
                 <div class="text-right">
@@ -4348,12 +4340,6 @@ function updateCartUI() {
     
     cartEl.appendChild(summaryDiv);
     if (totalEl) totalEl.innerText = formatCurrency(total);
-
-    // --- SALVAMENTO AUTOMÁTICO DE CORREÇÕES ---
-    // Se corrigimos alguma imagem que faltava, salvamos o carrinho atualizado no LocalStorage
-    if (itemsUpdated && typeof saveCart === 'function') {
-        saveCart();
-    }
 }
 // --- FUNÇÕES DE CONTROLE DE CUPOM ---
 

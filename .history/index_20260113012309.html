@@ -234,13 +234,12 @@
                     <i class="fas fa-chevron-down text-gray-500 text-[8px] sm:text-[10px] shrink-0"></i>
                 </div>
 
-                <select id="sort-filter" onchange="updateSortLabel(this)"
-                    class="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-gray-500">
-                    <option class="bg-[#0a0a0a] text-white" value="vitrine">Vitrine</option>
-                    <option class="bg-[#0a0a0a] text-white" value="newest">Lançamentos</option>
-                    <option class="bg-[#0a0a0a] text-white" value="price-asc">Menor Preço</option>
-                    <option class="bg-[#0a0a0a] text-white" value="price-desc">Maior Preço</option>
-                    <option class="bg-[#0a0a0a] text-white" value="name-asc">Nome (A-Z)</option>
+                <select id="admin-sort-prod" class="...">
+                    <option value="vitrine">Vitrine (Padrão)</option>
+                    <option value="date_desc">Mais Recentes</option>
+                    <option value="price_asc">Menor Preço</option>
+                    <option value="price_desc">Maior Preço</option>
+                    <option value="alpha_asc">A-Z</option>
                 </select>
             </div>
 

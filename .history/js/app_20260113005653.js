@@ -1003,11 +1003,13 @@ function renderCatalog(productsToRender) {
         }
     }
 
-    // 2. ORDENAÇÃO (CORRIGIDA - INCLUINDO LÓGICA DE VITRINE)
-    // Define 'vitrine' como padrão se nada estiver selecionado
-    const sortMode = document.getElementById('sort-filter')?.value || 'vitrine';
+    // 2. ORDENAÇÃO (CORRIGIDA - SEM PRIORIDADE DE DESTAQUE)
+    const sortMode = document.getElementById('sort-filter')?.value || 'newest';
 
     filtered.sort((a, b) => {
+        // --- REMOVIDO: Lógica que jogava Destaque para o topo ---
+        // A ordenação agora obedece estritamente o filtro selecionado abaixo.
+
         // Prepara valores seguros para comparação
         const priceA = parseFloat(a.promoPrice || a.price) || 0;
         const priceB = parseFloat(b.promoPrice || b.price) || 0;
@@ -1018,31 +1020,17 @@ function renderCatalog(productsToRender) {
         const nameA = (a.name || '').toLowerCase();
         const nameB = (b.name || '').toLowerCase();
 
-        // MANTIDO: Esgotado sempre vai para o final
+        // MANTIDO APENAS: Esgotado sempre vai para o final (Padrão de UX)
+        // Se quiser misturar esgotados também, apague este bloco IF
         const isSoldOutA = a.stock <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
         const isSoldOutB = b.stock <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
 
         if (isSoldOutA && !isSoldOutB) return 1;
         if (!isSoldOutA && isSoldOutB) return -1;
+        // -----------------------------------------------------------
 
-        // ORDENAÇÃO ESTRITA
+        // ORDENAÇÃO ESTRITA PELO FILTRO
         switch (sortMode) {
-            case 'vitrine': // --- AQUI ESTÁ A CORREÇÃO SOLICITADA ---
-                // 1. Destaque (Vence tudo)
-                // Se um é destaque e o outro não, o destaque sobe (-1)
-                if (a.highlight === true && b.highlight !== true) return -1;
-                if (a.highlight !== true && b.highlight === true) return 1;
-
-                // 2. Oferta (Desempate se ambos ou nenhum for destaque)
-                const hasOfferA = (a.promoPrice && parseFloat(a.promoPrice) > 0);
-                const hasOfferB = (b.promoPrice && parseFloat(b.promoPrice) > 0);
-                
-                if (hasOfferA && !hasOfferB) return -1; // Com oferta sobe
-                if (!hasOfferA && hasOfferB) return 1;
-
-                // 3. Data de Criação/Código (Desempate final)
-                return codeB - codeA; // Mais recente primeiro
-
             case 'price-asc': // Menor Preço
                 return priceA - priceB;
 
@@ -1052,13 +1040,13 @@ function renderCatalog(productsToRender) {
             case 'name-asc': // Ordem Alfabética
                 return nameA.localeCompare(nameB);
 
-            case 'newest': // Lançamentos (Ignora destaque/oferta)
+            case 'newest': // Lançamentos
             default:
-                return codeB - codeA; 
+                return codeB - codeA; // Código maior = Mais novo
         }
     });
 
-    // 3. RENDERIZAÇÃO (Mantida igual)
+    // 3. RENDERIZAÇÃO (Visual Mantido)
     if (filtered.length === 0) {
         els.grid.innerHTML = `
             <div class="col-span-2 md:col-span-4 text-center py-10 opacity-50">
@@ -1105,21 +1093,28 @@ function renderCatalog(productsToRender) {
 
         const imgOpacity = isOut ? 'opacity-50 grayscale' : '';
 
-        // Badges
+        // --- VISUAL DAS ETIQUETAS (Isso continua aparecendo, mas não afeta ordem) ---
         let badgesHtml = '';
+
         if (p.highlight || p.promoPrice) {
             badgesHtml = `<div class="absolute top-2 left-2 flex flex-col gap-1 z-20 pointer-events-none">`;
+
+            // Etiqueta DESTAQUE
             if (!!p.highlight) {
                 badgesHtml += `
                     <span class="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-lg flex items-center gap-1 animate-pulse">
                         <i class="fas fa-star text-[8px]"></i> DESTAQUE
                     </span>`;
             }
+
+            // Etiqueta OFERTA
             if (p.promoPrice) {
                 badgesHtml += `<span class="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">OFERTA</span>`;
             }
+
             badgesHtml += `</div>`;
         }
+        // -------------------------------------------------------------------------
 
         const card = document.createElement('div');
         card.className = "product-card bg-[var(--bg-card)] border border-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full group relative cursor-pointer active:scale-95";
@@ -1128,9 +1123,12 @@ function renderCatalog(productsToRender) {
         card.innerHTML = `
             <div class="relative w-full aspect-[4/5] bg-gray-900 overflow-hidden">
                 <img src="${imgUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${imgOpacity}">
+                
                 ${isOut ? `<div class="absolute inset-0 flex items-center justify-center z-10"><span class="bg-red-600 text-white font-bold px-4 py-1 rounded shadow-lg transform -rotate-6 text-xs uppercase tracking-wide">Esgotado</span></div>` : ''}
+                
                 ${badgesHtml}
             </div>
+
             <div class="p-3 flex flex-col flex-1">
                 <h3 class="text-[var(--txt-title)] font-bold text-xs leading-tight line-clamp-2 mb-1 group-hover:text-yellow-500 transition">${p.name}</h3>
                 <div class="mt-auto pt-2 border-t border-gray-800/50">
@@ -2998,7 +2996,7 @@ function setupEventListeners() {
             if (state.currentCoupon) msg += `\nCupom: ${state.currentCoupon.code}`;
             msg += `\n*TOTAL: ${document.getElementById('cart-total').innerText}*`;
             msg += `\n\nAguardo link de pagamento!`;
-            const sellerPhone = "11941936976";
+            const sellerPhone = "5511941936976";
             window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
             state.cart = []; state.currentCoupon = null; saveCart();
             els.cartModal.classList.add('hidden');
@@ -4204,102 +4202,47 @@ function updateCartUI() {
     // Se vazio
     if (state.cart.length === 0) {
         cartEl.innerHTML = `
-            <div class="flex flex-col items-center justify-center py-12 text-gray-500 opacity-50">
-                <i class="fas fa-shopping-basket text-6xl mb-4"></i>
-                <p class="text-sm font-bold uppercase tracking-widest">Seu carrinho está vazio</p>
+            <div class="flex flex-col items-center justify-center py-12 text-gray-500">
+                <i class="fas fa-shopping-basket text-5xl mb-4 opacity-20"></i>
+                <p class="text-sm">Seu carrinho está vazio.</p>
             </div>`;
         if (totalEl) totalEl.innerText = formatCurrency(0);
         state.currentCoupon = null;
         return;
     }
 
-    // 2. Renderiza Itens
+    // 2. Calcula Subtotal
     let subtotal = 0;
-    let itemsUpdated = false; // Flag para saber se precisamos salvar correções
-    
     state.cart.forEach((item, index) => {
         const itemTotal = item.price * item.qty;
         subtotal += itemTotal;
+        const imgUrl = (item.image && item.image.length > 10) ? item.image : 'https://placehold.co/100?text=Foto';
 
-        // --- LÓGICA DE RECUPERAÇÃO E CORREÇÃO DE IMAGEM ---
-        let imgUrl = null;
-
-        // 1. Já tem a imagem salva no item? (Ideal)
-        if (item.image && item.image.length > 5) {
-            imgUrl = item.image;
-        } 
-        // 2. Tem em formato de array?
-        else if (item.images && item.images.length > 0) {
-            imgUrl = item.images[0];
-        }
-
-        // 3. Se não tem, busca desesperadamente no produto original (state.products)
-        if (!imgUrl) {
-            const originalProduct = state.products.find(p => p.id === item.id);
-            if (originalProduct) {
-                if (originalProduct.image) imgUrl = originalProduct.image;
-                else if (originalProduct.images && originalProduct.images.length > 0) imgUrl = originalProduct.images[0];
-
-                // --- O PULO DO GATO: ---
-                // Se achou a imagem no produto agora, SALVA ela no item do carrinho
-                // Isso garante que no próximo F5 ela já esteja lá!
-                if (imgUrl) {
-                    item.image = imgUrl; // Atualiza o objeto na memória
-                    itemsUpdated = true; // Marca para salvar no final
-                }
-            }
-        }
-
-        // Placeholder final
-        if (!imgUrl) imgUrl = 'https://placehold.co/150?text=Sem+Foto';
-
-        const div = document.createElement('div');
-        div.className = "group flex items-start gap-3 bg-[#151720] p-3 rounded-xl border border-gray-800 shadow-sm relative overflow-hidden transition hover:border-gray-600 mb-3";
-        
-        div.innerHTML = `
-            <div class="w-20 h-20 shrink-0 rounded-lg overflow-hidden border border-gray-700 bg-black relative shadow-lg">
-                <img src="${imgUrl}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500" alt="${item.name}" onerror="this.src='https://placehold.co/150?text=Erro'">
-            </div>
-
-            <div class="flex-1 flex flex-col justify-between min-h-[5rem]">
-                <div class="flex justify-between items-start">
-                    <div class="pr-2">
-                        <h4 class="text-white font-bold text-sm leading-tight line-clamp-2">${item.name}</h4>
-                        ${item.size !== 'U' ? `<span class="inline-block mt-1 text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded border border-gray-600 font-mono">${item.size}</span>` : ''}
+        const li = document.createElement('div');
+        li.className = "flex justify-between items-center bg-[#151720] p-3 rounded-xl mb-3 border border-gray-800 shadow-sm relative group";
+        li.innerHTML = `
+            <div class="flex items-center gap-3 flex-1">
+                <img src="${imgUrl}" class="w-14 h-14 rounded-lg object-cover border border-gray-700 bg-black">
+                <div class="flex flex-col">
+                    <h4 class="text-white text-sm font-bold line-clamp-1 mr-2">${item.name}</h4>
+                    <div class="flex items-center gap-2 mt-1">
+                        ${item.size !== 'U' ? `<span class="text-[10px] bg-gray-800 border border-gray-600 px-1.5 rounded text-gray-300">${item.size}</span>` : ''}
+                        <span class="text-green-400 text-xs font-bold">${formatCurrency(item.price)}</span>
                     </div>
-                    
-                    <button onclick="changeQty(${index}, -${item.qty})" class="text-gray-500 hover:text-red-500 transition p-1.5 -mr-1 -mt-1 rounded-full hover:bg-red-500/10">
-                        <i class="fas fa-trash-alt text-xs"></i>
-                    </button>
                 </div>
-
-                <div class="flex justify-between items-end mt-2">
-                    <div class="flex flex-col">
-                        <span class="text-yellow-400 font-bold font-mono text-sm tracking-wide">
-                            ${formatCurrency(item.price * item.qty)}
-                        </span>
-                    </div>
-
-                    <div class="flex items-center bg-black border border-gray-700 rounded-lg h-8 shadow-sm">
-                        <button onclick="changeQty(${index}, -1)" 
-                            class="w-8 h-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-800 rounded-l-lg transition border-r border-gray-800 active:bg-gray-700">
-                            <i class="fas fa-minus text-[10px]"></i>
-                        </button>
-                        
-                        <span class="w-8 text-center text-white text-xs font-bold font-mono select-none">${item.qty}</span>
-                        
-                        <button onclick="changeQty(${index}, 1)" 
-                            class="w-8 h-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-800 rounded-r-lg transition border-l border-gray-800 active:bg-gray-700">
-                            <i class="fas fa-plus text-[10px]"></i>
-                        </button>
-                    </div>
+            </div>
+            <div class="flex flex-col items-end gap-2">
+                <button onclick="changeQty(${index}, -${item.qty})" class="text-gray-600 hover:text-red-500 transition absolute top-2 right-2 p-1"><i class="fas fa-times text-xs"></i></button>
+                <div class="flex items-center bg-black rounded-lg border border-gray-700 mt-4">
+                    <button onclick="changeQty(${index}, -1)" class="w-7 h-7 text-gray-400 hover:text-white flex items-center justify-center transition hover:bg-gray-800 rounded-l">-</button>
+                    <span class="text-xs text-white w-6 text-center font-mono">${item.qty}</span>
+                    <button onclick="changeQty(${index}, 1)" class="w-7 h-7 text-gray-400 hover:text-white flex items-center justify-center transition hover:bg-gray-800 rounded-r">+</button>
                 </div>
             </div>`;
-        
-        cartEl.appendChild(div);
+        cartEl.appendChild(li);
     });
 
-    // 3. Totais e Cupons
+    // 3. Desconto
     let discount = 0;
     if (state.currentCoupon) {
         if (state.currentCoupon.type === 'percent') discount = subtotal * (state.currentCoupon.val / 100);
@@ -4307,53 +4250,51 @@ function updateCartUI() {
         if (discount > subtotal) discount = subtotal;
     }
 
+    // 4. Total Final (SEM FRETE AQUI)
     const total = subtotal - discount;
 
+    // 5. Renderiza Resumo
     const summaryDiv = document.createElement('div');
-    summaryDiv.className = "mt-4 pt-4 border-t border-dashed border-gray-700 space-y-4 pb-24 md:pb-4";
+    summaryDiv.className = "mt-6 pt-4 border-t border-dashed border-gray-700 space-y-4";
 
     let couponHTML = state.currentCoupon ?
         `<div class="bg-green-900/10 border border-green-500/30 p-3 rounded-lg flex justify-between items-center animate-fade-in">
-            <div class="flex items-center gap-3">
-                <div class="bg-green-500/20 w-8 h-8 rounded-full flex items-center justify-center text-green-500"><i class="fas fa-ticket-alt text-xs"></i></div>
-                <div><p class="text-green-500 text-xs font-bold uppercase tracking-wider">${state.currentCoupon.code}</p><p class="text-green-400 text-[10px]">Desconto aplicado</p></div>
-            </div>
-            <button onclick="removeCoupon()" class="text-gray-500 hover:text-red-500 transition w-8 h-8 flex items-center justify-center hover:bg-red-900/20 rounded-full"><i class="fas fa-trash-alt text-xs"></i></button>
+            <div class="flex items-center gap-3"><div class="bg-green-500/20 w-8 h-8 rounded-full flex items-center justify-center text-green-500"><i class="fas fa-ticket-alt text-xs"></i></div>
+            <div><p class="text-green-500 text-xs font-bold uppercase tracking-wider">${state.currentCoupon.code}</p><p class="text-green-400 text-[10px]">Desconto aplicado</p></div></div>
+            <button onclick="removeCoupon()" class="text-gray-500 hover:text-red-500 transition w-8 h-8 flex items-center justify-center"><i class="fas fa-trash-alt text-xs"></i></button>
         </div>` :
         `<div class="relative flex gap-2 w-full items-center">
-            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10"><i class="fas fa-tag text-xs"></i></div>
-            <input type="text" id="cart-coupon-input-dynamic" placeholder="CUPOM" 
-                class="bg-[#0f111a] border border-gray-700 text-white text-xs rounded-lg pl-9 pr-2 h-10 flex-1 min-w-0 outline-none focus:border-yellow-500 uppercase transition font-bold tracking-wide placeholder-gray-600 shadow-sm" 
-                onkeydown="if(event.key === 'Enter') applyCouponDynamic()">
-            <button onclick="applyCouponDynamic()" 
-                class="bg-gray-800 hover:bg-gray-700 text-white px-4 h-10 rounded-lg text-xs font-bold uppercase border border-gray-700 transition whitespace-nowrap shadow-sm hover:border-gray-500">
-                Aplicar
-            </button>
-        </div>`;
+    
+    <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10">
+        <i class="fas fa-tag text-xs"></i>
+    </div>
+
+    <input type="text" id="cart-coupon-input-dynamic" placeholder="CUPOM" 
+        class="bg-[#0f111a] border border-gray-700 text-white text-xs rounded-lg pl-9 pr-2 h-10 flex-1 min-w-0 outline-none focus:border-yellow-500 uppercase transition font-bold tracking-wide placeholder-gray-600" 
+        onkeydown="if(event.key === 'Enter') applyCouponDynamic()">
+
+    <button onclick="applyCouponDynamic()" 
+        class="bg-gray-800 hover:bg-gray-700 text-white px-4 h-10 rounded-lg text-xs font-bold uppercase border border-gray-700 transition whitespace-nowrap">
+        Aplicar
+    </button>
+</div>`;
 
     summaryDiv.innerHTML = `
         ${couponHTML}
-        <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-800 space-y-2 mt-4">
-            <div class="flex justify-between text-gray-400 text-sm"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
-            ${state.currentCoupon ? `<div class="flex justify-between text-green-500 text-sm font-bold"><span>Desconto</span><span>- ${formatCurrency(discount)}</span></div>` : ''}
-            <div class="flex justify-between items-end pt-3 border-t border-gray-700 mt-2">
-                <span class="text-white text-base font-bold">Total</span>
-                <div class="text-right">
-                    <span class="text-yellow-500 text-2xl font-extrabold tracking-tight block leading-none" id="cart-total-display">${formatCurrency(total)}</span>
-                    ${state.storeProfile.installments?.active ? `<span class="text-[10px] text-gray-500">ou até ${state.storeProfile.installments.max}x</span>` : ''}
-                </div>
+        <div class="space-y-1 pt-2">
+            <div class="flex justify-between text-gray-400 text-xs"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
+            ${state.currentCoupon ? `<div class="flex justify-between text-green-500 text-xs font-bold"><span>Desconto</span><span>- ${formatCurrency(discount)}</span></div>` : ''}
+        </div>
+        <div class="flex justify-between items-end pt-2 border-t border-gray-800">
+            <span class="text-gray-300 text-sm font-bold">Total (Frete não incluso)</span>
+            <div class="text-right">
+                <span class="text-yellow-500 text-2xl font-extrabold tracking-tight block leading-none" id="cart-total-display">${formatCurrency(total)}</span>
+                ${state.storeProfile.installments?.active ? `<span class="text-[10px] text-gray-500">ou até ${state.storeProfile.installments.max}x</span>` : ''}
             </div>
         </div>
     `;
-    
     cartEl.appendChild(summaryDiv);
     if (totalEl) totalEl.innerText = formatCurrency(total);
-
-    // --- SALVAMENTO AUTOMÁTICO DE CORREÇÕES ---
-    // Se corrigimos alguma imagem que faltava, salvamos o carrinho atualizado no LocalStorage
-    if (itemsUpdated && typeof saveCart === 'function') {
-        saveCart();
-    }
 }
 // --- FUNÇÕES DE CONTROLE DE CUPOM ---
 
