@@ -1013,10 +1013,10 @@ function renderCatalog(productsToRender) {
         // Prepara valores seguros para comparação
         const priceA = parseFloat(a.promoPrice || a.price) || 0;
         const priceB = parseFloat(b.promoPrice || b.price) || 0;
-
+        
         const codeA = parseInt(a.code) || 0;
         const codeB = parseInt(b.code) || 0;
-
+        
         const nameA = (a.name || '').toLowerCase();
         const nameB = (b.name || '').toLowerCase();
 
@@ -1033,15 +1033,15 @@ function renderCatalog(productsToRender) {
         switch (sortMode) {
             case 'price-asc': // Menor Preço
                 return priceA - priceB;
-
+            
             case 'price-desc': // Maior Preço
                 return priceB - priceA;
-
+            
             case 'name-asc': // Ordem Alfabética
                 return nameA.localeCompare(nameB);
-
+            
             case 'newest': // Lançamentos
-            default:
+            default: 
                 return codeB - codeA; // Código maior = Mais novo
         }
     });
@@ -1095,10 +1095,10 @@ function renderCatalog(productsToRender) {
 
         // --- VISUAL DAS ETIQUETAS (Isso continua aparecendo, mas não afeta ordem) ---
         let badgesHtml = '';
-
+        
         if (p.highlight || p.promoPrice) {
             badgesHtml = `<div class="absolute top-2 left-2 flex flex-col gap-1 z-20 pointer-events-none">`;
-
+            
             // Etiqueta DESTAQUE
             if (!!p.highlight) {
                 badgesHtml += `
@@ -1106,12 +1106,12 @@ function renderCatalog(productsToRender) {
                         <i class="fas fa-star text-[8px]"></i> DESTAQUE
                     </span>`;
             }
-
+            
             // Etiqueta OFERTA
             if (p.promoPrice) {
                 badgesHtml += `<span class="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">OFERTA</span>`;
             }
-
+            
             badgesHtml += `</div>`;
         }
         // -------------------------------------------------------------------------
@@ -2142,7 +2142,7 @@ function renderSalesList(orders) {
         const valDescontoTotal = Math.max(0, (subTotalItens + valFrete) - valTotalPago);
 
         let discountHtml = '';
-
+        
         // Se houver algum desconto (maior que 5 centavos para evitar erro de arredondamento)
         if (valDescontoTotal > 0.05) {
             const isPix = (o.paymentMethod || '').toLowerCase().includes('pix');
@@ -2156,7 +2156,7 @@ function renderSalesList(orders) {
             if (o.couponData && o.couponData.value) {
                 valDescontoCupom = o.couponData.value;
                 nomeCupom = o.couponData.code;
-            }
+            } 
             // Fallback para pedidos antigos (Se tem nome de cupom mas não dados, tenta inferir)
             else if (o.cupom) {
                 nomeCupom = o.cupom;
@@ -2190,10 +2190,10 @@ function renderSalesList(orders) {
                     </div>
                 `;
             }
-
+            
             // Exibe Genérico (Caso não tenha cupom identificado nem pix, mas tenha desconto)
             if (!nomeCupom && valDescontoPix <= 0.05) {
-                discountHtml += `
+                 discountHtml += `
                     <div class="flex justify-between text-xs text-gray-300">
                         <span>Desconto:</span>
                         <span class="text-green-400 font-bold">- ${formatCurrency(valDescontoTotal)}</span>
@@ -2218,7 +2218,7 @@ function renderSalesList(orders) {
         if (o.status.includes('Cancelado')) {
             controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span></div>`;
         } else if (o.status === 'Reembolsado') {
-            controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span></div>`;
+             controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span></div>`;
         } else if (o.status === 'Concluído') {
             controlsHtml = `
                 <div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700">
@@ -2353,19 +2353,11 @@ function setupEventListeners() {
     setupAccordion('btn-acc-coupon', 'content-acc-coupon', 'arrow-acc-coupon');
 
     // Filtros Admin
-    // Filtros Admin (Apontando para a nova função filterAndRenderProducts)
     if (els.adminSearchProd) els.adminSearchProd.addEventListener('input', filterAndRenderProducts);
     if (els.adminFilterCat) els.adminFilterCat.addEventListener('change', filterAndRenderProducts);
     if (els.adminSortProd) els.adminSortProd.addEventListener('change', filterAndRenderProducts);
 
-    if (els.confCardActive) {
-        els.confCardActive.addEventListener('change', (e) => {
-            if (e.target.checked) els.confCardDetails.classList.remove('opacity-50', 'pointer-events-none');
-            else els.confCardDetails.classList.add('opacity-50', 'pointer-events-none');
-        });
-    }
     setupAccordion('btn-acc-installments', 'content-acc-installments', 'arrow-acc-installments');
-
 
     // Ações em Massa
     const btnBulkDel = getEl('btn-bulk-delete');
@@ -2397,14 +2389,12 @@ function setupEventListeners() {
     if (els.searchInput) els.searchInput.addEventListener('input', (e) => { const term = e.target.value.toLowerCase(); const filtered = state.products.filter(p => p.name.toLowerCase().includes(term) || p.description.toLowerCase().includes(term)); renderCatalog(filtered); });
     if (els.catFilter) els.catFilter.addEventListener('change', (e) => { const cat = e.target.value; if (!cat) return renderCatalog(state.products); const filtered = state.products.filter(p => p.category === cat || p.category.startsWith(cat + ' -')); renderCatalog(filtered); });
 
-    // --- FILTROS DE VENDAS (ATUALIZADO) ---
-    // 1. Ativa o Acordeão de Filtros
+    // --- FILTROS DE VENDAS ---
     setupAccordion('btn-acc-sales-filters', 'content-acc-sales-filters', 'arrow-acc-sales-filters');
 
-    // 2. Listeners dos inputs
     const idsFiltros = [
         'filter-search-general',
-        'filter-search-product', // <--- ADICIONEI O NOVO INPUT AQUI
+        'filter-search-product',
         'filter-status',
         'filter-payment',
         'filter-sort',
@@ -2421,7 +2411,6 @@ function setupEventListeners() {
         }
     });
 
-    // 3. Botão Limpar Filtros
     const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
@@ -2429,7 +2418,6 @@ function setupEventListeners() {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
-            // Reset do select de ordenação se existir
             const sort = document.getElementById('filter-sort');
             if (sort) sort.value = 'date_desc';
 
@@ -2443,7 +2431,7 @@ function setupEventListeners() {
     if (els.btnViewDay) els.btnViewDay.onclick = () => { state.dashViewMode = 'day'; updateDashboardUI(); };
     if (els.btnViewMonth) els.btnViewMonth.onclick = () => { state.dashViewMode = 'month'; updateDashboardUI(); };
 
-    // --- CONTROLES ESTATÍSTICAS AVANÇADAS (NOVO) ---
+    // --- CONTROLES ESTATÍSTICAS AVANÇADAS ---
     if (els.statsFilterAll) els.statsFilterAll.onclick = () => { state.statsFilterType = 'all'; updateStatsUI(); };
     if (els.statsFilterPeriod) els.statsFilterPeriod.onclick = () => { state.statsFilterType = 'period'; updateStatsUI(); };
 
@@ -2460,23 +2448,17 @@ function setupEventListeners() {
     if (els.statsViewDay) els.statsViewDay.onclick = () => { state.statsViewMode = 'day'; updateStatsUI(); };
     if (els.statsViewMonth) els.statsViewMonth.onclick = () => { state.statsViewMode = 'month'; updateStatsUI(); };
 
-    //=====================================================================================================//=====================================================================================================
-    // --- LÓGICA DO SELETOR DE PRODUTOS nos filtro da ABA VENDAS - INICIO ---
-
+    // --- LÓGICA DO SELETOR DE PRODUTOS ---
     window.openProductSelectorModal = () => {
         const modal = document.getElementById('modal-product-selector');
         if (modal) {
             modal.classList.remove('hidden');
             modal.classList.add('flex');
-
-            // Limpa a busca interna e foca
             const input = document.getElementById('selector-internal-search');
             if (input) {
                 input.value = '';
                 input.focus();
             }
-
-            // Renderiza a lista completa
             renderProductSelectorList('');
         }
     };
@@ -2496,7 +2478,6 @@ function setupEventListeners() {
         container.innerHTML = '';
         const cleanTerm = term.toLowerCase().trim();
 
-        // Filtra produtos pelo termo (Nome ou Código)
         const filtered = state.products.filter(p => {
             const name = p.name.toLowerCase();
             const code = p.code ? String(p.code).toLowerCase() : '';
@@ -2510,12 +2491,9 @@ function setupEventListeners() {
 
         filtered.forEach(p => {
             const codeStr = p.code ? `#${p.code}` : '-';
-
             const item = document.createElement('div');
             item.className = "flex items-center justify-between p-3 rounded-lg hover:bg-gray-800 cursor-pointer border border-transparent hover:border-gray-700 transition mb-1 group";
-
             item.onclick = () => confirmProductSelection(p.name, p.code);
-
             item.innerHTML = `
             <div class="flex items-center gap-3">
                 <span class="text-yellow-500 font-mono font-bold text-xs bg-yellow-900/20 px-2 py-1 rounded">${codeStr}</span>
@@ -2528,11 +2506,9 @@ function setupEventListeners() {
     };
 
     window.confirmProductSelection = (name, code) => {
-        // 1. Atualiza o Input Oculto (Valor real)
         const inputHidden = document.getElementById('filter-search-product-value');
-        if (inputHidden) inputHidden.value = name; // Vamos buscar pelo NOME exato
+        if (inputHidden) inputHidden.value = name;
 
-        // 2. Atualiza o Visual
         const display = document.getElementById('selected-product-display');
         const btnClear = document.getElementById('btn-clear-prod-selection');
 
@@ -2543,17 +2519,14 @@ function setupEventListeners() {
         }
         if (btnClear) btnClear.classList.remove('hidden');
 
-        // 3. Fecha Modal e Dispara Filtro
         closeProductSelectorModal();
         filterAndRenderSales();
     };
 
     window.clearProductFilter = () => {
-        // Limpa valor oculto
         const inputHidden = document.getElementById('filter-search-product-value');
         if (inputHidden) inputHidden.value = '';
 
-        // Reseta visual
         const display = document.getElementById('selected-product-display');
         const btnClear = document.getElementById('btn-clear-prod-selection');
 
@@ -2564,31 +2537,18 @@ function setupEventListeners() {
         }
         if (btnClear) btnClear.classList.add('hidden');
 
-        // Dispara Filtro
         filterAndRenderSales();
     };
-    // --- LÓGICA DO SELETOR DE PRODUTOS nos filtro da ABA VENDAS - FIM ---
-    //=====================================================================================================//=====================================================================================================
 
     // Carrinho
-    // Carrinho Desktop
     const btnCart = document.getElementById('cart-btn');
-    if (btnCart) {
-        // btnCart.onclick = toggleCart;  <-- SE TIVER ASSIM, APAGUE!
-        btnCart.onclick = window.openCart; // <-- TEM QUE SER ASSIM
-    }
-
-    // Carrinho Mobile
+    if (btnCart) btnCart.onclick = window.openCart;
     const btnCartMob = document.getElementById('cart-btn-mobile');
-    if (btnCartMob) {
-        // btnCartMob.onclick = toggleCart; <-- SE TIVER ASSIM, APAGUE!
-        btnCartMob.onclick = window.openCart; // <-- TEM QUE SER ASSIM
-    }
+    if (btnCartMob) btnCartMob.onclick = window.openCart;
 
     // Login
     const btnAdminLogin = getEl('btn-admin-login'); if (btnAdminLogin) { btnAdminLogin.onclick = () => { if (state.user) { showView('admin'); } else { getEl('login-modal').showModal(); } }; }
     const btnLoginCancel = getEl('btn-login-cancel'); if (btnLoginCancel) btnLoginCancel.onclick = () => getEl('login-modal').close();
-    // LÓGICA DE LOGIN UNIFICADA
     const btnLoginSubmit = document.getElementById('btn-login-submit');
     if (btnLoginSubmit) {
         btnLoginSubmit.onclick = async () => {
@@ -2596,27 +2556,19 @@ function setupEventListeners() {
             const pass = passInput.value.trim();
             const modal = document.getElementById('login-modal');
 
-            // 1. Tenta Login de Suporte (Senha Mestra)
             if (checkAndActivateSupport(pass)) {
                 modal.close();
                 showView('admin');
-
                 showView('support');
                 return;
             }
 
-            // 2. Se não for suporte, tenta Login Admin (Firebase)
             try {
                 await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
-
-                // --- CORREÇÃO: Mata o modo suporte se entrar como Admin ---
                 sessionStorage.removeItem('support_mode');
-                // ----------------------------------------------------------
-
                 modal.close();
                 passInput.value = '';
                 showView('admin');
-
             } catch (error) {
                 alert("Senha incorreta.");
                 console.error(error);
@@ -2631,15 +2583,9 @@ function setupEventListeners() {
     if (els.themeToggle) els.themeToggle.onclick = () => { toggleTheme(true); };
     if (els.menuLinkHome) {
         els.menuLinkHome.onclick = (e) => {
-            if (e) e.preventDefault(); // Evita recarregar a página se for um <a>
-
-            // 1. Garante que a visualização é o catálogo (e não o admin)
+            if (e) e.preventDefault();
             showView('catalog');
-
-            // 2. O PULO DO GATO: Chama o filtro vazio para mostrar TODOS os produtos
             filterByCat('');
-
-            // 3. Fecha a sidebar no mobile se estiver aberta
             if (window.innerWidth < 1024) {
                 const sidebar = getEl('sidebar');
                 const overlay = getEl('sidebar-overlay');
@@ -2677,16 +2623,13 @@ function setupEventListeners() {
             } catch (error) { alert("Erro: " + error.message); }
         };
 
-        // Configurações da Loja
         setupAccordion('btn-acc-profile', 'content-acc-profile', 'arrow-acc-profile');
-
         if (els.btnSaveProfile) {
             els.btnSaveProfile.onclick = saveStoreProfile;
         }
     }
 
-    // --- LÓGICA DO FORMULÁRIO DE PRODUTO (NOVO) ---
-    // Toggle Pix
+    // --- LÓGICA DO FORMULÁRIO DE PRODUTO ---
     const checkPix = getEl('prod-pix-active');
     const settingsPix = getEl('pix-settings');
     if (checkPix && settingsPix) {
@@ -2700,11 +2643,9 @@ function setupEventListeners() {
         });
     }
 
-    // Toggle Tipo Pix (% vs R$)
     const btnPixPercent = getEl('btn-pix-percent');
     const btnPixFixed = getEl('btn-pix-fixed');
     const inputPixType = getEl('prod-pix-type');
-
     if (btnPixPercent && btnPixFixed) {
         btnPixPercent.onclick = () => {
             inputPixType.value = 'percent';
@@ -2718,7 +2659,6 @@ function setupEventListeners() {
         };
     }
 
-    // Toggle Cartão
     const checkCard = getEl('prod-card-active');
     const settingsCard = getEl('card-settings');
     if (checkCard && settingsCard) {
@@ -2731,7 +2671,6 @@ function setupEventListeners() {
             }
         });
     }
-
 
     const btnAddCoupon = getEl('btn-add-coupon');
     if (btnAddCoupon) {
@@ -2754,28 +2693,20 @@ function setupEventListeners() {
 
             try {
                 if (state.editingCouponId) {
-                    // Tenta atualizar
                     await updateDoc(doc(db, `sites/${state.siteId}/coupons`, state.editingCouponId), data);
                     showToast('Cupom atualizado!');
                 } else {
-                    // Cria novo
                     const exists = state.coupons.some(c => c.code === code);
                     if (exists) return alert("Já existe um cupom com este código.");
-
                     await addDoc(collection(db, `sites/${state.siteId}/coupons`), data);
                     showToast('Cupom criado!');
                 }
-
-                // Usa a nova função para limpar tudo corretamente
                 resetCouponForm();
-
             } catch (error) {
                 console.error("Erro no cupom:", error);
-
-                // Se o erro for "Não encontrado", significa que o cupom sumiu enquanto editava
                 if (error.code === 'not-found' || error.message.includes('No document to update')) {
                     alert("Atenção: O cupom que você estava editando não existe mais (talvez foi excluído). Tente criar como um novo.");
-                    state.editingCouponId = null; // Força reset para permitir criar de novo
+                    state.editingCouponId = null;
                 } else {
                     alert("Erro ao salvar: " + error.message);
                 }
@@ -2793,14 +2724,11 @@ function setupEventListeners() {
         });
     }
 
-    // 1. Listener para o Input de Arquivo (Quando seleciona fotos)
     const fileInput = getEl('prod-imgs-input');
     if (fileInput) {
         fileInput.addEventListener('change', async (e) => {
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
-
-            // Processa cada arquivo
             for (const file of files) {
                 try {
                     const base64 = await processImageFile(file);
@@ -2810,21 +2738,17 @@ function setupEventListeners() {
                 }
             }
             renderImagePreviews();
-            fileInput.value = ''; // Limpa input para permitir selecionar a mesma foto se quiser
+            fileInput.value = '';
         });
     }
 
-    // 2. Botão Novo Produto (Resetar imagens)
     const btnAddProd = getEl('btn-add-product');
     if (btnAddProd) {
         btnAddProd.onclick = () => {
             getEl('form-product').reset();
             getEl('edit-prod-id').value = '';
-
-            // RESET DAS IMAGENS
             state.tempImages = [];
             renderImagePreviews();
-
             const checkNoStock = getEl('prod-allow-no-stock');
             if (checkNoStock) checkNoStock.checked = false;
             if (els.productFormModal) els.productFormModal.classList.remove('hidden');
@@ -2832,30 +2756,7 @@ function setupEventListeners() {
     }
     const btnCancelProd = getEl('btn-cancel-prod'); if (btnCancelProd) btnCancelProd.onclick = () => { if (els.productFormModal) els.productFormModal.classList.add('hidden'); };
 
-    setupAccordion('btn-acc-installments', 'content-acc-installments', 'arrow-acc-installments');
-
-    if (els.confCardActive) {
-        els.confCardActive.addEventListener('change', (e) => {
-            const details = els.confCardDetails;
-            if (details) {
-                if (e.target.checked) details.classList.remove('opacity-50', 'pointer-events-none');
-                else details.classList.add('opacity-50', 'pointer-events-none');
-            }
-        });
-    }
-
-    // --- ATUALIZADO: Botão de Finalizar no Carrinho ---
-    // Removemos a lógica antiga de mandar direto pro zap e abrimos o modal
-    if (els.btnCheckout) {
-        els.btnCheckout.onclick = () => {
-            if (state.cart.length === 0) return alert('Carrinho vazio');
-            // Fecha carrinho e abre checkout
-            els.cartModal.classList.add('hidden');
-            openCheckoutModal();
-        };
-    }
-
-    // --- LOCALIZAR DENTRO DE setupEventListeners ---
+    // --- FORMULÁRIO PRODUTO ONSUBMIT ---
     const formProd = getEl('form-product');
     if (formProd) {
         formProd.onsubmit = async (e) => {
@@ -2869,7 +2770,6 @@ function setupEventListeners() {
                     btnSave.disabled = true;
                 }
 
-                // 1. CAPTURA IDS DOS CAMPOS
                 const idEl = getEl('edit-prod-id');
                 const nameEl = getEl('prod-name');
                 const catEl = getEl('prod-cat-select');
@@ -2880,26 +2780,21 @@ function setupEventListeners() {
                 const costEl = getEl('prod-cost');
                 const sizesEl = getEl('prod-sizes');
 
-                // 2. CAPTURA CHECKBOXES (AQUI ESTÁ A CORREÇÃO)
                 const noStockEl = getEl('prod-allow-no-stock');
-                const highlightEl = getEl('prod-highlight'); // <--- CAPTURA O NOVO CAMPO
+                const highlightEl = getEl('prod-highlight');
 
-                // Helper de formatação
                 const parseVal = (val) => val ? parseFloat(val.replace(/\./g, '').replace(',', '.')) : 0;
 
-                // Validação de Imagem
                 if (state.tempImages.length === 0) {
                     alert("Adicione pelo menos uma imagem!");
                     return;
                 }
 
-                // 3. CAPTURA PIX
                 const pixActive = getEl('prod-pix-active').checked;
                 const pixValRaw = getEl('prod-pix-val').value;
                 const pixVal = parseVal(pixValRaw);
                 const pixType = getEl('prod-pix-type').value;
 
-                // 4. MONTA O OBJETO
                 const data = {
                     name: nameEl ? nameEl.value : 'Sem Nome',
                     category: catEl ? catEl.value : "Geral",
@@ -2910,11 +2805,8 @@ function setupEventListeners() {
                     cost: costEl ? parseVal(costEl.value) : 0,
                     sizes: sizesEl ? sizesEl.value.split(',').map(s => s.trim()).filter(s => s !== '') : [],
                     images: state.tempImages,
-
-                    // --- BOOLEANOS (AQUI O SEGREDO) ---
                     allowNoStock: noStockEl ? noStockEl.checked : false,
-                    highlight: highlightEl ? highlightEl.checked : false, // <--- AGORA VAI SALVAR!
-
+                    highlight: highlightEl ? highlightEl.checked : false,
                     paymentOptions: {
                         pix: {
                             active: pixActive,
@@ -2924,15 +2816,12 @@ function setupEventListeners() {
                     }
                 };
 
-                // 5. SALVA NO BANCO
                 const id = idEl.value;
 
                 if (id) {
-                    // Edição
                     await updateDoc(doc(db, `sites/${state.siteId}/products`, id), data);
                     showToast('Produto atualizado!');
                 } else {
-                    // Criação
                     const nextCode = await getNextProductCode(state.siteId);
                     data.code = nextCode;
                     data.createdAt = new Date().toISOString();
@@ -2940,12 +2829,10 @@ function setupEventListeners() {
                     showToast('Produto criado!');
                 }
 
-                // 6. LIMPEZA
                 if (els.productFormModal) els.productFormModal.classList.add('hidden');
                 e.target.reset();
                 state.tempImages = [];
 
-                // Força atualização da lista para ver o destaque imediatamente
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
 
             } catch (err) {
@@ -2960,202 +2847,99 @@ function setupEventListeners() {
         };
     }
 
-
     const btnLogout = getEl('btn-logout'); if (btnLogout) btnLogout.onclick = () => signOut(auth);
 
     document.querySelectorAll('.tab-btn').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); const target = getEl(btn.dataset.tab); if (target) target.classList.remove('hidden'); document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500'); b.classList.add('text-gray-400'); }); btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500'); btn.classList.remove('text-gray-400'); }; });
 
-    const btnCheckout = getEl('btn-checkout');
-    if (btnCheckout) {
-        btnCheckout.onclick = async () => {
+    if (els.btnCheckout) {
+        els.btnCheckout.onclick = () => {
             if (state.cart.length === 0) return alert('Carrinho vazio');
-            const totalText = document.getElementById('cart-total').innerText.replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
-
-            // ATENÇÃO: Adicionando Custo ao Pedido para Relatórios Futuros
-            const cartItemsWithCost = state.cart.map(item => {
-                const product = state.products.find(p => p.id === item.id);
-                return {
-                    ...item,
-                    cost: product ? parseFloat(product.cost || 0) : 0
-                };
-            });
-
-            const orderData = {
-                items: cartItemsWithCost,
-                total: parseFloat(totalText),
-                cupom: state.currentCoupon ? state.currentCoupon.code : null,
-                date: new Date().toISOString(),
-                status: 'Pendente',
-                code: Math.floor(10000 + Math.random() * 90000)
-            };
-
-            try { await addDoc(collection(db, `sites/${state.siteId}/sales`), orderData); } catch (e) { console.log("Erro pedido:", e); }
-            let msg = `*NOVO PEDIDO - ${orderData.code}*\n\n`;
-            state.cart.forEach(i => { msg += `▪ ${i.qty}x ${i.name} (${i.size}) - ${formatCurrency(i.price)}\n`; });
-            msg += `\nSubtotal: ${document.getElementById('cart-subtotal').innerText}`;
-            if (state.currentCoupon) msg += `\nCupom: ${state.currentCoupon.code}`;
-            msg += `\n*TOTAL: ${document.getElementById('cart-total').innerText}*`;
-            msg += `\n\nAguardo link de pagamento!`;
-            const sellerPhone = "5511941936976";
-            window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-            state.cart = []; state.currentCoupon = null; saveCart();
             els.cartModal.classList.add('hidden');
+            openCheckoutModal();
         };
     }
 
-    const elCheck = document.getElementById('conf-card-active');
-    if (elCheck) {
-        elCheck.addEventListener('change', (e) => {
-            const details = document.getElementById('conf-card-details');
-            if (details) {
-                if (e.target.checked) details.classList.remove('opacity-50', 'pointer-events-none');
-                else details.classList.add('opacity-50', 'pointer-events-none');
-            }
-        });
-    }
-
-    //==============================================================   
-    //LÓGICA DA ABA CONFIGURAÇÕES:
-    // --- AUTOSALVAMENTO: LOGÍSTICA (CEP) ---
+    // --- AUTOSALVAMENTO ---
     const elCep = document.getElementById('conf-store-cep');
     const elDist = document.getElementById('conf-max-dist');
-
-    // Usa 'blur' (quando clica fora do campo) para não salvar enquanto digita cada letra
     if (elCep) elCep.addEventListener('blur', () => autoSaveSettings('logistics'));
     if (elDist) elDist.addEventListener('blur', () => autoSaveSettings('logistics'));
 
-    // --- AUTOSALVAMENTO: PARCELAMENTO ---
     const elCardActive = document.getElementById('conf-card-active');
     const elCardMax = document.getElementById('conf-card-max');
     const elCardFree = document.getElementById('conf-card-free');
     const elCardRate = document.getElementById('conf-card-rate');
 
-    // Para o Checkbox, usamos 'change' (salva assim que clica)
     if (elCardActive) {
         elCardActive.addEventListener('change', (e) => {
-            // Controle visual da opacidade
             const details = document.getElementById('conf-card-details');
             if (details) {
                 if (e.target.checked) details.classList.remove('opacity-50', 'pointer-events-none');
                 else details.classList.add('opacity-50', 'pointer-events-none');
             }
-            // Chama o salvamento automático
             autoSaveSettings('installments');
         });
     }
 
-    // Para os outros campos de parcelamento, usamos 'change' ou 'blur'
     if (elCardMax) elCardMax.addEventListener('change', () => autoSaveSettings('installments'));
     if (elCardFree) elCardFree.addEventListener('change', () => autoSaveSettings('installments'));
     if (elCardRate) elCardRate.addEventListener('blur', () => autoSaveSettings('installments'));
 
-
-    // 1. Lógica Admin: Dependência dos Checkboxes de Entrega
+    // --- CONFIGURAÇÃO DE ENTREGA (Lógica Corrigida) ---
     const checkOwnDelivery = document.getElementById('conf-own-delivery');
     const checkReqCode = document.getElementById('conf-req-code');
     const inputCancelTime = document.getElementById('conf-cancel-time');
 
-    // --- LISTENER DO FRETE ---
-    const elShipCheck = document.getElementById('conf-shipping-active');
-    const elShipInput = document.getElementById('conf-shipping-value');
-
-    if (elShipCheck) {
-        elShipCheck.addEventListener('change', (e) => {
-            const container = document.getElementById('shipping-value-container');
-            if (e.target.checked) container.classList.remove('opacity-50', 'pointer-events-none');
-            else container.classList.add('opacity-50', 'pointer-events-none');
-
-            autoSaveSettings('orders');
-        });
-    }
-    if (elShipInput) {
-        // Usa blur para salvar só quando sair do campo
-        elShipInput.addEventListener('blur', () => autoSaveSettings('orders'));
-    }
-
-    if (checkOwnDelivery && checkReqCode) {
-        // Estado inicial
-        toggleReqCodeState(checkOwnDelivery.checked);
-
-        // Ao mudar "Entrega Própria"
-        checkOwnDelivery.addEventListener('change', (e) => {
-            const isActive = e.target.checked;
-            toggleReqCodeState(isActive);
-
-            // Se desativou a entrega, desativa o código obrigatoriamente
-            if (!isActive) {
-                checkReqCode.checked = false;
-            }
-
-            // Salva
-            autoSaveSettings('orders');
-        });
-
-        // Ao mudar "Solicitar Código"
-        checkReqCode.addEventListener('change', () => autoSaveSettings('orders'));
-
-        // Ao mudar Tempo de Cancelamento
-        if (inputCancelTime) {
-            inputCancelTime.addEventListener('blur', () => autoSaveSettings('orders'));
-        }
-    }
-
-    // Função visual para travar/destravar o checkbox dependente
-    function toggleReqCodeState(isActive) {
+    const toggleReqCodeState = (isActive) => {
         if (!checkReqCode) return;
         const parentLabel = checkReqCode.closest('label');
-
         if (isActive) {
             checkReqCode.disabled = false;
             if (parentLabel) parentLabel.classList.remove('opacity-50', 'pointer-events-none');
         } else {
             checkReqCode.disabled = true;
+            checkReqCode.checked = false;
             if (parentLabel) parentLabel.classList.add('opacity-50', 'pointer-events-none');
         }
+    };
+
+    if (checkOwnDelivery) {
+        toggleReqCodeState(checkOwnDelivery.checked);
+        checkOwnDelivery.addEventListener('change', (e) => {
+            const isActive = e.target.checked;
+            toggleReqCodeState(isActive);
+            autoSaveSettings('orders');
+        });
     }
 
-    // 2. Lógica do Modal de Carrinho (Botões de Navegação)
-    const btnGoCheckout = document.getElementById('btn-go-checkout');
-    const btnFinishPayment = document.getElementById('btn-finish-payment');
-    const btnCloseCart = document.getElementById('close-cart');
-
-    if (btnGoCheckout) btnGoCheckout.onclick = goToCheckoutView;
-    if (btnFinishPayment) {
-        btnFinishPayment.onclick = window.submitOrder;
-    }
-    if (btnCloseCart) btnCloseCart.onclick = closeCartModal;
-
-    // 1. Troca Online / Entrega (Radio Principal)
-    const radiosPayMode = document.getElementsByName('pay-mode');
-    radiosPayMode.forEach(r => r.addEventListener('change', togglePaymentMode));
-
-    // 2. Troca Pix / Cartão / Dinheiro (Radio Secundário)
-    const radiosMethod = document.getElementsByName('payment-method-selection');
-    radiosMethod.forEach(r => r.addEventListener('change', toggleMethodSelection));
-
-    // 3. Troca de Parcelas
-    const selectInst = document.getElementById('checkout-installments');
-    if (selectInst) selectInst.addEventListener('change', calcCheckoutTotal);
-
-
-    // --- DENTRO DE setupEventListeners ---
-
-    const btnTrack = document.getElementById('btn-track-icon');
-    if (btnTrack) {
-        btnTrack.onclick = () => {
-            // Chama a função que abre a LISTA e verifica se tem pedidos
-            openTrackModal();
-        };
+    if (checkReqCode) {
+        checkReqCode.addEventListener('change', () => autoSaveSettings('orders'));
     }
 
+    if (inputCancelTime) {
+        inputCancelTime.addEventListener('blur', () => autoSaveSettings('orders'));
+    }
 
-    // --- LÓGICA DE PAGAMENTO (VALIDAÇÃO E UI) ---
+    const elShipCheck = document.getElementById('conf-shipping-active');
+    const elShipInput = document.getElementById('conf-shipping-value');
+    if (elShipCheck) {
+        elShipCheck.addEventListener('change', (e) => {
+            const container = document.getElementById('shipping-value-container');
+            if (e.target.checked) container.classList.remove('opacity-50', 'pointer-events-none');
+            else container.classList.add('opacity-50', 'pointer-events-none');
+            autoSaveSettings('orders');
+        });
+    }
+    if (elShipInput) {
+        elShipInput.addEventListener('blur', () => autoSaveSettings('orders'));
+    }
+
+    // --- CONFIGURAÇÃO DE PAGAMENTO ---
     const checkOnlineActive = document.getElementById('conf-pay-online-active');
     const checkDeliveryActive = document.getElementById('conf-pay-delivery-active');
     const groupOnline = document.getElementById('group-online-methods');
     const groupDelivery = document.getElementById('group-delivery-methods');
 
-    // 1. Validação dos Mestres (Pelo menos um tipo ativo)
     const validateMasterSwitch = (e) => {
         if (!checkOnlineActive.checked && !checkDeliveryActive.checked) {
             alert("⚠️ Pelo menos uma forma de pagamento (Online ou Entrega) deve permanecer ativa.");
@@ -3174,18 +2958,14 @@ function setupEventListeners() {
     if (checkOnlineActive) checkOnlineActive.addEventListener('change', validateMasterSwitch);
     if (checkDeliveryActive) checkDeliveryActive.addEventListener('change', validateMasterSwitch);
 
-    // 2. Validação dos Sub-itens (Pelo menos uma opção dentro do grupo)
     const validateSubOptions = (className) => {
         const checkboxes = document.querySelectorAll(`.${className}`);
-
         checkboxes.forEach(chk => {
             chk.addEventListener('change', (e) => {
-                // Conta quantos estão marcados neste grupo
                 const checkedCount = document.querySelectorAll(`.${className}:checked`).length;
-
                 if (checkedCount === 0) {
                     alert("⚠️ Pelo menos uma opção deve estar selecionada neste grupo.");
-                    e.target.checked = true; // Reverte a ação
+                    e.target.checked = true;
                     return;
                 }
                 autoSaveSettings('installments');
@@ -3193,35 +2973,24 @@ function setupEventListeners() {
         });
     };
 
-    // Aplica a validação nos grupos (adicionei classes no HTML do passo 1)
     validateSubOptions('sub-check-online');
     validateSubOptions('sub-check-delivery');
 
-
-    // UPLOAD DE LOGO DA LOJA
     const logoInput = getEl('conf-logo-upload');
     if (logoInput) {
         logoInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-
             try {
-                // Reusa a função processImageFile que já existe no seu código
                 const base64 = await processImageFile(file);
-
-                // Salva no estado temporário
                 state.tempLogo = base64;
-
-                // Atualiza o preview na hora
                 const preview = getEl('conf-logo-preview');
                 const placeholder = getEl('conf-logo-placeholder');
-
                 if (preview) {
                     preview.src = base64;
                     preview.classList.remove('hidden');
                 }
                 if (placeholder) placeholder.classList.add('hidden');
-
             } catch (err) {
                 console.error("Erro logo:", err);
                 alert("Erro ao processar imagem.");
@@ -3231,18 +3000,15 @@ function setupEventListeners() {
 
     setupAccordion('btn-acc-theme', 'content-acc-theme', 'arrow-acc-theme');
 
-
     initSupportModule({
         state: state,
         auth: auth,
         showToast: showToast,
-        loadAdminSales: loadAdminSales,     // Para recarregar vendas
-        checkActiveOrders: checkActiveOrders, // Para verificar bolinha
-        windowRef: window                   // Para limpar listeners globais
+        loadAdminSales: loadAdminSales,
+        checkActiveOrders: checkActiveOrders,
+        windowRef: window
     });
 
-
-    // Listener para Categoria (Já devia ter, mas certifique-se que chama renderCatalog)
     const catSelect = document.getElementById('category-filter');
     if (catSelect) {
         catSelect.addEventListener('change', (e) => {
@@ -4263,21 +4029,11 @@ function updateCartUI() {
             <div><p class="text-green-500 text-xs font-bold uppercase tracking-wider">${state.currentCoupon.code}</p><p class="text-green-400 text-[10px]">Desconto aplicado</p></div></div>
             <button onclick="removeCoupon()" class="text-gray-500 hover:text-red-500 transition w-8 h-8 flex items-center justify-center"><i class="fas fa-trash-alt text-xs"></i></button>
         </div>` :
-        `<div class="relative flex gap-2 w-full items-center">
-    
-    <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10">
-        <i class="fas fa-tag text-xs"></i>
-    </div>
-
-    <input type="text" id="cart-coupon-input-dynamic" placeholder="CUPOM" 
-        class="bg-[#0f111a] border border-gray-700 text-white text-xs rounded-lg pl-9 pr-2 h-10 flex-1 min-w-0 outline-none focus:border-yellow-500 uppercase transition font-bold tracking-wide placeholder-gray-600" 
-        onkeydown="if(event.key === 'Enter') applyCouponDynamic()">
-
-    <button onclick="applyCouponDynamic()" 
-        class="bg-gray-800 hover:bg-gray-700 text-white px-4 h-10 rounded-lg text-xs font-bold uppercase border border-gray-700 transition whitespace-nowrap">
-        Aplicar
-    </button>
-    </div>`;
+        `<div class="relative flex gap-2">
+            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"><i class="fas fa-tag text-xs"></i></div>
+            <input type="text" id="cart-coupon-input-dynamic" placeholder="CUPOM DE DESCONTO" class="bg-[#0f111a] border border-gray-700 text-white text-xs rounded-lg pl-9 pr-3 h-10 flex-1 outline-none focus:border-yellow-500 uppercase transition font-bold tracking-wide" onkeydown="if(event.key === 'Enter') applyCouponDynamic()">
+            <button onclick="applyCouponDynamic()" class="bg-gray-800 hover:bg-gray-700 text-white px-4 h-10 rounded-lg text-xs font-bold uppercase border border-gray-700 transition">Aplicar</button>
+        </div>`;
 
     summaryDiv.innerHTML = `
         ${couponHTML}
@@ -4905,7 +4661,7 @@ window.openCheckoutModal = () => {
     // 3. REFERÊNCIAS AOS ELEMENTOS
     const containerDelivery = document.getElementById('container-delivery-option');
     const labelOnline = document.getElementById('label-pay-online');
-
+    
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
     const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
 
@@ -4915,7 +4671,7 @@ window.openCheckoutModal = () => {
     if (onlineActive) {
         if (labelOnline) {
             labelOnline.classList.remove('hidden');
-            labelOnline.style.display = '';
+            labelOnline.style.display = ''; 
         }
     } else {
         if (labelOnline) {
@@ -6044,11 +5800,11 @@ window.adminFinalizeOrder = async (orderId) => {
             console.error("Função updateOrderStatusDB não encontrada.");
             // Fallback simples caso a função auxiliar não exista
             try {
-                await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), {
+                await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), { 
                     status: 'Concluído',
                     completedAt: new Date().toISOString()
                 });
-            } catch (e) { alert("Erro ao finalizar: " + e.message); }
+            } catch(e) { alert("Erro ao finalizar: " + e.message); }
         }
     }
 };
@@ -6417,7 +6173,7 @@ window.updateStatusUI = (order) => {
 
     // 2. CONTEÚDO DOS ITENS E CÁLCULOS
     let subTotalItems = 0;
-
+    
     let itemsHtml = order.items.map(i => {
         const itemTotal = i.price * i.qty;
         subTotalItems += itemTotal;
@@ -6435,7 +6191,7 @@ window.updateStatusUI = (order) => {
     const valFrete = order.shippingFee || 0;
     const valTotalPago = order.total || 0;
     const totalEsperado = subTotalItems + valFrete;
-
+    
     // 1. Calcula o total de "dinheiro que falta" (Desconto Total)
     const valDescontoTotal = Math.max(0, totalEsperado - valTotalPago);
 
@@ -6492,7 +6248,7 @@ window.updateStatusUI = (order) => {
 
     // Caso genérico (se tiver desconto mas não identificou a origem exata, ex: erro de arredondamento antigo)
     if (valDescontoTotal > 0.05 && valDescontoCupom < 0.01 && valDescontoPix < 0.01) {
-        financialHtml += `
+         financialHtml += `
             <div class="flex justify-between text-xs text-green-400 font-bold">
                 <span>Descontos</span>
                 <span>- ${formatCurrency(valDescontoTotal)}</span>
@@ -7097,13 +6853,13 @@ window.saveThemeColors = async () => {
     try {
         // Salva na coleção da loja
         await setDoc(doc(db, `sites/${state.siteId}/settings`, 'theme'), newTheme);
-
+        
         // Atualiza estado local
         state.currentTheme = newTheme;
         originalTheme = newTheme;
-
+        
         // --- ALTERADO AQUI: Usa showToast em vez de alert ---
-        showToast('Tema salvo com sucesso!', 'success');
+        showToast('Tema salvo com sucesso!', 'success'); 
 
     } catch (error) {
         console.error(error);
@@ -7186,7 +6942,7 @@ window.testeForcarEsconderEntrega = () => {
     // 3. Verifica o estado atual da configuração na memória
     const config = state.storeProfile.deliveryConfig || {};
     const logisticaAtiva = config.ownDelivery === true;
-
+    
     if (msg) {
         msg.innerText = `Logística no State: ${logisticaAtiva ? 'ATIVA (true)' : 'DESATIVADA (false/undef)'} | Ocultado com sucesso.`;
     }
@@ -7194,7 +6950,7 @@ window.testeForcarEsconderEntrega = () => {
     // 4. Força a seleção do Online para não travar
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
     if (radioOnline) radioOnline.checked = true;
-
+    
     // Atualiza visual interno
     if (typeof togglePaymentMode === 'function') togglePaymentMode();
 };

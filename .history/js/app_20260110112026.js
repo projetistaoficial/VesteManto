@@ -1013,10 +1013,10 @@ function renderCatalog(productsToRender) {
         // Prepara valores seguros para comparação
         const priceA = parseFloat(a.promoPrice || a.price) || 0;
         const priceB = parseFloat(b.promoPrice || b.price) || 0;
-
+        
         const codeA = parseInt(a.code) || 0;
         const codeB = parseInt(b.code) || 0;
-
+        
         const nameA = (a.name || '').toLowerCase();
         const nameB = (b.name || '').toLowerCase();
 
@@ -1033,15 +1033,15 @@ function renderCatalog(productsToRender) {
         switch (sortMode) {
             case 'price-asc': // Menor Preço
                 return priceA - priceB;
-
+            
             case 'price-desc': // Maior Preço
                 return priceB - priceA;
-
+            
             case 'name-asc': // Ordem Alfabética
                 return nameA.localeCompare(nameB);
-
+            
             case 'newest': // Lançamentos
-            default:
+            default: 
                 return codeB - codeA; // Código maior = Mais novo
         }
     });
@@ -1095,10 +1095,10 @@ function renderCatalog(productsToRender) {
 
         // --- VISUAL DAS ETIQUETAS (Isso continua aparecendo, mas não afeta ordem) ---
         let badgesHtml = '';
-
+        
         if (p.highlight || p.promoPrice) {
             badgesHtml = `<div class="absolute top-2 left-2 flex flex-col gap-1 z-20 pointer-events-none">`;
-
+            
             // Etiqueta DESTAQUE
             if (!!p.highlight) {
                 badgesHtml += `
@@ -1106,12 +1106,12 @@ function renderCatalog(productsToRender) {
                         <i class="fas fa-star text-[8px]"></i> DESTAQUE
                     </span>`;
             }
-
+            
             // Etiqueta OFERTA
             if (p.promoPrice) {
                 badgesHtml += `<span class="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">OFERTA</span>`;
             }
-
+            
             badgesHtml += `</div>`;
         }
         // -------------------------------------------------------------------------
@@ -2142,7 +2142,7 @@ function renderSalesList(orders) {
         const valDescontoTotal = Math.max(0, (subTotalItens + valFrete) - valTotalPago);
 
         let discountHtml = '';
-
+        
         // Se houver algum desconto (maior que 5 centavos para evitar erro de arredondamento)
         if (valDescontoTotal > 0.05) {
             const isPix = (o.paymentMethod || '').toLowerCase().includes('pix');
@@ -2156,7 +2156,7 @@ function renderSalesList(orders) {
             if (o.couponData && o.couponData.value) {
                 valDescontoCupom = o.couponData.value;
                 nomeCupom = o.couponData.code;
-            }
+            } 
             // Fallback para pedidos antigos (Se tem nome de cupom mas não dados, tenta inferir)
             else if (o.cupom) {
                 nomeCupom = o.cupom;
@@ -2190,10 +2190,10 @@ function renderSalesList(orders) {
                     </div>
                 `;
             }
-
+            
             // Exibe Genérico (Caso não tenha cupom identificado nem pix, mas tenha desconto)
             if (!nomeCupom && valDescontoPix <= 0.05) {
-                discountHtml += `
+                 discountHtml += `
                     <div class="flex justify-between text-xs text-gray-300">
                         <span>Desconto:</span>
                         <span class="text-green-400 font-bold">- ${formatCurrency(valDescontoTotal)}</span>
@@ -2218,7 +2218,7 @@ function renderSalesList(orders) {
         if (o.status.includes('Cancelado')) {
             controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span></div>`;
         } else if (o.status === 'Reembolsado') {
-            controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span></div>`;
+             controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span></div>`;
         } else if (o.status === 'Concluído') {
             controlsHtml = `
                 <div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700">
@@ -4263,21 +4263,11 @@ function updateCartUI() {
             <div><p class="text-green-500 text-xs font-bold uppercase tracking-wider">${state.currentCoupon.code}</p><p class="text-green-400 text-[10px]">Desconto aplicado</p></div></div>
             <button onclick="removeCoupon()" class="text-gray-500 hover:text-red-500 transition w-8 h-8 flex items-center justify-center"><i class="fas fa-trash-alt text-xs"></i></button>
         </div>` :
-        `<div class="relative flex gap-2 w-full items-center">
-    
-    <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10">
-        <i class="fas fa-tag text-xs"></i>
-    </div>
-
-    <input type="text" id="cart-coupon-input-dynamic" placeholder="CUPOM" 
-        class="bg-[#0f111a] border border-gray-700 text-white text-xs rounded-lg pl-9 pr-2 h-10 flex-1 min-w-0 outline-none focus:border-yellow-500 uppercase transition font-bold tracking-wide placeholder-gray-600" 
-        onkeydown="if(event.key === 'Enter') applyCouponDynamic()">
-
-    <button onclick="applyCouponDynamic()" 
-        class="bg-gray-800 hover:bg-gray-700 text-white px-4 h-10 rounded-lg text-xs font-bold uppercase border border-gray-700 transition whitespace-nowrap">
-        Aplicar
-    </button>
-    </div>`;
+        `<div class="relative flex gap-2">
+            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"><i class="fas fa-tag text-xs"></i></div>
+            <input type="text" id="cart-coupon-input-dynamic" placeholder="CUPOM DE DESCONTO" class="bg-[#0f111a] border border-gray-700 text-white text-xs rounded-lg pl-9 pr-3 h-10 flex-1 outline-none focus:border-yellow-500 uppercase transition font-bold tracking-wide" onkeydown="if(event.key === 'Enter') applyCouponDynamic()">
+            <button onclick="applyCouponDynamic()" class="bg-gray-800 hover:bg-gray-700 text-white px-4 h-10 rounded-lg text-xs font-bold uppercase border border-gray-700 transition">Aplicar</button>
+        </div>`;
 
     summaryDiv.innerHTML = `
         ${couponHTML}
@@ -4891,76 +4881,78 @@ window.openCheckoutModal = () => {
         const el = document.getElementById(id); if (el) el.classList.add('hidden');
     });
 
-    // 2. RECUPERA CONFIGURAÇÕES (Lógica "Blindada" igual ao teste)
+    // 2. RECUPERA CONFIGURAÇÕES
     const pm = state.storeProfile.paymentMethods || {};
     const dConfig = state.storeProfile.deliveryConfig || {};
 
-    // Verifica Financeiro
+    // Configurações Financeiras (Verifica se está ativo)
     const onlineActive = pm.online?.active !== false;
     const deliveryActive = pm.delivery?.active !== false;
 
-    // Verifica Logística (O ponto principal)
+    // --- CORREÇÃO AQUI: LOGÍSTICA ESTRITA ---
+    // Verifica se a Entrega Própria está explicitamente ATIVADA (true).
+    // Se você desmarcar no admin, isso será false.
     const isLogisticsActive = dConfig.ownDelivery === true;
 
     // 3. REFERÊNCIAS AOS ELEMENTOS
-    const containerDelivery = document.getElementById('container-delivery-option');
-    const labelOnline = document.getElementById('label-pay-online');
+    const containerDelivery = document.getElementById('container-delivery-option'); // Div do Pagar na Entrega
+    const labelOnline = document.getElementById('label-pay-online'); // Div do Pagar Online
 
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
     const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
 
-    // --- A. CONTROLE DE VISIBILIDADE (USANDO O MÉTODO FORÇADO DO TESTE) ---
-
-    // 1. Opção ONLINE
-    if (onlineActive) {
-        if (labelOnline) {
-            labelOnline.classList.remove('hidden');
-            labelOnline.style.display = '';
-        }
-    } else {
+    // --- A. VISIBILIDADE ONLINE ---
+    if (!onlineActive) {
         if (labelOnline) {
             labelOnline.classList.add('hidden');
             labelOnline.style.setProperty('display', 'none', 'important');
         }
+    } else {
+        if (labelOnline) {
+            labelOnline.classList.remove('hidden');
+            labelOnline.style.display = '';
+        }
     }
 
-    // 2. Opção ENTREGA (Lógica Rigorosa)
-    // Só mostra se: (Financeiro Ativo) E (Logística Ativa)
+    // --- B. VISIBILIDADE ENTREGA (Lógica Combinada) ---
+    // Só mostra a opção "Pagar na Entrega" se:
+    // 1. O Financeiro permitir (deliveryActive) E
+    // 2. A Logística Própria estiver LIGADA (isLogisticsActive)
     const showDeliveryOption = deliveryActive && isLogisticsActive;
 
     if (showDeliveryOption) {
         if (containerDelivery) {
             containerDelivery.classList.remove('hidden');
-            containerDelivery.style.display = ''; // Volta ao padrão
+            containerDelivery.style.display = '';
         }
     } else {
-        // SE TIVER QUE ESCONDER, USA FORÇA BRUTA (Igual ao botão de teste)
+        // Se a entrega própria estiver OFF (ou financeiro OFF), esconde
         if (containerDelivery) {
             containerDelivery.classList.add('hidden');
             containerDelivery.style.setProperty('display', 'none', 'important');
         }
     }
 
-    // --- B. AUTO-SELEÇÃO DO RADIO (Para evitar travamento) ---
+    // --- C. AUTO-SELEÇÃO DO RADIO (Atualizado) ---
 
-    // Se a opção de Entrega sumiu, força marcar Online
+    // 1. Se a opção de Entrega sumiu (por logística ou financeiro), força marcar Online
     if (!showDeliveryOption && onlineActive) {
         if (radioOnline) radioOnline.checked = true;
     }
-    // Se a opção Online sumiu, força marcar Entrega (se disponível)
+    // 2. Se a opção Online sumiu, força marcar Entrega (se estiver disponível)
     else if (!onlineActive && showDeliveryOption) {
         if (radioDelivery) radioDelivery.checked = true;
     }
-    // Se ambos estão disponíveis, prioriza Online
+    // 3. Se ambos estão disponíveis, prioriza Online como padrão
     else if (onlineActive) {
         if (radioOnline) radioOnline.checked = true;
     }
 
-    // 4. ATUALIZAÇÕES INTERNAS
+    // 4. Atualiza Interface Interna
     if (typeof window.togglePaymentMode === 'function') window.togglePaymentMode();
     if (typeof window.calcCheckoutTotal === 'function') window.calcCheckoutTotal();
 
-    // 5. EXIBIÇÃO DAS TELAS
+    // 5. NAVEGAÇÃO
     const viewCart = document.getElementById('view-cart-list');
     const viewCheckout = document.getElementById('view-checkout');
 
@@ -4976,7 +4968,7 @@ window.openCheckoutModal = () => {
     const btnFinish = document.getElementById('btn-finish-payment');
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = false;
+        btnFinish.disabled = false; // Garante que o botão comece habilitado
     }
 };
 
@@ -6044,11 +6036,11 @@ window.adminFinalizeOrder = async (orderId) => {
             console.error("Função updateOrderStatusDB não encontrada.");
             // Fallback simples caso a função auxiliar não exista
             try {
-                await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), {
+                await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), { 
                     status: 'Concluído',
                     completedAt: new Date().toISOString()
                 });
-            } catch (e) { alert("Erro ao finalizar: " + e.message); }
+            } catch(e) { alert("Erro ao finalizar: " + e.message); }
         }
     }
 };
@@ -6346,278 +6338,101 @@ window.showOrderDetail = (orderId) => {
 // Variável global para controlar o timer e não criar múltiplos intervalos
 window.cancelTimerInterval = null;
 
-window.updateStatusUI = (order) => {
-    if (window.cancelTimerInterval) clearInterval(window.cancelTimerInterval);
-
-    const detailsContainer = document.getElementById('order-details-body');
-    if (!detailsContainer) return;
-
-    const s = order.status;
-    const isCancelled = s.includes('Cancelado');
-
-    // 1. LÓGICA DA TIMELINE (Mantida igual)
-    let currentStep = 0;
-    if (s === 'Aguardando aprovação') currentStep = 0;
-    else if (s === 'Aprovado' || s === 'Preparando pedido') currentStep = 1;
-    else if (s === 'Saiu para entrega') currentStep = 2;
-    else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
-
-    const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
-    const step0Icon = (s === 'Aguardando aprovação' || isCancelled) ? 'fa-clock' : 'fa-thumbs-up';
-
-    const steps = [
-        { label: step0Label, icon: step0Icon },
-        { label: 'Preparando', icon: 'fa-box-open' },
-        { label: 'Saiu', icon: 'fa-motorcycle' },
-        { label: 'Entregue', icon: 'fa-check' }
-    ];
-
-    let timelineHTML = `<div class="flex justify-between items-start mb-8 relative px-2">`;
-    timelineHTML += `<div class="absolute top-[18px] left-7 right-7 h-0.5 bg-gray-700 -z-0"></div>`;
-
-    const progressWidth = Math.min(currentStep * 33.33, 100);
-    if (!isCancelled) {
-        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
-    }
-
-    steps.forEach((step, index) => {
-        let circleClass = "bg-[#1f2937] border-2 border-gray-600 text-gray-500";
-        let iconClass = step.icon;
-        let labelClass = "text-gray-500";
-        let glowEffect = "";
-
-        if (isCancelled) {
-            if (index === 0) {
-                circleClass = "bg-red-900 border-2 border-red-500 text-red-500";
-                iconClass = "fa-times";
-                labelClass = "text-red-500 font-bold";
-            }
-        } else {
-            if (index < currentStep) {
-                circleClass = "bg-green-500 border-2 border-green-500 text-black";
-                labelClass = "text-green-500 font-bold";
-            }
-            else if (index === currentStep) {
-                circleClass = "bg-green-500 border-2 border-green-500 text-white";
-                glowEffect = "shadow-[0_0_15px_rgba(34,197,94,0.8)] scale-110";
-                labelClass = "text-white font-bold";
-            }
-        }
-
-        timelineHTML += `
-            <div class="flex flex-col items-center relative z-10">
-                <div class="w-9 h-9 rounded-full flex items-center justify-center text-xs transition-all duration-500 ${circleClass} ${glowEffect}">
-                    <i class="fas ${iconClass}"></i>
-                </div>
-                <span class="text-[10px] uppercase mt-2 tracking-wide ${labelClass}">${step.label}</span>
-            </div>
-        `;
+window.openCheckoutModal = () => {
+    // 1. Limpa campos anteriores
+    ['checkout-cep', 'checkout-number', 'checkout-comp'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
     });
-    timelineHTML += `</div>`;
+    ['address-details', 'delivery-error'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.classList.add('hidden');
+    });
 
-    // 2. CONTEÚDO DOS ITENS E CÁLCULOS
-    let subTotalItems = 0;
+    // 2. RECUPERA CONFIGURAÇÕES (Lógica "Blindada" igual ao teste)
+    const pm = state.storeProfile.paymentMethods || {};
+    const dConfig = state.storeProfile.deliveryConfig || {};
 
-    let itemsHtml = order.items.map(i => {
-        const itemTotal = i.price * i.qty;
-        subTotalItems += itemTotal;
-        return `
-        <div class="flex justify-between items-center text-sm text-gray-300 mb-2 border-b border-gray-800 pb-2 last:border-0">
-            <div class="flex items-center gap-2">
-                 <span class="text-yellow-500 font-bold font-mono text-xs bg-yellow-900/20 px-1.5 rounded">${i.qty}x</span>
-                 <span>${i.name} ${i.size !== 'U' ? `<span class="text-xs text-gray-500">(${i.size})</span>` : ''}</span>
-            </div>
-            <span class="text-white font-bold text-xs">${formatCurrency(itemTotal)}</span>
-        </div>`;
-    }).join('');
+    // Verifica Financeiro
+    const onlineActive = pm.online?.active !== false;
+    const deliveryActive = pm.delivery?.active !== false;
 
-    // --- LÓGICA FINANCEIRA (SEPARAÇÃO DE DESCONTOS) ---
-    const valFrete = order.shippingFee || 0;
-    const valTotalPago = order.total || 0;
-    const totalEsperado = subTotalItems + valFrete;
+    // Verifica Logística (O ponto principal)
+    const isLogisticsActive = dConfig.ownDelivery === true;
 
-    // 1. Calcula o total de "dinheiro que falta" (Desconto Total)
-    const valDescontoTotal = Math.max(0, totalEsperado - valTotalPago);
+    // 3. REFERÊNCIAS AOS ELEMENTOS
+    const containerDelivery = document.getElementById('container-delivery-option');
+    const labelOnline = document.getElementById('label-pay-online');
+    
+    const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
+    const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
 
-    // 2. Separa o valor do Cupom
-    let valDescontoCupom = 0;
-    let nomeCupom = null;
+    // --- A. CONTROLE DE VISIBILIDADE (USANDO O MÉTODO FORÇADO DO TESTE) ---
 
-    if (order.couponData && order.couponData.value) {
-        valDescontoCupom = order.couponData.value;
-        nomeCupom = order.couponData.code;
-    } else if (order.cupom) {
-        // Fallback antigo
-        nomeCupom = order.cupom;
+    // 1. Opção ONLINE
+    if (onlineActive) {
+        if (labelOnline) {
+            labelOnline.classList.remove('hidden');
+            labelOnline.style.display = ''; 
+        }
+    } else {
+        if (labelOnline) {
+            labelOnline.classList.add('hidden');
+            labelOnline.style.setProperty('display', 'none', 'important');
+        }
     }
 
-    // 3. O que sobrar é Pix (Desconto Total - Desconto Cupom)
-    // Usamos Math.max(0, ...) para evitar negativos por arredondamento
-    const valDescontoPix = Math.max(0, valDescontoTotal - valDescontoCupom);
+    // 2. Opção ENTREGA (Lógica Rigorosa)
+    // Só mostra se: (Financeiro Ativo) E (Logística Ativa)
+    const showDeliveryOption = deliveryActive && isLogisticsActive;
 
-    // --- CONSTROI O HTML FINANCEIRO ---
-    let financialHtml = `
-        <div class="mt-3 pt-3 border-t border-gray-700 flex flex-col gap-1">
-            <div class="flex justify-between text-xs text-gray-400">
-                <span>Subtotal</span>
-                <span>${formatCurrency(subTotalItems)}</span>
-            </div>
-    `;
-
-    if (valFrete > 0) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-gray-400">
-                <span>Taxa de Entrega</span>
-                <span>+ ${formatCurrency(valFrete)}</span>
-            </div>`;
+    if (showDeliveryOption) {
+        if (containerDelivery) {
+            containerDelivery.classList.remove('hidden');
+            containerDelivery.style.display = ''; // Volta ao padrão
+        }
+    } else {
+        // SE TIVER QUE ESCONDER, USA FORÇA BRUTA (Igual ao botão de teste)
+        if (containerDelivery) {
+            containerDelivery.classList.add('hidden');
+            containerDelivery.style.setProperty('display', 'none', 'important');
+        }
     }
 
-    // EXIBE CUPOM SEPARADO
-    if (valDescontoCupom > 0.05) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Cupom (${nomeCupom || 'Aplicado'})</span>
-                <span>- ${formatCurrency(valDescontoCupom)}</span>
-            </div>`;
+    // --- B. AUTO-SELEÇÃO DO RADIO (Para evitar travamento) ---
+
+    // Se a opção de Entrega sumiu, força marcar Online
+    if (!showDeliveryOption && onlineActive) {
+        if (radioOnline) radioOnline.checked = true;
+    }
+    // Se a opção Online sumiu, força marcar Entrega (se disponível)
+    else if (!onlineActive && showDeliveryOption) {
+        if (radioDelivery) radioDelivery.checked = true;
+    }
+    // Se ambos estão disponíveis, prioriza Online
+    else if (onlineActive) {
+        if (radioOnline) radioOnline.checked = true;
     }
 
-    // EXIBE PIX SEPARADO
-    if (valDescontoPix > 0.05) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Desconto Pix</span>
-                <span>- ${formatCurrency(valDescontoPix)}</span>
-            </div>`;
-    }
+    // 4. ATUALIZAÇÕES INTERNAS
+    if (typeof window.togglePaymentMode === 'function') window.togglePaymentMode();
+    if (typeof window.calcCheckoutTotal === 'function') window.calcCheckoutTotal();
 
-    // Caso genérico (se tiver desconto mas não identificou a origem exata, ex: erro de arredondamento antigo)
-    if (valDescontoTotal > 0.05 && valDescontoCupom < 0.01 && valDescontoPix < 0.01) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Descontos</span>
-                <span>- ${formatCurrency(valDescontoTotal)}</span>
-            </div>`;
-    }
+    // 5. EXIBIÇÃO DAS TELAS
+    const viewCart = document.getElementById('view-cart-list');
+    const viewCheckout = document.getElementById('view-checkout');
 
-    financialHtml += `
-            <div class="flex justify-between items-end mt-2 pt-2 border-t border-gray-700/50">
-                <span class="text-gray-300 font-bold text-sm">Total Final</span>
-                <span class="text-green-400 font-extrabold text-xl">${formatCurrency(valTotalPago)}</span>
-            </div>
-        </div>
-    `;
+    if (viewCart) viewCart.classList.add('hidden');
+    if (viewCheckout) viewCheckout.classList.remove('hidden');
 
-    // Bloco de Forma de Pagamento
-    const paymentBlock = `
-        <div class="mt-3 bg-black/40 p-3 rounded border border-gray-700/50">
-            <p class="text-[10px] text-gray-500 uppercase font-bold mb-1"><i class="far fa-credit-card mr-1"></i> Forma de Pagamento</p>
-            <p class="text-xs text-white font-medium break-words">${order.paymentMethod || 'Não informado'}</p>
-        </div>
-    `;
+    const cartTitle = document.getElementById('cart-modal-title');
+    if (cartTitle) cartTitle.innerText = "FINALIZAR PEDIDO";
 
-    const addressBlock = `
-        <div class="flex items-start gap-3 mt-4 bg-gray-900 p-3 rounded-lg border border-gray-800">
-            <i class="fas fa-map-marker-alt text-red-500 mt-1"></i>
-            <div class="flex-1">
-                <p class="text-gray-300 text-xs leading-relaxed">
-                    <span class="text-white font-bold block mb-0.5">Endereço de Entrega</span>
-                    ${order.customer.street}, ${order.customer.addressNum} ${order.customer.comp ? '- ' + order.customer.comp : ''}<br>
-                    ${order.customer.district}
-                </p>
-            </div>
-        </div>
-    `;
+    document.getElementById('btn-modal-back')?.classList.remove('hidden');
+    document.getElementById('btn-go-checkout')?.classList.add('hidden');
 
-    // Botão Reenviar WhatsApp
-    const isOnline = (order.paymentMethod || '').includes('Online');
-    const allowedResendStatuses = ['Aguardando aprovação', 'Aprovado', 'Preparando pedido'];
-    const canResend = isOnline && allowedResendStatuses.includes(order.status);
-
-    const resendBtnHTML = canResend ? `
-        <div class="mt-4 pt-3 border-t border-gray-700/50">
-            <button onclick="retryWhatsapp('${order.id}')" 
-                    class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg shadow-lg transition flex items-center justify-center gap-2 text-sm uppercase tracking-wide">
-                <i class="fab fa-whatsapp text-lg"></i> Reenviar Pedido no Zap
-            </button>
-            <p class="text-[10px] text-gray-500 text-center mt-2">Caso não tenha sido redirecionado ao finalizar a compra.</p>
-        </div>
-    ` : '';
-
-    // 3. RENDERIZAÇÃO FINAL
-    detailsContainer.innerHTML = `
-        <div class="mb-6">
-            <h2 class="text-2xl font-extrabold text-yellow-500 tracking-tight">PEDIDO #${order.code}</h2>
-            <p class="text-xs text-gray-500 uppercase font-bold tracking-widest mt-1">
-                ${new Date(order.date).toLocaleDateString('pt-BR')} às ${new Date(order.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-            </p>
-        </div>
-
-        ${timelineHTML}
-
-        ${order.securityCode && order.status === 'Saiu para entrega' ? `
-            <div class="bg-gray-800 border border-yellow-500/30 rounded-xl p-4 mb-6 text-center relative overflow-hidden group animate-pulse">
-                <div class="absolute inset-0 bg-yellow-500/5 group-hover:bg-yellow-500/10 transition"></div>
-                <p class="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Código de Segurança</p>
-                <p class="text-3xl font-mono font-bold text-yellow-500 tracking-[0.3em]">${order.securityCode}</p>
-                <p class="text-[10px] text-yellow-600/80 mt-1">Informe ao entregador</p>
-            </div>
-        ` : ''}
-
-        <div class="bg-[#151720] rounded-xl p-4 border border-gray-800">
-            <div class="mb-4 text-center border-b border-gray-700 pb-3">
-                <span class="text-xs text-gray-500 uppercase font-bold">Status Atual</span>
-                <h3 class="text-xl font-bold text-white mt-1">${order.status}</h3>
-            </div>
-
-            <h3 class="text-xs font-bold text-gray-400 uppercase mb-3">Resumo do Pedido</h3>
-            ${itemsHtml}
-            
-            ${financialHtml}
-            ${paymentBlock}
-            ${resendBtnHTML}
-        </div>
-
-        ${addressBlock}
-        
-        <div id="cancel-btn-area" class="mt-6"></div>
-    `;
-
-    // 4. LÓGICA DO BOTÃO CANCELAR
-    const btnArea = document.getElementById('cancel-btn-area');
-    if (!btnArea || isCancelled || currentStep > 0) {
-        if (btnArea) btnArea.innerHTML = '';
-        return;
-    }
-
-    if (order.status === 'Aguardando aprovação' || order.status === 'Pendente') {
-        const checkTimer = () => {
-            const now = new Date().getTime();
-            const limit = new Date(order.cancelLimit).getTime();
-            const distance = limit - now;
-
-            if (distance < 0) {
-                btnArea.innerHTML = `
-                    <div class="text-center">
-                        <p class="text-[10px] text-gray-600 mb-2">Tempo para cancelamento automático expirado</p>
-                        <button disabled class="w-full bg-gray-800 text-gray-600 font-bold py-3 rounded-xl cursor-not-allowed border border-gray-700 text-sm">Cancelamento indisponível</button>
-                    </div>`;
-                clearInterval(window.cancelTimerInterval);
-            } else {
-                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-                const fmtSec = seconds < 10 ? `0${seconds}` : seconds;
-
-                btnArea.innerHTML = `
-                    <button onclick="clientCancelOrder('${order.id}')" class="w-full bg-red-900/20 hover:bg-red-900/40 border border-red-900 text-red-500 hover:text-red-400 font-bold py-3 rounded-xl flex justify-between px-6 transition group">
-                        <span class="text-xs uppercase tracking-wide">Cancelar Pedido</span>
-                        <span class="font-mono text-sm bg-red-900/50 px-2 rounded text-white group-hover:bg-red-600 transition">${minutes}:${fmtSec}</span>
-                    </button>
-                    <p class="text-[10px] text-center text-gray-500 mt-2">Você pode cancelar até o cronômetro zerar.</p>
-                `;
-            }
-        };
-        checkTimer();
-        window.cancelTimerInterval = setInterval(checkTimer, 1000);
+    const btnFinish = document.getElementById('btn-finish-payment');
+    if (btnFinish) {
+        btnFinish.classList.remove('hidden');
+        btnFinish.disabled = false;
     }
 };
 
@@ -7097,13 +6912,13 @@ window.saveThemeColors = async () => {
     try {
         // Salva na coleção da loja
         await setDoc(doc(db, `sites/${state.siteId}/settings`, 'theme'), newTheme);
-
+        
         // Atualiza estado local
         state.currentTheme = newTheme;
         originalTheme = newTheme;
-
+        
         // --- ALTERADO AQUI: Usa showToast em vez de alert ---
-        showToast('Tema salvo com sucesso!', 'success');
+        showToast('Tema salvo com sucesso!', 'success'); 
 
     } catch (error) {
         console.error(error);
@@ -7186,7 +7001,7 @@ window.testeForcarEsconderEntrega = () => {
     // 3. Verifica o estado atual da configuração na memória
     const config = state.storeProfile.deliveryConfig || {};
     const logisticaAtiva = config.ownDelivery === true;
-
+    
     if (msg) {
         msg.innerText = `Logística no State: ${logisticaAtiva ? 'ATIVA (true)' : 'DESATIVADA (false/undef)'} | Ocultado com sucesso.`;
     }
@@ -7194,7 +7009,7 @@ window.testeForcarEsconderEntrega = () => {
     // 4. Força a seleção do Online para não travar
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
     if (radioOnline) radioOnline.checked = true;
-
+    
     // Atualiza visual interno
     if (typeof togglePaymentMode === 'function') togglePaymentMode();
 };

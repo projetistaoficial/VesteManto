@@ -4277,7 +4277,7 @@ function updateCartUI() {
         class="bg-gray-800 hover:bg-gray-700 text-white px-4 h-10 rounded-lg text-xs font-bold uppercase border border-gray-700 transition whitespace-nowrap">
         Aplicar
     </button>
-    </div>`;
+</div>`;
 
     summaryDiv.innerHTML = `
         ${couponHTML}

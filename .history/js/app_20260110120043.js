@@ -1013,10 +1013,10 @@ function renderCatalog(productsToRender) {
         // Prepara valores seguros para comparação
         const priceA = parseFloat(a.promoPrice || a.price) || 0;
         const priceB = parseFloat(b.promoPrice || b.price) || 0;
-
+        
         const codeA = parseInt(a.code) || 0;
         const codeB = parseInt(b.code) || 0;
-
+        
         const nameA = (a.name || '').toLowerCase();
         const nameB = (b.name || '').toLowerCase();
 
@@ -1033,15 +1033,15 @@ function renderCatalog(productsToRender) {
         switch (sortMode) {
             case 'price-asc': // Menor Preço
                 return priceA - priceB;
-
+            
             case 'price-desc': // Maior Preço
                 return priceB - priceA;
-
+            
             case 'name-asc': // Ordem Alfabética
                 return nameA.localeCompare(nameB);
-
+            
             case 'newest': // Lançamentos
-            default:
+            default: 
                 return codeB - codeA; // Código maior = Mais novo
         }
     });
@@ -1095,10 +1095,10 @@ function renderCatalog(productsToRender) {
 
         // --- VISUAL DAS ETIQUETAS (Isso continua aparecendo, mas não afeta ordem) ---
         let badgesHtml = '';
-
+        
         if (p.highlight || p.promoPrice) {
             badgesHtml = `<div class="absolute top-2 left-2 flex flex-col gap-1 z-20 pointer-events-none">`;
-
+            
             // Etiqueta DESTAQUE
             if (!!p.highlight) {
                 badgesHtml += `
@@ -1106,12 +1106,12 @@ function renderCatalog(productsToRender) {
                         <i class="fas fa-star text-[8px]"></i> DESTAQUE
                     </span>`;
             }
-
+            
             // Etiqueta OFERTA
             if (p.promoPrice) {
                 badgesHtml += `<span class="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">OFERTA</span>`;
             }
-
+            
             badgesHtml += `</div>`;
         }
         // -------------------------------------------------------------------------
@@ -2142,7 +2142,7 @@ function renderSalesList(orders) {
         const valDescontoTotal = Math.max(0, (subTotalItens + valFrete) - valTotalPago);
 
         let discountHtml = '';
-
+        
         // Se houver algum desconto (maior que 5 centavos para evitar erro de arredondamento)
         if (valDescontoTotal > 0.05) {
             const isPix = (o.paymentMethod || '').toLowerCase().includes('pix');
@@ -2156,7 +2156,7 @@ function renderSalesList(orders) {
             if (o.couponData && o.couponData.value) {
                 valDescontoCupom = o.couponData.value;
                 nomeCupom = o.couponData.code;
-            }
+            } 
             // Fallback para pedidos antigos (Se tem nome de cupom mas não dados, tenta inferir)
             else if (o.cupom) {
                 nomeCupom = o.cupom;
@@ -2190,10 +2190,10 @@ function renderSalesList(orders) {
                     </div>
                 `;
             }
-
+            
             // Exibe Genérico (Caso não tenha cupom identificado nem pix, mas tenha desconto)
             if (!nomeCupom && valDescontoPix <= 0.05) {
-                discountHtml += `
+                 discountHtml += `
                     <div class="flex justify-between text-xs text-gray-300">
                         <span>Desconto:</span>
                         <span class="text-green-400 font-bold">- ${formatCurrency(valDescontoTotal)}</span>
@@ -2218,7 +2218,7 @@ function renderSalesList(orders) {
         if (o.status.includes('Cancelado')) {
             controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span></div>`;
         } else if (o.status === 'Reembolsado') {
-            controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span></div>`;
+             controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span></div>`;
         } else if (o.status === 'Concluído') {
             controlsHtml = `
                 <div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700">
@@ -4263,21 +4263,11 @@ function updateCartUI() {
             <div><p class="text-green-500 text-xs font-bold uppercase tracking-wider">${state.currentCoupon.code}</p><p class="text-green-400 text-[10px]">Desconto aplicado</p></div></div>
             <button onclick="removeCoupon()" class="text-gray-500 hover:text-red-500 transition w-8 h-8 flex items-center justify-center"><i class="fas fa-trash-alt text-xs"></i></button>
         </div>` :
-        `<div class="relative flex gap-2 w-full items-center">
-    
-    <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10">
-        <i class="fas fa-tag text-xs"></i>
-    </div>
-
-    <input type="text" id="cart-coupon-input-dynamic" placeholder="CUPOM" 
-        class="bg-[#0f111a] border border-gray-700 text-white text-xs rounded-lg pl-9 pr-2 h-10 flex-1 min-w-0 outline-none focus:border-yellow-500 uppercase transition font-bold tracking-wide placeholder-gray-600" 
-        onkeydown="if(event.key === 'Enter') applyCouponDynamic()">
-
-    <button onclick="applyCouponDynamic()" 
-        class="bg-gray-800 hover:bg-gray-700 text-white px-4 h-10 rounded-lg text-xs font-bold uppercase border border-gray-700 transition whitespace-nowrap">
-        Aplicar
-    </button>
-    </div>`;
+        `<div class="relative flex gap-2">
+            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"><i class="fas fa-tag text-xs"></i></div>
+            <input type="text" id="cart-coupon-input-dynamic" placeholder="CUPOM DE DESCONTO" class="bg-[#0f111a] border border-gray-700 text-white text-xs rounded-lg pl-9 pr-3 h-10 flex-1 outline-none focus:border-yellow-500 uppercase transition font-bold tracking-wide" onkeydown="if(event.key === 'Enter') applyCouponDynamic()">
+            <button onclick="applyCouponDynamic()" class="bg-gray-800 hover:bg-gray-700 text-white px-4 h-10 rounded-lg text-xs font-bold uppercase border border-gray-700 transition">Aplicar</button>
+        </div>`;
 
     summaryDiv.innerHTML = `
         ${couponHTML}
@@ -4905,7 +4895,7 @@ window.openCheckoutModal = () => {
     // 3. REFERÊNCIAS AOS ELEMENTOS
     const containerDelivery = document.getElementById('container-delivery-option');
     const labelOnline = document.getElementById('label-pay-online');
-
+    
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
     const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
 
@@ -4915,7 +4905,7 @@ window.openCheckoutModal = () => {
     if (onlineActive) {
         if (labelOnline) {
             labelOnline.classList.remove('hidden');
-            labelOnline.style.display = '';
+            labelOnline.style.display = ''; 
         }
     } else {
         if (labelOnline) {
@@ -6044,11 +6034,11 @@ window.adminFinalizeOrder = async (orderId) => {
             console.error("Função updateOrderStatusDB não encontrada.");
             // Fallback simples caso a função auxiliar não exista
             try {
-                await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), {
+                await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), { 
                     status: 'Concluído',
                     completedAt: new Date().toISOString()
                 });
-            } catch (e) { alert("Erro ao finalizar: " + e.message); }
+            } catch(e) { alert("Erro ao finalizar: " + e.message); }
         }
     }
 };
@@ -6417,7 +6407,7 @@ window.updateStatusUI = (order) => {
 
     // 2. CONTEÚDO DOS ITENS E CÁLCULOS
     let subTotalItems = 0;
-
+    
     let itemsHtml = order.items.map(i => {
         const itemTotal = i.price * i.qty;
         subTotalItems += itemTotal;
@@ -6435,7 +6425,7 @@ window.updateStatusUI = (order) => {
     const valFrete = order.shippingFee || 0;
     const valTotalPago = order.total || 0;
     const totalEsperado = subTotalItems + valFrete;
-
+    
     // 1. Calcula o total de "dinheiro que falta" (Desconto Total)
     const valDescontoTotal = Math.max(0, totalEsperado - valTotalPago);
 
@@ -6492,7 +6482,7 @@ window.updateStatusUI = (order) => {
 
     // Caso genérico (se tiver desconto mas não identificou a origem exata, ex: erro de arredondamento antigo)
     if (valDescontoTotal > 0.05 && valDescontoCupom < 0.01 && valDescontoPix < 0.01) {
-        financialHtml += `
+         financialHtml += `
             <div class="flex justify-between text-xs text-green-400 font-bold">
                 <span>Descontos</span>
                 <span>- ${formatCurrency(valDescontoTotal)}</span>
@@ -7097,13 +7087,13 @@ window.saveThemeColors = async () => {
     try {
         // Salva na coleção da loja
         await setDoc(doc(db, `sites/${state.siteId}/settings`, 'theme'), newTheme);
-
+        
         // Atualiza estado local
         state.currentTheme = newTheme;
         originalTheme = newTheme;
-
+        
         // --- ALTERADO AQUI: Usa showToast em vez de alert ---
-        showToast('Tema salvo com sucesso!', 'success');
+        showToast('Tema salvo com sucesso!', 'success'); 
 
     } catch (error) {
         console.error(error);
@@ -7164,37 +7154,53 @@ window.loadTheme = loadTheme;
 // location.reload();
 
 
-window.testeForcarEsconderEntrega = () => {
-    console.log("--- INICIANDO TESTE MANUAL ---");
+// --- FUNÇÃO DIRETA DE CONTROLE DE LOGÍSTICA (Igual ao Botão de Teste) ---
+window.toggleLogisticsDirect = async (checkbox) => {
+    const isActive = checkbox.checked;
+    console.log("--- TROCA DE LOGÍSTICA ACIONADA ---");
+    console.log("Novo Estado:", isActive ? "ATIVADO" : "DESATIVADO");
 
-    // 1. Tenta achar o elemento visual (A div inteira da opção)
-    const container = document.getElementById('container-delivery-option');
-    const msg = document.getElementById('debug-state-msg');
+    // 1. ATUALIZA A MEMÓRIA (STATE) IMEDIATAMENTE
+    if (!state.storeProfile.deliveryConfig) state.storeProfile.deliveryConfig = {};
+    state.storeProfile.deliveryConfig.ownDelivery = isActive;
 
-    if (!container) {
-        alert("ERRO CRÍTICO: O elemento 'container-delivery-option' NÃO FOI ENCONTRADO no HTML.");
-        if (msg) msg.innerText = "ERRO: ID container-delivery-option não existe!";
-        return;
-    }
-
-    // 2. Aplica a classe de ocultar e o estilo inline forçado
-    container.classList.add('hidden');
-    container.style.setProperty('display', 'none', 'important');
-
-    console.log("Comando de ocultar aplicado.");
-
-    // 3. Verifica o estado atual da configuração na memória
-    const config = state.storeProfile.deliveryConfig || {};
-    const logisticaAtiva = config.ownDelivery === true;
-
-    if (msg) {
-        msg.innerText = `Logística no State: ${logisticaAtiva ? 'ATIVA (true)' : 'DESATIVADA (false/undef)'} | Ocultado com sucesso.`;
-    }
-
-    // 4. Força a seleção do Online para não travar
+    // 2. APLICA A MUDANÇA VISUAL NO CHECKOUT (FORÇA BRUTA)
+    // Isso garante que se o checkout for aberto, ele já obedece
+    const containerDelivery = document.getElementById('container-delivery-option');
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
-    if (radioOnline) radioOnline.checked = true;
 
-    // Atualiza visual interno
+    if (containerDelivery) {
+        if (isActive) {
+            // Se ativou, mostra
+            containerDelivery.classList.remove('hidden');
+            containerDelivery.style.display = '';
+        } else {
+            // Se desativou, ESCONDE NA MARRA (igual ao teste)
+            containerDelivery.classList.add('hidden');
+            containerDelivery.style.setProperty('display', 'none', 'important');
+            
+            // E força selecionar o Online para não travar
+            if (radioOnline) radioOnline.checked = true;
+        }
+    }
+
+    // 3. ATUALIZA VISUAL DOS DEPENDENTES (Código de Segurança)
+    const checkReqCode = document.getElementById('conf-req-code');
+    if (checkReqCode) {
+        checkReqCode.disabled = !isActive;
+        if (!isActive) checkReqCode.checked = false;
+        
+        const parent = checkReqCode.closest('label');
+        if (parent) {
+            if (isActive) parent.classList.remove('opacity-50', 'pointer-events-none');
+            else parent.classList.add('opacity-50', 'pointer-events-none');
+        }
+    }
+
+    // 4. SALVA NO BANCO DE DADOS
+    // Reutiliza sua função existente, mas garantimos que o state já está atualizado acima
+    await autoSaveSettings('orders');
+    
+    // Atualiza lógica interna do checkout se necessário
     if (typeof togglePaymentMode === 'function') togglePaymentMode();
 };

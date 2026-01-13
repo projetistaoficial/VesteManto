@@ -40,6 +40,8 @@
         margin: 0;
     }
 
+
+    <style>
     /* Animação para DESKTOP (Deslizar da direita) */
     @keyframes slideInRight {
         from { transform: translateX(100%); opacity: 0; }
