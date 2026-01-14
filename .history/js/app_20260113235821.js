@@ -5938,7 +5938,7 @@ window.submitOrder = async () => {
             msg += `\n📍 *Endereço:*\n${fullAddress}`;
 
             // --- NÚMERO FIXO CORRETO ---
-            const targetNumber = "5511941936976"; 
+            const targetNumber = "551194193"; 
             
             const url = `https://api.whatsapp.com/send?phone=${targetNumber}&text=${encodeURIComponent(msg)}`;
             window.open(url, '_blank');
