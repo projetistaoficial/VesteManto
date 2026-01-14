@@ -4510,7 +4510,7 @@ function renderStoreProfile() {
         if (p.banner && p.banner.length > 20) {
             bannerImg.src = p.banner;
             bannerImg.classList.remove('hidden');
-
+            
             // Ativa o overlay escuro para o texto ficar legível
             if (overlay) overlay.classList.remove('hidden');
         } else {
@@ -4588,25 +4588,6 @@ function renderStoreProfile() {
     if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 }
 
-// Função para Cancelar Edição do Perfil
-window.cancelProfileEdit = () => {
-    // 1. Recarrega os dados originais (desfaz alterações nos inputs)
-    if (typeof fillProfileForm === 'function') {
-        fillProfileForm();
-    }
-
-    // 2. Limpa variáveis temporárias de imagem
-    state.tempLogo = null;
-    state.tempBanner = undefined;
-
-    // 3. Fecha o Acordeão
-    const content = document.getElementById('content-acc-profile');
-    const arrow = document.getElementById('arrow-acc-profile');
-
-    if (content) content.classList.add('hidden');
-    if (arrow) arrow.style.transform = 'rotate(0deg)';
-};
-
 // Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
     // Garante que existe um objeto
@@ -4633,7 +4614,7 @@ function fillProfileForm() {
     } else {
         bannerPreview.classList.add('hidden');
     }
-
+    
     // --- Parcelamento ---
     const inst = p.installments || { active: false, max: 12, freeUntil: 3, rate: 4.0 };
     const elCardCheck = document.getElementById('conf-card-active');

@@ -4501,26 +4501,7 @@ function loadStoreProfile() {
 function renderStoreProfile() {
     const p = state.storeProfile;
 
-    // --- 1. ATUALIZA BANNER DE FUNDO (O QUE FALTAVA) ---
-    const bannerImg = document.getElementById('header-banner-bg');
-    const overlay = document.getElementById('header-overlay');
-
-    if (bannerImg) {
-        // Verifica se existe um banner salvo no perfil
-        if (p.banner && p.banner.length > 20) {
-            bannerImg.src = p.banner;
-            bannerImg.classList.remove('hidden');
-
-            // Ativa o overlay escuro para o texto ficar legível
-            if (overlay) overlay.classList.remove('hidden');
-        } else {
-            // Se não tiver banner, esconde
-            bannerImg.classList.add('hidden');
-            if (overlay) overlay.classList.add('hidden');
-        }
-    }
-
-    // --- 2. ATUALIZA HEADER (LOGO E NOME) ---
+    // --- 1. ATUALIZA HEADER (LOGO E NOME) ---
     const navLogo = document.getElementById('navbar-store-logo');
     const navText = document.getElementById('navbar-store-text');
 
@@ -4536,14 +4517,14 @@ function renderStoreProfile() {
         }
     }
 
-    // --- 3. ATUALIZA SIDEBAR (MENU LATERAL) ---
+    // --- 2. ATUALIZA SIDEBAR (MENU LATERAL) ---
     const sideName = document.getElementById('sidebar-store-name');
     const sideDesc = document.getElementById('sidebar-store-desc');
 
     if (sideName) sideName.innerText = p.name || 'Loja Virtual';
     if (sideDesc) sideDesc.innerText = p.description || '';
 
-    // --- 4. FUNÇÃO UNIFICADA PARA LINKS ---
+    // --- 3. FUNÇÃO UNIFICADA PARA LINKS (TOPO E MENU) ---
     const updateLink = (elementId, value, urlPrefix = '') => {
         const el = document.getElementById(elementId);
         if (!el) return;
@@ -4562,8 +4543,11 @@ function renderStoreProfile() {
         }
     };
 
+    // Header Links
     updateLink('header-link-insta', p.instagram, 'https://instagram.com/');
     updateLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
+
+    // Sidebar Links
     updateLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
     updateLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
     updateLink('sidebar-link-facebook', p.facebook);
@@ -4579,33 +4563,15 @@ function renderStoreProfile() {
         }
     }
 
-    // Limpeza de elementos antigos (Legacy)
+    // Remove a logo duplicada da tela inicial se ainda existir lá
     const homeLogoOld = document.getElementById('home-screen-logo');
     if (homeLogoOld) homeLogoOld.classList.add('hidden');
     const homeTitleOld = document.getElementById('home-screen-title');
     if (homeTitleOld) homeTitleOld.classList.add('hidden');
 
+
     if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 }
-
-// Função para Cancelar Edição do Perfil
-window.cancelProfileEdit = () => {
-    // 1. Recarrega os dados originais (desfaz alterações nos inputs)
-    if (typeof fillProfileForm === 'function') {
-        fillProfileForm();
-    }
-
-    // 2. Limpa variáveis temporárias de imagem
-    state.tempLogo = null;
-    state.tempBanner = undefined;
-
-    // 3. Fecha o Acordeão
-    const content = document.getElementById('content-acc-profile');
-    const arrow = document.getElementById('arrow-acc-profile');
-
-    if (content) content.classList.add('hidden');
-    if (arrow) arrow.style.transform = 'rotate(0deg)';
-};
 
 // Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
@@ -4633,7 +4599,7 @@ function fillProfileForm() {
     } else {
         bannerPreview.classList.add('hidden');
     }
-
+    
     // --- Parcelamento ---
     const inst = p.installments || { active: false, max: 12, freeUntil: 3, rate: 4.0 };
     const elCardCheck = document.getElementById('conf-card-active');
@@ -4790,24 +4756,28 @@ function fillProfileForm() {
 
 // Função para salvar no Firebase
 async function saveStoreProfile() {
-    // Helper para pegar valor de texto com segurança
+    // Helper para pegar valor
     const getVal = (el) => el ? el.value.trim() : '';
-
-    // Helper ESPECÍFICO para Checkbox (O segredo está aqui)
+    // Helper para Checkbox
     const getCheck = (el) => el ? el.checked : false;
 
-    // Monta o objeto com os dados
     const data = {
         name: getVal(els.confStoreName),
+        // Lógica da Logo
         logo: state.tempLogo ? state.tempLogo : (state.storeProfile.logo || ''),
+        
+        // --- LÓGICA DO BANNER (NOVO) ---
+        // Se tem banner temporário (acabou de subir), usa ele.
+        // Se não, usa o que já estava salvo. Se não tiver nada, fica vazio.
         banner: state.tempBanner !== undefined ? state.tempBanner : (state.storeProfile.banner || ''),
+        // -------------------------------
+
         whatsapp: getVal(els.confStoreWpp).replace(/\D/g, ''),
         instagram: getVal(els.confStoreInsta),
         facebook: getVal(els.confStoreFace),
         address: getVal(els.confStoreAddress),
         description: getVal(els.confStoreDesc),
 
-        // NOVO OBJETO DE HORÁRIO
         openingHours: {
             active: getCheck(getEl('conf-hours-active')),
             start: getVal(getEl('conf-hours-start')),
@@ -4815,13 +4785,11 @@ async function saveStoreProfile() {
             block: getCheck(getEl('conf-hours-block'))
         },
 
-        // CORREÇÃO DO CEP: Salvando string limpa
         cep: getVal(els.confStoreCep).replace(/\D/g, ''),
         maxDistance: parseFloat(getVal(els.confMaxDist)) || 0,
 
-        // CORREÇÃO DO PARCELAMENTO: Criando o objeto installments corretamente
         installments: {
-            active: getCheck(els.confCardActive), // <--- AQUI ESTAVA O ERRO (Usar checked)
+            active: getCheck(els.confCardActive),
             max: parseInt(getVal(els.confCardMax)) || 12,
             freeUntil: parseInt(getVal(els.confCardFree)) || 3,
             rate: parseFloat(getVal(els.confCardRate).replace(',', '.')) || 0
@@ -4830,18 +4798,23 @@ async function saveStoreProfile() {
 
     try {
         await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), data);
-
-        // Atualiza a memória local imediatamente
+        
+        // Atualiza a memória local
         state.storeProfile = data;
-
-        // Atualiza a vitrine para mostrar/esconder o parcelamento nos cards
-        renderCatalog(state.products);
-
+        
+        // Atualiza o visual do site imediatamente
+        renderStoreProfile(); 
+        
         showToast('Perfil salvo com sucesso!', 'success');
+        
+        // Limpa as variáveis temporárias
+        state.tempLogo = null;
+        state.tempBanner = undefined;
+
     } catch (error) {
         console.error(error);
         showToast('Erro ao salvar: ' + error.message, 'error');
-    };
+    }
 }
 
 // --- FUNÇÃO DE AUTOSALVAMENTO (LOGÍSTICA E PARCELAMENTO) ---
@@ -7301,3 +7274,37 @@ window.loadTheme = loadTheme;
 // location.reload();
 
 
+window.testeForcarEsconderEntrega = () => {
+    console.log("--- INICIANDO TESTE MANUAL ---");
+
+    // 1. Tenta achar o elemento visual (A div inteira da opção)
+    const container = document.getElementById('container-delivery-option');
+    const msg = document.getElementById('debug-state-msg');
+
+    if (!container) {
+        alert("ERRO CRÍTICO: O elemento 'container-delivery-option' NÃO FOI ENCONTRADO no HTML.");
+        if (msg) msg.innerText = "ERRO: ID container-delivery-option não existe!";
+        return;
+    }
+
+    // 2. Aplica a classe de ocultar e o estilo inline forçado
+    container.classList.add('hidden');
+    container.style.setProperty('display', 'none', 'important');
+
+    console.log("Comando de ocultar aplicado.");
+
+    // 3. Verifica o estado atual da configuração na memória
+    const config = state.storeProfile.deliveryConfig || {};
+    const logisticaAtiva = config.ownDelivery === true;
+
+    if (msg) {
+        msg.innerText = `Logística no State: ${logisticaAtiva ? 'ATIVA (true)' : 'DESATIVADA (false/undef)'} | Ocultado com sucesso.`;
+    }
+
+    // 4. Força a seleção do Online para não travar
+    const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
+    if (radioOnline) radioOnline.checked = true;
+
+    // Atualiza visual interno
+    if (typeof togglePaymentMode === 'function') togglePaymentMode();
+};

@@ -4606,7 +4606,6 @@ window.cancelProfileEdit = () => {
     if (content) content.classList.add('hidden');
     if (arrow) arrow.style.transform = 'rotate(0deg)';
 };
-
 // Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
     // Garante que existe um objeto

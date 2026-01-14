@@ -1036,7 +1036,7 @@ function renderCatalog(productsToRender) {
                 // 2. Oferta (Desempate se ambos ou nenhum for destaque)
                 const hasOfferA = (a.promoPrice && parseFloat(a.promoPrice) > 0);
                 const hasOfferB = (b.promoPrice && parseFloat(b.promoPrice) > 0);
-
+                
                 if (hasOfferA && !hasOfferB) return -1; // Com oferta sobe
                 if (!hasOfferA && hasOfferB) return 1;
 
@@ -1054,7 +1054,7 @@ function renderCatalog(productsToRender) {
 
             case 'newest': // Lançamentos (Ignora destaque/oferta)
             default:
-                return codeB - codeA;
+                return codeB - codeA; 
         }
     });
 
@@ -3192,26 +3192,6 @@ function setupEventListeners() {
                 alert("Erro ao processar imagem.");
             }
         });
-
-        // UPLOAD DE BANNER
-        const bannerInput = document.getElementById('conf-banner-upload');
-        if (bannerInput) {
-            bannerInput.addEventListener('change', async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                try {
-                    const base64 = await processImageFile(file); // Reusa sua função de imagem
-                    state.tempBanner = base64; // Salva no estado temp
-
-                    // Atualiza Preview
-                    const preview = document.getElementById('conf-banner-preview');
-                    if (preview) {
-                        preview.src = base64;
-                        preview.classList.remove('hidden');
-                    }
-                } catch (err) { console.error(err); alert("Erro na imagem."); }
-            });
-        }
     }
 
     setupAccordion('btn-acc-theme', 'content-acc-theme', 'arrow-acc-theme');
@@ -4199,7 +4179,7 @@ function updateCartUI() {
     // 2. Renderiza Itens
     let subtotal = 0;
     let itemsUpdated = false; // Flag para saber se precisamos salvar correções
-
+    
     state.cart.forEach((item, index) => {
         const itemTotal = item.price * item.qty;
         subtotal += itemTotal;
@@ -4210,7 +4190,7 @@ function updateCartUI() {
         // 1. Já tem a imagem salva no item? (Ideal)
         if (item.image && item.image.length > 5) {
             imgUrl = item.image;
-        }
+        } 
         // 2. Tem em formato de array?
         else if (item.images && item.images.length > 0) {
             imgUrl = item.images[0];
@@ -4238,7 +4218,7 @@ function updateCartUI() {
 
         const div = document.createElement('div');
         div.className = "group flex items-start gap-3 bg-[#151720] p-3 rounded-xl border border-gray-800 shadow-sm relative overflow-hidden transition hover:border-gray-600 mb-3";
-
+        
         div.innerHTML = `
             <div class="w-20 h-20 shrink-0 rounded-lg overflow-hidden border border-gray-700 bg-black relative shadow-lg">
                 <img src="${imgUrl}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500" alt="${item.name}" onerror="this.src='https://placehold.co/150?text=Erro'">
@@ -4278,7 +4258,7 @@ function updateCartUI() {
                     </div>
                 </div>
             </div>`;
-
+        
         cartEl.appendChild(div);
     });
 
@@ -4328,7 +4308,7 @@ function updateCartUI() {
             </div>
         </div>
     `;
-
+    
     cartEl.appendChild(summaryDiv);
     if (totalEl) totalEl.innerText = formatCurrency(total);
 
@@ -4501,26 +4481,7 @@ function loadStoreProfile() {
 function renderStoreProfile() {
     const p = state.storeProfile;
 
-    // --- 1. ATUALIZA BANNER DE FUNDO (O QUE FALTAVA) ---
-    const bannerImg = document.getElementById('header-banner-bg');
-    const overlay = document.getElementById('header-overlay');
-
-    if (bannerImg) {
-        // Verifica se existe um banner salvo no perfil
-        if (p.banner && p.banner.length > 20) {
-            bannerImg.src = p.banner;
-            bannerImg.classList.remove('hidden');
-
-            // Ativa o overlay escuro para o texto ficar legível
-            if (overlay) overlay.classList.remove('hidden');
-        } else {
-            // Se não tiver banner, esconde
-            bannerImg.classList.add('hidden');
-            if (overlay) overlay.classList.add('hidden');
-        }
-    }
-
-    // --- 2. ATUALIZA HEADER (LOGO E NOME) ---
+    // --- 1. ATUALIZA HEADER (LOGO E NOME) ---
     const navLogo = document.getElementById('navbar-store-logo');
     const navText = document.getElementById('navbar-store-text');
 
@@ -4536,14 +4497,14 @@ function renderStoreProfile() {
         }
     }
 
-    // --- 3. ATUALIZA SIDEBAR (MENU LATERAL) ---
+    // --- 2. ATUALIZA SIDEBAR (MENU LATERAL) ---
     const sideName = document.getElementById('sidebar-store-name');
     const sideDesc = document.getElementById('sidebar-store-desc');
 
     if (sideName) sideName.innerText = p.name || 'Loja Virtual';
     if (sideDesc) sideDesc.innerText = p.description || '';
 
-    // --- 4. FUNÇÃO UNIFICADA PARA LINKS ---
+    // --- 3. FUNÇÃO UNIFICADA PARA LINKS (TOPO E MENU) ---
     const updateLink = (elementId, value, urlPrefix = '') => {
         const el = document.getElementById(elementId);
         if (!el) return;
@@ -4562,8 +4523,11 @@ function renderStoreProfile() {
         }
     };
 
+    // Header Links
     updateLink('header-link-insta', p.instagram, 'https://instagram.com/');
     updateLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
+
+    // Sidebar Links
     updateLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
     updateLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
     updateLink('sidebar-link-facebook', p.facebook);
@@ -4579,33 +4543,15 @@ function renderStoreProfile() {
         }
     }
 
-    // Limpeza de elementos antigos (Legacy)
+    // Remove a logo duplicada da tela inicial se ainda existir lá
     const homeLogoOld = document.getElementById('home-screen-logo');
     if (homeLogoOld) homeLogoOld.classList.add('hidden');
     const homeTitleOld = document.getElementById('home-screen-title');
     if (homeTitleOld) homeTitleOld.classList.add('hidden');
 
+
     if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 }
-
-// Função para Cancelar Edição do Perfil
-window.cancelProfileEdit = () => {
-    // 1. Recarrega os dados originais (desfaz alterações nos inputs)
-    if (typeof fillProfileForm === 'function') {
-        fillProfileForm();
-    }
-
-    // 2. Limpa variáveis temporárias de imagem
-    state.tempLogo = null;
-    state.tempBanner = undefined;
-
-    // 3. Fecha o Acordeão
-    const content = document.getElementById('content-acc-profile');
-    const arrow = document.getElementById('arrow-acc-profile');
-
-    if (content) content.classList.add('hidden');
-    if (arrow) arrow.style.transform = 'rotate(0deg)';
-};
 
 // Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
@@ -4623,16 +4569,6 @@ function fillProfileForm() {
     setVal('conf-store-desc', p.description);
     setVal('conf-store-cep', p.cep);
     setVal('conf-max-dist', p.maxDistance);
-
-
-    // Preenche Preview do Banner
-    const bannerPreview = document.getElementById('conf-banner-preview');
-    if (state.storeProfile.banner) {
-        bannerPreview.src = state.storeProfile.banner;
-        bannerPreview.classList.remove('hidden');
-    } else {
-        bannerPreview.classList.add('hidden');
-    }
 
     // --- Parcelamento ---
     const inst = p.installments || { active: false, max: 12, freeUntil: 3, rate: 4.0 };
@@ -4800,7 +4736,6 @@ async function saveStoreProfile() {
     const data = {
         name: getVal(els.confStoreName),
         logo: state.tempLogo ? state.tempLogo : (state.storeProfile.logo || ''),
-        banner: state.tempBanner !== undefined ? state.tempBanner : (state.storeProfile.banner || ''),
         whatsapp: getVal(els.confStoreWpp).replace(/\D/g, ''),
         instagram: getVal(els.confStoreInsta),
         facebook: getVal(els.confStoreFace),
@@ -5868,7 +5803,7 @@ window.submitOrder = async () => {
 
         // Monta texto do pagamento
         let paymentDetails = "";
-        let paymentMsgShort = "";
+        let paymentMsgShort = ""; 
 
         if (method === 'pix') {
             paymentDetails = "Pix";
@@ -5976,13 +5911,13 @@ window.submitOrder = async () => {
         updateCartUI();
 
         // 3. ENVIO PARA O WHATSAPP (AGORA DINÂMICO DO PERFIL)
-        if (payMode === 'online' || true) {
-
+        if (payMode === 'online' || true) { 
+            
             let msg = `*NOVO PEDIDO #${order.code}*\n`;
             msg += `--------------------------------\n`;
             msg += `👤 *Cliente:* ${name}\n`;
             msg += `📞 *Tel:* ${phone}\n\n`;
-
+            
             msg += `🛒 *ITENS:*\n`;
             order.items.forEach(item => {
                 msg += `▪ ${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}\n`;
@@ -5991,15 +5926,15 @@ window.submitOrder = async () => {
             msg += `\n💰 *TOTAL: ${totalString}*\n`;
             msg += `🚚 *Tipo:* ${payMode === 'online' ? "Pagar Agora (Online)" : "Pagar na Entrega"}\n`;
             msg += `💳 *Pagamento:* ${paymentMsgShort}\n`;
-
+            
             if (valueToSave > 0) msg += `🛵 *Frete:* R$ ${valueToSave.toFixed(2).replace('.', ',')}\n`;
-
+            
             msg += `\n📍 *Endereço:*\n${fullAddress}`;
 
             // --- LÓGICA DO NÚMERO DO PERFIL ---
             // 1. Pega o número salvo no admin
             let storePhone = state.storeProfile.whatsapp || "";
-
+            
             // 2. Limpa tudo que não for número
             let targetNumber = storePhone.replace(/\D/g, '');
 
@@ -6015,7 +5950,7 @@ window.submitOrder = async () => {
             if (targetNumber.length === 10 || targetNumber.length === 11) {
                 targetNumber = "55" + targetNumber;
             }
-
+            
             // 5. Envia
             const url = `https://api.whatsapp.com/send?phone=${targetNumber}&text=${encodeURIComponent(msg)}`;
             window.open(url, '_blank');
@@ -7100,19 +7035,6 @@ window.updateStoreStatusUI = () => {
 };
 
 
-window.removeStoreBanner = () => {
-    state.tempBanner = null; // Limpa o temporário
-
-    // Esconde o preview e mostra que está sem banner
-    const preview = document.getElementById('conf-banner-preview');
-    if (preview) {
-        preview.src = '';
-        preview.classList.add('hidden');
-    }
-
-    // Se quiser, pode setar state.storeProfile.banner = '' depois ao salvar
-};
-
 
 // =================================================================
 // 12. SISTEMA DE TEMAS (PERSONALIZAÇÃO) - INTEGRADO
@@ -7301,3 +7223,37 @@ window.loadTheme = loadTheme;
 // location.reload();
 
 
+window.testeForcarEsconderEntrega = () => {
+    console.log("--- INICIANDO TESTE MANUAL ---");
+
+    // 1. Tenta achar o elemento visual (A div inteira da opção)
+    const container = document.getElementById('container-delivery-option');
+    const msg = document.getElementById('debug-state-msg');
+
+    if (!container) {
+        alert("ERRO CRÍTICO: O elemento 'container-delivery-option' NÃO FOI ENCONTRADO no HTML.");
+        if (msg) msg.innerText = "ERRO: ID container-delivery-option não existe!";
+        return;
+    }
+
+    // 2. Aplica a classe de ocultar e o estilo inline forçado
+    container.classList.add('hidden');
+    container.style.setProperty('display', 'none', 'important');
+
+    console.log("Comando de ocultar aplicado.");
+
+    // 3. Verifica o estado atual da configuração na memória
+    const config = state.storeProfile.deliveryConfig || {};
+    const logisticaAtiva = config.ownDelivery === true;
+
+    if (msg) {
+        msg.innerText = `Logística no State: ${logisticaAtiva ? 'ATIVA (true)' : 'DESATIVADA (false/undef)'} | Ocultado com sucesso.`;
+    }
+
+    // 4. Força a seleção do Online para não travar
+    const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
+    if (radioOnline) radioOnline.checked = true;
+
+    // Atualiza visual interno
+    if (typeof togglePaymentMode === 'function') togglePaymentMode();
+};

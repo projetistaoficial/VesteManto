@@ -4499,28 +4499,34 @@ function loadStoreProfile() {
 }
 
 function renderStoreProfile() {
+    console.log(">>> RENDERIZANDO PERFIL..."); // Log para sabermos que rodou
     const p = state.storeProfile;
 
-    // --- 1. ATUALIZA BANNER DE FUNDO (O QUE FALTAVA) ---
+    // --- 1. ATUALIZA BANNER DE FUNDO ---
     const bannerImg = document.getElementById('header-banner-bg');
     const overlay = document.getElementById('header-overlay');
-
+    
     if (bannerImg) {
-        // Verifica se existe um banner salvo no perfil
-        if (p.banner && p.banner.length > 20) {
+        // Verifica se tem banner E se ele é um texto longo (base64 válido)
+        if (p.banner && p.banner.length > 50) {
+            console.log(">>> Banner detectado. Atualizando HTML.");
             bannerImg.src = p.banner;
+            
+            // Força a remoção da classe hidden
             bannerImg.classList.remove('hidden');
-
-            // Ativa o overlay escuro para o texto ficar legível
+            bannerImg.style.display = 'block'; // Garantia extra
+            
             if (overlay) overlay.classList.remove('hidden');
         } else {
-            // Se não tiver banner, esconde
+            console.log(">>> Banner não encontrado ou vazio.");
             bannerImg.classList.add('hidden');
             if (overlay) overlay.classList.add('hidden');
         }
+    } else {
+        console.error(">>> ERRO: Elemento 'header-banner-bg' não achado no HTML.");
     }
 
-    // --- 2. ATUALIZA HEADER (LOGO E NOME) ---
+    // --- 2. ATUALIZA LOGO E NOME ---
     const navLogo = document.getElementById('navbar-store-logo');
     const navText = document.getElementById('navbar-store-text');
 
@@ -4536,23 +4542,20 @@ function renderStoreProfile() {
         }
     }
 
-    // --- 3. ATUALIZA SIDEBAR (MENU LATERAL) ---
+    // --- 3. LINKS E SIDEBAR (Resto da função...) ---
     const sideName = document.getElementById('sidebar-store-name');
     const sideDesc = document.getElementById('sidebar-store-desc');
 
     if (sideName) sideName.innerText = p.name || 'Loja Virtual';
     if (sideDesc) sideDesc.innerText = p.description || '';
 
-    // --- 4. FUNÇÃO UNIFICADA PARA LINKS ---
     const updateLink = (elementId, value, urlPrefix = '') => {
         const el = document.getElementById(elementId);
         if (!el) return;
-
         if (value) {
             let finalUrl = value;
             if (urlPrefix.includes('instagram')) finalUrl = urlPrefix + value.replace('@', '').replace('https://instagram.com/', '');
             else if (urlPrefix.includes('wa.me')) finalUrl = urlPrefix + value.replace(/\D/g, '');
-
             el.href = finalUrl;
             el.classList.remove('hidden');
             el.classList.add('flex');
@@ -4579,33 +4582,8 @@ function renderStoreProfile() {
         }
     }
 
-    // Limpeza de elementos antigos (Legacy)
-    const homeLogoOld = document.getElementById('home-screen-logo');
-    if (homeLogoOld) homeLogoOld.classList.add('hidden');
-    const homeTitleOld = document.getElementById('home-screen-title');
-    if (homeTitleOld) homeTitleOld.classList.add('hidden');
-
     if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 }
-
-// Função para Cancelar Edição do Perfil
-window.cancelProfileEdit = () => {
-    // 1. Recarrega os dados originais (desfaz alterações nos inputs)
-    if (typeof fillProfileForm === 'function') {
-        fillProfileForm();
-    }
-
-    // 2. Limpa variáveis temporárias de imagem
-    state.tempLogo = null;
-    state.tempBanner = undefined;
-
-    // 3. Fecha o Acordeão
-    const content = document.getElementById('content-acc-profile');
-    const arrow = document.getElementById('arrow-acc-profile');
-
-    if (content) content.classList.add('hidden');
-    if (arrow) arrow.style.transform = 'rotate(0deg)';
-};
 
 // Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
@@ -4633,7 +4611,7 @@ function fillProfileForm() {
     } else {
         bannerPreview.classList.add('hidden');
     }
-
+    
     // --- Parcelamento ---
     const inst = p.installments || { active: false, max: 12, freeUntil: 3, rate: 4.0 };
     const elCardCheck = document.getElementById('conf-card-active');
@@ -7301,3 +7279,7 @@ window.loadTheme = loadTheme;
 // location.reload();
 
 
+// --- NO FINAL DO ARQUIVO APP.JS ---
+
+// Isso torna o 'state' visível no console para testes
+window.state = state;

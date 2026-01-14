@@ -782,155 +782,138 @@
 
                     <div id="content-acc-profile" class="hidden p-6 bg-gray-900 space-y-6">
 
-                        <div class="space-y-2">
-                            <div class="flex justify-between items-end">
-                                <label class="text-yellow-500 text-xs font-bold uppercase">Aparência do Topo</label>
-                                <button type="button" onclick="removeStoreBanner()"
-                                    class="text-[10px] text-red-500 hover:text-red-400 underline cursor-pointer">
-                                    Remover Banner
-                                </button>
-                            </div>
+    <div class="space-y-2">
+        <div class="flex justify-between items-end">
+            <label class="text-yellow-500 text-xs font-bold uppercase">Aparência do Topo</label>
+            <button type="button" onclick="removeStoreBanner()"
+                class="text-[10px] text-red-500 hover:text-red-400 underline cursor-pointer">
+                Remover Banner
+            </button>
+        </div>
 
-                            <div
-                                class="relative w-full h-48 md:h-60 rounded-xl overflow-hidden border border-gray-700 bg-black group/banner">
-                                <img id="conf-banner-preview" src=""
-                                    class="absolute inset-0 w-full h-full object-cover hidden z-0">
+        <div class="relative w-full h-48 md:h-60 rounded-xl overflow-hidden border border-gray-700 bg-black group/banner">
+            <img id="conf-banner-preview" src="" class="absolute inset-0 w-full h-full object-cover hidden z-0">
+            
+            <div onclick="document.getElementById('conf-banner-upload').click()"
+                class="absolute inset-0 bg-black/60 opacity-0 group-hover/banner:opacity-100 flex items-center justify-center z-10 cursor-pointer transition-opacity duration-300">
+                <div class="bg-black/80 text-white px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 border border-gray-600">
+                    <i class="fas fa-camera"></i> Alterar Imagem de Fundo
+                </div>
+            </div>
 
-                                <div onclick="document.getElementById('conf-banner-upload').click()"
-                                    class="absolute inset-0 bg-black/60 opacity-0 group-hover/banner:opacity-100 flex items-center justify-center z-10 cursor-pointer transition-opacity duration-300">
-                                    <div
-                                        class="bg-black/80 text-white px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 border border-gray-600">
-                                        <i class="fas fa-camera"></i> Alterar Imagem de Fundo
-                                    </div>
-                                </div>
-
-                                <div class="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-                                    <div onclick="document.getElementById('conf-logo-upload').click()"
-                                        class="relative w-32 h-32 md:w-40 md:h-40 bg-black rounded-full border-4 border-gray-800 shadow-2xl overflow-hidden cursor-pointer pointer-events-auto group/logo hover:border-yellow-500 transition-colors">
-                                        <img id="conf-logo-preview" src="" class="w-full h-full object-contain hidden">
-                                        <div id="conf-logo-placeholder"
-                                            class="w-full h-full flex flex-col items-center justify-center text-gray-600">
-                                            <i class="fas fa-store text-3xl mb-1"></i>
-                                            <span class="text-[8px] uppercase font-bold">Logo</span>
-                                        </div>
-                                        <div
-                                            class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity">
-                                            <i class="fas fa-pen text-white text-xl"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <input type="file" id="conf-banner-upload" accept="image/*" class="hidden">
-                            <input type="file" id="conf-logo-upload" accept="image/*" class="hidden">
-                            <p class="text-[10px] text-gray-500 text-center">* Clique no círculo para alterar a Logo ou
-                                no fundo para o Banner.</p>
-                        </div>
-
-                        <hr class="border-gray-800">
-
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-                            <div class="md:col-span-3">
-                                <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Nome da
-                                    Loja</label>
-                                <input type="text" id="conf-store-name" placeholder="Ex: Veste Manto"
-                                    class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
-                            </div>
-
-                            <div>
-                                <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">WhatsApp (Apenas
-                                    números)</label>
-                                <input type="text" id="conf-store-wpp" placeholder="5511999999999"
-                                    class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
-                            </div>
-
-                            <div>
-                                <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Instagram (Link ou
-                                    @)</label>
-                                <input type="text" id="conf-store-insta" placeholder="@sua.loja"
-                                    class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
-                            </div>
-
-                            <div>
-                                <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Facebook
-                                    (Link)</label>
-                                <input type="text" id="conf-store-face" placeholder="https://facebook.com/..."
-                                    class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
-                            </div>
-
-                            <div class="md:col-span-3">
-                                <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Endereço
-                                    Completo</label>
-                                <textarea id="conf-store-address" rows="2" placeholder="Rua Exemplo, 123 - Cidade/UF"
-                                    class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none"></textarea>
-                            </div>
-
-                            <div class="md:col-span-3">
-                                <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Descrição da Loja
-                                    (Rodapé)</label>
-                                <textarea id="conf-store-desc" rows="3"
-                                    placeholder="A melhor loja de artigos esportivos..."
-                                    class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none"></textarea>
-                            </div>
-                        </div>
-
-                        <div class="bg-black border border-gray-700 p-4 rounded-lg mt-2">
-                            <div class="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
-                                <label class="flex items-center cursor-pointer gap-2">
-                                    <input type="checkbox" id="conf-hours-active"
-                                        class="w-4 h-4 rounded text-green-500 bg-gray-800 border-gray-600 focus:ring-green-500">
-                                    <span class="text-white font-bold text-sm">Ativar Horário de Funcionamento</span>
-                                </label>
-                                <i class="fas fa-clock text-yellow-500"></i>
-                            </div>
-
-                            <div id="hours-settings"
-                                class="space-y-4 opacity-50 pointer-events-none transition-opacity duration-300">
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Abre
-                                            às:</label>
-                                        <input type="time" id="conf-hours-start"
-                                            class="w-full bg-gray-900 border border-gray-600 text-white p-2 rounded focus:border-yellow-500 outline-none">
-                                    </div>
-                                    <div>
-                                        <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Fecha
-                                            às:</label>
-                                        <input type="time" id="conf-hours-end"
-                                            class="w-full bg-gray-900 border border-gray-600 text-white p-2 rounded focus:border-yellow-500 outline-none">
-                                    </div>
-                                </div>
-
-                                <div class="bg-red-900/20 border border-red-900/50 p-3 rounded">
-                                    <label class="flex items-center cursor-pointer gap-3">
-                                        <input type="checkbox" id="conf-hours-block"
-                                            class="w-4 h-4 rounded text-red-500 bg-gray-800 border-gray-600 focus:ring-red-500">
-                                        <div class="flex flex-col">
-                                            <span class="text-white font-bold text-sm">Impedir compra com loja
-                                                fechada</span>
-                                            <span class="text-[10px] text-gray-400">Se marcado, bloqueia o site. Se
-                                                desmarcado, apenas avisa no checkout.</span>
-                                        </div>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="flex justify-end pt-4 border-t border-gray-800 gap-3">
-
-                            <button type="button" onclick="cancelProfileEdit()"
-                                class="bg-transparent border border-gray-600 hover:bg-gray-800 text-gray-300 px-4 py-2 rounded font-bold transition flex items-center gap-2">
-                                Cancelar
-                            </button>
-
-                            <button id="btn-save-profile"
-                                class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold transition shadow-lg flex items-center gap-2">
-                                <i class="fas fa-save"></i> Salvar Perfil
-                            </button>
-                        </div>
-
+            <div class="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                <div onclick="document.getElementById('conf-logo-upload').click()"
+                    class="relative w-32 h-32 md:w-40 md:h-40 bg-black rounded-full border-4 border-gray-800 shadow-2xl overflow-hidden cursor-pointer pointer-events-auto group/logo hover:border-yellow-500 transition-colors">
+                    <img id="conf-logo-preview" src="" class="w-full h-full object-contain hidden">
+                    <div id="conf-logo-placeholder" class="w-full h-full flex flex-col items-center justify-center text-gray-600">
+                        <i class="fas fa-store text-3xl mb-1"></i>
+                        <span class="text-[8px] uppercase font-bold">Logo</span>
                     </div>
+                    <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity">
+                        <i class="fas fa-pen text-white text-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <input type="file" id="conf-banner-upload" accept="image/*" class="hidden">
+        <input type="file" id="conf-logo-upload" accept="image/*" class="hidden">
+        <p class="text-[10px] text-gray-500 text-center">* Clique no círculo para alterar a Logo ou no fundo para o Banner.</p>
+    </div>
+
+    <hr class="border-gray-800">
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        
+        <div class="md:col-span-3">
+            <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Nome da Loja</label>
+            <input type="text" id="conf-store-name" placeholder="Ex: Veste Manto"
+                class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
+        </div>
+
+        <div>
+            <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">WhatsApp (Apenas números)</label>
+            <input type="text" id="conf-store-wpp" placeholder="5511999999999"
+                class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
+        </div>
+
+        <div>
+            <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Instagram (Link ou @)</label>
+            <input type="text" id="conf-store-insta" placeholder="@sua.loja"
+                class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
+        </div>
+
+        <div>
+            <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Facebook (Link)</label>
+            <input type="text" id="conf-store-face" placeholder="https://facebook.com/..."
+                class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
+        </div>
+
+        <div class="md:col-span-3">
+            <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Endereço Completo</label>
+            <textarea id="conf-store-address" rows="2" placeholder="Rua Exemplo, 123 - Cidade/UF"
+                class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none"></textarea>
+        </div>
+
+        <div class="md:col-span-3">
+            <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Descrição da Loja (Rodapé)</label>
+            <textarea id="conf-store-desc" rows="3"
+                placeholder="A melhor loja de artigos esportivos..."
+                class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none"></textarea>
+        </div>
+    </div>
+
+    <div class="bg-black border border-gray-700 p-4 rounded-lg mt-2">
+        <div class="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
+            <label class="flex items-center cursor-pointer gap-2">
+                <input type="checkbox" id="conf-hours-active"
+                    class="w-4 h-4 rounded text-green-500 bg-gray-800 border-gray-600 focus:ring-green-500">
+                <span class="text-white font-bold text-sm">Ativar Horário de Funcionamento</span>
+            </label>
+            <i class="fas fa-clock text-yellow-500"></i>
+        </div>
+
+        <div id="hours-settings" class="space-y-4 opacity-50 pointer-events-none transition-opacity duration-300">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Abre às:</label>
+                    <input type="time" id="conf-hours-start"
+                        class="w-full bg-gray-900 border border-gray-600 text-white p-2 rounded focus:border-yellow-500 outline-none">
+                </div>
+                <div>
+                    <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Fecha às:</label>
+                    <input type="time" id="conf-hours-end"
+                        class="w-full bg-gray-900 border border-gray-600 text-white p-2 rounded focus:border-yellow-500 outline-none">
+                </div>
+            </div>
+
+            <div class="bg-red-900/20 border border-red-900/50 p-3 rounded">
+                <label class="flex items-center cursor-pointer gap-3">
+                    <input type="checkbox" id="conf-hours-block"
+                        class="w-4 h-4 rounded text-red-500 bg-gray-800 border-gray-600 focus:ring-red-500">
+                    <div class="flex flex-col">
+                        <span class="text-white font-bold text-sm">Impedir compra com loja fechada</span>
+                        <span class="text-[10px] text-gray-400">Se marcado, bloqueia o site. Se desmarcado, apenas avisa no checkout.</span>
+                    </div>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex justify-end pt-4 border-t border-gray-800 gap-3">
+        
+        <button type="button" onclick="cancelProfileEdit()"
+            class="bg-transparent border border-gray-600 hover:bg-gray-800 text-gray-300 px-4 py-2 rounded font-bold transition flex items-center gap-2">
+            Cancelar
+        </button>
+
+        <button id="btn-save-profile"
+            class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold transition shadow-lg flex items-center gap-2">
+            <i class="fas fa-save"></i> Salvar Perfil
+        </button>
+    </div>
+
+</div>
                 </div>
 
                 <div class="mt-4 bg-gray-900 rounded-lg overflow-hidden border border-gray-700">

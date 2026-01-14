@@ -4501,26 +4501,7 @@ function loadStoreProfile() {
 function renderStoreProfile() {
     const p = state.storeProfile;
 
-    // --- 1. ATUALIZA BANNER DE FUNDO (O QUE FALTAVA) ---
-    const bannerImg = document.getElementById('header-banner-bg');
-    const overlay = document.getElementById('header-overlay');
-
-    if (bannerImg) {
-        // Verifica se existe um banner salvo no perfil
-        if (p.banner && p.banner.length > 20) {
-            bannerImg.src = p.banner;
-            bannerImg.classList.remove('hidden');
-
-            // Ativa o overlay escuro para o texto ficar legível
-            if (overlay) overlay.classList.remove('hidden');
-        } else {
-            // Se não tiver banner, esconde
-            bannerImg.classList.add('hidden');
-            if (overlay) overlay.classList.add('hidden');
-        }
-    }
-
-    // --- 2. ATUALIZA HEADER (LOGO E NOME) ---
+    // --- 1. ATUALIZA HEADER (LOGO E NOME) ---
     const navLogo = document.getElementById('navbar-store-logo');
     const navText = document.getElementById('navbar-store-text');
 
@@ -4536,14 +4517,14 @@ function renderStoreProfile() {
         }
     }
 
-    // --- 3. ATUALIZA SIDEBAR (MENU LATERAL) ---
+    // --- 2. ATUALIZA SIDEBAR (MENU LATERAL) ---
     const sideName = document.getElementById('sidebar-store-name');
     const sideDesc = document.getElementById('sidebar-store-desc');
 
     if (sideName) sideName.innerText = p.name || 'Loja Virtual';
     if (sideDesc) sideDesc.innerText = p.description || '';
 
-    // --- 4. FUNÇÃO UNIFICADA PARA LINKS ---
+    // --- 3. FUNÇÃO UNIFICADA PARA LINKS (TOPO E MENU) ---
     const updateLink = (elementId, value, urlPrefix = '') => {
         const el = document.getElementById(elementId);
         if (!el) return;
@@ -4562,8 +4543,11 @@ function renderStoreProfile() {
         }
     };
 
+    // Header Links
     updateLink('header-link-insta', p.instagram, 'https://instagram.com/');
     updateLink('header-link-wpp', p.whatsapp, 'https://wa.me/');
+
+    // Sidebar Links
     updateLink('sidebar-link-wpp', p.whatsapp, 'https://wa.me/');
     updateLink('sidebar-link-insta', p.instagram, 'https://instagram.com/');
     updateLink('sidebar-link-facebook', p.facebook);
@@ -4579,33 +4563,15 @@ function renderStoreProfile() {
         }
     }
 
-    // Limpeza de elementos antigos (Legacy)
+    // Remove a logo duplicada da tela inicial se ainda existir lá
     const homeLogoOld = document.getElementById('home-screen-logo');
     if (homeLogoOld) homeLogoOld.classList.add('hidden');
     const homeTitleOld = document.getElementById('home-screen-title');
     if (homeTitleOld) homeTitleOld.classList.add('hidden');
 
+
     if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 }
-
-// Função para Cancelar Edição do Perfil
-window.cancelProfileEdit = () => {
-    // 1. Recarrega os dados originais (desfaz alterações nos inputs)
-    if (typeof fillProfileForm === 'function') {
-        fillProfileForm();
-    }
-
-    // 2. Limpa variáveis temporárias de imagem
-    state.tempLogo = null;
-    state.tempBanner = undefined;
-
-    // 3. Fecha o Acordeão
-    const content = document.getElementById('content-acc-profile');
-    const arrow = document.getElementById('arrow-acc-profile');
-
-    if (content) content.classList.add('hidden');
-    if (arrow) arrow.style.transform = 'rotate(0deg)';
-};
 
 // Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
@@ -4633,7 +4599,7 @@ function fillProfileForm() {
     } else {
         bannerPreview.classList.add('hidden');
     }
-
+    
     // --- Parcelamento ---
     const inst = p.installments || { active: false, max: 12, freeUntil: 3, rate: 4.0 };
     const elCardCheck = document.getElementById('conf-card-active');
@@ -7301,3 +7267,7 @@ window.loadTheme = loadTheme;
 // location.reload();
 
 
+// --- NO FINAL DO ARQUIVO APP.JS ---
+
+// Isso torna o 'state' visível no console para testes
+window.state = state;

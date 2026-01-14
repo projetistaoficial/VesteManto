@@ -139,49 +139,48 @@
         </div>
     </aside>
     <nav id="site-header"
-        class="mx-4 md:mx-auto max-w-6xl bg-[var(--bg-header)] border-b border-gray-800 z-50 rounded-b-[40px] md:rounded-b-[50px] shadow-2xl relative overflow-hidden transition-all duration-300 min-h-[220px]">
-
-        <img id="header-banner-bg" src="" alt="Banner"
-            class="absolute inset-0 w-full h-full object-cover z-0 hidden transition-opacity duration-500">
-
-        <div id="header-overlay" class="absolute inset-0 bg-black/40 z-0 pointer-events-none hidden"></div>
+        class="mx-4 md:mx-auto max-w-6xl bg-[var(--bg-header)] border-b border-gray-800 z-50 rounded-b-[40px] md:rounded-b-[50px] shadow-2xl relative overflow-hidden transition-all duration-300">
 
         <div class="relative z-30 px-5 pt-5 flex justify-between items-start">
+
             <button id="mobile-menu-btn"
-                class="text-white hover:text-yellow-500 transition-transform transform hover:scale-110 active:scale-95 focus:outline-none p-2 rounded-full hover:bg-black/20 backdrop-blur-sm">
+                class="text-white hover:text-yellow-500 transition-transform transform hover:scale-110 active:scale-95 focus:outline-none p-2 rounded-full hover:bg-white/5">
                 <i class="fas fa-bars fa-2x"></i>
             </button>
+
         </div>
 
-        <div class="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none pt-4">
+     <div class="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none pt-2">
 
-            <a href="index.html" class="pointer-events-auto group">
-                <img id="navbar-store-logo" src="" alt="Logo"
-                    class="h-32 w-32 md:h-40 md:w-40 object-contain rounded-full border-4 border-gray-800 bg-black hidden filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] animate-fade-in transition-transform group-hover:scale-105 group-hover:border-yellow-500">
-            </a>
+    <a href="index.html">
+        <img id="navbar-store-logo" src="" alt="Logo"
+            class="h-26 w-40 md:h-32 md:w-72 object-contain rounded-full border-4 border-gray-800 bg-black hidden filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] animate-fade-in pointer-events-auto transition-transform hover:scale-105">
+    </a>
 
-            <h1 id="navbar-store-text"
-                class="text-3xl md:text-5xl font-extrabold text-white tracking-tighter hidden mt-4 drop-shadow-lg">
-                <span class="text-white">SUA</span><span class="text-yellow-500">LOJA</span>
-            </h1>
-        </div>
+    <h1 id="navbar-store-text"
+        class="text-3xl md:text-5xl font-extrabold text-white tracking-tighter hidden mt-8">
+        <span class="text-white">SUA</span><span class="text-yellow-500">LOJA</span>
+    </h1>
+</div>
 
         <div
-            class="absolute bottom-0 left-0 right-0 z-20 px-6 pb-4 flex justify-between items-end text-[10px] md:text-xs font-bold text-gray-200 uppercase tracking-widest">
+            class="relative z-20 px-6 pb-3 mt-14 md:mt-16 flex justify-between items-end text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest">
 
             <a id="header-link-insta" href="#" target="_blank"
-                class="flex items-center gap-2 hover:text-pink-400 transition hidden group bg-black/30 px-3 py-1 rounded-full backdrop-blur-md border border-white/10 hover:bg-black/50">
-                <div class="w-5 h-5 flex items-center justify-center">
-                    <i class="fab fa-instagram text-lg"></i>
+                class="flex items-center gap-2 hover:text-pink-500 transition hidden group">
+                <div
+                    class="w-6 h-6 rounded-full border border-gray-600 flex items-center justify-center group-hover:border-pink-500 transition">
+                    <i class="fab fa-instagram"></i>
                 </div>
-                <span class="hidden md:inline text-shadow">Instagram</span>
+                <span class="hidden md:inline">Instagram</span>
             </a>
 
             <a id="header-link-wpp" href="#" target="_blank"
-                class="flex items-center gap-2 hover:text-green-400 transition hidden text-right group bg-black/30 px-3 py-1 rounded-full backdrop-blur-md border border-white/10 hover:bg-black/50">
-                <span class="hidden md:inline text-shadow">Fale Conosco</span>
-                <div class="w-5 h-5 flex items-center justify-center">
-                    <i class="fab fa-whatsapp text-lg"></i>
+                class="flex items-center gap-2 hover:text-green-500 transition hidden text-right group">
+                <span class="hidden md:inline">Fale Conosco</span>
+                <div
+                    class="w-6 h-6 rounded-full border border-gray-600 flex items-center justify-center group-hover:border-green-500 transition">
+                    <i class="fab fa-whatsapp"></i>
                 </div>
             </a>
         </div>
@@ -780,62 +779,35 @@
                             class="fas fa-chevron-down text-gray-400 transition-transform duration-300"></i>
                     </div>
 
-                    <div id="content-acc-profile" class="hidden p-6 bg-gray-900 space-y-6">
+                    <div id="content-acc-profile" class="hidden p-6 bg-gray-900 space-y-4">
 
-                        <div class="space-y-2">
-                            <div class="flex justify-between items-end">
-                                <label class="text-yellow-500 text-xs font-bold uppercase">Aparência do Topo</label>
-                                <button type="button" onclick="removeStoreBanner()"
-                                    class="text-[10px] text-red-500 hover:text-red-400 underline cursor-pointer">
-                                    Remover Banner
-                                </button>
-                            </div>
-
-                            <div
-                                class="relative w-full h-48 md:h-60 rounded-xl overflow-hidden border border-gray-700 bg-black group/banner">
-                                <img id="conf-banner-preview" src=""
-                                    class="absolute inset-0 w-full h-full object-cover hidden z-0">
-
-                                <div onclick="document.getElementById('conf-banner-upload').click()"
-                                    class="absolute inset-0 bg-black/60 opacity-0 group-hover/banner:opacity-100 flex items-center justify-center z-10 cursor-pointer transition-opacity duration-300">
-                                    <div
-                                        class="bg-black/80 text-white px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 border border-gray-600">
-                                        <i class="fas fa-camera"></i> Alterar Imagem de Fundo
-                                    </div>
-                                </div>
-
-                                <div class="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-                                    <div onclick="document.getElementById('conf-logo-upload').click()"
-                                        class="relative w-32 h-32 md:w-40 md:h-40 bg-black rounded-full border-4 border-gray-800 shadow-2xl overflow-hidden cursor-pointer pointer-events-auto group/logo hover:border-yellow-500 transition-colors">
-                                        <img id="conf-logo-preview" src="" class="w-full h-full object-contain hidden">
-                                        <div id="conf-logo-placeholder"
-                                            class="w-full h-full flex flex-col items-center justify-center text-gray-600">
-                                            <i class="fas fa-store text-3xl mb-1"></i>
-                                            <span class="text-[8px] uppercase font-bold">Logo</span>
-                                        </div>
-                                        <div
-                                            class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity">
-                                            <i class="fas fa-pen text-white text-xl"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <input type="file" id="conf-banner-upload" accept="image/*" class="hidden">
-                            <input type="file" id="conf-logo-upload" accept="image/*" class="hidden">
-                            <p class="text-[10px] text-gray-500 text-center">* Clique no círculo para alterar a Logo ou
-                                no fundo para o Banner.</p>
-                        </div>
-
-                        <hr class="border-gray-800">
-
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-                            <div class="md:col-span-3">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="md:col-span-2">
                                 <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Nome da
                                     Loja</label>
                                 <input type="text" id="conf-store-name" placeholder="Ex: Veste Manto"
                                     class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
+                            </div>
+
+                            <div class="md:col-span-2">
+                                <label class="text-yellow-500 text-xs font-bold uppercase mb-2 block">Logo da
+                                    Loja</label>
+                                <div class="flex items-center gap-4 bg-black border border-gray-700 p-4 rounded-lg">
+                                    <div
+                                        class="relative w-24 h-24 bg-gray-900 rounded-lg border border-gray-600 flex items-center justify-center overflow-hidden group">
+                                        <img id="conf-logo-preview" src="" class="w-full h-full object-contain hidden">
+                                        <i id="conf-logo-placeholder" class="fas fa-image text-gray-600 text-2xl"></i>
+                                    </div>
+
+                                    <div class="flex flex-col gap-2">
+                                        <button onclick="document.getElementById('conf-logo-upload').click()"
+                                            class="bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-2 px-4 rounded text-xs transition flex items-center gap-2">
+                                            <i class="fas fa-camera"></i> Carregar do Dispositivo
+                                        </button>
+                                        <span class="text-[10px] text-gray-500">Recomendado: Imagem PNG ou JPG</span>
+                                    </div>
+                                    <input type="file" id="conf-logo-upload" accept="image/*" class="hidden">
+                                </div>
                             </div>
 
                             <div>
@@ -859,14 +831,14 @@
                                     class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
                             </div>
 
-                            <div class="md:col-span-3">
+                            <div class="md:col-span-2">
                                 <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Endereço
                                     Completo</label>
                                 <textarea id="conf-store-address" rows="2" placeholder="Rua Exemplo, 123 - Cidade/UF"
                                     class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none"></textarea>
                             </div>
 
-                            <div class="md:col-span-3">
+                            <div class="md:col-span-2">
                                 <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Descrição da Loja
                                     (Rodapé)</label>
                                 <textarea id="conf-store-desc" rows="3"
@@ -875,7 +847,7 @@
                             </div>
                         </div>
 
-                        <div class="bg-black border border-gray-700 p-4 rounded-lg mt-2">
+                        <div class="md:col-span-2 bg-black border border-gray-700 p-4 rounded-lg mt-2">
                             <div class="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
                                 <label class="flex items-center cursor-pointer gap-2">
                                     <input type="checkbox" id="conf-hours-active"
@@ -917,13 +889,7 @@
                             </div>
                         </div>
 
-                        <div class="flex justify-end pt-4 border-t border-gray-800 gap-3">
-
-                            <button type="button" onclick="cancelProfileEdit()"
-                                class="bg-transparent border border-gray-600 hover:bg-gray-800 text-gray-300 px-4 py-2 rounded font-bold transition flex items-center gap-2">
-                                Cancelar
-                            </button>
-
+                        <div class="flex justify-end pt-4 border-t border-gray-800">
                             <button id="btn-save-profile"
                                 class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold transition shadow-lg flex items-center gap-2">
                                 <i class="fas fa-save"></i> Salvar Perfil
@@ -1902,7 +1868,7 @@
     <script type="module" src="js/app.js"></script>
     <script type="module" src="js/stats.js"></script>
     <script type="module" src="js/support.js"></script>
-    <script type="module" src="js/app.js?v=3"></script>
+    <script src="js/app.js?v=2"></script>
 </body>
 
 </html>
