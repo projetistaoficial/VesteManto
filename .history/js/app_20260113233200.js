@@ -2967,6 +2967,22 @@ function setupEventListeners() {
 
     document.querySelectorAll('.tab-btn').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); const target = getEl(btn.dataset.tab); if (target) target.classList.remove('hidden'); document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500'); b.classList.add('text-gray-400'); }); btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500'); btn.classList.remove('text-gray-400'); }; });
 
+   // --- LÓGICA DE NAVEGAÇÃO DO CARRINHO (NOVO) ---
+    
+    // 1. Botão "Ir para Pagamento" (Apenas troca a tela)
+    const btnGoCheckout = document.getElementById('btn-go-checkout');
+    if (btnGoCheckout) {
+        btnGoCheckout.onclick = () => {
+            if (state.cart.length === 0) return alert('Carrinho vazio');
+            window.goToCheckoutView(); // Chama a função que esconde lista e mostra form
+        };
+    }
+
+    // 2. Botão "Confirmar Pedido" (Esse sim envia pro Zap)
+    const btnFinish = document.getElementById('btn-finish-payment');
+    if (btnFinish) {
+        btnFinish.onclick = window.submitOrder; // Chama a função submitOrder que corrigimos antes
+    }
 
     const elCheck = document.getElementById('conf-card-active');
     if (elCheck) {

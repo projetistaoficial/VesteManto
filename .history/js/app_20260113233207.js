@@ -2967,6 +2967,43 @@ function setupEventListeners() {
 
     document.querySelectorAll('.tab-btn').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); const target = getEl(btn.dataset.tab); if (target) target.classList.remove('hidden'); document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500'); b.classList.add('text-gray-400'); }); btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500'); btn.classList.remove('text-gray-400'); }; });
 
+    const btnCheckout = getEl('btn-checkout');
+    if (btnCheckout) {
+        btnCheckout.onclick = async () => {
+            if (state.cart.length === 0) return alert('Carrinho vazio');
+            const totalText = document.getElementById('cart-total').innerText.replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+
+            // ATENÇÃO: Adicionando Custo ao Pedido para Relatórios Futuros
+            const cartItemsWithCost = state.cart.map(item => {
+                const product = state.products.find(p => p.id === item.id);
+                return {
+                    ...item,
+                    cost: product ? parseFloat(product.cost || 0) : 0
+                };
+            });
+
+            const orderData = {
+                items: cartItemsWithCost,
+                total: parseFloat(totalText),
+                cupom: state.currentCoupon ? state.currentCoupon.code : null,
+                date: new Date().toISOString(),
+                status: 'Pendente',
+                code: Math.floor(10000 + Math.random() * 90000)
+            };
+
+            try { await addDoc(collection(db, `sites/${state.siteId}/sales`), orderData); } catch (e) { console.log("Erro pedido:", e); }
+            let msg = `*NOVO PEDIDO - ${orderData.code}*\n\n`;
+            state.cart.forEach(i => { msg += `▪ ${i.qty}x ${i.name} (${i.size}) - ${formatCurrency(i.price)}\n`; });
+            msg += `\nSubtotal: ${document.getElementById('cart-subtotal').innerText}`;
+            if (state.currentCoupon) msg += `\nCupom: ${state.currentCoupon.code}`;
+            msg += `\n*TOTAL: ${document.getElementById('cart-total').innerText}*`;
+            msg += `\n\nAguardo link de pagamento!`;
+            const sellerPhone = "11941936976";
+            window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+            state.cart = []; state.currentCoupon = null; saveCart();
+            els.cartModal.classList.add('hidden');
+        };
+    }
 
     const elCheck = document.getElementById('conf-card-active');
     if (elCheck) {

@@ -2967,6 +2967,43 @@ function setupEventListeners() {
 
     document.querySelectorAll('.tab-btn').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); const target = getEl(btn.dataset.tab); if (target) target.classList.remove('hidden'); document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500'); b.classList.add('text-gray-400'); }); btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500'); btn.classList.remove('text-gray-400'); }; });
 
+    const btnCheckout = getEl('btn-checkout');
+    if (btnCheckout) {
+        btnCheckout.onclick = async () => {
+            if (state.cart.length === 0) return alert('Carrinho vazio');
+            const totalText = document.getElementById('cart-total').innerText.replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+
+            // ATENÇÃO: Adicionando Custo ao Pedido para Relatórios Futuros
+            const cartItemsWithCost = state.cart.map(item => {
+                const product = state.products.find(p => p.id === item.id);
+                return {
+                    ...item,
+                    cost: product ? parseFloat(product.cost || 0) : 0
+                };
+            });
+
+            const orderData = {
+                items: cartItemsWithCost,
+                total: parseFloat(totalText),
+                cupom: state.currentCoupon ? state.currentCoupon.code : null,
+                date: new Date().toISOString(),
+                status: 'Pendente',
+                code: Math.floor(10000 + Math.random() * 90000)
+            };
+
+            try { await addDoc(collection(db, `sites/${state.siteId}/sales`), orderData); } catch (e) { console.log("Erro pedido:", e); }
+            let msg = `*NOVO PEDIDO - ${orderData.code}*\n\n`;
+            state.cart.forEach(i => { msg += `▪ ${i.qty}x ${i.name} (${i.size}) - ${formatCurrency(i.price)}\n`; });
+            msg += `\nSubtotal: ${document.getElementById('cart-subtotal').innerText}`;
+            if (state.currentCoupon) msg += `\nCupom: ${state.currentCoupon.code}`;
+            msg += `\n*TOTAL: ${document.getElementById('cart-total').innerText}*`;
+            msg += `\n\nAguardo link de pagamento!`;
+            const sellerPhone = "11941936976";
+            window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+            state.cart = []; state.currentCoupon = null; saveCart();
+            els.cartModal.classList.add('hidden');
+        };
+    }
 
     const elCheck = document.getElementById('conf-card-active');
     if (elCheck) {
@@ -5803,51 +5840,49 @@ window.submitOrder = async () => {
 
         // Monta texto do pagamento
         let paymentDetails = "";
-        let paymentMsgShort = ""; // Para usar no zap
-
-        if (method === 'pix') {
-            paymentDetails = "Pix";
-            paymentMsgShort = "Pix";
-        } else if (method === 'card') {
+        if (method === 'pix') paymentDetails = "Pix";
+        else if (method === 'card') {
             const select = document.getElementById('checkout-installments');
             let parcelas = "Crédito/Débito";
             if (payMode === 'online' && select && select.selectedIndex >= 0) {
                 parcelas = select.options[select.selectedIndex].text;
             }
             paymentDetails = `Cartão (${parcelas})`;
-            paymentMsgShort = `Cartão (${parcelas})`;
-        } else if (method === 'cash') {
+        }
+        else if (method === 'cash') {
             const trocoVal = getVal('checkout-change-for');
             paymentDetails = `Dinheiro (Troco para: ${trocoVal || 'Não precisa'})`;
-            paymentMsgShort = `Dinheiro ${trocoVal ? `(Troco p/ ${trocoVal})` : ''}`;
         }
         paymentDetails += (payMode === 'online') ? " [Pago Online]" : " [Pagar na Entrega]";
 
         // Valor Final
         const totalEl = document.getElementById('checkout-final-total');
         let finalValue = 0;
-        let totalString = "R$ 0,00";
         if (totalEl) {
-            totalString = totalEl.innerText;
             finalValue = parseFloat(totalEl.innerText.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
         }
 
-        // --- CÁLCULO E SALVAMENTO DO CUPOM ---
+        // --- CÁLCULO E SALVAMENTO DO CUPOM (NOVO) ---
         let couponData = null;
         if (state.currentCoupon) {
+            // Calcula o valor exato que o cupom descontou
             let subtotal = state.cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
             let discountVal = 0;
+
             if (state.currentCoupon.type === 'percent') {
                 discountVal = subtotal * (state.currentCoupon.val / 100);
             } else {
                 discountVal = state.currentCoupon.val;
             }
+
             if (discountVal > subtotal) discountVal = subtotal;
+
             couponData = {
                 code: state.currentCoupon.code,
                 value: discountVal
             };
         }
+        // --------------------------------------------
 
         const deliveryConfig = state.storeProfile?.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
         const cancelMinutes = parseInt(deliveryConfig.cancelTimeMin) || 5;
@@ -5866,8 +5901,7 @@ window.submitOrder = async () => {
         const shipValue = parseFloat(dConfig.shippingValue) || 0;
 
         let valueToSave = 0;
-        // Assume que checkoutState existe globalmente ou valida aqui
-        if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery && shipValue > 0) {
+        if (checkoutState.isValidDelivery && shipValue > 0) {
             if (shipRule === 'both') valueToSave = shipValue;
             else if (shipRule === 'online' && payMode === 'online') valueToSave = shipValue;
             else if (shipRule === 'delivery' && payMode === 'delivery') valueToSave = shipValue;
@@ -5887,8 +5921,11 @@ window.submitOrder = async () => {
             paymentMethod: paymentDetails,
             securityCode: securityCode,
             shippingFee: valueToSave,
-            couponData: couponData,
-            cupom: couponData ? couponData.code : null,
+
+            // --- SALVA DADOS DO CUPOM ---
+            couponData: couponData, // Objeto { code: 'NOME', value: 10.00 }
+            cupom: couponData ? couponData.code : null, // Mantém compatibilidade simples
+
             cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
         };
 
@@ -5898,10 +5935,8 @@ window.submitOrder = async () => {
             btnSubmit.innerText = "⏳ Enviando...";
         }
 
-        // 1. Salva no Firebase
         const docRef = await addDoc(collection(db, `sites/${state.siteId}/sales`), order);
 
-        // 2. Salva no LocalStorage
         const newOrderLocal = { id: docRef.id, ...order };
         if (!Array.isArray(state.myOrders)) state.myOrders = [];
         state.myOrders.push(newOrderLocal);
@@ -5910,38 +5945,12 @@ window.submitOrder = async () => {
         startBackgroundListeners();
         checkActiveOrders();
         state.cart = [];
-        state.currentCoupon = null;
+        state.currentCoupon = null; // Limpa cupom da memória
         localStorage.setItem('cart', JSON.stringify([]));
         updateCartUI();
 
-        // 3. ENVIO PARA O WHATSAPP (CORRIGIDO E INLINE)
-        // Isso garante que o número seja respeitado
-        if (payMode === 'online' || true) { // Mandei 'true' para sempre abrir o zap se você quiser, ou mantenha a lógica
-            
-            // --- MONTAGEM DA MENSAGEM ---
-            let msg = `*NOVO PEDIDO #${order.code}*\n`;
-            msg += `--------------------------------\n`;
-            msg += `👤 *Cliente:* ${name}\n`;
-            msg += `📞 *Tel:* ${phone}\n\n`;
-            
-            msg += `🛒 *ITENS:*\n`;
-            order.items.forEach(item => {
-                msg += `▪ ${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}\n`;
-            });
-
-            msg += `\n💰 *TOTAL: ${totalString}*\n`;
-            msg += `🚚 *Tipo:* ${payMode === 'online' ? "Pagar Agora (Online)" : "Pagar na Entrega"}\n`;
-            msg += `💳 *Pagamento:* ${paymentMsgShort}\n`;
-            
-            if (valueToSave > 0) msg += `🛵 *Frete:* R$ ${valueToSave.toFixed(2).replace('.', ',')}\n`;
-            
-            msg += `\n📍 *Endereço:*\n${fullAddress}`;
-
-            // --- NÚMERO FIXO CORRETO ---
-            const targetNumber = "5511941936976"; 
-            
-            const url = `https://api.whatsapp.com/send?phone=${targetNumber}&text=${encodeURIComponent(msg)}`;
-            window.open(url, '_blank');
+        if (payMode === 'online') {
+            sendOrderToWhatsapp(newOrderLocal);
         }
 
         openTrackModal();
