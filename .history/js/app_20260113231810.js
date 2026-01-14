@@ -2998,7 +2998,7 @@ function setupEventListeners() {
             if (state.currentCoupon) msg += `\nCupom: ${state.currentCoupon.code}`;
             msg += `\n*TOTAL: ${document.getElementById('cart-total').innerText}*`;
             msg += `\n\nAguardo link de pagamento!`;
-            const sellerPhone = "999999";
+            const sellerPhone = "";
             window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
             state.cart = []; state.currentCoupon = null; saveCart();
             els.cartModal.classList.add('hidden');
