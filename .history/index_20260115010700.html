@@ -156,8 +156,14 @@
         <div class="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none pt-4">
 
             <a href="index.html" class="pointer-events-auto group">
-                <img id="navbar-store-logo" src="" alt="Logo"
-                    class="h-32 w-32 md:h-40 md:w-40 object-cover rounded-full border-4 border-gray-800 bg-black hidden filter animate-fade-in transition-transform group-hover:scale-105 group-hover:border-yellow-500">
+
+                <div
+                    class="h-32 w-32 md:h-40 md:w-40 rounded-full border-4 border-gray-800 bg-black overflow-hidden shadow-2xl transition-transform group-hover:scale-105 group-hover:border-yellow-500 relative">
+
+                    <img id="navbar-store-logo" src="" alt="Logo"
+                        class="w-full h-full object-cover hidden animate-fade-in">
+
+                </div>
             </a>
 
             <h1 id="navbar-store-text"
