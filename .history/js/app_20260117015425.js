@@ -541,11 +541,9 @@ function initApp() {
         if (user) {
             filterAndRenderProducts();
             loadAdminSales(); // Carrega vendas apenas se for admin
-            setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
         } else {
             showView('catalog');
             // Se não é admin, não precisamos carregar todas as vendas do site, economiza dados
-            setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
         }
     });
 
@@ -2684,16 +2682,6 @@ function setupEventListeners() {
         // Configurações da Loja
         setupAccordion('btn-acc-profile', 'content-acc-profile', 'arrow-acc-profile');
 
-        const btnProfile = getEl('btn-acc-profile');
-        if (btnProfile) {
-            btnProfile.addEventListener('click', () => {
-                // Pequeno delay para esperar a animação do accordion
-                setTimeout(() => {
-                    if (typeof window.checkFooter === 'function') window.checkFooter();
-                }, 50);
-            });
-        }
-
         if (els.btnSaveProfile) {
             els.btnSaveProfile.onclick = saveStoreProfile;
         }
@@ -3355,8 +3343,6 @@ function showView(viewName) {
         if (viewCatalog) viewCatalog.classList.remove('hidden');
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-
-    if (typeof window.checkFooter === 'function') window.checkFooter();
 }
 
 // Atualiza o texto do botão de ordenar e reordena a lista
@@ -4601,46 +4587,20 @@ function renderStoreProfile() {
 
     if (typeof window.updateStoreStatusUI === 'function') window.updateStoreStatusUI();
 
-    // --- 5. ATUALIZA O FOOTER (APENAS DADOS) ---
+    // --- 5. ATUALIZA O FOOTER (RODAPÉ) ---
     const footerName = document.getElementById('footer-store-name');
     const footerDesc = document.getElementById('footer-store-desc');
+    const footerEl = document.getElementById('store-footer');
 
-    if (footerName && footerDesc) {
+    if (footerName && footerDesc && footerEl) {
+        // Preenche com os dados do perfil ou fallback
         footerName.innerText = p.name || 'Sua Loja';
         footerDesc.innerText = p.description || 'A melhor loja para você.';
-
-        // IMPORTANTE: Removemos a linha que forçava o 'hidden' a sair aqui.
-        // Agora quem decide se mostra ou não é a função checkFooter()
-        if (typeof window.checkFooter === 'function') window.checkFooter();
+        
+        // Remove o 'hidden' para mostrar o rodapé
+        footerEl.classList.remove('hidden');
     }
 }
-
-// Função que controla a visibilidade do Rodapé
-window.checkFooter = () => {
-    const footer = document.getElementById('store-footer');
-    if (!footer) return;
-
-    // --- CORREÇÃO: Usando os IDs exatos do seu HTML ---
-    const adminScreen = document.getElementById('view-admin'); 
-    const supportScreen = document.getElementById('view-support'); 
-    
-    // Menu de edição de perfil (caso abra fora do admin)
-    const editProfile = document.getElementById('content-acc-profile'); 
-
-    // Verifica se as telas estão VISÍVEIS (sem a classe hidden)
-    const isAdminVisible = adminScreen && !adminScreen.classList.contains('hidden');
-    const isSupportVisible = supportScreen && !supportScreen.classList.contains('hidden');
-    const isEditing = editProfile && !editProfile.classList.contains('hidden');
-
-    // Se qualquer um desses estiver visível, ESCONDE o footer
-    if (isAdminVisible || isSupportVisible || isEditing) {
-        footer.classList.add('hidden');
-        footer.style.display = 'none'; // Força bruta para garantir
-    } else {
-        footer.classList.remove('hidden');
-        footer.style.display = ''; // Remove o inline style
-    }
-};
 
 // Função para Cancelar Edição do Perfil
 window.cancelProfileEdit = () => {
@@ -4659,8 +4619,6 @@ window.cancelProfileEdit = () => {
 
     if (content) content.classList.add('hidden');
     if (arrow) arrow.style.transform = 'rotate(0deg)';
-
-    if (typeof window.checkFooter === 'function') window.checkFooter();
 };
 
 // Função para carregar dados nos inputs de configuração
@@ -5924,7 +5882,7 @@ window.submitOrder = async () => {
 
         // Monta texto do pagamento
         let paymentDetails = "";
-        let paymentMsgShort = "";
+        let paymentMsgShort = ""; 
 
         if (method === 'pix') {
             paymentDetails = "Pix";
@@ -6033,13 +5991,13 @@ window.submitOrder = async () => {
 
         // 3. ENVIO PARA O WHATSAPP (CORRIGIDO: SÓ ONLINE)
         // A condição agora é estrita: Só entra se for 'online'
-        if (payMode === 'online') {
-
+        if (payMode === 'online') { 
+            
             let msg = `*NOVO PEDIDO #${order.code}*\n`;
             msg += `--------------------------------\n`;
             msg += `👤 *Cliente:* ${name}\n`;
             msg += `📞 *Tel:* ${phone}\n\n`;
-
+            
             msg += `🛒 *ITENS:*\n`;
             order.items.forEach(item => {
                 msg += `▪ ${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}\n`;
@@ -6048,9 +6006,9 @@ window.submitOrder = async () => {
             msg += `\n💰 *TOTAL: ${totalString}*\n`;
             msg += `🚚 *Tipo:* ${payMode === 'online' ? "Pagar Agora (Online)" : "Pagar na Entrega"}\n`;
             msg += `💳 *Pagamento:* ${paymentMsgShort}\n`;
-
+            
             if (valueToSave > 0) msg += `🛵 *Frete:* R$ ${valueToSave.toFixed(2).replace('.', ',')}\n`;
-
+            
             msg += `\n📍 *Endereço:*\n${fullAddress}`;
 
             // --- LÓGICA DO NÚMERO DO PERFIL ---
@@ -6066,7 +6024,7 @@ window.submitOrder = async () => {
             if (targetNumber.length === 10 || targetNumber.length === 11) {
                 targetNumber = "55" + targetNumber;
             }
-
+            
             const url = `https://api.whatsapp.com/send?phone=${targetNumber}&text=${encodeURIComponent(msg)}`;
             window.open(url, '_blank');
         }

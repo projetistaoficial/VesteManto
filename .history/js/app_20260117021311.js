@@ -541,11 +541,9 @@ function initApp() {
         if (user) {
             filterAndRenderProducts();
             loadAdminSales(); // Carrega vendas apenas se for admin
-            setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
         } else {
             showView('catalog');
             // Se não é admin, não precisamos carregar todas as vendas do site, economiza dados
-            setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
         }
     });
 
@@ -4620,25 +4618,20 @@ window.checkFooter = () => {
     const footer = document.getElementById('store-footer');
     if (!footer) return;
 
-    // --- CORREÇÃO: Usando os IDs exatos do seu HTML ---
-    const adminScreen = document.getElementById('view-admin'); 
-    const supportScreen = document.getElementById('view-support'); 
-    
-    // Menu de edição de perfil (caso abra fora do admin)
-    const editProfile = document.getElementById('content-acc-profile'); 
+    // Coloque aqui os IDs das telas onde o footer NÃO deve aparecer
+    const adminScreen = document.getElementById('screen-admin');
+    const supportScreen = document.getElementById('screen-support');
+    const editProfile = document.getElementById('content-acc-profile'); // O menu de edição
 
-    // Verifica se as telas estão VISÍVEIS (sem a classe hidden)
+    // Verifica se alguma dessas telas está visível (sem a classe hidden)
     const isAdminVisible = adminScreen && !adminScreen.classList.contains('hidden');
     const isSupportVisible = supportScreen && !supportScreen.classList.contains('hidden');
     const isEditing = editProfile && !editProfile.classList.contains('hidden');
 
-    // Se qualquer um desses estiver visível, ESCONDE o footer
     if (isAdminVisible || isSupportVisible || isEditing) {
-        footer.classList.add('hidden');
-        footer.style.display = 'none'; // Força bruta para garantir
+        footer.classList.add('hidden'); // Esconde no Admin/Suporte
     } else {
-        footer.classList.remove('hidden');
-        footer.style.display = ''; // Remove o inline style
+        footer.classList.remove('hidden'); // Mostra na Home/Busca/Carrinho
     }
 };
 

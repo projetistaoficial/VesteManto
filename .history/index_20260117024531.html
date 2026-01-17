@@ -23,7 +23,7 @@
     </style>
 </head>
 
-<body class="bg-[var(--bg-main)] text-[var(--txt-body)] text-white font-sans antialiased ">
+<body class="bg-[var(--bg-main)] text-[var(--txt-body)] font-sans antialiased min-h-screen flex flex-col">
 
     <div id="site-floating-capsule"
         class="fixed top-4 right-4 z-[60] flex items-center gap-2 bg-black/60 backdrop-blur-md p-2 rounded-full border border-gray-700 shadow-2xl animate-fade-in transition-all duration-300 hover:bg-black/80">
@@ -1898,50 +1898,61 @@
         </div>
     </div>
 
-   <footer id="store-footer"
-    class="bg-[#050505] border-t border-gray-900 mt-24 hidden transition-opacity duration-500">
-    
-    <div class="max-w-4xl mx-auto px-4 py-8 flex flex-col items-center text-center space-y-5">
+    <<footer id="store-footer" class="bg-[#0b0c10] border-t border-gray-800 mt-auto hidden w-full">
+        <div class="max-w-6xl mx-auto px-6 py-10 flex flex-col items-center justify-center text-center space-y-8">
 
-        <div class="space-y-1">
-            <h2 id="footer-store-name" class="text-xl font-bold text-white tracking-wide uppercase">
+            <div class="space-y-2">
+                <h2 id="footer-store-name" class="text-3xl font-extrabold text-white tracking-tight">
                 </h2>
-            <p id="footer-store-desc" class="text-gray-500 text-sm font-medium">
+                <p id="footer-store-desc" class="text-gray-400 font-medium text-lg">
                 </p>
-        </div>
-
-        <div class="w-24 h-px bg-gray-800 rounded-full"></div>
-
-        <div class="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-6 text-xs md:text-sm text-gray-400 font-mono bg-[#0a0a0a] border border-gray-800/50 rounded-xl px-8 py-3 shadow-sm transition hover:border-gray-700">
-            
-            <div class="flex items-center gap-2">
-                <span>Desenvolvido por: <span class="text-white font-bold tracking-wider">PROJETISTA</span></span>
-                <img src="https://placehold.co/20x20/black/white?text=P" alt="Logo" class="w-5 h-5 object-contain opacity-80 hover:scale-110 transition">
             </div>
 
-            <span class="hidden md:block text-gray-700">|</span>
+            <div
+                class="w-full max-w-md bg-black rounded-2xl border border-gray-800 p-4 flex items-center justify-between shadow-xl relative overflow-hidden group hover:border-gray-700 transition-colors">
 
-            <div class="flex items-center gap-4">
-                <a href="https://instagram.com/projetista_oficial" target="_blank" class="hover:text-pink-500 transition flex items-center gap-1.5 group">
-                    <i class="fab fa-instagram text-base group-hover:scale-110 transition"></i>
-                    <span class="font-semibold">@projetista_oficial</span>
-                </a>
-                <span class="opacity-75">CNPJ: 61.524.580/0001-00</span>
+                <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-500 to-purple-600"></div>
+
+                <div class="flex flex-col items-start text-left">
+                    <span class="text-[10px] uppercase text-gray-500 font-bold tracking-widest mb-0.5">Desenvolvido
+                        por</span>
+                    <span class="text-white font-black text-lg tracking-wide flex items-center gap-2">
+                        PROJETISTA
+                        <i class="fas fa-check-circle text-blue-500 text-xs"></i>
+                    </span>
+                    <span class="text-[10px] text-gray-600 font-mono mt-1">CNPJ: 61.524.580/0001-00</span>
+                </div>
+
+                <div class="flex flex-col items-end gap-2">
+                    <img src="https://placehold.co/40x40/111/fff?text=P" alt="Logo Projetista"
+                        class="w-10 h-10 object-contain rounded-lg border border-gray-800">
+
+                    <a href="https://instagram.com/projetista_oficial" target="_blank"
+                        class="text-gray-400 hover:text-pink-500 transition text-lg flex items-center gap-1 group/insta">
+                        <span
+                            class="text-[10px] opacity-0 group-hover/insta:opacity-100 transition-opacity -translate-x-2 group-hover/insta:translate-x-0 duration-300">Instagram</span>
+                        <i class="fab fa-instagram"></i>
+                    </a>
+                </div>
             </div>
+
+            <div class="text-[10px] text-gray-600 font-mono border-t border-gray-900 pt-4 w-full">
+                Todos os direitos reservados &copy; <span id="footer-year">2024</span>
+            </div>
+
         </div>
+        </footer>
 
-        <span class="text-[10px] text-gray-700 uppercase tracking-widest mt-2">
-            Todos os direitos reservados
-        </span>
+        <script>
+            // Atualiza o ano automaticamente
+            document.getElementById('footer-year').innerText = new Date().getFullYear();
+        </script>
 
-    </div>
-</footer>
-
-    <script type="module" src="js/firebase-config.js"></script>
-    <script type="module" src="js/app.js"></script>
-    <script type="module" src="js/stats.js"></script>
-    <script type="module" src="js/support.js"></script>
-    <script type="module" src="js/app.js?v=3"></script>
+        <script type="module" src="js/firebase-config.js"></script>
+        <script type="module" src="js/app.js"></script>
+        <script type="module" src="js/stats.js"></script>
+        <script type="module" src="js/support.js"></script>
+        <script type="module" src="js/app.js?v=3"></script>
 </body>
 
 </html>

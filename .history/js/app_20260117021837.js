@@ -545,7 +545,6 @@ function initApp() {
         } else {
             showView('catalog');
             // Se não é admin, não precisamos carregar todas as vendas do site, economiza dados
-            setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
         }
     });
 

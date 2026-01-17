@@ -541,11 +541,9 @@ function initApp() {
         if (user) {
             filterAndRenderProducts();
             loadAdminSales(); // Carrega vendas apenas se for admin
-            setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
         } else {
             showView('catalog');
             // Se não é admin, não precisamos carregar todas as vendas do site, economiza dados
-            setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
         }
     });
 
@@ -4615,6 +4613,7 @@ function renderStoreProfile() {
     }
 }
 
+// Função que controla a visibilidade do Rodapé
 // Função que controla a visibilidade do Rodapé
 window.checkFooter = () => {
     const footer = document.getElementById('store-footer');

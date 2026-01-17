@@ -4660,7 +4660,7 @@ window.cancelProfileEdit = () => {
     if (content) content.classList.add('hidden');
     if (arrow) arrow.style.transform = 'rotate(0deg)';
 
-    if (typeof window.checkFooter === 'function') window.checkFooter();
+    if (typeof window.checkFooter === 'function') window.checkFooter();admin123
 };
 
 // Função para carregar dados nos inputs de configuração
