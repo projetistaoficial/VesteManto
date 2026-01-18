@@ -21,7 +21,7 @@ export function initStatsModule() {
     const btnPeriod = document.getElementById('stats-toggle-period');
     const inputStart = document.getElementById('stats-date-start');
     const inputEnd = document.getElementById('stats-date-end');
-
+    
     // Configura datas iniciais (Hoje)
     if (inputStart && inputEnd) {
         const today = new Date().toISOString().split('T')[0];
@@ -99,7 +99,7 @@ export function updateStatsData(orders, products, dailyStats) {
     statsState.cachedOrders = orders || [];
     statsState.cachedProducts = products || [];
     // Garante que dailyStats seja um array
-    statsState.cachedDailyStats = Array.isArray(dailyStats) ? dailyStats : [];
+    statsState.cachedDailyStats = Array.isArray(dailyStats) ? dailyStats : []; 
     recalc();
 }
 
@@ -134,19 +134,20 @@ function recalc() {
 }
 
 function calculateKPIs(orders, dailyStats) {
-    // 1. Site Stats
+    // A. SITE STATS (Agora somado dinamicamente)
     let totalVisits = 0;
     let totalShares = 0;
+
     dailyStats.forEach(day => {
         totalVisits += (day.visits || 0);
         totalShares += (day.shares || 0);
     });
-    const elVisits = document.getElementById('st-visits');
-    const elShares = document.getElementById('st-shares');
-    if (elVisits) elVisits.innerText = `${totalVisits} Usuários`;
-    if (elShares) elShares.innerText = totalShares;
 
-    // 2. Capital de Giro
+    document.getElementById('st-visits').innerText = `${totalVisits} Usuários`;
+    document.getElementById('st-shares').innerText = totalShares;
+
+
+    // B. CAPITAL DE GIRO (Baseado em PRODUTOS)
     let capital = 0;
     statsState.cachedProducts.forEach(p => {
         if (p.stock > 0) {
@@ -154,28 +155,28 @@ function calculateKPIs(orders, dailyStats) {
             capital += p.stock * cost;
         }
     });
-    const elCapital = document.getElementById('st-capital');
-    if (elCapital) elCapital.innerText = formatBRL(capital);
+    document.getElementById('st-capital').innerText = formatBRL(capital);
 
-    // 3. Financeiro
+    // C. FINANCEIRO (Baseado em PEDIDOS)
     let salesCount = 0;
     let salesTotal = 0;
     let costTotal = 0;
     let refundedCount = 0;
     let cancelledCount = 0;
     let pendingCount = 0;
-
-    let totalAllOrders = orders.length;
+    let totalCreated = 0;
 
     orders.forEach(o => {
+        totalCreated++;
         const status = o.status;
+        
         if (status === 'Reembolsado') refundedCount++;
         if (status.includes('Cancelado')) cancelledCount++;
         if (status === 'Pendente' || status === 'Aguardando aprovação') pendingCount++;
 
         const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
-
-        if (validStatuses.includes(status) || status === 'Confirmado') {
+        
+        if (validStatuses.includes(status)) {
             salesCount++;
             salesTotal += (parseFloat(o.total) || 0);
 
@@ -195,52 +196,26 @@ function calculateKPIs(orders, dailyStats) {
 
     const profit = salesTotal - costTotal;
 
-    // --- ATUALIZAÇÃO DOS IDs ---
+    document.getElementById('st-cost').innerText = formatBRL(costTotal);
+    document.getElementById('st-sales-count').innerText = salesCount;
+    document.getElementById('st-sales-val').innerText = formatBRL(salesTotal);
+    document.getElementById('st-profit').innerText = formatBRL(profit);
 
-    // Pedidos e Vendas
-    const elTotalOrders = document.getElementById('st-total-orders');
-    if (elTotalOrders) elTotalOrders.innerText = totalAllOrders;
+    document.getElementById('st-refunded').innerText = refundedCount;
+    document.getElementById('st-cancelled').innerText = cancelledCount;
+    document.getElementById('st-pending').innerText = pendingCount;
 
-    const elSalesCount = document.getElementById('st-sales-count');
-    if (elSalesCount) elSalesCount.innerText = salesCount;
+    const rateApproval = totalCreated > 0 ? (salesCount / totalCreated) * 100 : 0;
+    const rateRefund = salesCount > 0 ? (refundedCount / salesCount) * 100 : 0;
+    const rateCancel = totalCreated > 0 ? (cancelledCount / totalCreated) * 100 : 0;
 
-    // Valor Total (Linha inteira)
-    const elSalesVal = document.getElementById('st-sales-val');
-    if (elSalesVal) elSalesVal.innerText = formatBRL(salesTotal);
-
-    // Custo Total (Voltou para a tela)
-    const elCost = document.getElementById('st-cost');
-    if (elCost) elCost.innerText = formatBRL(costTotal);
-
-    // Lucro Total
-    const elProfit = document.getElementById('st-profit');
-    if (elProfit) elProfit.innerText = formatBRL(profit);
-
-    // Gráficos menores (Taxas)
-    const elRefunded = document.getElementById('st-refunded');
-    const elCancelled = document.getElementById('st-cancelled');
-    const elPending = document.getElementById('st-pending');
-
-    if (elRefunded) elRefunded.innerText = refundedCount;
-    if (elCancelled) elCancelled.innerText = cancelledCount;
-    if (elPending) elPending.innerText = pendingCount;
-
-    const rateApproval = totalAllOrders > 0 ? (salesCount / totalAllOrders) * 100 : 0;
-    // Compara Reembolsados com o TOTAL DE PEDIDOS (Gera os 50% corretos)
-    const rateRefund = totalAllOrders > 0 ? (refundedCount / totalAllOrders) * 100 : 0;
-    const rateCancel = totalAllOrders > 0 ? (cancelledCount / totalAllOrders) * 100 : 0;
-
-    const elRateApp = document.getElementById('st-rate-approval');
-    const elRateRef = document.getElementById('st-rate-refund');
-    const elRateCan = document.getElementById('st-rate-cancel');
-
-    if (elRateApp) elRateApp.innerText = Math.round(rateApproval) + '%';
-    if (elRateRef) elRateRef.innerText = Math.round(rateRefund) + '%';
-    if (elRateCan) elRateCan.innerText = Math.round(rateCancel) + '%';
+    document.getElementById('st-rate-approval').innerText = Math.round(rateApproval) + '%';
+    document.getElementById('st-rate-refund').innerText = Math.round(rateRefund) + '%';
+    document.getElementById('st-rate-cancel').innerText = Math.round(rateCancel) + '%';
 }
 
 function calculateRankings(orders) {
-    const validOrders = orders.filter(o =>
+    const validOrders = orders.filter(o => 
         ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'].includes(o.status)
     );
 
@@ -319,7 +294,7 @@ function renderList(containerId, data, templateFn) {
     const container = document.getElementById(containerId);
     if (!container) return;
     container.innerHTML = '';
-
+    
     if (data.length === 0) {
         container.innerHTML = '<p class="text-gray-600 text-xs p-2">Sem dados neste período.</p>';
         return;

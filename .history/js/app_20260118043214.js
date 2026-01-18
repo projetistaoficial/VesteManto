@@ -2138,6 +2138,7 @@ function filterAndRenderSales() {
     const countEl = document.getElementById('orders-count');
     if (countEl) countEl.innerText = filtered.length;
 }
+}
 
 function renderSalesList(orders) {
     const listEl = document.getElementById('orders-list');
@@ -2463,7 +2464,7 @@ function setupEventListeners() {
         'filter-search-product', // <--- ADICIONEI O NOVO INPUT AQUI
         'filter-status',
         'filter-payment',
-        'filter-sort-order',
+        'filter-sort',
         'filter-date-start',
         'filter-date-end',
         'filter-search-code'
@@ -2477,19 +2478,16 @@ function setupEventListeners() {
         }
     });
 
-  // 3. Botão Limpar Filtros
+    // 3. Botão Limpar Filtros
     const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
-            // Limpa inputs de texto e outros selects
             idsFiltros.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
-
-            // --- CORREÇÃO AQUI ---
-            // Reseta o select de ordenação NOVO para "Mais Recentes"
-            const sort = document.getElementById('filter-sort-order');
+            // Reset do select de ordenação se existir
+            const sort = document.getElementById('filter-sort');
             if (sort) sort.value = 'date_desc';
 
             filterAndRenderSales();

@@ -2477,24 +2477,36 @@ function setupEventListeners() {
         }
     });
 
-  // 3. Botão Limpar Filtros
-    const btnClear = document.getElementById('btn-clear-filters');
-    if (btnClear) {
-        btnClear.onclick = () => {
-            // Limpa inputs de texto e outros selects
-            idsFiltros.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = '';
-            });
+    // 3. Botão Limpar Filtros
+   window.clearSalesFilters = () => {
+    // 1. Limpa os campos de texto e selects normais
+    const idsToClear = [
+        'filter-search-general', 
+        'filter-search-code',
+        'filter-search-product-value',
+        'filter-status', 
+        'filter-payment', 
+        'filter-date-start', 
+        'filter-date-end'
+    ];
+    
+    idsToClear.forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.value = '';
+    });
 
-            // --- CORREÇÃO AQUI ---
-            // Reseta o select de ordenação NOVO para "Mais Recentes"
-            const sort = document.getElementById('filter-sort-order');
-            if (sort) sort.value = 'date_desc';
-
-            filterAndRenderSales();
-        };
+    // 2. Reseta a Ordenação para o Padrão (Mais Recentes)
+    const sortEl = document.getElementById('filter-sort-order');
+    if (sortEl) {
+        sortEl.value = 'date_desc';
     }
+
+    // 3. Aplica a filtragem "zerada"
+    filterAndRenderSales();
+    
+    // (Opcional) Feedback visual
+    if (typeof showToast === 'function') showToast('Filtros limpos!', 'info');
+};
 
     // Dashboard Vendas Simples - Controles
     if (els.dashPrevDate) els.dashPrevDate.onclick = () => { if (state.dashViewMode === 'day') state.dashDate.setDate(state.dashDate.getDate() - 1); else state.dashDate.setMonth(state.dashDate.getMonth() - 1); updateDashboardUI(); };

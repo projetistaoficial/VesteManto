@@ -883,7 +883,9 @@ function calculateStatsMetrics() {
             }
         });
     }
-    if (els.statCapitalGiro) els.statCapitalGiro.innerText = formatCurrency(capitalGiro);
+    // Nota: O ID no HTML é 'st-capital', certifique-se que els.statCapitalGiro aponta para ele ou use getElementById
+    const elCap = document.getElementById('st-capital') || els.statCapitalGiro;
+    if (elCap) elCap.innerText = formatCurrency(capitalGiro);
 
     // --- 2. FILTRAGEM DE PEDIDOS ---
     if (!state.orders) return;
@@ -913,6 +915,9 @@ function calculateStatsMetrics() {
     let countRefunded = 0;
     let countCancelled = 0;
     let countPending = 0;
+
+    // --- NOVO: Contagem Total de Pedidos (Independente do Status) ---
+    let totalAllOrders = filteredOrders.length; 
 
     // Para KPIs
     let totalPaidOrders = 0; // Confirmado + Reembolsado (pedidos que foram pagos um dia)
@@ -949,12 +954,24 @@ function calculateStatsMetrics() {
 
     const totalProfit = totalSalesValue - totalCost;
 
-    // Renderização no DOM
-    if (els.statSalesCount) els.statSalesCount.innerText = totalSalesCount;
-    if (els.statSalesTotal) els.statSalesTotal.innerText = formatCurrency(totalSalesValue);
-    if (els.statCostTotal) els.statCostTotal.innerText = formatCurrency(totalCost);
-    if (els.statProfitTotal) els.statProfitTotal.innerText = formatCurrency(totalProfit);
+    // --- Renderização no DOM ---
+    
+    // NOVO: Atualiza o campo de Todos os Pedidos
+    const elTotalOrders = document.getElementById('st-total-orders');
+    if (elTotalOrders) elTotalOrders.innerText = totalAllOrders;
 
+    // Atualiza os campos existentes (Usando IDs do seu HTML novo ou o objeto els existente)
+    const elSalesCount = document.getElementById('st-sales-count') || els.statSalesCount;
+    if (elSalesCount) elSalesCount.innerText = totalSalesCount;
+
+    const elSalesVal = document.getElementById('st-sales-val') || els.statSalesTotal;
+    if (elSalesVal) elSalesVal.innerText = formatCurrency(totalSalesValue);
+
+    const elProfit = document.getElementById('st-profit') || els.statProfitTotal;
+    if (elProfit) elProfit.innerText = formatCurrency(totalProfit);
+
+    // Mantém os outros contadores se existirem na tela (cancelados, taxas, etc)
+    if (els.statCostTotal) els.statCostTotal.innerText = formatCurrency(totalCost);
     if (els.statRefunded) els.statRefunded.innerText = countRefunded;
     if (els.statCancelled) els.statCancelled.innerText = countCancelled;
     if (els.statPending) els.statPending.innerText = countPending;
@@ -2093,47 +2110,35 @@ function filterAndRenderSales() {
         return matchCode && matchGeneral && matchProduct && matchStatus && matchPayment && matchDate;
     });
 
-   // 3. ORDENAÇÃO ATUALIZADA (Select + Proximidade Numérica)
-    const sortVal = document.getElementById('filter-sort-order') ? document.getElementById('filter-sort-order').value : 'date_desc';
-
+    // 3. Ordenação Inteligente (Proximidade Numérica)
     filtered.sort((a, b) => {
-        // A. Se usuário digitou número, prioriza a proximidade (Lógica anterior mantida)
+        // SE o usuário digitou um número de pedido...
         if (termCode) {
             const target = parseInt(termCode);
             const codeA = parseInt(a.code) || 0;
             const codeB = parseInt(b.code) || 0;
+
+            // Calcula a distância absoluta (quem está mais perto do número digitado)
             const distA = Math.abs(codeA - target);
             const distB = Math.abs(codeB - target);
-            if (distA !== distB) return distA - distB;
+
+            // Se as distâncias forem diferentes, o menor ganha (mais perto)
+            if (distA !== distB) {
+                return distA - distB;
+            }
+            // Se forem iguais (improvável com ID único), desempata por data
         }
 
-        // B. Ordenação pelo Select (Data ou Valor)
+        // ORDENAÇÃO PADRÃO (Data Decrescente)
+        // Se não tiver busca por código, ou para desempatar
         const dateA = new Date(a.date).getTime();
         const dateB = new Date(b.date).getTime();
-        const valA = parseFloat(a.total) || 0;
-        const valB = parseFloat(b.total) || 0;
-
-        switch (sortVal) {
-            case 'val_desc': // Maior Valor
-                return valB - valA;
-            case 'val_asc':  // Menor Valor
-                return valA - valB;
-            case 'date_asc': // Mais Antigo
-                return dateA - dateB;
-            case 'date_desc': // Mais Recente (Padrão)
-            default:
-                return dateB - dateA;
-        }
+        return dateB - dateA;
     });
 
-    // 4. CÁLCULO DO TOTAL FILTRADO (NOVO)
-    const totalValueFiltered = filtered.reduce((acc, order) => acc + (parseFloat(order.total) || 0), 0);
-    const totalDisplay = document.getElementById('orders-filtered-total');
-    if (totalDisplay) totalDisplay.innerText = formatCurrency(totalValueFiltered);
-
-    // 5. Renderiza e Atualiza Contadores
+    // 4. Renderiza
     renderSalesList(filtered);
-    if (typeof renderOrdersSummary === 'function') renderOrdersSummary(filtered, status);
+    renderOrdersSummary(filtered, status);
 
     const countEl = document.getElementById('orders-count');
     if (countEl) countEl.innerText = filtered.length;
@@ -2463,7 +2468,7 @@ function setupEventListeners() {
         'filter-search-product', // <--- ADICIONEI O NOVO INPUT AQUI
         'filter-status',
         'filter-payment',
-        'filter-sort-order',
+        'filter-sort',
         'filter-date-start',
         'filter-date-end',
         'filter-search-code'
@@ -2477,19 +2482,16 @@ function setupEventListeners() {
         }
     });
 
-  // 3. Botão Limpar Filtros
+    // 3. Botão Limpar Filtros
     const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
-            // Limpa inputs de texto e outros selects
             idsFiltros.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
-
-            // --- CORREÇÃO AQUI ---
-            // Reseta o select de ordenação NOVO para "Mais Recentes"
-            const sort = document.getElementById('filter-sort-order');
+            // Reset do select de ordenação se existir
+            const sort = document.getElementById('filter-sort');
             if (sort) sort.value = 'date_desc';
 
             filterAndRenderSales();

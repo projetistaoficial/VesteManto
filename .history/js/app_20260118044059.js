@@ -2477,19 +2477,16 @@ function setupEventListeners() {
         }
     });
 
-  // 3. Botão Limpar Filtros
+    // 3. Botão Limpar Filtros
     const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
-            // Limpa inputs de texto e outros selects
             idsFiltros.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
-
-            // --- CORREÇÃO AQUI ---
-            // Reseta o select de ordenação NOVO para "Mais Recentes"
-            const sort = document.getElementById('filter-sort-order');
+            // Reset do select de ordenação se existir
+            const sort = document.getElementById('filter-sort');
             if (sort) sort.value = 'date_desc';
 
             filterAndRenderSales();

@@ -418,30 +418,8 @@
                 </div>
 
 
-                <div
-                    class="flex flex-col md:flex-row justify-between items-center mb-4 gap-3 border-b border-gray-800 pb-2">
-
-                    <h3 class="text-yellow-500 font-bold text-sm uppercase">
-                        Lista de Pedidos (<span id="orders-count">0</span>)
-                    </h3>
-
-                    <div class="flex items-center gap-4 w-full md:w-auto">
-
-                        <select id="filter-sort-order" onchange="filterAndRenderSales()"
-                            class="bg-gray-900 text-white text-xs border border-gray-700 rounded px-2 py-1 outline-none focus:border-yellow-500 flex-1 md:flex-none">
-                            <option value="date_desc">Mais Recentes</option>
-                            <option value="date_asc">Mais Antigos</option>
-                            <option value="val_desc">Maior Valor</option>
-                            <option value="val_asc">Menor Valor</option>
-                        </select>
-
-                        <div class="text-right">
-                            <span class="text-[10px] text-gray-500 block uppercase font-bold">Total Listado</span>
-                            <span id="orders-filtered-total" class="text-green-400 font-bold text-sm">R$ 0,00</span>
-                        </div>
-                    </div>
-                </div>
-
+                <h3 class="text-yellow-500 font-bold mb-2">Lista de Pedidos (<span id="orders-count">0</span>
+                    encontrados)</h3>
                 <div id="orders-list" class="space-y-3"></div>
             </div>
 
@@ -656,56 +634,39 @@
                     </div>
                 </div>
 
-                <div>
-                    <h3 class="text-yellow-500 font-bold text-sm uppercase mb-3 border-l-4 border-yellow-500 pl-2">
-                        Financeiro
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="mb-8">
+    <h3 class="text-yellow-500 font-bold uppercase text-xs border-l-4 border-yellow-500 pl-2 mb-4">Financeiro</h3>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        
+        <div class="md:col-span-2 bg-[#0a0a0a] border border-gray-800 rounded-xl p-4 relative overflow-hidden group hover:border-gray-700 transition">
+            <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Capital de Giro (Estoque)</p>
+            <h4 id="stat-capital-giro" class="text-3xl font-extrabold text-green-500 tracking-tight">R$ 0,00</h4>
+            <span class="absolute top-4 right-4 text-[9px] bg-gray-800 text-gray-400 px-2 py-1 rounded border border-gray-700">FIXO - ATUALMENTE</span>
+        </div>
 
-                        <div class="md:col-span-2 bg-black border border-gray-800 rounded-xl p-6 relative shadow-lg">
-                            <span class="text-yellow-500 font-bold text-xs uppercase block mb-1">Capital de Giro
-                                (Estoque)</span>
-                            <span id="st-capital" class="text-3xl font-bold text-green-500">R$ 0,00</span>
-                            <span class="absolute bottom-4 right-4 text-[10px] font-bold text-gray-600 uppercase">Fixo -
-                                Atualmente</span>
-                        </div>
+        <div class="bg-[#0a0a0a] border border-gray-800 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+            <p class="text-[10px] text-yellow-500 font-bold uppercase tracking-widest mb-1">Vendas Confirmadas</p>
+            <h4 id="stat-sales-count" class="text-2xl font-bold text-white">0</h4>
+        </div>
 
-                        <div
-                            class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg flex flex-col justify-center">
-                            <span class="text-blue-500 font-bold text-xs uppercase block mb-2">Pedidos Realizados
-                                (Tudo)</span>
-                            <span id="st-total-orders" class="text-3xl font-bold text-white">0</span>
-                        </div>
+        <div class="bg-[#0a0a0a] border border-gray-800 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+            <p class="text-[10px] text-blue-500 font-bold uppercase tracking-widest mb-1">Pedidos Realizados (Tudo)</p>
+            <h4 id="stat-total-orders-count" class="text-2xl font-bold text-white">0</h4>
+        </div>
 
-                        <div
-                            class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg flex flex-col justify-center">
-                            <span class="text-yellow-500 font-bold text-xs uppercase block mb-2">Vendas Totais
-                                (Confirmadas)</span>
-                            <span id="st-sales-count" class="text-3xl font-bold text-green-500">0</span>
-                        </div>
+        <div class="bg-[#0a0a0a] border border-gray-800 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+            <p class="text-[10px] text-orange-500 font-bold uppercase tracking-widest mb-1">Valor Total de Vendas</p>
+            <h4 id="stat-sales-total" class="text-2xl font-bold text-green-400">R$ 0,00</h4>
+        </div>
 
-                        <div
-                            class="md:col-span-2 bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg flex flex-col justify-center border-t-4 border-t-orange-500/20">
-                            <span class="text-orange-500 font-bold text-xs uppercase block mb-2">Valor Total de
-                                Vendas</span>
-                            <span id="st-sales-val" class="text-4xl font-extrabold text-green-400">R$ 0,00</span>
-                        </div>
+        <div class="bg-[#0a0a0a] border border-gray-800 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+            <p class="text-[10px] text-green-500 font-bold uppercase tracking-widest mb-1">Lucro Líquido</p>
+            <h4 id="stat-profit-total" class="text-2xl font-bold text-green-500">R$ 0,00</h4>
+        </div>
 
-                        <div
-                            class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg flex flex-col justify-center">
-                            <span class="text-red-500 font-bold text-xs uppercase block mb-2">Custo Total</span>
-                            <span id="st-cost" class="text-3xl font-bold text-red-400">R$ 0,00</span>
-                        </div>
-
-                        <div
-                            class="bg-black border border-gray-800 rounded-xl p-6 text-center shadow-lg relative overflow-hidden flex flex-col justify-center">
-                            <div class="absolute inset-x-0 bottom-0 h-1 bg-green-500"></div>
-                            <span class="text-green-500 font-bold text-xs uppercase block mb-2">Lucro Líquido</span>
-                            <span id="st-profit" class="text-3xl font-bold text-green-500">R$ 0,00</span>
-                        </div>
-
-                    </div>
-                </div>
+    </div>
+</div>
 
                 <div>
                     <h3 class="text-yellow-500 font-bold text-sm uppercase mb-3 border-l-4 border-yellow-500 pl-2">

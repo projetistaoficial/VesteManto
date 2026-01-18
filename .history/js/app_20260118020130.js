@@ -37,13 +37,12 @@ function formatarEnderecoAdmin(customer) {
 
     // 2. Cria a string completa para Copiar e para o Link do Maps
     const fullAddress = `${rua}, ${numero}${complemento} - ${bairro} - CEP: ${cep}`;
-    const AddressMaps = `${rua}, ${numero} - ${bairro} - CEP: ${cep}`;
-
+    
     // Escapa aspas para não quebrar o HTML do botão
-    const safeAddress = fullAddress.replace(/'/g, "\\'");
-
+    const safeAddress = fullAddress.replace(/'/g, "\\'"); 
+    
     // Gera link do Google Maps
-    const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(AddressMaps)}`;
+    const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
 
     return `
         <div class="flex flex-col gap-2">
@@ -1244,8 +1243,8 @@ function renderCategories() {
                                 ${key}
                             </span>
                             
-                            <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">
-                                ▲
+                            <span class="text-gray-500 text-[10px] transform transition-transform duration-200 group-open:rotate-180 p-2">
+                                ▼
                             </span>
                         </summary>
                         <div class="border-l border-gray-800 ml-4">
@@ -1382,7 +1381,7 @@ function renderAdminCategoryList() {
                     <div class="flex items-center gap-3">
                         ${hasChildren ?
                     `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
-                                <span class="text-gray-300 text-sm group-open:text-yellow-500">▲</span>
+                                <span class="text-gray-300 text-xs group-open:text-yellow-500">▼</span>
                              </div>`
                     : ''}
 
@@ -1892,55 +1891,45 @@ function renderAdminCoupons() {
     if (!els.couponListAdmin) return;
 
     els.couponListAdmin.innerHTML = state.coupons.map((c, index) => {
-
-        // Formatação do valor (R$ ou %)
-        const typeDisplay = c.type === 'percent'
-            ? `<span class="text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded text-[10px] whitespace-nowrap">${c.val}% OFF</span>`
-            : `<span class="text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded text-[10px] whitespace-nowrap">${formatCurrency(c.val)} OFF</span>`;
+        // ... (código de formatação de valores e datas mantém igual) ...
+        const typeDisplay = c.type === 'percent' ? `<span class="text-green-400 font-bold">${c.val}%</span>` : `<span class="text-green-400 font-bold">${formatCurrency(c.val)}</span>`;
 
         let isExpired = false;
-        let expiryDisplay = `<span class="text-[10px] text-green-500 font-bold flex items-center gap-1 whitespace-nowrap"><i class="fas fa-infinity text-[8px]"></i> Permanente</span>`;
+        let expiryDisplay = `<span class="text-xs text-green-500 font-bold">∞ Permanente</span>`;
 
         if (c.expiryDate) {
             const expiryDate = new Date(c.expiryDate);
             const now = new Date();
-            // Formatação de data curta para mobile
-            const dateStr = expiryDate.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-
             if (now > expiryDate) {
                 isExpired = true;
-                // 'w-fit' e 'block' ajudam a não quebrar o layout lateralmente
-                expiryDisplay = `<span class="text-[9px] text-red-400 font-bold bg-red-900/20 px-2 py-0.5 rounded border border-red-900/50 block mt-1 w-fit">EXPIRADO: ${dateStr}</span>`;
+                expiryDisplay = `<span class="text-xs text-red-500 font-bold bg-red-900/30 px-2 py-0.5 rounded">EXPIRADO: ${expiryDate.toLocaleString()}</span>`;
             } else {
-                expiryDisplay = `<span class="text-[10px] text-gray-400 whitespace-nowrap">Expira: <span class="text-white font-bold">${dateStr}</span></span>`;
+                expiryDisplay = `<span class="text-xs text-white">Expira em: <span class="font-bold">${expiryDate.toLocaleString()}</span></span>`;
             }
         }
 
         const borderClass = isExpired ? 'border-red-600 opacity-75' : 'border-green-500';
         const isFocused = index === state.focusedCouponIndex;
-        // Adicionado 'w-full' aqui no container
-        const bgClass = isFocused ? 'bg-gray-700 ring-1 ring-yellow-500 z-10' : 'bg-[#151720] border-gray-800';
+        const bgClass = isFocused ? 'bg-gray-700 ring-2 ring-yellow-500 z-10' : 'bg-gray-800';
 
+        // --- A MUDANÇA ESTÁ AQUI EMBAIXO (onclick="selectCoupon") ---
         return `
             <div id="coupon-item-${index}" 
                  onclick="selectCoupon(${index})" 
                  ondblclick="editCoupon('${c.id}')" 
-                 class="${bgClass} w-full border-l-4 ${borderClass} p-3 rounded-lg flex justify-between items-center shadow-sm mb-2 cursor-pointer transition select-none group relative overflow-hidden">
+                 class="${bgClass} border-l-4 ${borderClass} p-3 rounded flex justify-between items-center shadow-sm mb-2 cursor-pointer transition select-none group relative">
                 
-                ${isFocused ? '<div class="absolute -left-2 top-1/2 -translate-y-1/2 text-yellow-500 text-xs"><i class="fas fa-caret-right"></i></div>' : ''}
+                ${isFocused ? '<div class="absolute -left-2 top-1/2 -translate-y-1/2 text-yellow-500"><i class="fas fa-caret-right"></i></div>' : ''}
 
-                <div class="flex flex-col flex-1 min-w-0 pr-3 pointer-events-none">
-                    <span class="text-yellow-500 font-bold text-base tracking-wider truncate group-hover:text-white transition w-full block">${c.code}</span>
-                    
-                    <div class="flex flex-wrap items-center gap-2 mt-1">
+                <div class="flex flex-col pointer-events-none">
+                    <span class="text-yellow-500 font-bold text-lg tracking-wider group-hover:text-white transition">${c.code}</span>
+                    <div class="flex gap-2 items-center flex-wrap">
                         ${typeDisplay}
-                        ${!isExpired ? expiryDisplay : ''}
+                        ${expiryDisplay}
                     </div>
-                    ${isExpired ? expiryDisplay : ''}
                 </div>
                 
-                <button onclick="event.stopPropagation(); deleteCoupon('${c.id}')" 
-                        class="w-9 h-9 shrink-0 flex items-center justify-center bg-red-600/10 text-red-500 border border-red-600/30 hover:bg-red-600 hover:text-white rounded transition z-20 active:scale-95">
+                <button onclick="event.stopPropagation(); deleteCoupon('${c.id}')" class="w-8 h-8 flex items-center justify-center bg-red-600 hover:bg-red-700 rounded text-white transition z-20">
                     <i class="fas fa-trash-alt text-xs"></i>
                 </button>
             </div>
@@ -2093,47 +2082,35 @@ function filterAndRenderSales() {
         return matchCode && matchGeneral && matchProduct && matchStatus && matchPayment && matchDate;
     });
 
-   // 3. ORDENAÇÃO ATUALIZADA (Select + Proximidade Numérica)
-    const sortVal = document.getElementById('filter-sort-order') ? document.getElementById('filter-sort-order').value : 'date_desc';
-
+    // 3. Ordenação Inteligente (Proximidade Numérica)
     filtered.sort((a, b) => {
-        // A. Se usuário digitou número, prioriza a proximidade (Lógica anterior mantida)
+        // SE o usuário digitou um número de pedido...
         if (termCode) {
             const target = parseInt(termCode);
             const codeA = parseInt(a.code) || 0;
             const codeB = parseInt(b.code) || 0;
+
+            // Calcula a distância absoluta (quem está mais perto do número digitado)
             const distA = Math.abs(codeA - target);
             const distB = Math.abs(codeB - target);
-            if (distA !== distB) return distA - distB;
+
+            // Se as distâncias forem diferentes, o menor ganha (mais perto)
+            if (distA !== distB) {
+                return distA - distB;
+            }
+            // Se forem iguais (improvável com ID único), desempata por data
         }
 
-        // B. Ordenação pelo Select (Data ou Valor)
+        // ORDENAÇÃO PADRÃO (Data Decrescente)
+        // Se não tiver busca por código, ou para desempatar
         const dateA = new Date(a.date).getTime();
         const dateB = new Date(b.date).getTime();
-        const valA = parseFloat(a.total) || 0;
-        const valB = parseFloat(b.total) || 0;
-
-        switch (sortVal) {
-            case 'val_desc': // Maior Valor
-                return valB - valA;
-            case 'val_asc':  // Menor Valor
-                return valA - valB;
-            case 'date_asc': // Mais Antigo
-                return dateA - dateB;
-            case 'date_desc': // Mais Recente (Padrão)
-            default:
-                return dateB - dateA;
-        }
+        return dateB - dateA;
     });
 
-    // 4. CÁLCULO DO TOTAL FILTRADO (NOVO)
-    const totalValueFiltered = filtered.reduce((acc, order) => acc + (parseFloat(order.total) || 0), 0);
-    const totalDisplay = document.getElementById('orders-filtered-total');
-    if (totalDisplay) totalDisplay.innerText = formatCurrency(totalValueFiltered);
-
-    // 5. Renderiza e Atualiza Contadores
+    // 4. Renderiza
     renderSalesList(filtered);
-    if (typeof renderOrdersSummary === 'function') renderOrdersSummary(filtered, status);
+    renderOrdersSummary(filtered, status);
 
     const countEl = document.getElementById('orders-count');
     if (countEl) countEl.innerText = filtered.length;
@@ -2162,7 +2139,7 @@ function renderSalesList(orders) {
         const borderClass = isNew ? "border-green-500 border-l-4 bg-green-900/10" : "border-gray-800 bg-black";
         const badgeHtml = isNew ? `<span class="ml-2 bg-green-600 text-white text-[9px] font-bold px-2 py-0.5 rounded animate-pulse shadow-lg">NOVO</span>` : "";
         const clickAction = `toggleOrderAccordion('${o.id}'); markAsViewed('${o.id}')`;
-
+        
         const isOpen = openOrderIds.has(o.id);
         const contentVisibility = isOpen ? "" : "hidden";
         const arrowRotation = isOpen ? "rotate(180deg)" : "rotate(0deg)";
@@ -2187,11 +2164,11 @@ function renderSalesList(orders) {
         `).join('');
 
         // --- LÓGICA FINANCEIRA DETALHADA ---
-        // --- LÓGICA FINANCEIRA DETALHADA (CORRIGIDA) ---
+       // --- LÓGICA FINANCEIRA DETALHADA (CORRIGIDA) ---
         const subTotalItens = o.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
         const valFrete = o.shippingFee || 0;
         const valTotalPago = o.total || 0;
-
+        
         // Cálculo matemático simples (pode ser zerado se tiver juros)
         const valDescontoTotal = Math.max(0, (subTotalItens + valFrete) - valTotalPago);
 
@@ -2205,7 +2182,7 @@ function renderSalesList(orders) {
         if (o.couponData && o.couponData.value) {
             valDescontoCupom = o.couponData.value;
             nomeCupom = o.couponData.code;
-        }
+        } 
         // Fallback para pedidos antigos
         else if (o.cupom && o.cupom.trim().length > 0) {
             nomeCupom = o.cupom;
@@ -2217,11 +2194,11 @@ function renderSalesList(orders) {
         // 2. CONDIÇÃO CORRIGIDA: Entra se tiver desconto matemático OU se tiver um cupom nomeado
         // Isso garante que mesmo que os juros "comam" o valor do desconto, o nome do cupom aparece.
         if (valDescontoTotal > 0.05 || nomeCupom) {
-
+            
             // O que sobrar do desconto total é Pix (ou ajuste manual)
             // (Total Esperado sem Pix = Subtotal + Frete - Cupom)
             const totalEsperadoSemPix = (subTotalItens + valFrete) - valDescontoCupom;
-
+            
             // Se o total pago for MAIOR que o esperado (juros), o desconto Pix é 0.
             const valDescontoPix = Math.max(0, totalEsperadoSemPix - valTotalPago);
 
@@ -2463,7 +2440,7 @@ function setupEventListeners() {
         'filter-search-product', // <--- ADICIONEI O NOVO INPUT AQUI
         'filter-status',
         'filter-payment',
-        'filter-sort-order',
+        'filter-sort',
         'filter-date-start',
         'filter-date-end',
         'filter-search-code'
@@ -2477,19 +2454,16 @@ function setupEventListeners() {
         }
     });
 
-  // 3. Botão Limpar Filtros
+    // 3. Botão Limpar Filtros
     const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
-            // Limpa inputs de texto e outros selects
             idsFiltros.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
-
-            // --- CORREÇÃO AQUI ---
-            // Reseta o select de ordenação NOVO para "Mais Recentes"
-            const sort = document.getElementById('filter-sort-order');
+            // Reset do select de ordenação se existir
+            const sort = document.getElementById('filter-sort');
             if (sort) sort.value = 'date_desc';
 
             filterAndRenderSales();
@@ -2851,33 +2825,6 @@ function setupEventListeners() {
             }
         };
     }
-
-    // --- MONITORAMENTO DE CAMPOS DO CUPOM (Auto-Show Cancelar) ---
-    const couponInputsIds = ['coupon-code', 'coupon-val', 'coupon-expiry'];
-
-    couponInputsIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('input', () => {
-                const btnCancel = document.getElementById('btn-cancel-coupon');
-
-                // Verifica se ALGUM campo tem valor
-                const hasValue = couponInputsIds.some(inputId => {
-                    const input = document.getElementById(inputId);
-                    return input && input.value.trim() !== '';
-                });
-
-                // Se tiver valor OU estiver editando, mostra o botão. Senão, esconde.
-                if (btnCancel) {
-                    if (hasValue || state.editingCouponId) {
-                        btnCancel.classList.remove('hidden');
-                    } else {
-                        btnCancel.classList.add('hidden');
-                    }
-                }
-            });
-        }
-    });
 
     if (els.toggleStockGlobal) {
         els.toggleStockGlobal.addEventListener('change', async (e) => {
@@ -4521,14 +4468,12 @@ window.editCoupon = (id) => {
     const c = state.coupons.find(x => x.id === id);
     if (!c) return;
 
-    // Preenche os campos
     getEl('coupon-code').value = c.code;
     getEl('coupon-val').value = c.val;
     getEl('coupon-is-percent').checked = (c.type === 'percent');
 
     if (c.expiryDate) {
         const d = new Date(c.expiryDate);
-        // Ajuste de fuso horário para o input datetime-local funcionar corretamente
         d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
         getEl('coupon-expiry').value = d.toISOString().slice(0, 16);
     } else {
@@ -4537,49 +4482,34 @@ window.editCoupon = (id) => {
 
     state.editingCouponId = id;
 
-    // --- ATUALIZAÇÃO DOS BOTÕES ---
-
-    // 1. Muda o botão principal para "Salvar" (Azul)
-    const btnAdd = getEl('btn-add-coupon');
-    if (btnAdd) {
-        btnAdd.innerHTML = '<i class="fas fa-save"></i> <span>Salvar Alteração</span>';
-        btnAdd.classList.replace('bg-green-600', 'bg-blue-600');
-        btnAdd.classList.replace('hover:bg-green-500', 'hover:bg-blue-500');
-    }
-
-    // 2. Mostra o botão Cancelar
-    const btnCancel = getEl('btn-cancel-coupon');
-    if (btnCancel) {
-        btnCancel.classList.remove('hidden');
+    const btn = getEl('btn-add-coupon');
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-save mr-2"></i> SALVAR';
+        btn.classList.replace('bg-green-600', 'bg-blue-600');
+        btn.classList.replace('hover:bg-green-700', 'hover:bg-blue-700');
     }
 
     getEl('coupon-code').focus();
+    // Mensagem discreta
     showToast(`Editando: ${c.code}`, 'info');
+    state.editingCouponId = id;
 };
 
 window.resetCouponForm = () => {
-    // 1. Limpa os campos
+    // Limpa os campos
     getEl('coupon-code').value = '';
     getEl('coupon-val').value = '';
     getEl('coupon-expiry').value = '';
-    getEl('coupon-is-percent').checked = false;
 
-    // 2. Reseta o ID de edição
+    // Reseta o ID de edição para NULL (Isso é o mais importante para evitar o erro)
     state.editingCouponId = null;
 
-    // 3. Reseta o botão principal para "Criar" (Verde)
-    const btnAdd = getEl('btn-add-coupon');
-    if (btnAdd) {
-        btnAdd.innerHTML = '<i class="fas fa-plus"></i> <span>Criar Cupom</span>';
-        // Remove classes azuis e poe verdes
-        btnAdd.classList.remove('bg-blue-600', 'hover:bg-blue-500');
-        btnAdd.classList.add('bg-green-600', 'hover:bg-green-500');
-    }
-
-    // 4. Esconde o botão Cancelar
-    const btnCancel = getEl('btn-cancel-coupon');
-    if (btnCancel) {
-        btnCancel.classList.add('hidden');
+    // Volta o botão para o visual "Adicionar" (Verde)
+    const btn = getEl('btn-add-coupon');
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-plus"></i>';
+        btn.classList.replace('bg-blue-600', 'bg-green-600');
+        btn.classList.replace('hover:bg-blue-700', 'hover:bg-green-700');
     }
 };
 
@@ -4720,11 +4650,11 @@ window.checkFooter = () => {
     if (!footer) return;
 
     // --- CORREÇÃO: Usando os IDs exatos do seu HTML ---
-    const adminScreen = document.getElementById('view-admin');
-    const supportScreen = document.getElementById('view-support');
-
+    const adminScreen = document.getElementById('view-admin'); 
+    const supportScreen = document.getElementById('view-support'); 
+    
     // Menu de edição de perfil (caso abra fora do admin)
-    const editProfile = document.getElementById('content-acc-profile');
+    const editProfile = document.getElementById('content-acc-profile'); 
 
     // Verifica se as telas estão VISÍVEIS (sem a classe hidden)
     const isAdminVisible = adminScreen && !adminScreen.classList.contains('hidden');

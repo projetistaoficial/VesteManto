@@ -871,103 +871,7 @@ function updateStatsUI() {
     calculateStatsMetrics();
 }
 
-function calculateStatsMetrics() {
-    // --- 1. CAPITAL DE GIRO (Independente de Filtros de Data) ---
-    // Regra: Estoque Atual * (Preço Promo ou Preço Normal)
-    let capitalGiro = 0;
-    if (state.products) {
-        state.products.forEach(p => {
-            if (p.stock > 0) {
-                const val = p.promoPrice || p.price;
-                capitalGiro += p.stock * val;
-            }
-        });
-    }
-    if (els.statCapitalGiro) els.statCapitalGiro.innerText = formatCurrency(capitalGiro);
 
-    // --- 2. FILTRAGEM DE PEDIDOS ---
-    if (!state.orders) return;
-
-    let filteredOrders = state.orders;
-
-    if (state.statsFilterType === 'period') {
-        filteredOrders = state.orders.filter(o => {
-            const orderDate = new Date(o.date);
-            const statsDate = state.statsDate;
-
-            // Comparação precisa de datas
-            const sameYear = orderDate.getFullYear() === statsDate.getFullYear();
-            const sameMonth = orderDate.getMonth() === statsDate.getMonth();
-            const sameDay = orderDate.getDate() === statsDate.getDate();
-
-            if (state.statsViewMode === 'month') return sameYear && sameMonth;
-            return sameYear && sameMonth && sameDay;
-        });
-    }
-
-    // --- 3. CÁLCULOS FINANCEIROS E KPIS ---
-    let totalSalesCount = 0;
-    let totalSalesValue = 0;
-    let totalCost = 0;
-
-    let countRefunded = 0;
-    let countCancelled = 0;
-    let countPending = 0;
-
-    // Para KPIs
-    let totalPaidOrders = 0; // Confirmado + Reembolsado (pedidos que foram pagos um dia)
-    let totalCreatedOrders = filteredOrders.length; // Todos gerados
-
-    filteredOrders.forEach(o => {
-        if (o.status === 'Reembolsado') {
-            countRefunded++;
-            totalPaidOrders++;
-        }
-        if (o.status === 'Cancelado') countCancelled++;
-        if (o.status === 'Pendente') countPending++;
-
-        if (o.status === 'Confirmado') {
-            totalSalesCount++;
-            totalPaidOrders++;
-            totalSalesValue += o.total;
-
-            // Cálculo de Custo e Lucro
-            o.items.forEach(item => {
-                let itemCost = 0;
-                // Prioridade 1: Custo salvo no momento da venda (histórico)
-                if (item.cost !== undefined) {
-                    itemCost = item.cost;
-                } else {
-                    // Prioridade 2: Custo atual do produto (fallback)
-                    const currentProd = state.products.find(p => p.id === item.id);
-                    if (currentProd) itemCost = currentProd.cost || 0;
-                }
-                totalCost += itemCost * item.qty;
-            });
-        }
-    });
-
-    const totalProfit = totalSalesValue - totalCost;
-
-    // Renderização no DOM
-    if (els.statSalesCount) els.statSalesCount.innerText = totalSalesCount;
-    if (els.statSalesTotal) els.statSalesTotal.innerText = formatCurrency(totalSalesValue);
-    if (els.statCostTotal) els.statCostTotal.innerText = formatCurrency(totalCost);
-    if (els.statProfitTotal) els.statProfitTotal.innerText = formatCurrency(totalProfit);
-
-    if (els.statRefunded) els.statRefunded.innerText = countRefunded;
-    if (els.statCancelled) els.statCancelled.innerText = countCancelled;
-    if (els.statPending) els.statPending.innerText = countPending;
-
-    // KPIs Percentuais
-    const approvalRate = totalCreatedOrders > 0 ? (totalSalesCount / totalCreatedOrders) * 100 : 0;
-    if (els.statRateApproval) els.statRateApproval.innerText = Math.round(approvalRate) + '%';
-
-    const refundRate = totalPaidOrders > 0 ? (countRefunded / totalPaidOrders) * 100 : 0;
-    if (els.statRateRefund) els.statRateRefund.innerText = Math.round(refundRate) + '%';
-
-    calculateTrend30();
-}
 
 function calculateTrend30() {
     // Tendência fixa de 30 dias (independente do filtro de data visual)
@@ -2093,47 +1997,35 @@ function filterAndRenderSales() {
         return matchCode && matchGeneral && matchProduct && matchStatus && matchPayment && matchDate;
     });
 
-   // 3. ORDENAÇÃO ATUALIZADA (Select + Proximidade Numérica)
-    const sortVal = document.getElementById('filter-sort-order') ? document.getElementById('filter-sort-order').value : 'date_desc';
-
+    // 3. Ordenação Inteligente (Proximidade Numérica)
     filtered.sort((a, b) => {
-        // A. Se usuário digitou número, prioriza a proximidade (Lógica anterior mantida)
+        // SE o usuário digitou um número de pedido...
         if (termCode) {
             const target = parseInt(termCode);
             const codeA = parseInt(a.code) || 0;
             const codeB = parseInt(b.code) || 0;
+
+            // Calcula a distância absoluta (quem está mais perto do número digitado)
             const distA = Math.abs(codeA - target);
             const distB = Math.abs(codeB - target);
-            if (distA !== distB) return distA - distB;
+
+            // Se as distâncias forem diferentes, o menor ganha (mais perto)
+            if (distA !== distB) {
+                return distA - distB;
+            }
+            // Se forem iguais (improvável com ID único), desempata por data
         }
 
-        // B. Ordenação pelo Select (Data ou Valor)
+        // ORDENAÇÃO PADRÃO (Data Decrescente)
+        // Se não tiver busca por código, ou para desempatar
         const dateA = new Date(a.date).getTime();
         const dateB = new Date(b.date).getTime();
-        const valA = parseFloat(a.total) || 0;
-        const valB = parseFloat(b.total) || 0;
-
-        switch (sortVal) {
-            case 'val_desc': // Maior Valor
-                return valB - valA;
-            case 'val_asc':  // Menor Valor
-                return valA - valB;
-            case 'date_asc': // Mais Antigo
-                return dateA - dateB;
-            case 'date_desc': // Mais Recente (Padrão)
-            default:
-                return dateB - dateA;
-        }
+        return dateB - dateA;
     });
 
-    // 4. CÁLCULO DO TOTAL FILTRADO (NOVO)
-    const totalValueFiltered = filtered.reduce((acc, order) => acc + (parseFloat(order.total) || 0), 0);
-    const totalDisplay = document.getElementById('orders-filtered-total');
-    if (totalDisplay) totalDisplay.innerText = formatCurrency(totalValueFiltered);
-
-    // 5. Renderiza e Atualiza Contadores
+    // 4. Renderiza
     renderSalesList(filtered);
-    if (typeof renderOrdersSummary === 'function') renderOrdersSummary(filtered, status);
+    renderOrdersSummary(filtered, status);
 
     const countEl = document.getElementById('orders-count');
     if (countEl) countEl.innerText = filtered.length;
@@ -2463,7 +2355,7 @@ function setupEventListeners() {
         'filter-search-product', // <--- ADICIONEI O NOVO INPUT AQUI
         'filter-status',
         'filter-payment',
-        'filter-sort-order',
+        'filter-sort',
         'filter-date-start',
         'filter-date-end',
         'filter-search-code'
@@ -2477,19 +2369,16 @@ function setupEventListeners() {
         }
     });
 
-  // 3. Botão Limpar Filtros
+    // 3. Botão Limpar Filtros
     const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
-            // Limpa inputs de texto e outros selects
             idsFiltros.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
-
-            // --- CORREÇÃO AQUI ---
-            // Reseta o select de ordenação NOVO para "Mais Recentes"
-            const sort = document.getElementById('filter-sort-order');
+            // Reset do select de ordenação se existir
+            const sort = document.getElementById('filter-sort');
             if (sort) sort.value = 'date_desc';
 
             filterAndRenderSales();

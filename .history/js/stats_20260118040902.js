@@ -21,7 +21,7 @@ export function initStatsModule() {
     const btnPeriod = document.getElementById('stats-toggle-period');
     const inputStart = document.getElementById('stats-date-start');
     const inputEnd = document.getElementById('stats-date-end');
-
+    
     // Configura datas iniciais (Hoje)
     if (inputStart && inputEnd) {
         const today = new Date().toISOString().split('T')[0];
@@ -99,7 +99,7 @@ export function updateStatsData(orders, products, dailyStats) {
     statsState.cachedOrders = orders || [];
     statsState.cachedProducts = products || [];
     // Garante que dailyStats seja um array
-    statsState.cachedDailyStats = Array.isArray(dailyStats) ? dailyStats : [];
+    statsState.cachedDailyStats = Array.isArray(dailyStats) ? dailyStats : []; 
     recalc();
 }
 
@@ -164,7 +164,7 @@ function calculateKPIs(orders, dailyStats) {
     let refundedCount = 0;
     let cancelledCount = 0;
     let pendingCount = 0;
-
+    
     let totalAllOrders = orders.length;
 
     orders.forEach(o => {
@@ -174,7 +174,7 @@ function calculateKPIs(orders, dailyStats) {
         if (status === 'Pendente' || status === 'Aguardando aprovação') pendingCount++;
 
         const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
-
+        
         if (validStatuses.includes(status) || status === 'Confirmado') {
             salesCount++;
             salesTotal += (parseFloat(o.total) || 0);
@@ -196,7 +196,7 @@ function calculateKPIs(orders, dailyStats) {
     const profit = salesTotal - costTotal;
 
     // --- ATUALIZAÇÃO DOS IDs ---
-
+    
     // Pedidos e Vendas
     const elTotalOrders = document.getElementById('st-total-orders');
     if (elTotalOrders) elTotalOrders.innerText = totalAllOrders;
@@ -226,8 +226,7 @@ function calculateKPIs(orders, dailyStats) {
     if (elPending) elPending.innerText = pendingCount;
 
     const rateApproval = totalAllOrders > 0 ? (salesCount / totalAllOrders) * 100 : 0;
-    // Compara Reembolsados com o TOTAL DE PEDIDOS (Gera os 50% corretos)
-    const rateRefund = totalAllOrders > 0 ? (refundedCount / totalAllOrders) * 100 : 0;
+    const rateRefund = salesCount > 0 ? (refundedCount / salesCount) * 100 : 0;
     const rateCancel = totalAllOrders > 0 ? (cancelledCount / totalAllOrders) * 100 : 0;
 
     const elRateApp = document.getElementById('st-rate-approval');
@@ -240,7 +239,7 @@ function calculateKPIs(orders, dailyStats) {
 }
 
 function calculateRankings(orders) {
-    const validOrders = orders.filter(o =>
+    const validOrders = orders.filter(o => 
         ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'].includes(o.status)
     );
 
@@ -319,7 +318,7 @@ function renderList(containerId, data, templateFn) {
     const container = document.getElementById(containerId);
     if (!container) return;
     container.innerHTML = '';
-
+    
     if (data.length === 0) {
         container.innerHTML = '<p class="text-gray-600 text-xs p-2">Sem dados neste período.</p>';
         return;
