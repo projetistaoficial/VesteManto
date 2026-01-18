@@ -42,40 +42,26 @@
 
     /* Animação para DESKTOP (Deslizar da direita) */
     @keyframes slideInRight {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
     }
-
+    
     /* Animação para MOBILE (Zoom suave/Fade) */
     @keyframes zoomIn {
-        from {
-            transform: scale(0.95);
-            opacity: 0;
-        }
-
-        to {
-            transform: scale(1);
-            opacity: 1;
-        }
+        from { transform: scale(0.95); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
     }
 
     /* Classes utilitárias para aplicar a animação */
     .animate-drawer-desktop {
         animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
-
+    
     /* No mobile usa animação de zoom, no desktop usa slide */
     .responsive-animation {
         animation: zoomIn 0.2s ease-out forwards;
     }
-
+    
     @media (min-width: 768px) {
         .responsive-animation {
             animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -84,12 +70,11 @@
 
 
     /* Remove a seta padrão do elemento <details>/<summary> */
-    details>summary {
-        list-style: none;
-        /* Padrão para a maioria dos navegadores */
-    }
+details > summary {
+  list-style: none; /* Padrão para a maioria dos navegadores */
+}
 
-    /* Específico para Safari/iOS e Chrome (Webkit) */
-    details>summary::-webkit-details-marker {
-        display: none;
-    }
+/* Específico para Safari/iOS e Chrome (Webkit) */
+details > summary::-webkit-details-marker {
+  display: none;
+}
