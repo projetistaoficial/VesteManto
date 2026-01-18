@@ -28,46 +28,22 @@ function setupAccordion(btnId, contentId, arrowId) {
 function formatarEnderecoAdmin(customer) {
     if (!customer) return '<span class="text-gray-500 italic text-xs">Retirada ou não informado</span>';
 
-    // 1. Prepara os dados
+    // Pega os dados que já existem no seu objeto customer
     const rua = customer.street || "Rua não informada";
     const numero = customer.addressNum || "S/N";
     const bairro = customer.district || "";
     const cep = customer.cep || "";
+    // Tenta pegar o complemento (vamos adicionar no passo 3) ou deixa vazio
     const complemento = customer.comp ? ` - ${customer.comp}` : "";
 
-    // 2. Cria a string completa para Copiar e para o Link do Maps
-    const fullAddress = `${rua}, ${numero}${complemento} - ${bairro} - CEP: ${cep}`;
-    
-    // Escapa aspas para não quebrar o HTML do botão
-    const safeAddress = fullAddress.replace(/'/g, "\\'"); 
-    
-    // Gera link do Google Maps
-    const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
-
     return `
-        <div class="flex flex-col gap-2">
-            <div class="flex flex-col text-left">
-                <span class="text-gray-200 font-bold text-xs leading-tight">
-                    ${rua}, ${numero}${complemento}
-                </span>
-                <span class="text-gray-400 text-[10px] mt-0.5">
-                    ${bairro} - ${cep}
-                </span>
-            </div>
-
-            <div class="flex gap-2 mt-1">
-                <button type="button" onclick="event.stopPropagation(); navigator.clipboard.writeText('${safeAddress}').then(() => showToast('Endereço copiado!')).catch(() => alert('Copiado!'))" 
-                    class="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-[10px] px-2 py-1 rounded border border-gray-600 transition flex items-center gap-1" 
-                    title="Copiar Endereço">
-                    <i class="fas fa-copy"></i> Copiar
-                </button>
-
-                <a href="${mapLink}" target="_blank" onclick="event.stopPropagation();"
-                    class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 hover:text-blue-300 text-[10px] px-2 py-1 rounded border border-blue-900/50 transition flex items-center gap-1" 
-                    title="Abrir no Google Maps">
-                    <i class="fas fa-map-marker-alt"></i> Maps
-                </a>
-            </div>
+        <div class="flex flex-col text-left">
+            <span class="text-gray-200 font-bold text-xs leading-tight">
+                ${rua}, ${numero}${complemento}
+            </span>
+            <span class="text-gray-400 text-[10px] mt-0.5">
+                ${bairro} - ${cep}
+            </span>
         </div>
     `;
 }
@@ -553,7 +529,7 @@ function initApp() {
 
         if (els.menuBtnAdmin) {
             els.menuBtnAdmin.innerHTML = `
-                <i class="fas fa-user-shield text-white group-hover:text-white transition"></i>
+                <i class="fas fa-user-shield text-yellow-500 group-hover:text-white transition"></i>
                 <span class="font-bold uppercase text-sm tracking-wide">${btnText}</span>
             `;
         }
@@ -1229,7 +1205,7 @@ function renderCategories() {
 
             // Estilos de Texto
             const textStyle = level === 0
-                ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm"
+                ? "text-yellow-500 font-bold uppercase tracking-wide text-sm"
                 : "text-gray-300 font-medium text-sm hover:text-white";
 
             // Se tiver filhos, usa <details> para o accordion
@@ -1241,7 +1217,7 @@ function renderCategories() {
                                   style="padding-left:${paddingLeft}px"
                                   onclick="event.preventDefault(); filterByCat('${safePath}')">
                                 ${key}
-                            </span>
+                            </span>text-[var(--txt-body)]
                             
                             <span class="text-gray-500 text-[10px] transform transition-transform duration-200 group-open:rotate-180 p-2">
                                 ▼
@@ -2139,7 +2115,7 @@ function renderSalesList(orders) {
         const borderClass = isNew ? "border-green-500 border-l-4 bg-green-900/10" : "border-gray-800 bg-black";
         const badgeHtml = isNew ? `<span class="ml-2 bg-green-600 text-white text-[9px] font-bold px-2 py-0.5 rounded animate-pulse shadow-lg">NOVO</span>` : "";
         const clickAction = `toggleOrderAccordion('${o.id}'); markAsViewed('${o.id}')`;
-        
+
         const isOpen = openOrderIds.has(o.id);
         const contentVisibility = isOpen ? "" : "hidden";
         const arrowRotation = isOpen ? "rotate(180deg)" : "rotate(0deg)";
@@ -2164,47 +2140,42 @@ function renderSalesList(orders) {
         `).join('');
 
         // --- LÓGICA FINANCEIRA DETALHADA ---
-       // --- LÓGICA FINANCEIRA DETALHADA (CORRIGIDA) ---
         const subTotalItens = o.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
         const valFrete = o.shippingFee || 0;
         const valTotalPago = o.total || 0;
-        
-        // Cálculo matemático simples (pode ser zerado se tiver juros)
         const valDescontoTotal = Math.max(0, (subTotalItens + valFrete) - valTotalPago);
 
         let discountHtml = '';
 
-        // 1. Tenta descobrir dados do CUPOM (Agora fazemos isso FORA do if de valor)
-        let valDescontoCupom = 0;
-        let nomeCupom = null;
-
-        // Se temos os dados salvos do cupom (Checkout novo)
-        if (o.couponData && o.couponData.value) {
-            valDescontoCupom = o.couponData.value;
-            nomeCupom = o.couponData.code;
-        } 
-        // Fallback para pedidos antigos
-        else if (o.cupom && o.cupom.trim().length > 0) {
-            nomeCupom = o.cupom;
+        // Se houver algum desconto (maior que 5 centavos para evitar erro de arredondamento)
+        if (valDescontoTotal > 0.05) {
             const isPix = (o.paymentMethod || '').toLowerCase().includes('pix');
-            // Se tem nome de cupom e não é Pix, assume que o desconto total é o cupom
-            if (!isPix && valDescontoTotal > 0) valDescontoCupom = valDescontoTotal;
-        }
+            const hasCupom = (o.cupom && o.cupom.trim().length > 0);
 
-        // 2. CONDIÇÃO CORRIGIDA: Entra se tiver desconto matemático OU se tiver um cupom nomeado
-        // Isso garante que mesmo que os juros "comam" o valor do desconto, o nome do cupom aparece.
-        if (valDescontoTotal > 0.05 || nomeCupom) {
-            
-            // O que sobrar do desconto total é Pix (ou ajuste manual)
-            // (Total Esperado sem Pix = Subtotal + Frete - Cupom)
+            // 1. Tenta descobrir o valor do cupom
+            let valDescontoCupom = 0;
+            let nomeCupom = null;
+
+            // Se temos os dados salvos do cupom (Checkout novo)
+            if (o.couponData && o.couponData.value) {
+                valDescontoCupom = o.couponData.value;
+                nomeCupom = o.couponData.code;
+            }
+            // Fallback para pedidos antigos (Se tem nome de cupom mas não dados, tenta inferir)
+            else if (o.cupom) {
+                nomeCupom = o.cupom;
+                // Se não foi Pix, todo o desconto é do cupom
+                if (!isPix) valDescontoCupom = valDescontoTotal;
+            }
+
+            // 2. O que sobrar do desconto total é Pix (ou ajuste manual)
+            // (Total de Descontos - Valor do Cupom)
             const totalEsperadoSemPix = (subTotalItens + valFrete) - valDescontoCupom;
-            
-            // Se o total pago for MAIOR que o esperado (juros), o desconto Pix é 0.
             const valDescontoPix = Math.max(0, totalEsperadoSemPix - valTotalPago);
 
             discountHtml += `<div class="mt-2 mb-2 border-y border-gray-700/50 py-2 space-y-1">`;
 
-            // Exibe Linha do Cupom (Sempre que tiver nome)
+            // Exibe Linha do Cupom
             if (nomeCupom) {
                 discountHtml += `
                     <div class="flex justify-between text-xs text-gray-300">
@@ -2224,8 +2195,8 @@ function renderSalesList(orders) {
                 `;
             }
 
-            // Exibe Genérico (Caso tenha desconto matemático, mas sem cupom nem pix identificados)
-            if (!nomeCupom && valDescontoPix <= 0.05 && valDescontoTotal > 0.05) {
+            // Exibe Genérico (Caso não tenha cupom identificado nem pix, mas tenha desconto)
+            if (!nomeCupom && valDescontoPix <= 0.05) {
                 discountHtml += `
                     <div class="flex justify-between text-xs text-gray-300">
                         <span>Desconto:</span>

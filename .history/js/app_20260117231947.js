@@ -28,46 +28,22 @@ function setupAccordion(btnId, contentId, arrowId) {
 function formatarEnderecoAdmin(customer) {
     if (!customer) return '<span class="text-gray-500 italic text-xs">Retirada ou não informado</span>';
 
-    // 1. Prepara os dados
+    // Pega os dados que já existem no seu objeto customer
     const rua = customer.street || "Rua não informada";
     const numero = customer.addressNum || "S/N";
     const bairro = customer.district || "";
     const cep = customer.cep || "";
+    // Tenta pegar o complemento (vamos adicionar no passo 3) ou deixa vazio
     const complemento = customer.comp ? ` - ${customer.comp}` : "";
 
-    // 2. Cria a string completa para Copiar e para o Link do Maps
-    const fullAddress = `${rua}, ${numero}${complemento} - ${bairro} - CEP: ${cep}`;
-    
-    // Escapa aspas para não quebrar o HTML do botão
-    const safeAddress = fullAddress.replace(/'/g, "\\'"); 
-    
-    // Gera link do Google Maps
-    const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
-
     return `
-        <div class="flex flex-col gap-2">
-            <div class="flex flex-col text-left">
-                <span class="text-gray-200 font-bold text-xs leading-tight">
-                    ${rua}, ${numero}${complemento}
-                </span>
-                <span class="text-gray-400 text-[10px] mt-0.5">
-                    ${bairro} - ${cep}
-                </span>
-            </div>
-
-            <div class="flex gap-2 mt-1">
-                <button type="button" onclick="event.stopPropagation(); navigator.clipboard.writeText('${safeAddress}').then(() => showToast('Endereço copiado!')).catch(() => alert('Copiado!'))" 
-                    class="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-[10px] px-2 py-1 rounded border border-gray-600 transition flex items-center gap-1" 
-                    title="Copiar Endereço">
-                    <i class="fas fa-copy"></i> Copiar
-                </button>
-
-                <a href="${mapLink}" target="_blank" onclick="event.stopPropagation();"
-                    class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 hover:text-blue-300 text-[10px] px-2 py-1 rounded border border-blue-900/50 transition flex items-center gap-1" 
-                    title="Abrir no Google Maps">
-                    <i class="fas fa-map-marker-alt"></i> Maps
-                </a>
-            </div>
+        <div class="flex flex-col text-left">
+            <span class="text-gray-200 font-bold text-xs leading-tight">
+                ${rua}, ${numero}${complemento}
+            </span>
+            <span class="text-gray-400 text-[10px] mt-0.5">
+                ${bairro} - ${cep}
+            </span>
         </div>
     `;
 }

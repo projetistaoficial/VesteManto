@@ -28,46 +28,22 @@ function setupAccordion(btnId, contentId, arrowId) {
 function formatarEnderecoAdmin(customer) {
     if (!customer) return '<span class="text-gray-500 italic text-xs">Retirada ou não informado</span>';
 
-    // 1. Prepara os dados
+    // Pega os dados que já existem no seu objeto customer
     const rua = customer.street || "Rua não informada";
     const numero = customer.addressNum || "S/N";
     const bairro = customer.district || "";
     const cep = customer.cep || "";
+    // Tenta pegar o complemento (vamos adicionar no passo 3) ou deixa vazio
     const complemento = customer.comp ? ` - ${customer.comp}` : "";
 
-    // 2. Cria a string completa para Copiar e para o Link do Maps
-    const fullAddress = `${rua}, ${numero}${complemento} - ${bairro} - CEP: ${cep}`;
-    
-    // Escapa aspas para não quebrar o HTML do botão
-    const safeAddress = fullAddress.replace(/'/g, "\\'"); 
-    
-    // Gera link do Google Maps
-    const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
-
     return `
-        <div class="flex flex-col gap-2">
-            <div class="flex flex-col text-left">
-                <span class="text-gray-200 font-bold text-xs leading-tight">
-                    ${rua}, ${numero}${complemento}
-                </span>
-                <span class="text-gray-400 text-[10px] mt-0.5">
-                    ${bairro} - ${cep}
-                </span>
-            </div>
-
-            <div class="flex gap-2 mt-1">
-                <button type="button" onclick="event.stopPropagation(); navigator.clipboard.writeText('${safeAddress}').then(() => showToast('Endereço copiado!')).catch(() => alert('Copiado!'))" 
-                    class="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-[10px] px-2 py-1 rounded border border-gray-600 transition flex items-center gap-1" 
-                    title="Copiar Endereço">
-                    <i class="fas fa-copy"></i> Copiar
-                </button>
-
-                <a href="${mapLink}" target="_blank" onclick="event.stopPropagation();"
-                    class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 hover:text-blue-300 text-[10px] px-2 py-1 rounded border border-blue-900/50 transition flex items-center gap-1" 
-                    title="Abrir no Google Maps">
-                    <i class="fas fa-map-marker-alt"></i> Maps
-                </a>
-            </div>
+        <div class="flex flex-col text-left">
+            <span class="text-gray-200 font-bold text-xs leading-tight">
+                ${rua}, ${numero}${complemento}
+            </span>
+            <span class="text-gray-400 text-[10px] mt-0.5">
+                ${bairro} - ${cep}
+            </span>
         </div>
     `;
 }
@@ -6722,15 +6698,36 @@ window.updateStatusUI = (order) => {
         </div>
     `;
 
+    // --- LÓGICA DO ENDEREÇO (ATUALIZADO COM BOTÕES) ---
+    // 1. Monta o endereço completo em texto puro para a área de transferência
+    const fullAddressText = `${order.customer.street}, ${order.customer.addressNum} ${order.customer.comp ? '- ' + order.customer.comp : ''} - ${order.customer.district} - CEP: ${order.customer.cep}`;
+    
+    // Escapa aspas simples para não quebrar o JavaScript do botão
+    const safeAddress = fullAddressText.replace(/'/g, "\\'");
+
     const addressBlock = `
-        <div class="flex items-start gap-3 mt-4 bg-gray-900 p-3 rounded-lg border border-gray-800">
-            <i class="fas fa-map-marker-alt text-red-500 mt-1"></i>
-            <div class="flex-1">
-                <p class="text-gray-300 text-xs leading-relaxed">
-                    <span class="text-white font-bold block mb-0.5">Endereço de Entrega</span>
-                    ${order.customer.street}, ${order.customer.addressNum} ${order.customer.comp ? '- ' + order.customer.comp : ''}<br>
-                    ${order.customer.district}
-                </p>
+        <div class="flex flex-col gap-3 mt-4 bg-gray-900 p-3 rounded-lg border border-gray-800">
+            <div class="flex items-start gap-3">
+                <i class="fas fa-map-marker-alt text-red-500 mt-1"></i>
+                <div class="flex-1">
+                    <p class="text-gray-300 text-xs leading-relaxed">
+                        <span class="text-white font-bold block mb-0.5">Endereço de Entrega</span>
+                        ${order.customer.street}, ${order.customer.addressNum} ${order.customer.comp ? '- ' + order.customer.comp : ''}<br>
+                        ${order.customer.district} - ${order.customer.cep}
+                    </p>
+                </div>
+            </div>
+            
+            <div class="flex gap-2 pl-7">
+                <button onclick="navigator.clipboard.writeText('${safeAddress}').then(() => showToast('Endereço copiado!')).catch(() => alert('Endereço copiado!'))" 
+                    class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-[10px] font-bold py-2 rounded border border-gray-600 hover:border-gray-500 transition flex items-center justify-center gap-2 active:scale-95">
+                    <i class="fas fa-copy"></i> Copiar
+                </button>
+                
+                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddressText)}" target="_blank"
+                    class="flex-1 bg-blue-900/20 hover:bg-blue-900/40 text-blue-400 hover:text-blue-300 text-[10px] font-bold py-2 rounded border border-blue-900/30 hover:border-blue-500/50 transition flex items-center justify-center gap-2 active:scale-95">
+                    <i class="fas fa-external-link-alt"></i> Abrir Maps
+                </a>
             </div>
         </div>
     `;

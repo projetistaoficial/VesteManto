@@ -70,8 +70,8 @@
 
             <a href="#" id="menu-link-home"
                 class="flex items-center px-4 py-3 text-white hover:bg-gray-800 rounded transition group border-l-4 border-transparent hover:border-yellow-500">
-                <i class="fas fa-store w-6 text-[var(--txt-title)] transition"></i>
-                <span class="font-bold text-[var(--txt-title)]">Vitrine</span>
+                <i class="fas fa-store w-6 text-yellow-500 group-hover:text-white transition"></i>
+                <span class="font-bold text-lg">Vitrine</span>
             </a>
 
             <div class="px-4 py-2 mt-2">
@@ -129,11 +129,12 @@
 
             <button onclick="shareStoreLink()"
                 class="w-full bg-gray-800 hover:bg-gray-700 text-white py-2 rounded border border-gray-700 hover:border-yellow-500 transition flex items-center justify-center gap-2 mb-3 text-sm group">
-                <i class="fas fa-share-alt text-white group-hover:text-white"></i> Compartilhar Loja
+                <i class="fas fa-share-alt text-yellow-500 group-hover:text-white"></i> Compartilhar Loja
             </button>
 
             <button id="menu-btn-admin"
                 class="w-full bg-black hover:bg-yellow-500 hover:text-black text-white py-3 rounded font-bold uppercase text-sm tracking-wide transition border border-gray-800">
+                PAINEL ADMINISTRATIVO
             </button>
         </div>
     </aside>
@@ -194,7 +195,7 @@
             </div>
             <div class="relative flex items-center bg-[#0a0a0a] rounded-xl border border-gray-800/80 shadow-2xl">
                 <input type="text" id="search-input"
-                    class="w-full bg-[var(--bg-main)] py-3 pl-5 pr-10 text-sm text-white font-medium placeholder-[var(--txt-body)] outline-none rounded-xl"
+                    class="w-full bg-[var(--bg-main)] py-3 pl-5 pr-10 text-sm text-white font-medium placeholder-gray-500 outline-none rounded-xl"
                     placeholder="Busque o Produto...">
                 <div class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white/5 rounded-lg">
                     <i class="fas fa-search text-gray-400 text-xs"></i>
@@ -205,7 +206,7 @@
         <div class="max-w-3xl w-full flex justify-between items-center mt-2 gap-2 sm:gap-3 relative z-30">
 
             <div class="relative flex-1 min-w-0">
-                <select id="category-filter" onchange="filterByCat(this.value)" class="w-full appearance-none bg-[var(--bg-main)] border border-gray-800 text-[var(--txt-body)] font-bold uppercase rounded-xl outline-none focus:border-yellow-500 cursor-pointer transition shadow-sm
+                <select id="category-filter" onchange="filterByCat(this.value)" class="w-full appearance-none bg-[var(--bg-main)] border border-gray-800 text-gray-300 font-bold uppercase rounded-xl outline-none focus:border-yellow-500 cursor-pointer transition shadow-sm
                            text-[10px] sm:text-xs 
                            py-2.5 sm:py-3 
                            pl-3 sm:pl-4 
@@ -227,8 +228,8 @@
                     opacity-90 hover:opacity-100">
 
                     <div class="flex items-center gap-2 overflow-hidden">
-                        <i class="fas fa-sort-amount-down text-[var(--txt-body)] text-[10px] sm:text-xs shrink-0"></i>
-                        <span id="sort-label-display" class="truncate text-[var(--txt-body)]">Ordenar</span>
+                        <i class="fas fa-sort-amount-down text-gray-500 text-[10px] sm:text-xs shrink-0"></i>
+                        <span id="sort-label-display" class="truncate text-white">Ordenar</span>
                     </div>
 
                     <i class="fas fa-chevron-down text-gray-500 text-[8px] sm:text-[10px] shrink-0"></i>
@@ -1231,6 +1232,17 @@
                                 </div>
 
                                 <div class="flex items-center justify-between group">
+                                    <label class="text-yellow-500 font-bold text-sm">Cor do Menu Lateral</label>
+                                    <div class="flex items-center gap-2">
+                                        <span id="hex-sidebar"
+                                            class="text-gray-500 text-xs font-mono uppercase">#000000</span>
+                                        <input type="color" id="theme-sidebar-color" value="#000000"
+                                            class="w-10 h-10 rounded cursor-pointer border-none bg-transparent"
+                                            oninput="previewTheme('sidebar', this.value)">
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between group">
                                     <label class="text-yellow-500 font-bold text-sm">Cor dos Títulos (Destaque)</label>
                                     <div class="flex items-center gap-2">
 
@@ -1240,6 +1252,17 @@
                                         <input type="color" id="theme-title-color" value="#ffffff"
                                             class="w-10 h-10 rounded cursor-pointer border-none bg-transparent"
                                             oninput="previewTheme('title', this.value)">
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between group">
+                                    <label class="text-yellow-500 font-bold text-sm">Cor dos Ícones</label>
+                                    <div class="flex items-center gap-2">
+                                        <span id="hex-icons"
+                                            class="text-gray-500 text-xs font-mono uppercase">#FFFFFF</span>
+                                        <input type="color" id="theme-icons-color" value="#FFFFFF"
+                                            class="w-10 h-10 rounded cursor-pointer border-none bg-transparent"
+                                            oninput="previewTheme('icons', this.value)">
                                     </div>
                                 </div>
 
@@ -1369,6 +1392,11 @@
                         onclick="openImageViewer()">
 
                         <img id="modal-img" src="" class="w-full h-full object-cover transition-transform duration-300">
+
+                        <div
+                            class="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full backdrop-blur-sm pointer-events-none">
+                            <i class="fas fa-expand"></i>
+                        </div>
                     </div>
 
                     <button id="btn-prev-img" onclick="event.stopPropagation(); changeModalImage(-1)"
@@ -1870,53 +1898,44 @@
         </div>
     </div>
 
-    <footer id="store-footer"
-        class="bg-[#050505] border-t border-gray-900 mt-24 hidden transition-opacity duration-500">
+   <footer id="store-footer"
+    class="bg-[#050505] border-t border-gray-900 mt-24 hidden transition-opacity duration-500">
+    
+    <div class="max-w-4xl mx-auto px-4 py-8 flex flex-col items-center text-center space-y-5">
 
-        <div class="max-w-4xl mx-auto px-4 py-8 flex flex-col items-center text-center space-y-5">
-
-            <div class="space-y-1">
-                <h2 id="footer-store-name" class="text-xl font-bold text-white tracking-wide uppercase">
+        <div class="space-y-1">
+            <h2 id="footer-store-name" class="text-xl font-bold text-white tracking-wide uppercase">
                 </h2>
-                <p id="footer-store-desc" class="text-gray-500 text-sm font-medium">
+            <p id="footer-store-desc" class="text-gray-500 text-sm font-medium">
                 </p>
-            </div>
-
-            <div class="w-24 h-px bg-gray-800 rounded-full"></div>
-
-            <div
-                class="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-6 text-xs md:text-sm text-gray-400 font-mono bg-[#0a0a0a] border border-gray-800/50 rounded-xl px-8 py-3 shadow-sm transition hover:border-gray-700">
-
-                <div class="flex items-center">
-                    <span class="text-gray-400">
-                        Desenvolvido por:
-                        <span
-                            class="font-black tracking-wider bg-gradient-to-r from-cyan-500 to-pink-500 bg-clip-text text-transparent">
-                            PROJETISTA
-                        </span>
-                    </span>
-                    <img src="logoProjetista.png" alt="Logo"
-                        class="w-12 h-12 object-contain opacity-80 hover:scale-110 transition">
-                </div>
-
-                <span class="hidden md:block text-gray-700">|</span>
-
-                <div class="flex items-center gap-4">
-                    <a href="https://instagram.com/projetista_oficial" target="_blank"
-                        class="hover:text-pink-500 transition flex items-center gap-1.5 group">
-                        <i class="fab fa-instagram text-base group-hover:scale-110 transition"></i>
-                        <span class="font-semibold">@projetista_oficial</span>
-                    </a>
-                    <span class="opacity-75">CNPJ: 61.524.580/0001-00</span>
-                </div>
-            </div>
-
-            <span class="text-[10px] text-gray-700 uppercase tracking-widest mt-2">
-                Todos os direitos reservados
-            </span>
-
         </div>
-    </footer>
+
+        <div class="w-24 h-px bg-gray-800 rounded-full"></div>
+
+        <div class="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-6 text-xs md:text-sm text-gray-400 font-mono bg-[#0a0a0a] border border-gray-800/50 rounded-xl px-8 py-3 shadow-sm transition hover:border-gray-700">
+            
+            <div class="flex items-center gap-2">
+                <span>Desenvolvido por: <span class="text-white font-bold tracking-wider">PROJETISTA</span></span>
+                <img src="https://placehold.co/20x20/black/white?text=P" alt="Logo" class="w-5 h-5 object-contain opacity-80 hover:scale-110 transition">
+            </div>
+
+            <span class="hidden md:block text-gray-700">|</span>
+
+            <div class="flex items-center gap-4">
+                <a href="https://instagram.com/projetista_oficial" target="_blank" class="hover:text-pink-500 transition flex items-center gap-1.5 group">
+                    <i class="fab fa-instagram text-base group-hover:scale-110 transition"></i>
+                    <span class="font-semibold">@projetista_oficial</span>
+                </a>
+                <span class="opacity-75">CNPJ: 61.524.580/0001-00</span>
+            </div>
+        </div>
+
+        <span class="text-[10px] text-gray-700 uppercase tracking-widest mt-2">
+            Todos os direitos reservados
+        </span>
+
+    </div>
+</footer>
 
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/app.js"></script>
