@@ -1172,99 +1172,108 @@ function renderCatalog(productsToRender) {
 }
 
 
-// =======================================================================================================================//=======================================================================================================================
+// =======================================================================================================================// =======================================================================================================================
 //LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
-// =================================================================
 function renderCategories() {
-    // 1. Definição da Função de Preenchimento (Interna e Segura)
-    const populateSelect = (elementId) => {
-        const selectEl = document.getElementById(elementId); // Pega direto do HTML para garantir
+    // Se não tiver o container da sidebar, para.
+    if (!els.sidebarCategories) return;
+
+    const catNames = state.categories.map(c => c.name);
+
+    // 1. Preenche Selects (Filtros)
+    const populateSelect = (selectEl) => {
         if (!selectEl) return;
-
         const currentVal = selectEl.value;
-
-        // LÓGICA DE TEXTO:
-        // Aumentei para 768px para pegar tablets e celulares grandes também
-        const isMobile = window.innerWidth < 768; 
-        
-        // Texto bem curto para mobile
-        const defaultLabel = isMobile ? "Todas categorias" : "Todas as Categorias";
-
-        // Aplica o HTML
-        // A classe text-xs ou text-[8px] do HTML vai controlar o tamanho da fonte.
-        // Aqui controlamos apenas o QUE está escrito.
-        selectEl.innerHTML = `<option value="" class="text-gray-500">${defaultLabel}</option>`;
-
-        // Adiciona as categorias
-        state.categories.forEach(c => {
-            selectEl.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+        selectEl.innerHTML = '<option value="" class="text-red-500" >Todas as Categorias</option>';
+        catNames.forEach(c => {
+            selectEl.innerHTML += `<option value="${c}">${c}</option>`;
         });
-        
-        // Restaura a seleção
         if (currentVal) selectEl.value = currentVal;
     };
 
-    // 2. Chama a função para todos os selects de categoria do site
-    populateSelect('category-filter');       // Filtro da Vitrine
-    populateSelect('admin-filter-cat');      // Filtro do Admin
-    populateSelect('bulk-category-select');  // Ações em massa
-    populateSelect('prod-cat-select');       // Formulário de produto
-    populateSelect('bulk-category-select-dynamic'); // Barra dinâmica
+    populateSelect(els.catFilter);
+    populateSelect(els.adminFilterCat);
+    populateSelect(els.bulkCategorySelect);
+    populateSelect(getEl('prod-cat-select'));
+    // Se existir o select da barra de ação nova, preenche também
+    const bulkDynamic = document.getElementById('bulk-category-select-dynamic');
+    if (bulkDynamic) populateSelect(bulkDynamic);
 
-    // 3. Renderiza a Sidebar (Menu Lateral)
-    const sidebarContainer = document.getElementById('sidebar-categories');
-    if (sidebarContainer) {
-        const catNames = state.categories.map(c => c.name);
-        
-        // Monta a Árvore de Categorias
-        const tree = {};
-        catNames.forEach(name => {
-            const parts = name.split(' - ');
-            let currentLevel = tree;
-            parts.forEach((part, index) => {
-                if (!currentLevel[part]) {
-                    const fullPath = parts.slice(0, index + 1).join(' - ');
-                    currentLevel[part] = { _path: fullPath, _children: {} };
-                }
-                currentLevel = currentLevel[part]._children;
-            });
+    // 2. Monta a Árvore
+    const tree = {};
+    catNames.forEach(name => {
+        const parts = name.split(' - ');
+        let currentLevel = tree;
+        parts.forEach((part, index) => {
+            if (!currentLevel[part]) {
+                const fullPath = parts.slice(0, index + 1).join(' - ');
+                currentLevel[part] = { _path: fullPath, _children: {} };
+            }
+            currentLevel = currentLevel[part]._children;
         });
+    });
 
-        // Função Recursiva HTML para Sidebar
-        const buildHtml = (node, level = 0) => {
-            let html = '';
-            const keys = Object.keys(node).sort();
+    // Função Recursiva HTML
+    const buildHtml = (node, level = 0) => {
+        let html = '';
+        const keys = Object.keys(node).sort();
 
-            keys.forEach(key => {
-                const item = node[key];
-                const hasChildren = Object.keys(item._children).length > 0;
-                const safePath = item._path.replace(/'/g, "\\'");
-                const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
-                const textStyle = level === 0 
-                    ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm" 
-                    : "text-gray-300 font-medium text-sm hover:text-white";
+        keys.forEach(key => {
+            const item = node[key];
+            const hasChildren = Object.keys(item._children).length > 0;
+            // Escapa aspas
+            const safePath = item._path.replace(/'/g, "\\'");
 
-                if (hasChildren) {
-                    html += `
-                        <details class="group mb-1">
-                            <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
-                                <span class="${textStyle} flex-1" style="padding-left:${paddingLeft}px" onclick="event.preventDefault(); filterByCat('${safePath}')">${key}</span>
-                                <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">▲</span>
-                            </summary>
-                            <div class="border-l border-gray-800 ml-4">${buildHtml(item._children, level + 1)}</div>
-                        </details>`;
-                } else {
-                    html += `
-                        <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center" onclick="filterByCat('${safePath}')">
-                            <span class="${textStyle}" style="padding-left:${paddingLeft}px">${key}</span>
-                        </div>`;
-                }
-            });
-            return html;
-        };
+            // Cálculo de recuo (Padding)
+            // Se for nível 0, padding menor. Se for filho, aumenta.
+            const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
 
-        sidebarContainer.innerHTML = `<div class="space-y-1 mt-2">${buildHtml(tree)}</div>`;
-    }
+            // Estilos de Texto
+            const textStyle = level === 0
+                ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm"
+                : "text-gray-300 font-medium text-sm hover:text-white";
+
+            // Se tiver filhos, usa <details> para o accordion
+            if (hasChildren) {
+                html += `
+                    <details class="group mb-1">
+                        <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
+                            <span class="${textStyle} flex-1" 
+                                  style="padding-left:${paddingLeft}px"
+                                  onclick="event.preventDefault(); filterByCat('${safePath}')">
+                                ${key}
+                            </span>
+                            
+                            <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">
+                                ▲
+                            </span>
+                        </summary>
+                        <div class="border-l border-gray-800 ml-4">
+                            ${buildHtml(item._children, level + 1)}
+                        </div>
+                    </details>
+                `;
+            } else {
+                // Se NÃO tiver filhos, é apenas um botão simples (sem seta)
+                html += `
+                    <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center"
+                         onclick="filterByCat('${safePath}')">
+                        <span class="${textStyle}" style="padding-left:${paddingLeft}px">
+                            ${key}
+                        </span>
+                    </div>
+                `;
+            }
+        });
+        return html;
+    };
+
+    // Renderiza SEM o botão "Ver Todos" (limpando o innerHTML antes)
+    els.sidebarCategories.innerHTML = `
+        <div class="space-y-1 mt-2">
+            ${buildHtml(tree)}
+        </div>
+    `;
 }
 
 // Função Helper para selecionar o pai sem fechar o menu visualmente
@@ -2084,7 +2093,7 @@ function filterAndRenderSales() {
         return matchCode && matchGeneral && matchProduct && matchStatus && matchPayment && matchDate;
     });
 
-    // 3. ORDENAÇÃO ATUALIZADA (Select + Proximidade Numérica)
+   // 3. ORDENAÇÃO ATUALIZADA (Select + Proximidade Numérica)
     const sortVal = document.getElementById('filter-sort-order') ? document.getElementById('filter-sort-order').value : 'date_desc';
 
     filtered.sort((a, b) => {
@@ -2468,7 +2477,7 @@ function setupEventListeners() {
         }
     });
 
-    // 3. Botão Limpar Filtros
+  // 3. Botão Limpar Filtros
     const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
@@ -3074,146 +3083,89 @@ function setupEventListeners() {
     if (elCep) elCep.addEventListener('blur', () => autoSaveSettings('logistics'));
     if (elDist) elDist.addEventListener('blur', () => autoSaveSettings('logistics'));
 
-    // --- AUTOSALVAMENTO: PARCELAMENTO ---
-    const elCardActive = document.getElementById('conf-card-active');
-    const elCardMax = document.getElementById('conf-card-max');
-    const elCardFree = document.getElementById('conf-card-free');
-    const elCardRate = document.getElementById('conf-card-rate');
+   // ==============================================================    
+    // LÓGICA DA ABA CONFIGURAÇÕES (MODO MANUAL - SEM AUTO-SAVE)
+    // ==============================================================
 
-    // Para o Checkbox, usamos 'change' (salva assim que clica)
+    // --- 1. LOGÍSTICA (CEP) ---
+    // Removemos os listeners de 'blur' aqui. O salvamento será manual pelo botão.
+
+    // --- 2. PARCELAMENTO ---
+    const elCardActive = document.getElementById('conf-card-active');
+    
+    // Apenas lógica VISUAL (Opacidade do container)
     if (elCardActive) {
         elCardActive.addEventListener('change', (e) => {
-            // Controle visual da opacidade
             const details = document.getElementById('conf-card-details');
             if (details) {
                 if (e.target.checked) details.classList.remove('opacity-50', 'pointer-events-none');
                 else details.classList.add('opacity-50', 'pointer-events-none');
             }
-            // Chama o salvamento automático
-            autoSaveSettings('installments');
+            // REMOVIDO: autoSaveSettings('installments');
         });
     }
+    // Removemos os listeners dos inputs de texto (max, free, rate) pois não precisam de lógica visual
 
-    // Para os outros campos de parcelamento, usamos 'change' ou 'blur'
-    if (elCardMax) elCardMax.addEventListener('change', () => autoSaveSettings('installments'));
-    if (elCardFree) elCardFree.addEventListener('change', () => autoSaveSettings('installments'));
-    if (elCardRate) elCardRate.addEventListener('blur', () => autoSaveSettings('installments'));
-
-
-    // 1. Lógica Admin: Dependência dos Checkboxes de Entrega
+    // --- 3. PEDIDOS E ENTREGA ---
     const checkOwnDelivery = document.getElementById('conf-own-delivery');
     const checkReqCode = document.getElementById('conf-req-code');
-    const inputCancelTime = document.getElementById('conf-cancel-time');
-
-    // --- LISTENER DO FRETE ---
+    
+    // Toggle do Frete (Apenas Visual)
     const elShipCheck = document.getElementById('conf-shipping-active');
-    const elShipInput = document.getElementById('conf-shipping-value');
-
     if (elShipCheck) {
         elShipCheck.addEventListener('change', (e) => {
             const container = document.getElementById('shipping-value-container');
             if (e.target.checked) container.classList.remove('opacity-50', 'pointer-events-none');
             else container.classList.add('opacity-50', 'pointer-events-none');
-
-            autoSaveSettings('orders');
+            // REMOVIDO: autoSaveSettings('orders');
         });
     }
-    if (elShipInput) {
-        // Usa blur para salvar só quando sair do campo
-        elShipInput.addEventListener('blur', () => autoSaveSettings('orders'));
-    }
 
+    // Lógica Visual de Entrega Própria (Travar/Destravar Código de Segurança)
     if (checkOwnDelivery && checkReqCode) {
-        // Estado inicial
-        toggleReqCodeState(checkOwnDelivery.checked);
-
         // Ao mudar "Entrega Própria"
         checkOwnDelivery.addEventListener('change', (e) => {
             const isActive = e.target.checked;
             toggleReqCodeState(isActive);
 
-            // Se desativou a entrega, desativa o código obrigatoriamente
+            // Se desativou a entrega própria, desmarca o código obrigatoriamente (visual)
             if (!isActive) {
                 checkReqCode.checked = false;
             }
-
-            // Salva
-            autoSaveSettings('orders');
+            // REMOVIDO: autoSaveSettings('orders');
         });
-
-        // Ao mudar "Solicitar Código"
-        checkReqCode.addEventListener('change', () => autoSaveSettings('orders'));
-
-        // Ao mudar Tempo de Cancelamento
-        if (inputCancelTime) {
-            inputCancelTime.addEventListener('blur', () => autoSaveSettings('orders'));
-        }
     }
 
-    // Função visual para travar/destravar o checkbox dependente
-    function toggleReqCodeState(isActive) {
-        if (!checkReqCode) return;
-        const parentLabel = checkReqCode.closest('label');
-
-        if (isActive) {
-            checkReqCode.disabled = false;
-            if (parentLabel) parentLabel.classList.remove('opacity-50', 'pointer-events-none');
-        } else {
-            checkReqCode.disabled = true;
-            if (parentLabel) parentLabel.classList.add('opacity-50', 'pointer-events-none');
-        }
-    }
-
-    // 2. Lógica do Modal de Carrinho (Botões de Navegação)
-    const btnGoCheckout = document.getElementById('btn-go-checkout');
-    const btnFinishPayment = document.getElementById('btn-finish-payment');
-    const btnCloseCart = document.getElementById('close-cart');
-
-    if (btnGoCheckout) btnGoCheckout.onclick = goToCheckoutView;
-    if (btnFinishPayment) {
-        btnFinishPayment.onclick = window.submitOrder;
-    }
-    if (btnCloseCart) btnCloseCart.onclick = closeCartModal;
-
-    // 1. Troca Online / Entrega (Radio Principal)
-    const radiosPayMode = document.getElementsByName('pay-mode');
-    radiosPayMode.forEach(r => r.addEventListener('change', togglePaymentMode));
-
-    // 2. Troca Pix / Cartão / Dinheiro (Radio Secundário)
-    const radiosMethod = document.getElementsByName('payment-method-selection');
-    radiosMethod.forEach(r => r.addEventListener('change', toggleMethodSelection));
-
-    // 3. Troca de Parcelas
-    const selectInst = document.getElementById('checkout-installments');
-    if (selectInst) selectInst.addEventListener('change', calcCheckoutTotal);
-
-
-    // --- DENTRO DE setupEventListeners ---
-
-    const btnTrack = document.getElementById('btn-track-icon');
-    if (btnTrack) {
-        btnTrack.onclick = () => {
-            // Chama a função que abre a LISTA e verifica se tem pedidos
-            openTrackModal();
+    // Toggle Visual da Regra de Frete (Mostra/Esconde input de valor)
+    const elShipRule = document.getElementById('conf-shipping-rule');
+    const elShipCont = document.getElementById('shipping-value-container');
+    
+    if (elShipRule) {
+        elShipRule.onchange = (e) => {
+            if (e.target.value !== 'none') {
+                if (elShipCont) elShipCont.classList.remove('opacity-50', 'pointer-events-none');
+            } else {
+                if (elShipCont) elShipCont.classList.add('opacity-50', 'pointer-events-none');
+            }
+            // REMOVIDO: autoSaveSettings('orders');
         };
     }
 
-
-    // --- LÓGICA DE PAGAMENTO (VALIDAÇÃO E UI) ---
+    // --- 4. FORMAS DE PAGAMENTO (VALIDAÇÃO VISUAL APENAS) ---
     const checkOnlineActive = document.getElementById('conf-pay-online-active');
     const checkDeliveryActive = document.getElementById('conf-pay-delivery-active');
     const groupOnline = document.getElementById('group-online-methods');
     const groupDelivery = document.getElementById('group-delivery-methods');
 
-    // 1. Validação dos Mestres (Pelo menos um tipo ativo)
+    // Validação dos Mestres (Impede desmarcar as duas opções principais ao mesmo tempo)
     const validateMasterSwitch = (e) => {
         if (!checkOnlineActive.checked && !checkDeliveryActive.checked) {
             alert("⚠️ Pelo menos uma forma de pagamento (Online ou Entrega) deve permanecer ativa.");
-            e.target.checked = true;
+            e.target.checked = true; // Reverte a ação visualmente
             return;
         }
         updateOpacity();
-        autoSaveSettings('installments');
+        // REMOVIDO: autoSaveSettings('installments');
     };
 
     const updateOpacity = () => {
@@ -3224,26 +3176,22 @@ function setupEventListeners() {
     if (checkOnlineActive) checkOnlineActive.addEventListener('change', validateMasterSwitch);
     if (checkDeliveryActive) checkDeliveryActive.addEventListener('change', validateMasterSwitch);
 
-    // 2. Validação dos Sub-itens (Pelo menos uma opção dentro do grupo)
+    // Validação dos Sub-itens (Impede desmarcar todas as opções dentro de um grupo ativo)
     const validateSubOptions = (className) => {
         const checkboxes = document.querySelectorAll(`.${className}`);
-
         checkboxes.forEach(chk => {
             chk.addEventListener('change', (e) => {
-                // Conta quantos estão marcados neste grupo
                 const checkedCount = document.querySelectorAll(`.${className}:checked`).length;
-
                 if (checkedCount === 0) {
                     alert("⚠️ Pelo menos uma opção deve estar selecionada neste grupo.");
-                    e.target.checked = true; // Reverte a ação
+                    e.target.checked = true; // Reverte a ação visualmente
                     return;
                 }
-                autoSaveSettings('installments');
+                // REMOVIDO: autoSaveSettings('installments');
             });
         });
     };
 
-    // Aplica a validação nos grupos (adicionei classes no HTML do passo 1)
     validateSubOptions('sub-check-online');
     validateSubOptions('sub-check-delivery');
 
@@ -3682,7 +3630,7 @@ window.openProductModal = (productId) => {
     // --- 3. CÁLCULOS FINANCEIROS (CORRIGIDO) ---
     // MUDANÇA AQUI: Busca de storeProfile.installments em vez de globalSettings
     const instProfile = state.storeProfile.installments || { active: false, max: 12, freeUntil: 1 };
-
+    
     // Pega as variáveis com os nomes corretos salvos no banco
     const maxInstNoInterest = parseInt(instProfile.freeUntil) || 1;
     const maxInstTotal = parseInt(instProfile.max) || 12;
@@ -3696,7 +3644,7 @@ window.openProductModal = (productId) => {
     // Se existe parcelamento sem juros configurado (ex: 3x), mostra ele.
     // Se não (freeUntil = 1), mostra o máximo total (ex: 12x ou 34x).
     let displayInst = (maxInstNoInterest > 1) ? maxInstNoInterest : maxInstTotal;
-
+    
     // Texto auxiliar
     let interestLabel = (maxInstNoInterest > 1) ? '<span class="text-green-400 font-bold text-xs ml-1">sem juros</span>' : '';
 
@@ -3710,9 +3658,9 @@ window.openProductModal = (productId) => {
     if (elPrice) {
         let htmlHtml = '';
         if (hasPromo) htmlHtml += `<span class="text-gray-500 text-sm line-through block mb-1">De: ${formatCurrency(priceOriginal)}</span>`;
-
+        
         htmlHtml += `<div class="text-green-500 font-bold text-4xl tracking-tight">${formatCurrency(priceFinal)}</div>`;
-
+        
         htmlHtml += `
             <div class="mt-3 pt-3 border-t border-gray-700 space-y-2">
                 <div class="flex items-center gap-2 text-sm text-gray-300">
@@ -3730,7 +3678,7 @@ window.openProductModal = (productId) => {
     }
 
     // 5. ESTRUTURA DE ROLAGEM
-    const rightCol = card.children[2];
+    const rightCol = card.children[2]; 
     if (rightCol) {
         rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-y-auto relative hide-scroll";
         if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
@@ -3743,7 +3691,7 @@ window.openProductModal = (productId) => {
     let selectedSizeInModal = 'U';
 
     if (sizesDiv) {
-        sizesDiv.innerHTML = '';
+        sizesDiv.innerHTML = ''; 
         if (p.sizes && p.sizes.length > 0) {
             if (sizesWrapper) sizesWrapper.classList.remove('hidden');
             selectedSizeInModal = p.sizes[0];

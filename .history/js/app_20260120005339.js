@@ -1175,48 +1175,41 @@ function renderCatalog(productsToRender) {
 // =======================================================================================================================//=======================================================================================================================
 //LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
 // =================================================================
+// =================================================================
+// LÓGICA DE CATEGORIAS (TEXTO COMPLETO)
+// =================================================================
 function renderCategories() {
-    // 1. Definição da Função de Preenchimento (Interna e Segura)
+    // 1. Definição da Função de Preenchimento
     const populateSelect = (elementId) => {
-        const selectEl = document.getElementById(elementId); // Pega direto do HTML para garantir
+        const selectEl = document.getElementById(elementId);
         if (!selectEl) return;
 
         const currentVal = selectEl.value;
 
-        // LÓGICA DE TEXTO:
-        // Aumentei para 768px para pegar tablets e celulares grandes também
-        const isMobile = window.innerWidth < 768; 
-        
-        // Texto bem curto para mobile
-        const defaultLabel = isMobile ? "Todas categorias" : "Todas as Categorias";
+        // AQUI: Mantemos o texto completo, independentemente do tamanho da tela.
+        // A classe do HTML (text-[8px]) é que vai definir o tamanho visual.
+        selectEl.innerHTML = `<option value="" class="text-gray-500">Todas as Categorias</option>`;
 
-        // Aplica o HTML
-        // A classe text-xs ou text-[8px] do HTML vai controlar o tamanho da fonte.
-        // Aqui controlamos apenas o QUE está escrito.
-        selectEl.innerHTML = `<option value="" class="text-gray-500">${defaultLabel}</option>`;
-
-        // Adiciona as categorias
+        // Adiciona as categorias dinâmicas
         state.categories.forEach(c => {
             selectEl.innerHTML += `<option value="${c.name}">${c.name}</option>`;
         });
         
-        // Restaura a seleção
+        // Restaura seleção anterior se houver
         if (currentVal) selectEl.value = currentVal;
     };
 
-    // 2. Chama a função para todos os selects de categoria do site
-    populateSelect('category-filter');       // Filtro da Vitrine
-    populateSelect('admin-filter-cat');      // Filtro do Admin
-    populateSelect('bulk-category-select');  // Ações em massa
-    populateSelect('prod-cat-select');       // Formulário de produto
-    populateSelect('bulk-category-select-dynamic'); // Barra dinâmica
+    // 2. Chama para todos os selects
+    populateSelect('category-filter');       
+    populateSelect('admin-filter-cat');      
+    populateSelect('bulk-category-select');  
+    populateSelect('prod-cat-select');       
+    populateSelect('bulk-category-select-dynamic'); 
 
-    // 3. Renderiza a Sidebar (Menu Lateral)
+    // 3. Renderiza Sidebar (Menu Lateral) - Mantido igual
     const sidebarContainer = document.getElementById('sidebar-categories');
     if (sidebarContainer) {
         const catNames = state.categories.map(c => c.name);
-        
-        // Monta a Árvore de Categorias
         const tree = {};
         catNames.forEach(name => {
             const parts = name.split(' - ');
@@ -1230,11 +1223,9 @@ function renderCategories() {
             });
         });
 
-        // Função Recursiva HTML para Sidebar
         const buildHtml = (node, level = 0) => {
             let html = '';
             const keys = Object.keys(node).sort();
-
             keys.forEach(key => {
                 const item = node[key];
                 const hasChildren = Object.keys(item._children).length > 0;
@@ -1262,7 +1253,6 @@ function renderCategories() {
             });
             return html;
         };
-
         sidebarContainer.innerHTML = `<div class="space-y-1 mt-2">${buildHtml(tree)}</div>`;
     }
 }

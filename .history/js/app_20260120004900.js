@@ -1172,7 +1172,8 @@ function renderCatalog(productsToRender) {
 }
 
 
-// =======================================================================================================================//=======================================================================================================================
+// =======================================================================================================================//
+// =======================================================================================================================
 //LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
 // =================================================================
 function renderCategories() {
@@ -1188,7 +1189,7 @@ function renderCategories() {
         const isMobile = window.innerWidth < 768; 
         
         // Texto bem curto para mobile
-        const defaultLabel = isMobile ? "Todas categorias" : "Todas as Categorias";
+        const defaultLabel = isMobile ? "Categorias" : "Todas as Categorias";
 
         // Aplica o HTML
         // A classe text-xs ou text-[8px] do HTML vai controlar o tamanho da fonte.

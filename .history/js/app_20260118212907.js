@@ -1172,99 +1172,108 @@ function renderCatalog(productsToRender) {
 }
 
 
-// =======================================================================================================================//=======================================================================================================================
+// =======================================================================================================================// =======================================================================================================================
 //LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
-// =================================================================
 function renderCategories() {
-    // 1. Definição da Função de Preenchimento (Interna e Segura)
-    const populateSelect = (elementId) => {
-        const selectEl = document.getElementById(elementId); // Pega direto do HTML para garantir
+    // Se não tiver o container da sidebar, para.
+    if (!els.sidebarCategories) return;
+
+    const catNames = state.categories.map(c => c.name);
+
+    // 1. Preenche Selects (Filtros)
+    const populateSelect = (selectEl) => {
         if (!selectEl) return;
-
         const currentVal = selectEl.value;
-
-        // LÓGICA DE TEXTO:
-        // Aumentei para 768px para pegar tablets e celulares grandes também
-        const isMobile = window.innerWidth < 768; 
-        
-        // Texto bem curto para mobile
-        const defaultLabel = isMobile ? "Todas categorias" : "Todas as Categorias";
-
-        // Aplica o HTML
-        // A classe text-xs ou text-[8px] do HTML vai controlar o tamanho da fonte.
-        // Aqui controlamos apenas o QUE está escrito.
-        selectEl.innerHTML = `<option value="" class="text-gray-500">${defaultLabel}</option>`;
-
-        // Adiciona as categorias
-        state.categories.forEach(c => {
-            selectEl.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+        selectEl.innerHTML = '<option value="" class="text-red-500" >Todas as Categorias</option>';
+        catNames.forEach(c => {
+            selectEl.innerHTML += `<option value="${c}">${c}</option>`;
         });
-        
-        // Restaura a seleção
         if (currentVal) selectEl.value = currentVal;
     };
 
-    // 2. Chama a função para todos os selects de categoria do site
-    populateSelect('category-filter');       // Filtro da Vitrine
-    populateSelect('admin-filter-cat');      // Filtro do Admin
-    populateSelect('bulk-category-select');  // Ações em massa
-    populateSelect('prod-cat-select');       // Formulário de produto
-    populateSelect('bulk-category-select-dynamic'); // Barra dinâmica
+    populateSelect(els.catFilter);
+    populateSelect(els.adminFilterCat);
+    populateSelect(els.bulkCategorySelect);
+    populateSelect(getEl('prod-cat-select'));
+    // Se existir o select da barra de ação nova, preenche também
+    const bulkDynamic = document.getElementById('bulk-category-select-dynamic');
+    if (bulkDynamic) populateSelect(bulkDynamic);
 
-    // 3. Renderiza a Sidebar (Menu Lateral)
-    const sidebarContainer = document.getElementById('sidebar-categories');
-    if (sidebarContainer) {
-        const catNames = state.categories.map(c => c.name);
-        
-        // Monta a Árvore de Categorias
-        const tree = {};
-        catNames.forEach(name => {
-            const parts = name.split(' - ');
-            let currentLevel = tree;
-            parts.forEach((part, index) => {
-                if (!currentLevel[part]) {
-                    const fullPath = parts.slice(0, index + 1).join(' - ');
-                    currentLevel[part] = { _path: fullPath, _children: {} };
-                }
-                currentLevel = currentLevel[part]._children;
-            });
+    // 2. Monta a Árvore
+    const tree = {};
+    catNames.forEach(name => {
+        const parts = name.split(' - ');
+        let currentLevel = tree;
+        parts.forEach((part, index) => {
+            if (!currentLevel[part]) {
+                const fullPath = parts.slice(0, index + 1).join(' - ');
+                currentLevel[part] = { _path: fullPath, _children: {} };
+            }
+            currentLevel = currentLevel[part]._children;
         });
+    });
 
-        // Função Recursiva HTML para Sidebar
-        const buildHtml = (node, level = 0) => {
-            let html = '';
-            const keys = Object.keys(node).sort();
+    // Função Recursiva HTML
+    const buildHtml = (node, level = 0) => {
+        let html = '';
+        const keys = Object.keys(node).sort();
 
-            keys.forEach(key => {
-                const item = node[key];
-                const hasChildren = Object.keys(item._children).length > 0;
-                const safePath = item._path.replace(/'/g, "\\'");
-                const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
-                const textStyle = level === 0 
-                    ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm" 
-                    : "text-gray-300 font-medium text-sm hover:text-white";
+        keys.forEach(key => {
+            const item = node[key];
+            const hasChildren = Object.keys(item._children).length > 0;
+            // Escapa aspas
+            const safePath = item._path.replace(/'/g, "\\'");
 
-                if (hasChildren) {
-                    html += `
-                        <details class="group mb-1">
-                            <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
-                                <span class="${textStyle} flex-1" style="padding-left:${paddingLeft}px" onclick="event.preventDefault(); filterByCat('${safePath}')">${key}</span>
-                                <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">▲</span>
-                            </summary>
-                            <div class="border-l border-gray-800 ml-4">${buildHtml(item._children, level + 1)}</div>
-                        </details>`;
-                } else {
-                    html += `
-                        <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center" onclick="filterByCat('${safePath}')">
-                            <span class="${textStyle}" style="padding-left:${paddingLeft}px">${key}</span>
-                        </div>`;
-                }
-            });
-            return html;
-        };
+            // Cálculo de recuo (Padding)
+            // Se for nível 0, padding menor. Se for filho, aumenta.
+            const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
 
-        sidebarContainer.innerHTML = `<div class="space-y-1 mt-2">${buildHtml(tree)}</div>`;
-    }
+            // Estilos de Texto
+            const textStyle = level === 0
+                ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm"
+                : "text-gray-300 font-medium text-sm hover:text-white";
+
+            // Se tiver filhos, usa <details> para o accordion
+            if (hasChildren) {
+                html += `
+                    <details class="group mb-1">
+                        <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
+                            <span class="${textStyle} flex-1" 
+                                  style="padding-left:${paddingLeft}px"
+                                  onclick="event.preventDefault(); filterByCat('${safePath}')">
+                                ${key}
+                            </span>
+                            
+                            <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">
+                                ▲
+                            </span>
+                        </summary>
+                        <div class="border-l border-gray-800 ml-4">
+                            ${buildHtml(item._children, level + 1)}
+                        </div>
+                    </details>
+                `;
+            } else {
+                // Se NÃO tiver filhos, é apenas um botão simples (sem seta)
+                html += `
+                    <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center"
+                         onclick="filterByCat('${safePath}')">
+                        <span class="${textStyle}" style="padding-left:${paddingLeft}px">
+                            ${key}
+                        </span>
+                    </div>
+                `;
+            }
+        });
+        return html;
+    };
+
+    // Renderiza SEM o botão "Ver Todos" (limpando o innerHTML antes)
+    els.sidebarCategories.innerHTML = `
+        <div class="space-y-1 mt-2">
+            ${buildHtml(tree)}
+        </div>
+    `;
 }
 
 // Função Helper para selecionar o pai sem fechar o menu visualmente
@@ -2084,7 +2093,7 @@ function filterAndRenderSales() {
         return matchCode && matchGeneral && matchProduct && matchStatus && matchPayment && matchDate;
     });
 
-    // 3. ORDENAÇÃO ATUALIZADA (Select + Proximidade Numérica)
+   // 3. ORDENAÇÃO ATUALIZADA (Select + Proximidade Numérica)
     const sortVal = document.getElementById('filter-sort-order') ? document.getElementById('filter-sort-order').value : 'date_desc';
 
     filtered.sort((a, b) => {
@@ -2468,7 +2477,7 @@ function setupEventListeners() {
         }
     });
 
-    // 3. Botão Limpar Filtros
+  // 3. Botão Limpar Filtros
     const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
@@ -3665,6 +3674,7 @@ window.openProductModal = (productId) => {
     if (!modal || !card) return;
 
     // --- 1. CONFIGURAÇÃO VISUAL (Scroll Escondido) ---
+    // Injeta estilo CSS dinamicamente para esconder scrollbar (Chrome/Safari/Edge)
     if (!document.getElementById('style-hide-scroll')) {
         const style = document.createElement('style');
         style.id = 'style-hide-scroll';
@@ -3680,12 +3690,11 @@ window.openProductModal = (productId) => {
     updateCarouselUI(images);
 
     // --- 3. CÁLCULOS FINANCEIROS (CORRIGIDO) ---
-    // MUDANÇA AQUI: Busca de storeProfile.installments em vez de globalSettings
-    const instProfile = state.storeProfile.installments || { active: false, max: 12, freeUntil: 1 };
-
-    // Pega as variáveis com os nomes corretos salvos no banco
-    const maxInstNoInterest = parseInt(instProfile.freeUntil) || 1;
-    const maxInstTotal = parseInt(instProfile.max) || 12;
+    const settings = state.globalSettings || {};
+    
+    // Pega configuração: Se não tiver definido, assume 12 total e 1 sem juros
+    const maxInstNoInterest = parseInt(settings.maxInstallmentsNoInterest) || 1;
+    const maxInstTotal = parseInt(settings.maxInstallments) || 12;
 
     const priceOriginal = parseFloat(p.price || 0);
     const priceFinal = parseFloat(p.promoPrice || p.price || 0);
@@ -3693,12 +3702,12 @@ window.openProductModal = (productId) => {
     const pricePix = priceFinal * 0.95; // 5% de desconto
 
     // LÓGICA DE EXIBIÇÃO:
-    // Se existe parcelamento sem juros configurado (ex: 3x), mostra ele.
-    // Se não (freeUntil = 1), mostra o máximo total (ex: 12x ou 34x).
+    // Se existe configuração de "Sem Juros" maior que 1 (ex: 5x), usamos ELA.
+    // Caso contrário, usamos o máximo total (ex: 12x).
     let displayInst = (maxInstNoInterest > 1) ? maxInstNoInterest : maxInstTotal;
-
-    // Texto auxiliar
-    let interestLabel = (maxInstNoInterest > 1) ? '<span class="text-green-400 font-bold text-xs ml-1">sem juros</span>' : '';
+    
+    // Texto auxiliar (só aparece se estivermos usando a regra de sem juros)
+    let interestLabel = (maxInstNoInterest > 1) ? '<span class="text-white font-normal text-xs ml-1">sem juros</span>' : '';
 
     const priceInstallment = priceFinal / displayInst;
 
@@ -3710,40 +3719,44 @@ window.openProductModal = (productId) => {
     if (elPrice) {
         let htmlHtml = '';
         if (hasPromo) htmlHtml += `<span class="text-gray-500 text-sm line-through block mb-1">De: ${formatCurrency(priceOriginal)}</span>`;
-
+        
         htmlHtml += `<div class="text-green-500 font-bold text-4xl tracking-tight">${formatCurrency(priceFinal)}</div>`;
-
+        
         htmlHtml += `
             <div class="mt-3 pt-3 border-t border-gray-700 space-y-2">
                 <div class="flex items-center gap-2 text-sm text-gray-300">
                     <i class="fab fa-pix text-green-400 text-lg"></i>
                     <span><b>${formatCurrency(pricePix)}</b> no Pix <span class="text-green-400 text-[10px] font-bold bg-green-900/30 px-1.5 py-0.5 rounded ml-1">5% OFF</span></span>
                 </div>
-                ${instProfile.active ? `
                 <div class="flex items-center gap-2 text-sm text-gray-300">
                     <i class="fas fa-credit-card text-yellow-500 text-lg"></i>
-                    <span>Ou até <b>${displayInst}x</b> de <b>${formatCurrency(priceInstallment)}</b> ${interestLabel}</span>
-                </div>` : ''}
+                    <span>Ou até <b>${displayInst}x</b> de <b>${formatCurrency(priceInstallment)}</b>${interestLabel}</span>
+                </div>
             </div>
         `;
         elPrice.innerHTML = htmlHtml;
     }
 
     // 5. ESTRUTURA DE ROLAGEM
-    const rightCol = card.children[2];
+    const rightCol = card.children[2]; 
     if (rightCol) {
+        // Aplica a classe 'hide-scroll' criada lá em cima
         rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-y-auto relative hide-scroll";
+        
+        // Header Fixo
         if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
+
+        // Miolo Rolável
         if (rightCol.children[1]) rightCol.children[1].className = "px-6 md:px-8 py-6 space-y-6 flex-1";
     }
 
-    // 6. TAMANHOS
+    // 6. TAMANHOS (Mantém lógica original)
     const sizesDiv = getEl('modal-sizes');
     const sizesWrapper = getEl('modal-sizes-wrapper');
     let selectedSizeInModal = 'U';
 
     if (sizesDiv) {
-        sizesDiv.innerHTML = '';
+        sizesDiv.innerHTML = ''; 
         if (p.sizes && p.sizes.length > 0) {
             if (sizesWrapper) sizesWrapper.classList.remove('hidden');
             selectedSizeInModal = p.sizes[0];
@@ -3765,7 +3778,7 @@ window.openProductModal = (productId) => {
         }
     }
 
-    // 7. BOTÃO
+    // 7. BOTÃO (Fixo no Rodapé)
     const btnAdd = getEl('modal-add-cart');
     if (btnAdd) {
         if (btnAdd.parentElement) {
@@ -7455,47 +7468,3 @@ window.loadTheme = loadTheme;
 // location.reload();
 
 
-// --- FUNÇÕES DOS BOTÕES CANCELAR/SALVAR NAS CONFIGURAÇÕES ---
-
-window.saveSettingsManual = async (type) => {
-    // 1. Salva os dados (Reaproveita sua função existente)
-    await autoSaveSettings(type);
-
-    // 2. Fecha o acordeão correspondente
-    closeSettingsAccordion(type);
-};
-
-window.cancelSettings = (type) => {
-    // 1. Reverte os dados (Preenche os inputs com o que está salvo na memória/banco)
-    // Isso desfaz o que o usuário digitou se ele não tiver salvo ainda
-    if (typeof fillProfileForm === 'function') {
-        fillProfileForm();
-    }
-
-    // 2. Fecha o acordeão
-    closeSettingsAccordion(type);
-
-    // 3. Feedback visual
-    showToast('Alterações descartadas.', 'info');
-};
-
-function closeSettingsAccordion(type) {
-    let contentId = '';
-    let arrowId = '';
-
-    // Mapeia o tipo para os IDs do HTML
-    if (type === 'installments') {
-        contentId = 'content-acc-installments';
-        arrowId = 'arrow-acc-installments';
-    } else if (type === 'orders' || type === 'logistics') { // 'orders' costuma ser o de entrega
-        contentId = 'content-acc-orders';
-        arrowId = 'arrow-acc-orders';
-    }
-
-    // Fecha o elemento
-    const content = document.getElementById(contentId);
-    const arrow = document.getElementById(arrowId);
-
-    if (content) content.classList.add('hidden');
-    if (arrow) arrow.style.transform = 'rotate(0deg)';
-}

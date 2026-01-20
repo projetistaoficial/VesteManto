@@ -1172,99 +1172,133 @@ function renderCatalog(productsToRender) {
 }
 
 
-// =======================================================================================================================//=======================================================================================================================
+// =======================================================================================================================// =======================================================================================================================
 //LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
-// =================================================================
 function renderCategories() {
-    // 1. Definição da Função de Preenchimento (Interna e Segura)
-    const populateSelect = (elementId) => {
-        const selectEl = document.getElementById(elementId); // Pega direto do HTML para garantir
-        if (!selectEl) return;
+    // Se não tiver o container da sidebar, para.
+    if (!els.sidebarCategories) return;
 
+    const catNames = state.categories.map(c => c.name);
+
+    // 1. Preenche Selects (Filtros)
+    // 1. Preenche Selects (Filtros) com Texto Responsivo
+    const populateSelect = (selectEl) => {
+        if (!selectEl) return;
         const currentVal = selectEl.value;
 
-        // LÓGICA DE TEXTO:
-        // Aumentei para 768px para pegar tablets e celulares grandes também
-        const isMobile = window.innerWidth < 768; 
-        
-        // Texto bem curto para mobile
-        const defaultLabel = isMobile ? "Todas categorias" : "Todas as Categorias";
+        // LÓGICA: Detecta se é tela pequena (menor que 640px)
+        const isMobile = window.innerWidth < 640;
 
-        // Aplica o HTML
-        // A classe text-xs ou text-[8px] do HTML vai controlar o tamanho da fonte.
-        // Aqui controlamos apenas o QUE está escrito.
-        selectEl.innerHTML = `<option value="" class="text-gray-500">${defaultLabel}</option>`;
+        // Se for mobile, escreve curto. Se for PC, escreve completo.
+        const defaultLabel = isMobile ? "Categorias" : "Todas as Categorias";
 
-        // Adiciona as categorias
+        // 1. Limpa e adiciona a opção padrão com o texto calculado
+        // A classe text-red-500 foi mantida conforme seu código original (ou use text-gray-500)
+        selectEl.innerHTML = `<option value="" class="text-red-500">${defaultLabel}</option>`;
+
+        // 2. Adiciona as categorias do sistema
         state.categories.forEach(c => {
+            // Usa o nome da categoria (c.name)
             selectEl.innerHTML += `<option value="${c.name}">${c.name}</option>`;
         });
-        
-        // Restaura a seleção
+
+        // 3. Mantém o valor selecionado se houver
         if (currentVal) selectEl.value = currentVal;
     };
 
-    // 2. Chama a função para todos os selects de categoria do site
-    populateSelect('category-filter');       // Filtro da Vitrine
-    populateSelect('admin-filter-cat');      // Filtro do Admin
-    populateSelect('bulk-category-select');  // Ações em massa
-    populateSelect('prod-cat-select');       // Formulário de produto
-    populateSelect('bulk-category-select-dynamic'); // Barra dinâmica
+    // Adicione isso LOGO ABAIXO da função populateSelect para garantir 
+    // que o texto mude se a pessoa girar a tela ou redimensionar:
+    window.addEventListener('resize', () => {
+        const catFilter = document.getElementById('category-filter');
+        // Só recarrega se o elemento existir e tiver categorias carregadas
+        if (catFilter && state.categories.length > 0) {
+            populateSelect(catFilter);
+        }
+    });
 
-    // 3. Renderiza a Sidebar (Menu Lateral)
-    const sidebarContainer = document.getElementById('sidebar-categories');
-    if (sidebarContainer) {
-        const catNames = state.categories.map(c => c.name);
-        
-        // Monta a Árvore de Categorias
-        const tree = {};
-        catNames.forEach(name => {
-            const parts = name.split(' - ');
-            let currentLevel = tree;
-            parts.forEach((part, index) => {
-                if (!currentLevel[part]) {
-                    const fullPath = parts.slice(0, index + 1).join(' - ');
-                    currentLevel[part] = { _path: fullPath, _children: {} };
-                }
-                currentLevel = currentLevel[part]._children;
-            });
+    populateSelect(els.catFilter);
+    populateSelect(els.adminFilterCat);
+    populateSelect(els.bulkCategorySelect);
+    populateSelect(getEl('prod-cat-select'));
+    // Se existir o select da barra de ação nova, preenche também
+    const bulkDynamic = document.getElementById('bulk-category-select-dynamic');
+    if (bulkDynamic) populateSelect(bulkDynamic);
+
+    // 2. Monta a Árvore
+    const tree = {};
+    catNames.forEach(name => {
+        const parts = name.split(' - ');
+        let currentLevel = tree;
+        parts.forEach((part, index) => {
+            if (!currentLevel[part]) {
+                const fullPath = parts.slice(0, index + 1).join(' - ');
+                currentLevel[part] = { _path: fullPath, _children: {} };
+            }
+            currentLevel = currentLevel[part]._children;
         });
+    });
 
-        // Função Recursiva HTML para Sidebar
-        const buildHtml = (node, level = 0) => {
-            let html = '';
-            const keys = Object.keys(node).sort();
+    // Função Recursiva HTML
+    const buildHtml = (node, level = 0) => {
+        let html = '';
+        const keys = Object.keys(node).sort();
 
-            keys.forEach(key => {
-                const item = node[key];
-                const hasChildren = Object.keys(item._children).length > 0;
-                const safePath = item._path.replace(/'/g, "\\'");
-                const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
-                const textStyle = level === 0 
-                    ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm" 
-                    : "text-gray-300 font-medium text-sm hover:text-white";
+        keys.forEach(key => {
+            const item = node[key];
+            const hasChildren = Object.keys(item._children).length > 0;
+            // Escapa aspas
+            const safePath = item._path.replace(/'/g, "\\'");
 
-                if (hasChildren) {
-                    html += `
-                        <details class="group mb-1">
-                            <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
-                                <span class="${textStyle} flex-1" style="padding-left:${paddingLeft}px" onclick="event.preventDefault(); filterByCat('${safePath}')">${key}</span>
-                                <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">▲</span>
-                            </summary>
-                            <div class="border-l border-gray-800 ml-4">${buildHtml(item._children, level + 1)}</div>
-                        </details>`;
-                } else {
-                    html += `
-                        <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center" onclick="filterByCat('${safePath}')">
-                            <span class="${textStyle}" style="padding-left:${paddingLeft}px">${key}</span>
-                        </div>`;
-                }
-            });
-            return html;
-        };
+            // Cálculo de recuo (Padding)
+            // Se for nível 0, padding menor. Se for filho, aumenta.
+            const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
 
-        sidebarContainer.innerHTML = `<div class="space-y-1 mt-2">${buildHtml(tree)}</div>`;
-    }
+            // Estilos de Texto
+            const textStyle = level === 0
+                ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm"
+                : "text-gray-300 font-medium text-sm hover:text-white";
+
+            // Se tiver filhos, usa <details> para o accordion
+            if (hasChildren) {
+                html += `
+                    <details class="group mb-1">
+                        <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
+                            <span class="${textStyle} flex-1" 
+                                  style="padding-left:${paddingLeft}px"
+                                  onclick="event.preventDefault(); filterByCat('${safePath}')">
+                                ${key}
+                            </span>
+                            
+                            <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">
+                                ▲
+                            </span>
+                        </summary>
+                        <div class="border-l border-gray-800 ml-4">
+                            ${buildHtml(item._children, level + 1)}
+                        </div>
+                    </details>
+                `;
+            } else {
+                // Se NÃO tiver filhos, é apenas um botão simples (sem seta)
+                html += `
+                    <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center"
+                         onclick="filterByCat('${safePath}')">
+                        <span class="${textStyle}" style="padding-left:${paddingLeft}px">
+                            ${key}
+                        </span>
+                    </div>
+                `;
+            }
+        });
+        return html;
+    };
+
+    // Renderiza SEM o botão "Ver Todos" (limpando o innerHTML antes)
+    els.sidebarCategories.innerHTML = `
+        <div class="space-y-1 mt-2">
+            ${buildHtml(tree)}
+        </div>
+    `;
 }
 
 // Função Helper para selecionar o pai sem fechar o menu visualmente
