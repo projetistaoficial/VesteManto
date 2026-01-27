@@ -6315,6 +6315,7 @@ async function getNextOrderNumber(siteId) {
 }
 
 // --- ENVIAR PEDIDO (ATUALIZADO COM TROCO) ---
+// --- FUNÇÃO FINALIZAR PEDIDO (BLINDADA) ---
 window.submitOrder = async () => {
     try {
         const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
