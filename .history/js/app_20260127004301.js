@@ -6319,6 +6319,22 @@ window.submitOrder = async () => {
     try {
         const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
 
+        // 1. DADOS DE CONFIGURAÇÃO (Declarados uma única vez aqui no topo)
+        // Corrigido: Agora usamos 'dConfig' em toda a função sem redeclarar
+        const dConfig = state.storeProfile?.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
+        
+        // --- TRAVA DE SEGURANÇA DE ENTREGA ---
+        const payModeEl = document.querySelector('input[name="pay-mode"]:checked');
+        const payMode = payModeEl ? payModeEl.value : null;
+
+        // Se for entrega própria E a validação não passou (distance 0 ou erro)
+        if (dConfig.ownDelivery === true && payMode === 'delivery') {
+            if (checkoutState.isValidDelivery === false) {
+                return alert("⛔ ENDEREÇO INVÁLIDO OU FORA DA ÁREA\n\nO sistema não conseguiu calcular a distância permitida.\nVerifique o CEP digitado.");
+            }
+        }
+        // -------------------------------------
+
         const name = getVal('checkout-name');
         const phone = getVal('checkout-phone');
         const cep = getVal('checkout-cep');
@@ -6331,86 +6347,93 @@ window.submitOrder = async () => {
             return alert("⚠️ Preencha todos os campos obrigatórios.");
         }
 
-        const payModeEl = document.querySelector('input[name="pay-mode"]:checked');
         const methodEl = document.querySelector('input[name="payment-method-selection"]:checked');
 
-        if (!payModeEl || !methodEl) {
+        if (!payMode || !methodEl) {
             return alert("⚠️ Selecione a forma de pagamento.");
         }
 
-        const payMode = payModeEl.value;
         const method = methodEl.value;
 
-        // Monta texto do pagamento
+        // --- Monta texto do pagamento ---
         let paymentDetails = "";
-        if (method === 'pix') paymentDetails = "Pix";
-        else if (method === 'card') {
+        let paymentMsgShort = "";
+
+        if (method === 'pix') {
+            paymentDetails = "Pix";
+            paymentMsgShort = "Pix";
+        }
+        else if (method === 'credit') {
             const select = document.getElementById('checkout-installments');
-            let parcelas = "Crédito/Débito";
+            let parcelas = "1x (À vista)";
             if (payMode === 'online' && select && select.selectedIndex >= 0) {
                 parcelas = select.options[select.selectedIndex].text;
+            } else if (payMode === 'delivery') {
+                parcelas = "Na Maquininha";
             }
-            paymentDetails = `Cartão (${parcelas})`;
+            paymentDetails = `Cartão de Crédito (${parcelas})`;
+            paymentMsgShort = `Crédito (${parcelas})`;
+        }
+        else if (method === 'debit') {
+            paymentDetails = "Cartão de Débito";
+            paymentMsgShort = "Débito";
         }
         else if (method === 'cash') {
             const trocoVal = getVal('checkout-change-for');
             paymentDetails = `Dinheiro (Troco para: ${trocoVal || 'Não precisa'})`;
+            paymentMsgShort = `Dinheiro ${trocoVal ? `(Troco p/ ${trocoVal})` : ''}`;
         }
+
         paymentDetails += (payMode === 'online') ? " [Pago Online]" : " [Pagar na Entrega]";
 
         // Valor Final
         const totalEl = document.getElementById('checkout-final-total');
         let finalValue = 0;
+        let totalString = "R$ 0,00";
         if (totalEl) {
+            totalString = totalEl.innerText;
             finalValue = parseFloat(totalEl.innerText.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
         }
 
-        // --- CÁLCULO E SALVAMENTO DO CUPOM (NOVO) ---
+        // Cupom
         let couponData = null;
         if (state.currentCoupon) {
-            // Calcula o valor exato que o cupom descontou
             let subtotal = state.cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
             let discountVal = 0;
-
             if (state.currentCoupon.type === 'percent') {
                 discountVal = subtotal * (state.currentCoupon.val / 100);
             } else {
                 discountVal = state.currentCoupon.val;
             }
-
             if (discountVal > subtotal) discountVal = subtotal;
-
             couponData = {
                 code: state.currentCoupon.code,
                 value: discountVal
             };
         }
-        // --------------------------------------------
 
-        const deliveryConfig = state.storeProfile?.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
-        const cancelMinutes = parseInt(deliveryConfig.cancelTimeMin) || 5;
-
+        // Código de Segurança e Cancelamento (Usando a dConfig declarada no topo)
+        const cancelMinutes = parseInt(dConfig.cancelTimeMin) || 5;
         let securityCode = null;
-        if (payMode === 'delivery' && deliveryConfig.reqCustomerCode === true) {
+        
+        if (payMode === 'delivery' && dConfig.reqCustomerCode === true) {
             securityCode = Math.floor(1000 + Math.random() * 9000);
         }
 
         const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
         const nextCode = await getNextOrderNumber(state.siteId);
 
-        // Frete
-        const dConfig = state.storeProfile.deliveryConfig || {};
+        // Frete (Usa dConfig já declarada)
         const shipRule = dConfig.shippingRule || 'none';
         const shipValue = parseFloat(dConfig.shippingValue) || 0;
 
         let valueToSave = 0;
-        if (checkoutState.isValidDelivery && shipValue > 0) {
+        if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery && shipValue > 0) {
             if (shipRule === 'both') valueToSave = shipValue;
             else if (shipRule === 'online' && payMode === 'online') valueToSave = shipValue;
             else if (shipRule === 'delivery' && payMode === 'delivery') valueToSave = shipValue;
         }
 
-        // Cria o objeto do pedido
         const order = {
             code: nextCode,
             date: new Date().toISOString(),
@@ -6424,11 +6447,8 @@ window.submitOrder = async () => {
             paymentMethod: paymentDetails,
             securityCode: securityCode,
             shippingFee: valueToSave,
-
-            // --- SALVA DADOS DO CUPOM ---
-            couponData: couponData, // Objeto { code: 'NOME', value: 10.00 }
-            cupom: couponData ? couponData.code : null, // Mantém compatibilidade simples
-
+            couponData: couponData,
+            cupom: couponData ? couponData.code : null,
             cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
         };
 
@@ -6448,12 +6468,26 @@ window.submitOrder = async () => {
         startBackgroundListeners();
         checkActiveOrders();
         state.cart = [];
-        state.currentCoupon = null; // Limpa cupom da memória
+        state.currentCoupon = null;
         localStorage.setItem('cart', JSON.stringify([]));
         updateCartUI();
 
         if (payMode === 'online') {
-            sendOrderToWhatsapp(newOrderLocal);
+            let msg = `*NOVO PEDIDO #${order.code}*\n--------------------------------\n`;
+            msg += `👤 *Cliente:* ${name}\n📞 *Tel:* ${phone}\n\n🛒 *ITENS:*\n`;
+            order.items.forEach(item => { msg += `▪ ${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}\n`; });
+            msg += `\n💰 *TOTAL: ${totalString}*\n🚚 *Tipo:* ${payMode === 'online' ? "Pagar Agora (Online)" : "Pagar na Entrega"}\n💳 *Pagamento:* ${paymentMsgShort}\n`;
+            if (valueToSave > 0) msg += `🛵 *Frete:* R$ ${valueToSave.toFixed(2).replace('.', ',')}\n`;
+            msg += `\n📍 *Endereço:*\n${fullAddress}`;
+
+            let storePhone = state.storeProfile.whatsapp || "";
+            let targetNumber = storePhone.replace(/\D/g, '');
+            if (targetNumber.length === 10 || targetNumber.length === 11) targetNumber = "55" + targetNumber;
+            
+            if (targetNumber) {
+                const url = `https://api.whatsapp.com/send?phone=${targetNumber}&text=${encodeURIComponent(msg)}`;
+                window.open(url, '_blank');
+            }
         }
 
         openTrackModal();
