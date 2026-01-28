@@ -25,5 +25,6 @@ export {
     collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, setDoc, getDoc, 
     signInWithEmailAndPassword, onAuthStateChanged, signOut, 
     ref, uploadBytes, getDownloadURL, 
-    getDocsCheck, runTransaction, limit, getAggregateFromServer, sum, count
+    getDocsCheck, runTransaction, limit, getAggregateFromServer, sum, 
+    count
 };

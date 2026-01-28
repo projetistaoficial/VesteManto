@@ -1,4 +1,4 @@
-import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction } from './firebase-config.js';
+import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction, limit, getAggregateFromServer, sum, count } from './firebase-config.js';
 import { initStatsModule, updateStatsData } from './stats.js';
 import { checkAndActivateSupport, initSupportModule } from './support.js';
 // =================================================================
@@ -373,6 +373,9 @@ const state = {
     selectedProducts: new Set(),
     //Configuração padrão de ordenação
     sortConfig: { key: 'code', direction: 'desc' },
+
+    salesLimit: 100,       // Começa carregando 100
+    salesUnsubscribe: null // Para poder desligar e ligar o ouvinte ao carregar mais
 };
 
 const els = {
@@ -640,54 +643,81 @@ function loadCoupons() {
     });
 }
 
-// Carrega TODAS as vendas (Usado para ambos dashboards)
+// OTIMIZADO: Adicionado limit(100) para economizar leituras
+// FUNÇÃO OTIMIZADA COM "CARREGAR MAIS"
 function loadAdminSales() {
-    // 1. Query no Banco de Dados
-    const q = query(collection(db, `sites/${state.siteId}/sales`), orderBy('date', 'desc'));
+    // 1. Se já existe um ouvinte ativo, cancela ele antes de criar um novo (com mais itens)
+    if (state.salesUnsubscribe) {
+        state.salesUnsubscribe();
+    }
 
-    onSnapshot(q, (snapshot) => {
-        // 2. Salva os dados no State
+    // 2. Query com limite controlado pelo state.salesLimit
+    const q = query(
+        collection(db, `sites/${state.siteId}/sales`), 
+        orderBy('date', 'desc'), 
+        limit(state.salesLimit)
+    );
+
+    // 3. Inicia o novo ouvinte
+    state.salesUnsubscribe = onSnapshot(q, (snapshot) => {
         state.orders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // --- PARTE 1: NOTIFICAÇÕES (O que estava faltando) ---
-        // Conta quantos pedidos não foram vistos (!o.viewed)
+        // --- ATUALIZAÇÕES VISUAIS ---
+        
+        // Notificações no Menu
         const newOrdersCount = state.orders.filter(o => !o.viewed).length;
-
-        // Atualiza o Botão "Vendas" no Menu
         const salesBtn = document.getElementById('admin-menu-sales');
         if (salesBtn) {
-            if (newOrdersCount > 0) {
-                salesBtn.innerHTML = `
-                    Vendas 
-                    <span class="ml-2 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg animate-pulse">
-                        ${newOrdersCount}
-                    </span>`;
-            } else {
-                salesBtn.innerText = 'Vendas';
-            }
+            salesBtn.innerHTML = newOrdersCount > 0 
+                ? `Vendas <span class="ml-2 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg animate-pulse">${newOrdersCount}</span>`
+                : 'Vendas';
         }
-
-        // Atualiza o Título da Aba do Navegador
         document.title = newOrdersCount > 0 ? `(${newOrdersCount}) Painel Admin` : 'Painel Admin';
-        // -----------------------------------------------------
 
-        // --- PARTE 2: ATUALIZAÇÃO DE DADOS (O que você pediu para manter) ---
-
-        // Atualiza Dashboard e Tabela de Vendas
+        // Atualiza Listas e Dashboards
         if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
         if (typeof updateDashboardMetrics === 'function') updateDashboardMetrics();
-
-        // Atualiza a tabela de produtos (para preencher colunas "Vendas" e "Data")
-        // Só roda se a tabela de produtos estiver na tela
-        if (document.getElementById('admin-product-list')) {
+        
+        // Atualiza tabela de produtos se estiver visível
+        if (document.getElementById('admin-product-list') && !document.getElementById('view-admin').classList.contains('hidden')) {
             filterAndRenderProducts();
         }
 
-        // Atualiza Estatísticas Gerais (Financeiro, Gráficos)
         if (typeof updateStatsData === 'function') {
             updateStatsData(state.orders, state.products, state.dailyStats);
         }
+
+        // 4. GERENCIA O BOTÃO "CARREGAR MAIS"
+        renderLoadMoreButton(snapshot.size);
     });
+}
+
+// Renderiza ou esconde o botão no final da lista
+function renderLoadMoreButton(currentCount) {
+    const container = document.getElementById('orders-list'); // Container da lista de vendas
+    if (!container) return;
+
+    // Remove botão antigo se existir para não duplicar
+    const oldBtn = document.getElementById('btn-load-more-sales');
+    if (oldBtn) oldBtn.remove();
+
+    // Se a quantidade carregada for MENOR que o limite, chegamos ao fim. Não mostra o botão.
+    // Ex: Pedimos 100, vieram 45. Acabou.
+    if (currentCount < state.salesLimit) return;
+
+    // Cria o botão
+    const btn = document.createElement('button');
+    btn.id = 'btn-load-more-sales';
+    btn.className = "w-full py-3 mt-4 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl border border-gray-700 transition flex items-center justify-center gap-2 text-sm uppercase tracking-wide";
+    btn.innerHTML = `<i class="fas fa-plus-circle"></i> Carregar mais vendas`;
+    
+    btn.onclick = () => {
+        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Carregando...`;
+        state.salesLimit += 100; // Aumenta +100
+        loadAdminSales();        // Recarrega o listener
+    };
+
+    container.appendChild(btn);
 }
 
 
@@ -5782,7 +5812,6 @@ window.submitOrder = async () => {
             msg += `👤 *Cliente:* ${name}\n📞 *Tel:* ${phone}\n\n🛒 *ITENS:*\n`;
             order.items.forEach(item => { msg += `▪ ${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}\n`; });
             msg += `\n💰 *TOTAL: ${totalString}*\n🚚 *Tipo:* ${payMode === 'online' ? "Pagar Agora (Online)" : "Pagar na Entrega"}\n💳 *Pagamento:* ${paymentMsgShort}\n`;
-            if (valueToSave > 0) msg += `🛵 *Frete:* R$ ${valueToSave.toFixed(2).replace('.', ',')}\n`;
             msg += `\n📍 *Endereço:*\n${fullAddress}`;
 
             let storePhone = state.storeProfile.whatsapp || "";
@@ -6819,48 +6848,25 @@ window.showOrderListView = () => {
     sortedList.forEach(order => {
         // --- Definição de Cores e Status ---
         let statusColor = 'bg-gray-400';
-        let statusLabel = order.status; // Padrão: usa o texto do próprio status
+        let statusLabel = order.status; 
 
         // Mapeamento visual
         switch (order.status) {
-            case 'Aguardando aprovação':
-                statusColor = 'bg-gray-400';
-                break;
-
-            // --- CORREÇÃO: SEPARANDO OS STATUS ---
-            case 'Aprovado':
-                statusColor = 'bg-yellow-500';
-                statusLabel = 'Aprovado'; // Exibe exatamente "Aprovado"
-                break;
-
-            case 'Preparando pedido':
-                statusColor = 'bg-yellow-600';
-                statusLabel = 'Preparando Pedido';
-                break;
-            // -------------------------------------
-
-            case 'Saiu para entrega':
-                statusColor = 'bg-orange-500';
-                statusLabel = 'Saiu para Entrega';
-                break;
-            case 'Entregue':
-                statusColor = 'bg-green-500'; // Entregue mas não finalizado
-                statusLabel = 'Entregue';
-                break;
-            case 'Concluído':
-                statusColor = 'bg-green-600';
-                statusLabel = 'Concluído';
-                break;
+            case 'Aguardando aprovação': statusColor = 'bg-gray-400'; break;
+            case 'Aprovado': statusColor = 'bg-yellow-500'; break;
+            case 'Preparando pedido': statusColor = 'bg-yellow-600'; break;
+            case 'Saiu para entrega': statusColor = 'bg-orange-500'; break;
+            case 'Entregue': statusColor = 'bg-green-500'; break;
+            case 'Concluído': statusColor = 'bg-green-600'; break;
+            case 'Reembolsado': statusColor = 'bg-purple-600'; break; // Roxo para reembolsado
             case 'Cancelado':
-            case 'Cancelado pelo Cliente':
-                statusColor = 'bg-red-600';
-                statusLabel = 'Cancelado';
-                break;
+            case 'Cancelado pelo Cliente': statusColor = 'bg-red-600'; break;
         }
 
-        // --- Legenda Superior ---
+        // --- CORREÇÃO AQUI: Lista de status FINALIZADOS ---
+        // Adicionei 'Reembolsado' nesta lista
         let metaLabel = "Em andamento";
-        if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente'].includes(order.status)) {
+        if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente', 'Reembolsado'].includes(order.status)) {
             metaLabel = "Finalizado";
         }
 
@@ -7232,7 +7238,6 @@ window.clientCancelOrder = async (orderId) => {
 };
 
 
-
 // Função Auxiliar: Controla a bolinha vermelha da moto
 function checkActiveOrders() {
     const indicator = document.getElementById('track-indicator');
@@ -7249,13 +7254,14 @@ function checkActiveOrders() {
         const s = o.status;
 
         // Verifica se o status é considerado "Finalizado"
-        // (Inclui: Concluído, Entregue, e qualquer tipo de Cancelado)
+        // --- CORREÇÃO AQUI: Adicionado s === 'Reembolsado' ---
         const isFinished =
             s === 'Concluído' ||
             s === 'Entregue' ||
-            s.includes('Cancelado'); // Pega 'Cancelado' e 'Cancelado pelo Cliente'
+            s === 'Reembolsado' ||
+            s.includes('Cancelado'); 
 
-        // Retorna TRUE se o pedido NÃO estiver finalizado (ou seja, é um pedido ativo)
+        // Retorna TRUE se o pedido NÃO estiver finalizado
         return !isFinished;
     });
 
@@ -8092,3 +8098,31 @@ window.cancelPixGlobal = () => {
 };
 
 
+
+// Função para buscar totais REAIS no banco (soma e contagem) sem baixar os pedidos
+async function updateRealTotals() {
+    const totalValueDisplay = document.getElementById('orders-filtered-total'); // O valor verde do header
+    const totalCountDisplay = document.getElementById('orders-count'); // O contador (315)
+
+    try {
+        const salesRef = collection(db, `sites/${state.siteId}/sales`);
+
+        // Solicita ao Firebase a SOMA do campo 'total' e a CONTAGEM de documentos
+        // Isso é muito barato e rápido, pois não baixa os dados dos pedidos
+        const snapshot = await getAggregateFromServer(salesRef, {
+            totalPedidos: count(),
+            faturamentoTotal: sum('total')
+        });
+
+        const { totalPedidos, faturamentoTotal } = snapshot.data();
+
+        // Atualiza a tela
+        if (totalCountDisplay) totalCountDisplay.innerText = totalPedidos;
+        if (totalValueDisplay) totalValueDisplay.innerText = formatCurrency(faturamentoTotal);
+
+        console.log("Totais atualizados via servidor:", totalPedidos, faturamentoTotal);
+
+    } catch (error) {
+        console.error("Erro ao buscar totais:", error);
+    }
+}

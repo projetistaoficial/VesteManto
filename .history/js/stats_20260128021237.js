@@ -247,10 +247,12 @@ function calculateRankings(orders) {
     // 1. Produtos
     const prodMap = {};
     validOrders.forEach(o => {
-        o.items.forEach(i => {
-            if (!prodMap[i.name]) prodMap[i.name] = 0;
-            prodMap[i.name] += parseInt(i.qty);
-        });
+        if (o.items) {
+            o.items.forEach(i => {
+                if (!prodMap[i.name]) prodMap[i.name] = 0;
+                prodMap[i.name] += parseInt(i.qty);
+            });
+        }
     });
     const rankedProds = Object.entries(prodMap)
         .map(([name, qty]) => ({ name, qty }))
@@ -290,26 +292,40 @@ function calculateRankings(orders) {
         </div>
     `);
 
-    // 3. Pagamento
-    const payMap = {};
+    // =========================================================
+    // 3. PAGAMENTO (NORMALIZADO E LIMPO)
+    // =========================================================
+    const payMap = {
+        'Pix': { qty: 0, val: 0 },
+        'Cartão de Crédito': { qty: 0, val: 0 },
+        'Cartão de Débito': { qty: 0, val: 0 },
+        'Dinheiro': { qty: 0, val: 0 }
+    };
+
     validOrders.forEach(o => {
-        let method = o.paymentMethod ? o.paymentMethod.split('[')[0].trim() : 'Outros';
-        method = method.split('(')[0].trim();
-        if (!payMap[method]) payMap[method] = { qty: 0, val: 0 };
-        payMap[method].qty++;
-        payMap[method].val += (parseFloat(o.total) || 0);
+        // Normaliza o nome (ex: "card" vira "Cartão de Crédito")
+        const name = normalizePaymentMethod(o.paymentMethod || '');
+        
+        // Só contabiliza se for uma das 4 categorias válidas
+        if (name && payMap[name]) {
+            payMap[name].qty++;
+            payMap[name].val += (parseFloat(o.total) || 0);
+        }
     });
+
+    // Transforma o objeto em array e remove categorias zeradas (opcional, se quiser mostrar zeros remova o filter)
     const rankedPay = Object.entries(payMap)
         .map(([name, data]) => ({ name, ...data }))
-        .sort((a, b) => b.qty - a.qty);
+        .filter(item => item.qty > 0) // <--- Remove pagamentos que nunca ocorreram
+        .sort((a, b) => b.val - a.val); // Ordena por VALOR financeiro (R$)
 
     renderList('list-rank-pay', rankedPay, (item, idx) => `
         <div class="flex items-center gap-2 bg-[#1a1a1a] p-2 rounded border border-gray-800">
             <div class="bg-gray-200 text-black font-bold w-6 h-6 flex items-center justify-center rounded text-xs">${idx + 1}</div>
             <div class="flex-1 text-gray-300 text-sm font-bold truncate">${item.name}</div>
             <div class="flex gap-2">
-                <div class="text-gray-400 text-xs font-bold border border-gray-700 px-2 py-1 rounded">${item.qty} vezes</div>
-                <div class="text-gray-400 text-xs font-bold border border-gray-700 px-2 py-1 rounded min-w-[80px] text-center">${formatBRL(item.val)}</div>
+                <div class="text-gray-400 text-xs font-bold border border-gray-700 px-2 py-1 rounded">${item.qty} un</div>
+                <div class="text-green-400 text-xs font-bold border border-gray-700 px-2 py-1 rounded min-w-[80px] text-center">${formatBRL(item.val)}</div>
             </div>
         </div>
     `);

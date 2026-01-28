@@ -1,4 +1,4 @@
-import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction } from './firebase-config.js';
+import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction, limit, getAggregateFromServer, sum, count } from './firebase-config.js';
 import { initStatsModule, updateStatsData } from './stats.js';
 import { checkAndActivateSupport, initSupportModule } from './support.js';
 // =================================================================
@@ -373,6 +373,9 @@ const state = {
     selectedProducts: new Set(),
     //Configuração padrão de ordenação
     sortConfig: { key: 'code', direction: 'desc' },
+
+    salesLimit: 100,       // Começa carregando 100
+    salesUnsubscribe: null // Para poder desligar e ligar o ouvinte ao carregar mais
 };
 
 const els = {
@@ -640,54 +643,136 @@ function loadCoupons() {
     });
 }
 
-// Carrega TODAS as vendas (Usado para ambos dashboards)
+// OTIMIZADO: Adicionado limit(100) para economizar leituras
 function loadAdminSales() {
-    // 1. Query no Banco de Dados
-    const q = query(collection(db, `sites/${state.siteId}/sales`), orderBy('date', 'desc'));
+    if (state.salesUnsubscribe) state.salesUnsubscribe();
 
-    onSnapshot(q, (snapshot) => {
-        // 2. Salva os dados no State
+    // 1. Carrega LISTA (Limitada para performance)
+    const qList = query(
+        collection(db, `sites/${state.siteId}/sales`), 
+        orderBy('date', 'desc'), 
+        limit(state.salesLimit)
+    );
+
+    state.salesUnsubscribe = onSnapshot(qList, (snapshot) => {
+        // Salva na memória apenas os últimos carregados
         state.orders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // --- PARTE 1: NOTIFICAÇÕES (O que estava faltando) ---
-        // Conta quantos pedidos não foram vistos (!o.viewed)
+        // Notificações
         const newOrdersCount = state.orders.filter(o => !o.viewed).length;
-
-        // Atualiza o Botão "Vendas" no Menu
         const salesBtn = document.getElementById('admin-menu-sales');
         if (salesBtn) {
-            if (newOrdersCount > 0) {
-                salesBtn.innerHTML = `
-                    Vendas 
-                    <span class="ml-2 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg animate-pulse">
-                        ${newOrdersCount}
-                    </span>`;
-            } else {
-                salesBtn.innerText = 'Vendas';
+            salesBtn.innerHTML = newOrdersCount > 0 
+                ? `Vendas <span class="ml-2 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg animate-pulse">${newOrdersCount}</span>`
+                : 'Vendas';
+        }
+        document.title = newOrdersCount > 0 ? `(${newOrdersCount}) Painel Admin` : 'Painel Admin';
+
+        // Renderiza a tabela visual
+        if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
+        
+        // Botão Carregar Mais
+        renderLoadMoreButton(snapshot.size);
+
+        // --- AQUI: CHAMA O CÁLCULO GLOBAL (ESTATÍSTICAS) ---
+        // Chama direto para garantir que os dados apareçam
+        fetchGlobalStats(); 
+    });
+}
+
+// NOVA FUNÇÃO: Calcula estatísticas baixando os dados (Contorna erro de Cota de Agregação)
+async function fetchGlobalStats() {
+    console.log(">>> Iniciando cálculo global de estatísticas...");
+    
+    // Elementos do Dashboard
+    const elCount = document.getElementById('stat-sales-count');
+    const elTotal = document.getElementById('stat-sales-total');
+    const elCost = document.getElementById('stat-cost-total');
+    const elProfit = document.getElementById('stat-profit-total');
+    
+    // Elementos do Header da Lista
+    const headerCount = document.getElementById('orders-count');
+    const headerTotal = document.getElementById('orders-filtered-total');
+
+    try {
+        // Usa getDocs (Leitura Padrão) -> Não consome cota de Agregação
+        const querySnapshot = await getDocs(collection(db, `sites/${state.siteId}/sales`));
+
+        let totalPedidos = 0;
+        let faturamentoTotal = 0;
+        let custoTotal = 0;
+
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            totalPedidos++;
+            
+            // Soma Faturamento
+            const valVenda = parseFloat(data.total);
+            if (!isNaN(valVenda)) faturamentoTotal += valVenda;
+
+            // Soma Custo
+            const valCusto = parseFloat(data.totalCost);
+            if (!isNaN(valCusto)) custoTotal += valCusto;
+        });
+
+        const lucroLiquido = faturamentoTotal - custoTotal;
+
+        // --- ATUALIZAÇÃO FORÇADA DA TELA ---
+
+        // 1. Dashboard (Cartões Grandes)
+        if (elCount) elCount.innerText = totalPedidos;
+        if (elTotal) elTotal.innerText = formatCurrency(faturamentoTotal);
+        if (elCost) elCost.innerText = formatCurrency(custoTotal);
+        
+        if (elProfit) {
+            elProfit.innerText = formatCurrency(lucroLiquido);
+            elProfit.className = lucroLiquido >= 0 
+                ? "text-3xl font-bold text-green-500" 
+                : "text-3xl font-bold text-red-500";
+        }
+
+        // 2. Header da Lista (Apenas se não houver busca digitada)
+        const searchInput = document.getElementById('filter-search-general');
+        if (!searchInput || searchInput.value === '') {
+            if (headerCount) headerCount.innerText = totalPedidos;
+            if (headerTotal) {
+                headerTotal.innerText = formatCurrency(faturamentoTotal);
+                const label = headerTotal.previousElementSibling;
+                if (label) label.innerText = 'TOTAL GLOBAL';
             }
         }
 
-        // Atualiza o Título da Aba do Navegador
-        document.title = newOrdersCount > 0 ? `(${newOrdersCount}) Painel Admin` : 'Painel Admin';
-        // -----------------------------------------------------
+    } catch (error) {
+        console.error("❌ Erro estatísticas:", error);
+    }
+}
 
-        // --- PARTE 2: ATUALIZAÇÃO DE DADOS (O que você pediu para manter) ---
+// Renderiza ou esconde o botão no final da lista
+function renderLoadMoreButton(currentCount) {
+    const container = document.getElementById('orders-list'); // Container da lista de vendas
+    if (!container) return;
 
-        // Atualiza Dashboard e Tabela de Vendas
-        if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
-        if (typeof updateDashboardMetrics === 'function') updateDashboardMetrics();
+    // Remove botão antigo se existir para não duplicar
+    const oldBtn = document.getElementById('btn-load-more-sales');
+    if (oldBtn) oldBtn.remove();
 
-        // Atualiza a tabela de produtos (para preencher colunas "Vendas" e "Data")
-        // Só roda se a tabela de produtos estiver na tela
-        if (document.getElementById('admin-product-list')) {
-            filterAndRenderProducts();
-        }
+    // Se a quantidade carregada for MENOR que o limite, chegamos ao fim. Não mostra o botão.
+    // Ex: Pedimos 100, vieram 45. Acabou.
+    if (currentCount < state.salesLimit) return;
 
-        // Atualiza Estatísticas Gerais (Financeiro, Gráficos)
-        if (typeof updateStatsData === 'function') {
-            updateStatsData(state.orders, state.products, state.dailyStats);
-        }
-    });
+    // Cria o botão
+    const btn = document.createElement('button');
+    btn.id = 'btn-load-more-sales';
+    btn.className = "w-full py-3 mt-4 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl border border-gray-700 transition flex items-center justify-center gap-2 text-sm uppercase tracking-wide";
+    btn.innerHTML = `<i class="fas fa-plus-circle"></i> Carregar mais vendas`;
+    
+    btn.onclick = () => {
+        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Carregando...`;
+        state.salesLimit += 100; // Aumenta +100
+        loadAdminSales();        // Recarrega o listener
+    };
+
+    container.appendChild(btn);
 }
 
 
@@ -873,8 +958,7 @@ function updateStatsUI() {
 }
 
 function calculateStatsMetrics() {
-    // --- 1. CAPITAL DE GIRO (Independente de Filtros de Data) ---
-    // Regra: Estoque Atual * (Preço Promo ou Preço Normal)
+    // 1. Capital de Giro (Estoque) - Sempre calcula
     let capitalGiro = 0;
     if (state.products) {
         state.products.forEach(p => {
@@ -886,88 +970,68 @@ function calculateStatsMetrics() {
     }
     if (els.statCapitalGiro) els.statCapitalGiro.innerText = formatCurrency(capitalGiro);
 
-    // --- 2. FILTRAGEM DE PEDIDOS ---
+    // 2. Filtragem Local
     if (!state.orders) return;
-
+    
     let filteredOrders = state.orders;
-
     if (state.statsFilterType === 'period') {
         filteredOrders = state.orders.filter(o => {
             const orderDate = new Date(o.date);
             const statsDate = state.statsDate;
-
-            // Comparação precisa de datas
             const sameYear = orderDate.getFullYear() === statsDate.getFullYear();
             const sameMonth = orderDate.getMonth() === statsDate.getMonth();
             const sameDay = orderDate.getDate() === statsDate.getDate();
-
             if (state.statsViewMode === 'month') return sameYear && sameMonth;
             return sameYear && sameMonth && sameDay;
         });
     }
 
-    // --- 3. CÁLCULOS FINANCEIROS E KPIS ---
-    let totalSalesCount = 0;
-    let totalSalesValue = 0;
-    let totalCost = 0;
-
-    let countRefunded = 0;
-    let countCancelled = 0;
-    let countPending = 0;
-
-    // Para KPIs
-    let totalPaidOrders = 0; // Confirmado + Reembolsado (pedidos que foram pagos um dia)
-    let totalCreatedOrders = filteredOrders.length; // Todos gerados
+    // 3. Cálculos Locais
+    let countRefunded = 0, countCancelled = 0, countPending = 0;
+    let totalSalesValue = 0, totalSalesCount = 0, totalCost = 0;
 
     filteredOrders.forEach(o => {
-        if (o.status === 'Reembolsado') {
-            countRefunded++;
-            totalPaidOrders++;
-        }
-        if (o.status === 'Cancelado') countCancelled++;
-        if (o.status === 'Pendente') countPending++;
-
-        if (o.status === 'Confirmado') {
+        const status = o.status || '';
+        if (status === 'Reembolsado') countRefunded++;
+        if (status.includes('Cancelado')) countCancelled++;
+        if (status === 'Aguardando aprovação' || status === 'Pendente') countPending++;
+        
+        // Soma valores locais (apenas para uso quando NÃO for 'all')
+        if (status === 'Confirmado' || status === 'Entregue' || status === 'Concluído') {
             totalSalesCount++;
-            totalPaidOrders++;
-            totalSalesValue += o.total;
-
-            // Cálculo de Custo e Lucro
-            o.items.forEach(item => {
-                let itemCost = 0;
-                // Prioridade 1: Custo salvo no momento da venda (histórico)
-                if (item.cost !== undefined) {
-                    itemCost = item.cost;
-                } else {
-                    // Prioridade 2: Custo atual do produto (fallback)
-                    const currentProd = state.products.find(p => p.id === item.id);
-                    if (currentProd) itemCost = currentProd.cost || 0;
-                }
-                totalCost += itemCost * item.qty;
-            });
+            totalSalesValue += parseFloat(o.total || 0);
+            totalCost += parseFloat(o.totalCost || 0);
         }
     });
 
     const totalProfit = totalSalesValue - totalCost;
 
-    // Renderização no DOM
-    if (els.statSalesCount) els.statSalesCount.innerText = totalSalesCount;
-    if (els.statSalesTotal) els.statSalesTotal.innerText = formatCurrency(totalSalesValue);
-    if (els.statCostTotal) els.statCostTotal.innerText = formatCurrency(totalCost);
-    if (els.statProfitTotal) els.statProfitTotal.innerText = formatCurrency(totalProfit);
+    // --- CORREÇÃO: SÓ ATUALIZA OS TOTAIS SE NÃO FOR 'ALL' ---
+    // Se for 'all', não faz nada aqui, pois o fetchGlobalStats cuida disso.
+    if (state.statsFilterType !== 'all') {
+        if (els.statSalesCount) els.statSalesCount.innerText = totalSalesCount;
+        if (els.statSalesTotal) els.statSalesTotal.innerText = formatCurrency(totalSalesValue);
+        if (els.statCostTotal) els.statCostTotal.innerText = formatCurrency(totalCost);
+        if (els.statProfitTotal) {
+            els.statProfitTotal.innerText = formatCurrency(totalProfit);
+            els.statProfitTotal.className = totalProfit >= 0 ? "text-3xl font-bold text-green-500" : "text-3xl font-bold text-red-500";
+        }
+    } else {
+        // Se for 'all', reforça a chamada global para garantir
+        setTimeout(fetchGlobalStats, 50);
+    }
 
+    // Atualiza contadores de status (estes podem ser locais)
     if (els.statRefunded) els.statRefunded.innerText = countRefunded;
     if (els.statCancelled) els.statCancelled.innerText = countCancelled;
     if (els.statPending) els.statPending.innerText = countPending;
 
-    // KPIs Percentuais
-    const approvalRate = totalCreatedOrders > 0 ? (totalSalesCount / totalCreatedOrders) * 100 : 0;
+    // KPIs
+    const totalLoaded = filteredOrders.length;
+    const approvalRate = totalLoaded > 0 ? (totalSalesCount / totalLoaded) * 100 : 0;
     if (els.statRateApproval) els.statRateApproval.innerText = Math.round(approvalRate) + '%';
-
-    const refundRate = totalPaidOrders > 0 ? (countRefunded / totalPaidOrders) * 100 : 0;
-    if (els.statRateRefund) els.statRateRefund.innerText = Math.round(refundRate) + '%';
-
-    calculateTrend30();
+    
+    if (typeof calculateTrend30 === 'function') calculateTrend30();
 }
 
 function calculateTrend30() {
@@ -2014,14 +2078,14 @@ function updateDashboardMetrics() {
 
 function filterAndRenderSales() {
     // 1. Captura Inputs
-    const codeInput = document.getElementById('filter-search-code'); // NOVO
+    const codeInput = document.getElementById('filter-search-code');
     const searchInput = document.getElementById('filter-search-general');
     const prodInput = document.getElementById('filter-search-product-value');
 
     if (!searchInput) return;
 
     // Valores Tratados
-    const termCode = codeInput ? codeInput.value.trim() : ''; // Valor numérico do pedido
+    const termCode = codeInput ? codeInput.value.trim() : ''; 
     const termGeneral = searchInput.value.toLowerCase().trim();
     const termProduct = prodInput ? prodInput.value.toLowerCase().trim() : '';
 
@@ -2032,20 +2096,17 @@ function filterAndRenderSales() {
 
     // 2. Filtragem
     let filtered = state.orders.filter(o => {
-        // A. Busca por CÓDIGO (Prioritária)
+        // A. Busca por CÓDIGO
         let matchCode = true;
         if (termCode) {
-            // Verifica se o código do pedido contem o que foi digitado
-            // Ex: Digitar "5" mostra "5", "15", "50", "501"
             matchCode = String(o.code).includes(termCode);
         }
 
-        // B. Busca Geral (Cliente, Telefone) - REMOVIDO CÓDIGO DAQUI
+        // B. Busca Geral
         let matchGeneral = true;
         if (termGeneral) {
             const name = (o.customer?.name || '').toLowerCase();
             const phone = (o.customer?.phone || '').toLowerCase();
-            // Agora busca geral olha apenas nome e telefone
             matchGeneral = name.includes(termGeneral) || phone.includes(termGeneral);
         }
 
@@ -2092,11 +2153,11 @@ function filterAndRenderSales() {
         return matchCode && matchGeneral && matchProduct && matchStatus && matchPayment && matchDate;
     });
 
-    // 3. ORDENAÇÃO ATUALIZADA (Select + Proximidade Numérica)
+    // 3. Ordenação
     const sortVal = document.getElementById('filter-sort-order') ? document.getElementById('filter-sort-order').value : 'date_desc';
 
     filtered.sort((a, b) => {
-        // A. Se usuário digitou número, prioriza a proximidade (Lógica anterior mantida)
+        // Prioridade numérica se buscou por código
         if (termCode) {
             const target = parseInt(termCode);
             const codeA = parseInt(a.code) || 0;
@@ -2106,36 +2167,47 @@ function filterAndRenderSales() {
             if (distA !== distB) return distA - distB;
         }
 
-        // B. Ordenação pelo Select (Data ou Valor)
         const dateA = new Date(a.date).getTime();
         const dateB = new Date(b.date).getTime();
         const valA = parseFloat(a.total) || 0;
         const valB = parseFloat(b.total) || 0;
 
         switch (sortVal) {
-            case 'val_desc': // Maior Valor
-                return valB - valA;
-            case 'val_asc':  // Menor Valor
-                return valA - valB;
-            case 'date_asc': // Mais Antigo
-                return dateA - dateB;
-            case 'date_desc': // Mais Recente (Padrão)
-            default:
-                return dateB - dateA;
+            case 'val_desc': return valB - valA;
+            case 'val_asc':  return valA - valB;
+            case 'date_asc': return dateA - dateB;
+            case 'date_desc': 
+            default: return dateB - dateA;
         }
     });
 
-    // 4. CÁLCULO DO TOTAL FILTRADO (NOVO)
-    const totalValueFiltered = filtered.reduce((acc, order) => acc + (parseFloat(order.total) || 0), 0);
+    // 4. LÓGICA INTELIGENTE DE TOTAIS (CORRIGIDO)
     const totalDisplay = document.getElementById('orders-filtered-total');
-    if (totalDisplay) totalDisplay.innerText = formatCurrency(totalValueFiltered);
-
-    // 5. Renderiza e Atualiza Contadores
-    renderSalesList(filtered);
-    if (typeof renderOrdersSummary === 'function') renderOrdersSummary(filtered, status);
-
     const countEl = document.getElementById('orders-count');
-    if (countEl) countEl.innerText = filtered.length;
+
+    // Verifica se existe ALGUM filtro ativo
+    const isFiltering = termCode || termGeneral || termProduct || status || payment || dateStart || dateEnd;
+
+    if (isFiltering) {
+        // MODO FILTRO: Calcula totais apenas do que foi encontrado
+        const totalValueFiltered = filtered.reduce((acc, order) => acc + (parseFloat(order.total) || 0), 0);
+        
+        if (totalDisplay) totalDisplay.innerText = formatCurrency(totalValueFiltered);
+        if (countEl) countEl.innerText = `${filtered.length} (Filtrado)`;
+    } else {
+        // MODO GERAL (Sem filtros): Restaura os totais GLOBAIS do servidor
+        // Chama a função que criamos anteriormente para buscar os dados reais (Aggregation)
+        if (typeof updateRealTotals === 'function') {
+            updateRealTotals(); 
+        }
+        // Nota: O texto do contador será atualizado assincronamente pelo updateRealTotals
+    }
+
+    // 5. Renderiza a lista visualmente
+    renderSalesList(filtered);
+    
+    // Atualiza cards de resumo (Coloridos)
+    if (typeof renderOrdersSummary === 'function') renderOrdersSummary(filtered, status);
 }
 
 function renderSalesList(orders) {
@@ -5672,12 +5744,13 @@ window.handleCheckoutCep = async () => {
 };
 
 // 4. Submit Order (Para garantir que use a validação)
+// ATUALIZADO: Agora calcula e salva o Custo Total do pedido
 window.submitOrder = async () => {
     try {
         const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
         const dConfig = state.storeProfile?.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
         
-        // Trava de Segurança
+        // Trava de Segurança (Endereço)
         const payModeEl = document.querySelector('input[name="pay-mode"]:checked');
         const payMode = payModeEl ? payModeEl.value : null;
 
@@ -5703,6 +5776,7 @@ window.submitOrder = async () => {
         const method = methodEl.value;
         let paymentDetails = "", paymentMsgShort = "";
 
+        // ... (Lógica de strings de pagamento mantida igual) ...
         if (method === 'pix') { paymentDetails = "Pix"; paymentMsgShort = "Pix"; }
         else if (method === 'credit') {
             const select = document.getElementById('checkout-installments');
@@ -5732,6 +5806,15 @@ window.submitOrder = async () => {
             finalValue = parseFloat(totalEl.innerText.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
         }
 
+        // --- NOVO: CÁLCULO DO CUSTO TOTAL ---
+        let orderTotalCost = 0;
+        state.cart.forEach(item => {
+            // Pega o custo unitário (salvo no momento que adicionou ao carrinho)
+            const unitCost = parseFloat(item.cost) || 0;
+            orderTotalCost += unitCost * item.qty;
+        });
+        // ------------------------------------
+
         let couponData = null;
         if (state.currentCoupon) {
             let subtotal = state.cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
@@ -5759,7 +5842,10 @@ window.submitOrder = async () => {
         const order = {
             code: nextCode, date: new Date().toISOString(),
             customer: { name, phone, address: fullAddress, addressNum: number, cep, district, street, comp },
-            items: state.cart || [], total: finalValue, status: 'Aguardando aprovação',
+            items: state.cart || [], 
+            total: finalValue, 
+            totalCost: orderTotalCost, // <--- CAMPO NOVO SALVO AQUI
+            status: 'Aguardando aprovação',
             paymentMethod: paymentDetails, securityCode, shippingFee: valueToSave,
             couponData, cupom: couponData ? couponData.code : null,
             cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
@@ -5782,7 +5868,6 @@ window.submitOrder = async () => {
             msg += `👤 *Cliente:* ${name}\n📞 *Tel:* ${phone}\n\n🛒 *ITENS:*\n`;
             order.items.forEach(item => { msg += `▪ ${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}\n`; });
             msg += `\n💰 *TOTAL: ${totalString}*\n🚚 *Tipo:* ${payMode === 'online' ? "Pagar Agora (Online)" : "Pagar na Entrega"}\n💳 *Pagamento:* ${paymentMsgShort}\n`;
-            if (valueToSave > 0) msg += `🛵 *Frete:* R$ ${valueToSave.toFixed(2).replace('.', ',')}\n`;
             msg += `\n📍 *Endereço:*\n${fullAddress}`;
 
             let storePhone = state.storeProfile.whatsapp || "";
@@ -6819,48 +6904,25 @@ window.showOrderListView = () => {
     sortedList.forEach(order => {
         // --- Definição de Cores e Status ---
         let statusColor = 'bg-gray-400';
-        let statusLabel = order.status; // Padrão: usa o texto do próprio status
+        let statusLabel = order.status; 
 
         // Mapeamento visual
         switch (order.status) {
-            case 'Aguardando aprovação':
-                statusColor = 'bg-gray-400';
-                break;
-
-            // --- CORREÇÃO: SEPARANDO OS STATUS ---
-            case 'Aprovado':
-                statusColor = 'bg-yellow-500';
-                statusLabel = 'Aprovado'; // Exibe exatamente "Aprovado"
-                break;
-
-            case 'Preparando pedido':
-                statusColor = 'bg-yellow-600';
-                statusLabel = 'Preparando Pedido';
-                break;
-            // -------------------------------------
-
-            case 'Saiu para entrega':
-                statusColor = 'bg-orange-500';
-                statusLabel = 'Saiu para Entrega';
-                break;
-            case 'Entregue':
-                statusColor = 'bg-green-500'; // Entregue mas não finalizado
-                statusLabel = 'Entregue';
-                break;
-            case 'Concluído':
-                statusColor = 'bg-green-600';
-                statusLabel = 'Concluído';
-                break;
+            case 'Aguardando aprovação': statusColor = 'bg-gray-400'; break;
+            case 'Aprovado': statusColor = 'bg-yellow-500'; break;
+            case 'Preparando pedido': statusColor = 'bg-yellow-600'; break;
+            case 'Saiu para entrega': statusColor = 'bg-orange-500'; break;
+            case 'Entregue': statusColor = 'bg-green-500'; break;
+            case 'Concluído': statusColor = 'bg-green-600'; break;
+            case 'Reembolsado': statusColor = 'bg-purple-600'; break; // Roxo para reembolsado
             case 'Cancelado':
-            case 'Cancelado pelo Cliente':
-                statusColor = 'bg-red-600';
-                statusLabel = 'Cancelado';
-                break;
+            case 'Cancelado pelo Cliente': statusColor = 'bg-red-600'; break;
         }
 
-        // --- Legenda Superior ---
+        // --- CORREÇÃO AQUI: Lista de status FINALIZADOS ---
+        // Adicionei 'Reembolsado' nesta lista
         let metaLabel = "Em andamento";
-        if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente'].includes(order.status)) {
+        if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente', 'Reembolsado'].includes(order.status)) {
             metaLabel = "Finalizado";
         }
 
@@ -7232,7 +7294,6 @@ window.clientCancelOrder = async (orderId) => {
 };
 
 
-
 // Função Auxiliar: Controla a bolinha vermelha da moto
 function checkActiveOrders() {
     const indicator = document.getElementById('track-indicator');
@@ -7249,13 +7310,14 @@ function checkActiveOrders() {
         const s = o.status;
 
         // Verifica se o status é considerado "Finalizado"
-        // (Inclui: Concluído, Entregue, e qualquer tipo de Cancelado)
+        // --- CORREÇÃO AQUI: Adicionado s === 'Reembolsado' ---
         const isFinished =
             s === 'Concluído' ||
             s === 'Entregue' ||
-            s.includes('Cancelado'); // Pega 'Cancelado' e 'Cancelado pelo Cliente'
+            s === 'Reembolsado' ||
+            s.includes('Cancelado'); 
 
-        // Retorna TRUE se o pedido NÃO estiver finalizado (ou seja, é um pedido ativo)
+        // Retorna TRUE se o pedido NÃO estiver finalizado
         return !isFinished;
     });
 
@@ -8092,3 +8154,77 @@ window.cancelPixGlobal = () => {
 };
 
 
+
+// Função para buscar totais REAIS no banco (soma e contagem) sem baixar os pedidos
+// ATUALIZADO: Busca totais globais e força a atualização no Dashboard de Estatísticas
+async function updateRealTotals() {
+    // Elementos do Cabeçalho (Lista de Pedidos)
+    const headerTotalValue = document.getElementById('orders-filtered-total'); 
+    const headerCount = document.getElementById('orders-count'); 
+
+    // Elementos do Dashboard (Aba Estatísticas)
+    const dashCountAll = document.getElementById('stat-sales-count'); 
+    const dashTotalSales = document.getElementById('stat-sales-total');
+    const dashTotalCost = document.getElementById('stat-cost-total');
+    const dashTotalProfit = document.getElementById('stat-profit-total');
+
+    try {
+        const salesRef = collection(db, `sites/${state.siteId}/sales`);
+
+        // 1. Usa Aggregation para somar TUDO no servidor (rápido e barato)
+        // Não depende do array 'state.orders' limitado
+        const snapshot = await getAggregateFromServer(salesRef, {
+            count: count(),
+            sumTotal: sum('total'),
+            sumCost: sum('totalCost') // Soma o campo de custo que criamos
+        });
+
+        const data = snapshot.data();
+        const totalPedidos = data.count;
+        const faturamentoTotal = data.sumTotal;
+        const custoTotal = data.sumCost;
+        const lucroLiquido = faturamentoTotal - custoTotal;
+
+        // 2. INJETA OS DADOS NO DASHBOARD (ESTATÍSTICAS)
+        // Isso sobrescreve qualquer cálculo local limitado a 100 itens
+        if (dashCountAll) dashCountAll.innerText = totalPedidos;
+        if (dashTotalSales) dashTotalSales.innerText = formatCurrency(faturamentoTotal);
+        if (dashTotalCost) dashTotalCost.innerText = formatCurrency(custoTotal);
+        
+        if (dashTotalProfit) {
+            dashTotalProfit.innerText = formatCurrency(lucroLiquido);
+            dashTotalProfit.className = lucroLiquido >= 0 
+                ? "text-3xl font-bold text-green-500" 
+                : "text-3xl font-bold text-red-500";
+        }
+
+        // 3. ATUALIZA O CABEÇALHO DA LISTA (Apenas se não houver busca ativa)
+        const searchInput = document.getElementById('filter-search-general');
+        const isFiltering = searchInput && searchInput.value !== '';
+        
+        if (!isFiltering) {
+            if (headerCount) headerCount.innerText = totalPedidos;
+            if (headerTotalValue) {
+                headerTotalValue.innerText = formatCurrency(faturamentoTotal);
+                // Ajusta label para indicar que é o valor global
+                const label = headerTotalValue.previousElementSibling;
+                if (label) label.innerText = 'TOTAL GLOBAL';
+            }
+        }
+
+        console.log("Estatísticas Globais Atualizadas:", { 
+            Pedidos: totalPedidos, 
+            Vendas: faturamentoTotal, 
+            Custo: custoTotal 
+        });
+
+    } catch (error) {
+        console.error("Erro ao buscar estatísticas globais:", error);
+        
+        // Fallback: Se der erro (ex: AdBlock), usa o que tem carregado para não mostrar zero
+        if (state.orders.length > 0) {
+            const localTotal = state.orders.reduce((acc, o) => acc + (o.total || 0), 0);
+            if (dashTotalSales) dashTotalSales.innerText = formatCurrency(localTotal) + "*";
+        }
+    }
+}

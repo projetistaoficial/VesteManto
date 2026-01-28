@@ -1,4 +1,4 @@
-import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction } from './firebase-config.js';
+import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction, limit, getAggregateFromServer, sum, count } from './firebase-config.js';
 import { initStatsModule, updateStatsData } from './stats.js';
 import { checkAndActivateSupport, initSupportModule } from './support.js';
 // =================================================================
@@ -373,6 +373,9 @@ const state = {
     selectedProducts: new Set(),
     //Configuração padrão de ordenação
     sortConfig: { key: 'code', direction: 'desc' },
+
+    salesLimit: 100,       // Começa carregando 100
+    salesUnsubscribe: null // Para poder desligar e ligar o ouvinte ao carregar mais
 };
 
 const els = {
@@ -640,54 +643,86 @@ function loadCoupons() {
     });
 }
 
-// Carrega TODAS as vendas (Usado para ambos dashboards)
+// OTIMIZADO: Adicionado limit(100) para economizar leituras
+// FUNÇÃO OTIMIZADA COM "CARREGAR MAIS"
 function loadAdminSales() {
-    // 1. Query no Banco de Dados
-    const q = query(collection(db, `sites/${state.siteId}/sales`), orderBy('date', 'desc'));
+    // 1. Se já existe um ouvinte ativo, cancela ele antes de criar um novo (com mais itens)
+    if (state.salesUnsubscribe) {
+        state.salesUnsubscribe();
+    }
 
-    onSnapshot(q, (snapshot) => {
-        // 2. Salva os dados no State
+    // 2. Query com limite controlado pelo state.salesLimit
+    const q = query(
+        collection(db, `sites/${state.siteId}/sales`), 
+        orderBy('date', 'desc'), 
+        limit(state.salesLimit)
+    );
+
+    // 3. Inicia o novo ouvinte
+    state.salesUnsubscribe = onSnapshot(q, (snapshot) => {
         state.orders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // --- PARTE 1: NOTIFICAÇÕES (O que estava faltando) ---
-        // Conta quantos pedidos não foram vistos (!o.viewed)
+        // --- ATUALIZAÇÕES VISUAIS ---
+        
+        // Notificações no Menu
         const newOrdersCount = state.orders.filter(o => !o.viewed).length;
-
-        // Atualiza o Botão "Vendas" no Menu
         const salesBtn = document.getElementById('admin-menu-sales');
         if (salesBtn) {
-            if (newOrdersCount > 0) {
-                salesBtn.innerHTML = `
-                    Vendas 
-                    <span class="ml-2 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg animate-pulse">
-                        ${newOrdersCount}
-                    </span>`;
-            } else {
-                salesBtn.innerText = 'Vendas';
-            }
+            salesBtn.innerHTML = newOrdersCount > 0 
+                ? `Vendas <span class="ml-2 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg animate-pulse">${newOrdersCount}</span>`
+                : 'Vendas';
+        }
+        document.title = newOrdersCount > 0 ? `(${newOrdersCount}) Painel Admin` : 'Painel Admin';
+
+        // Atualiza Listas e Dashboards
+        if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
+        const searchInput = document.getElementById('filter-search-general');
+        if (!searchInput || searchInput.value === '') {
+             updateRealTotals(); // <--- CHAMA A MÁGICA AQUI
         }
 
-        // Atualiza o Título da Aba do Navegador
-        document.title = newOrdersCount > 0 ? `(${newOrdersCount}) Painel Admin` : 'Painel Admin';
-        // -----------------------------------------------------
-
-        // --- PARTE 2: ATUALIZAÇÃO DE DADOS (O que você pediu para manter) ---
-
-        // Atualiza Dashboard e Tabela de Vendas
-        if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
         if (typeof updateDashboardMetrics === 'function') updateDashboardMetrics();
-
-        // Atualiza a tabela de produtos (para preencher colunas "Vendas" e "Data")
-        // Só roda se a tabela de produtos estiver na tela
-        if (document.getElementById('admin-product-list')) {
+        
+        // Atualiza tabela de produtos se estiver visível
+        if (document.getElementById('admin-product-list') && !document.getElementById('view-admin').classList.contains('hidden')) {
             filterAndRenderProducts();
         }
 
-        // Atualiza Estatísticas Gerais (Financeiro, Gráficos)
         if (typeof updateStatsData === 'function') {
             updateStatsData(state.orders, state.products, state.dailyStats);
         }
+
+        // 4. GERENCIA O BOTÃO "CARREGAR MAIS"
+        renderLoadMoreButton(snapshot.size);
     });
+}
+
+// Renderiza ou esconde o botão no final da lista
+function renderLoadMoreButton(currentCount) {
+    const container = document.getElementById('orders-list'); // Container da lista de vendas
+    if (!container) return;
+
+    // Remove botão antigo se existir para não duplicar
+    const oldBtn = document.getElementById('btn-load-more-sales');
+    if (oldBtn) oldBtn.remove();
+
+    // Se a quantidade carregada for MENOR que o limite, chegamos ao fim. Não mostra o botão.
+    // Ex: Pedimos 100, vieram 45. Acabou.
+    if (currentCount < state.salesLimit) return;
+
+    // Cria o botão
+    const btn = document.createElement('button');
+    btn.id = 'btn-load-more-sales';
+    btn.className = "w-full py-3 mt-4 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl border border-gray-700 transition flex items-center justify-center gap-2 text-sm uppercase tracking-wide";
+    btn.innerHTML = `<i class="fas fa-plus-circle"></i> Carregar mais vendas`;
+    
+    btn.onclick = () => {
+        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Carregando...`;
+        state.salesLimit += 100; // Aumenta +100
+        loadAdminSales();        // Recarrega o listener
+    };
+
+    container.appendChild(btn);
 }
 
 
@@ -2014,14 +2049,14 @@ function updateDashboardMetrics() {
 
 function filterAndRenderSales() {
     // 1. Captura Inputs
-    const codeInput = document.getElementById('filter-search-code'); // NOVO
+    const codeInput = document.getElementById('filter-search-code');
     const searchInput = document.getElementById('filter-search-general');
     const prodInput = document.getElementById('filter-search-product-value');
 
     if (!searchInput) return;
 
     // Valores Tratados
-    const termCode = codeInput ? codeInput.value.trim() : ''; // Valor numérico do pedido
+    const termCode = codeInput ? codeInput.value.trim() : ''; 
     const termGeneral = searchInput.value.toLowerCase().trim();
     const termProduct = prodInput ? prodInput.value.toLowerCase().trim() : '';
 
@@ -2032,20 +2067,17 @@ function filterAndRenderSales() {
 
     // 2. Filtragem
     let filtered = state.orders.filter(o => {
-        // A. Busca por CÓDIGO (Prioritária)
+        // A. Busca por CÓDIGO
         let matchCode = true;
         if (termCode) {
-            // Verifica se o código do pedido contem o que foi digitado
-            // Ex: Digitar "5" mostra "5", "15", "50", "501"
             matchCode = String(o.code).includes(termCode);
         }
 
-        // B. Busca Geral (Cliente, Telefone) - REMOVIDO CÓDIGO DAQUI
+        // B. Busca Geral
         let matchGeneral = true;
         if (termGeneral) {
             const name = (o.customer?.name || '').toLowerCase();
             const phone = (o.customer?.phone || '').toLowerCase();
-            // Agora busca geral olha apenas nome e telefone
             matchGeneral = name.includes(termGeneral) || phone.includes(termGeneral);
         }
 
@@ -2092,11 +2124,11 @@ function filterAndRenderSales() {
         return matchCode && matchGeneral && matchProduct && matchStatus && matchPayment && matchDate;
     });
 
-    // 3. ORDENAÇÃO ATUALIZADA (Select + Proximidade Numérica)
+    // 3. Ordenação
     const sortVal = document.getElementById('filter-sort-order') ? document.getElementById('filter-sort-order').value : 'date_desc';
 
     filtered.sort((a, b) => {
-        // A. Se usuário digitou número, prioriza a proximidade (Lógica anterior mantida)
+        // Prioridade numérica se buscou por código
         if (termCode) {
             const target = parseInt(termCode);
             const codeA = parseInt(a.code) || 0;
@@ -2106,36 +2138,47 @@ function filterAndRenderSales() {
             if (distA !== distB) return distA - distB;
         }
 
-        // B. Ordenação pelo Select (Data ou Valor)
         const dateA = new Date(a.date).getTime();
         const dateB = new Date(b.date).getTime();
         const valA = parseFloat(a.total) || 0;
         const valB = parseFloat(b.total) || 0;
 
         switch (sortVal) {
-            case 'val_desc': // Maior Valor
-                return valB - valA;
-            case 'val_asc':  // Menor Valor
-                return valA - valB;
-            case 'date_asc': // Mais Antigo
-                return dateA - dateB;
-            case 'date_desc': // Mais Recente (Padrão)
-            default:
-                return dateB - dateA;
+            case 'val_desc': return valB - valA;
+            case 'val_asc':  return valA - valB;
+            case 'date_asc': return dateA - dateB;
+            case 'date_desc': 
+            default: return dateB - dateA;
         }
     });
 
-    // 4. CÁLCULO DO TOTAL FILTRADO (NOVO)
-    const totalValueFiltered = filtered.reduce((acc, order) => acc + (parseFloat(order.total) || 0), 0);
+    // 4. LÓGICA INTELIGENTE DE TOTAIS (CORRIGIDO)
     const totalDisplay = document.getElementById('orders-filtered-total');
-    if (totalDisplay) totalDisplay.innerText = formatCurrency(totalValueFiltered);
-
-    // 5. Renderiza e Atualiza Contadores
-    renderSalesList(filtered);
-    if (typeof renderOrdersSummary === 'function') renderOrdersSummary(filtered, status);
-
     const countEl = document.getElementById('orders-count');
-    if (countEl) countEl.innerText = filtered.length;
+
+    // Verifica se existe ALGUM filtro ativo
+    const isFiltering = termCode || termGeneral || termProduct || status || payment || dateStart || dateEnd;
+
+    if (isFiltering) {
+        // MODO FILTRO: Calcula totais apenas do que foi encontrado
+        const totalValueFiltered = filtered.reduce((acc, order) => acc + (parseFloat(order.total) || 0), 0);
+        
+        if (totalDisplay) totalDisplay.innerText = formatCurrency(totalValueFiltered);
+        if (countEl) countEl.innerText = `${filtered.length} (Filtrado)`;
+    } else {
+        // MODO GERAL (Sem filtros): Restaura os totais GLOBAIS do servidor
+        // Chama a função que criamos anteriormente para buscar os dados reais (Aggregation)
+        if (typeof updateRealTotals === 'function') {
+            updateRealTotals(); 
+        }
+        // Nota: O texto do contador será atualizado assincronamente pelo updateRealTotals
+    }
+
+    // 5. Renderiza a lista visualmente
+    renderSalesList(filtered);
+    
+    // Atualiza cards de resumo (Coloridos)
+    if (typeof renderOrdersSummary === 'function') renderOrdersSummary(filtered, status);
 }
 
 function renderSalesList(orders) {
@@ -5782,7 +5825,6 @@ window.submitOrder = async () => {
             msg += `👤 *Cliente:* ${name}\n📞 *Tel:* ${phone}\n\n🛒 *ITENS:*\n`;
             order.items.forEach(item => { msg += `▪ ${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}\n`; });
             msg += `\n💰 *TOTAL: ${totalString}*\n🚚 *Tipo:* ${payMode === 'online' ? "Pagar Agora (Online)" : "Pagar na Entrega"}\n💳 *Pagamento:* ${paymentMsgShort}\n`;
-            if (valueToSave > 0) msg += `🛵 *Frete:* R$ ${valueToSave.toFixed(2).replace('.', ',')}\n`;
             msg += `\n📍 *Endereço:*\n${fullAddress}`;
 
             let storePhone = state.storeProfile.whatsapp || "";
@@ -6819,48 +6861,25 @@ window.showOrderListView = () => {
     sortedList.forEach(order => {
         // --- Definição de Cores e Status ---
         let statusColor = 'bg-gray-400';
-        let statusLabel = order.status; // Padrão: usa o texto do próprio status
+        let statusLabel = order.status; 
 
         // Mapeamento visual
         switch (order.status) {
-            case 'Aguardando aprovação':
-                statusColor = 'bg-gray-400';
-                break;
-
-            // --- CORREÇÃO: SEPARANDO OS STATUS ---
-            case 'Aprovado':
-                statusColor = 'bg-yellow-500';
-                statusLabel = 'Aprovado'; // Exibe exatamente "Aprovado"
-                break;
-
-            case 'Preparando pedido':
-                statusColor = 'bg-yellow-600';
-                statusLabel = 'Preparando Pedido';
-                break;
-            // -------------------------------------
-
-            case 'Saiu para entrega':
-                statusColor = 'bg-orange-500';
-                statusLabel = 'Saiu para Entrega';
-                break;
-            case 'Entregue':
-                statusColor = 'bg-green-500'; // Entregue mas não finalizado
-                statusLabel = 'Entregue';
-                break;
-            case 'Concluído':
-                statusColor = 'bg-green-600';
-                statusLabel = 'Concluído';
-                break;
+            case 'Aguardando aprovação': statusColor = 'bg-gray-400'; break;
+            case 'Aprovado': statusColor = 'bg-yellow-500'; break;
+            case 'Preparando pedido': statusColor = 'bg-yellow-600'; break;
+            case 'Saiu para entrega': statusColor = 'bg-orange-500'; break;
+            case 'Entregue': statusColor = 'bg-green-500'; break;
+            case 'Concluído': statusColor = 'bg-green-600'; break;
+            case 'Reembolsado': statusColor = 'bg-purple-600'; break; // Roxo para reembolsado
             case 'Cancelado':
-            case 'Cancelado pelo Cliente':
-                statusColor = 'bg-red-600';
-                statusLabel = 'Cancelado';
-                break;
+            case 'Cancelado pelo Cliente': statusColor = 'bg-red-600'; break;
         }
 
-        // --- Legenda Superior ---
+        // --- CORREÇÃO AQUI: Lista de status FINALIZADOS ---
+        // Adicionei 'Reembolsado' nesta lista
         let metaLabel = "Em andamento";
-        if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente'].includes(order.status)) {
+        if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente', 'Reembolsado'].includes(order.status)) {
             metaLabel = "Finalizado";
         }
 
@@ -7232,7 +7251,6 @@ window.clientCancelOrder = async (orderId) => {
 };
 
 
-
 // Função Auxiliar: Controla a bolinha vermelha da moto
 function checkActiveOrders() {
     const indicator = document.getElementById('track-indicator');
@@ -7249,13 +7267,14 @@ function checkActiveOrders() {
         const s = o.status;
 
         // Verifica se o status é considerado "Finalizado"
-        // (Inclui: Concluído, Entregue, e qualquer tipo de Cancelado)
+        // --- CORREÇÃO AQUI: Adicionado s === 'Reembolsado' ---
         const isFinished =
             s === 'Concluído' ||
             s === 'Entregue' ||
-            s.includes('Cancelado'); // Pega 'Cancelado' e 'Cancelado pelo Cliente'
+            s === 'Reembolsado' ||
+            s.includes('Cancelado'); 
 
-        // Retorna TRUE se o pedido NÃO estiver finalizado (ou seja, é um pedido ativo)
+        // Retorna TRUE se o pedido NÃO estiver finalizado
         return !isFinished;
     });
 
@@ -8092,3 +8111,64 @@ window.cancelPixGlobal = () => {
 };
 
 
+
+// Função para buscar totais REAIS no banco (soma e contagem) sem baixar os pedidos
+async function updateRealTotals() {
+    // Elementos do Cabeçalho (Header da Lista)
+    const headerTotalValue = document.getElementById('orders-filtered-total'); 
+    const headerCount = document.getElementById('orders-count'); 
+
+    // Elementos do Dashboard (Estatísticas)
+    const dashCountAll = document.getElementById('stat-sales-count'); // Card "Pedidos Realizados"
+    const dashTotalSales = document.getElementById('stat-sales-total'); // Card "Valor Total de Vendas"
+    const dashConfirmedCount = document.getElementById('dash-confirmed-count'); // Card "Vendas Totais (Confirmadas)" - Se existir ID específico
+
+    try {
+        const salesRef = collection(db, `sites/${state.siteId}/sales`);
+
+        // 1. QUERY GERAL (Tudo que existe no banco)
+        // Serve para saber o total de pedidos (315) e o valor bruto total
+        const qAll = query(salesRef, orderBy('total'));
+        
+        const snapAll = await getAggregateFromServer(qAll, {
+            totalPedidos: count(),
+            faturamentoTotal: sum('total')
+        });
+
+        const { totalPedidos, faturamentoTotal } = snapAll.data();
+
+        // --- ATUALIZA O CABEÇALHO (Lista) ---
+        if (headerCount) {
+            // Se não tiver filtro de busca ativo, mostra o total global
+            const searchInput = document.getElementById('filter-search-general');
+            if (!searchInput || searchInput.value === '') {
+                headerCount.innerText = totalPedidos;
+            }
+        }
+        if (headerTotalValue) headerTotalValue.innerText = formatCurrency(faturamentoTotal);
+
+        // --- ATUALIZA O DASHBOARD (Estatísticas) ---
+        // Aqui corrigimos o "200" para "315"
+        if (dashCountAll) dashCountAll.innerText = totalPedidos;
+        
+        // Aqui corrigimos o valor total para bater com o do cabeçalho
+        if (dashTotalSales) dashTotalSales.innerText = formatCurrency(faturamentoTotal);
+
+        console.log("Totais Globais Atualizados:", totalPedidos, faturamentoTotal);
+
+        // 2. QUERY DE CONFIRMADOS (Opcional - Para refinar "Vendas Confirmadas")
+        // Como o Firebase cobra por query de agregação, use com sabedoria.
+        // Se quiser o número exato de vendas confirmadas (89 no seu print) vindo do servidor:
+        /*
+        const qConfirmed = query(salesRef, where('status', 'in', ['Aprovado', 'Entregue', 'Concluído']), orderBy('total'));
+        const snapConfirmed = await getAggregateFromServer(qConfirmed, { total: count() });
+        if (dashConfirmedCount) dashConfirmedCount.innerText = snapConfirmed.data().total;
+        */
+
+    } catch (error) {
+        console.error("Erro ao buscar totais:", error);
+        if (error.message.includes("requires an index")) {
+            console.warn("Crie o índice sugerido no console do navegador (link azul).");
+        }
+    }
+}

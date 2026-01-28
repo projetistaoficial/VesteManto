@@ -5474,77 +5474,6 @@ window.closeCheckoutModal = () => {
 };
 
 // --- LÓGICA DE CEP E DISTÂNCIA ---
-// =================================================================
-// SOLUÇÃO FINAL DE FRETE E PEDIDOS (V3 - SEM CONFLITOS E SEM CORS)
-// =================================================================
-
-// 1. Funções Matemáticas (Nomes únicos V3)
-function deg2rad_FinalV3(deg) {
-    return deg * (Math.PI / 180);
-}
-
-function getDist_FinalV3(lat1, lon1, lat2, lon2) {
-    if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) return null;
-    const R = 6371; // Raio da terra em km
-    const dLat = deg2rad_FinalV3(lat2 - lat1);
-    const dLon = deg2rad_FinalV3(lon2 - lon1);
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(deg2rad_FinalV3(lat1)) * Math.cos(deg2rad_FinalV3(lat2)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-}
-
-// 2. Busca de Distância (BrasilAPI V2 + AwesomeAPI) - SEM NOMINATIM/CORS
-async function calculateDist_FinalV3(cepOrigin, cepDest) {
-    
-    // Função interna para buscar coordenadas
-    const getCoords_V3 = async (cep) => {
-        const cleanCep = cep.replace(/\D/g, '');
-
-        // TENTATIVA 1: BrasilAPI V2 (A melhor opção)
-        try {
-            const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.location?.coordinates?.latitude) {
-                    return {
-                        lat: parseFloat(data.location.coordinates.latitude),
-                        lon: parseFloat(data.location.coordinates.longitude)
-                    };
-                }
-            }
-        } catch (e) { console.warn("BrasilAPI falhou:", e); }
-
-        // TENTATIVA 2: AwesomeAPI (Backup confiável)
-        try {
-            const res2 = await fetch(`https://cep.awesomeapi.com.br/json/${cleanCep}`);
-            if (res2.ok) {
-                const data2 = await res2.json();
-                if (data2.lat && data2.lng) {
-                    return {
-                        lat: parseFloat(data2.lat),
-                        lon: parseFloat(data2.lng)
-                    };
-                }
-            }
-        } catch (e) { console.warn("AwesomeAPI falhou:", e); }
-
-        return null; // Se nada funcionar
-    };
-
-    console.log(`[V3] Calculando rota: ${cepOrigin} -> ${cepDest}`);
-    
-    // Busca origem e destino
-    const [c1, c2] = await Promise.all([getCoords_V3(cepOrigin), getCoords_V3(cepDest)]);
-
-    if (!c1 || !c2) return null;
-
-    return getDist_FinalV3(c1.lat, c1.lon, c2.lat, c2.lon);
-}
-
-// 3. Listener do Campo CEP (handleCheckoutCep) - Sobrescreve a lógica antiga
 window.handleCheckoutCep = async () => {
     const cepInput = document.getElementById('checkout-cep');
     if (!cepInput) return;
@@ -5559,36 +5488,35 @@ window.handleCheckoutCep = async () => {
     const elLoading = document.getElementById('cep-loading');
     const btnFinish = document.getElementById('btn-finish-payment');
 
-    // Bloqueia botão ao iniciar
+    // 1. TRAVA O BOTÃO IMEDIATAMENTE (Segurança)
     if (btnFinish) {
         btnFinish.disabled = true;
         btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
     }
 
-    // Reseta estado global
-    if (typeof checkoutState !== 'undefined') {
-        checkoutState.isValidDelivery = false; 
-        checkoutState.distance = 0;
-    }
+    // Reseta validação
+    checkoutState.isValidDelivery = false; 
+    checkoutState.distance = 0;
 
     if (cep.length !== 8) return;
 
     // Feedback Visual
     if (elLoading) elLoading.classList.remove('hidden');
     if (elErrorDiv) elErrorDiv.classList.add('hidden');
-    
     if (elDistDisplay) {
-        elDistDisplay.innerText = "Calculando frete...";
-        elDistDisplay.className = "text-yellow-500 font-bold text-xs mt-1 block"; 
+        elDistDisplay.innerText = "Verificando raio de entrega...";
+        elDistDisplay.classList.remove('hidden', 'text-red-500', 'text-green-500');
+        elDistDisplay.classList.add('text-yellow-500');
     }
 
     try {
-        // A. Preenche endereço (ViaCEP para texto é seguro)
+        // A. Busca endereço TEXTUAL (ViaCEP é mais completo para nomes de rua)
         const viaCepRes = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
         const data = await viaCepRes.json();
-        
+
         if (data.erro) throw new Error("CEP não encontrado.");
 
+        // Preenche campos
         if (document.getElementById('checkout-street')) document.getElementById('checkout-street').value = data.logradouro || '';
         if (document.getElementById('checkout-district')) document.getElementById('checkout-district').value = data.bairro || '';
         if (document.getElementById('checkout-city')) document.getElementById('checkout-city').value = `${data.localidade} - ${data.uf}`;
@@ -5596,60 +5524,49 @@ window.handleCheckoutCep = async () => {
         if (elAddrFields) elAddrFields.classList.remove('opacity-50', 'pointer-events-none');
         document.getElementById('checkout-number')?.focus();
 
-        // B. Cálculo de Distância (Lógica V3)
+        // B. CÁLCULO DE DISTÂNCIA (Apenas se for Entrega Própria)
         const config = state.storeProfile.deliveryConfig || {};
         const storeCep = state.storeProfile.cep ? state.storeProfile.cep.replace(/\D/g, '') : '';
         const maxDist = parseFloat(state.storeProfile.maxDistance) || 0;
 
-        // Apenas se for Entrega Própria
+        // Se Entrega Própria estiver ATIVA
         if (config.ownDelivery === true) {
-            if (!storeCep) throw new Error("CEP da loja não configurado.");
+            
+            if (!storeCep) throw new Error("CEP da loja não configurado no painel.");
 
-            // USA A NOVA FUNÇÃO V3
-            const dist = await calculateDist_FinalV3(storeCep, cep);
 
+            // Se der erro no cálculo
             if (dist === null || isNaN(dist)) {
-                // Erro de API: Libera com aviso (Melhor vender do que travar por erro técnico)
-                if (elDistDisplay) {
-                    elDistDisplay.innerText = "⚠️ CEP válido (Mapa indisponível)";
-                    elDistDisplay.className = "text-orange-500 font-bold text-xs mt-1 block";
-                }
-                // Libera venda mesmo com erro de mapa
-                if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = true; 
-            } 
-            else {
-                // Sucesso no cálculo
-                if (typeof checkoutState !== 'undefined') checkoutState.distance = dist;
-                
-                if (elDistDisplay) {
-                    const distText = dist.toFixed(1).replace('.', ',');
-                    
-                    if (maxDist > 0 && dist > maxDist) {
-                        // BLOQUEIA: LONGE DEMAIS
-                        elDistDisplay.innerText = `⛔ Indisponível: ${distText}km (Máx: ${maxDist}km)`;
-                        elDistDisplay.className = "text-red-500 font-bold text-xs mt-1 block";
-                        
-                        if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = false; 
-                        
-                        if (elErrorMsg) elErrorMsg.innerText = `Endereço muito distante (${distText}km). Limite da loja: ${maxDist}km.`;
-                        if (elErrorDiv) elErrorDiv.classList.remove('hidden');
+                if (elDistDisplay) elDistDisplay.innerText = "Erro ao calcular";
+                // IMPORTANTE: Se não conseguiu calcular, NÃO libera a entrega própria
+                throw new Error("Não foi possível validar a distância. Verifique se os CEPs estão corretos.");
+            }
 
-                        return; // Encerra mantendo botão travado
-                    } else {
-                        // LIBERA: DENTRO DO RAIO
-                        elDistDisplay.innerText = `✅ Atendido (${distText}km)`;
-                        elDistDisplay.className = "text-green-500 font-bold text-xs mt-1 block";
-                        if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = true;
-                    }
+            checkoutState.distance = dist;
+            console.log(`Distância: ${dist.toFixed(2)} km | Máximo: ${maxDist} km`);
+
+            if (elDistDisplay) {
+                elDistDisplay.innerText = `${dist.toFixed(1)} km da loja`;
+                elDistDisplay.classList.remove('text-yellow-500');
+
+                if (maxDist > 0 && dist > maxDist) {
+                    // BLOQUEIA: Muito longe
+                    elDistDisplay.classList.add('text-red-500');
+                    checkoutState.isValidDelivery = false; // Garante bloqueio lógico
+                    throw new Error(`Infelizmente não entregamos nesta região.\nSua distância: ${dist.toFixed(1)}km (Limite: ${maxDist}km).`);
+                } else {
+                    // LIBERA: Dentro do raio
+                    elDistDisplay.classList.add('text-green-500');
+                    checkoutState.isValidDelivery = true;
                 }
             }
         } else {
-            // Se não for entrega própria, libera sempre
-            if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = true;
+            // Se NÃO for entrega própria (ex: correios ou sem validação), considera válido
+            checkoutState.isValidDelivery = true;
         }
 
-        // Libera botão se estiver tudo ok
-        if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery) {
+        // Se chegou aqui e é válido, libera o botão
+        if (checkoutState.isValidDelivery) {
             if (btnFinish) {
                 btnFinish.disabled = false;
                 btnFinish.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -5657,155 +5574,86 @@ window.handleCheckoutCep = async () => {
         }
 
     } catch (err) {
-        console.error("Erro Processo CEP:", err);
-        if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = false; 
+        console.error("Erro CEP:", err);
+        checkoutState.isValidDelivery = false; // Garante bloqueio
 
         if (elErrorMsg) elErrorMsg.innerText = err.message;
         if (elErrorDiv) elErrorDiv.classList.remove('hidden');
-        if (elDistDisplay) elDistDisplay.innerText = "";
         
+        // Mantém botão travado
+        if (btnFinish) {
+            btnFinish.disabled = true;
+            btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
     } finally {
         if (elLoading) elLoading.classList.add('hidden');
-        if (typeof window.populateInstallments === 'function') window.populateInstallments();
-        if (typeof window.calcCheckoutTotal === 'function') window.calcCheckoutTotal();
+        // Recalcula totais (para somar frete se necessário)
+        if (typeof populateInstallments === 'function') populateInstallments();
+        if (typeof calcCheckoutTotal === 'function') calcCheckoutTotal();
     }
 };
 
-// 4. Submit Order (Para garantir que use a validação)
-window.submitOrder = async () => {
-    try {
-        const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
-        const dConfig = state.storeProfile?.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
-        
-        // Trava de Segurança
-        const payModeEl = document.querySelector('input[name="pay-mode"]:checked');
-        const payMode = payModeEl ? payModeEl.value : null;
+// --- 1. FUNÇÕES MATEMÁTICAS (Haversine) ---
+function deg2rad(deg) {
+    return deg * (Math.PI / 180);
+}
 
-        if (dConfig.ownDelivery === true && payMode === 'delivery') {
-            if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery === false) {
-                return alert("⛔ ENDEREÇO INVÁLIDO OU DISTANTE\n\nO sistema bloqueou a entrega para este CEP.");
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+    if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) return null;
+
+    const R = 6371; // Raio da Terra em km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+// --- 2. NOVA FUNÇÃO DE DISTÂNCIA (BrasilAPI V2) ---
+async function calculateDistanceByCEP(cepOrigin, cepDest) {
+    // Helper interno para buscar coordenadas
+    const getCoords = async (cep) => {
+        try {
+            const cleanCep = cep.replace(/\D/g, '');
+            // Usa BrasilAPI V2 que retorna coordenadas
+            const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`);
+            
+            if (!res.ok) {
+                console.warn(`BrasilAPI retornou erro para o CEP ${cleanCep}`);
+                return null;
             }
-        }
 
-        const name = getVal('checkout-name');
-        const phone = getVal('checkout-phone');
-        const cep = getVal('checkout-cep');
-        const street = getVal('checkout-street');
-        const number = getVal('checkout-number');
-        const district = getVal('checkout-district');
-        const comp = getVal('checkout-comp');
-
-        if (!name || !phone || !cep || !number || !street) return alert("⚠️ Preencha todos os campos obrigatórios.");
-
-        const methodEl = document.querySelector('input[name="payment-method-selection"]:checked');
-        if (!payMode || !methodEl) return alert("⚠️ Selecione a forma de pagamento.");
-
-        const method = methodEl.value;
-        let paymentDetails = "", paymentMsgShort = "";
-
-        if (method === 'pix') { paymentDetails = "Pix"; paymentMsgShort = "Pix"; }
-        else if (method === 'credit') {
-            const select = document.getElementById('checkout-installments');
-            let parcelas = "1x (À vista)";
-            if (payMode === 'online' && select && select.selectedIndex >= 0) parcelas = select.options[select.selectedIndex].text;
-            else if (payMode === 'delivery') parcelas = "Na Maquininha";
-            paymentDetails = `Cartão de Crédito (${parcelas})`;
-            paymentMsgShort = `Crédito (${parcelas})`;
-        }
-        else if (method === 'debit') {
-            let info = payMode === 'delivery' ? "Na Maquininha" : "À vista";
-            paymentDetails = `Cartão de Débito (${info})`;
-            paymentMsgShort = `Débito (${info})`;
-        }
-        else if (method === 'cash') {
-            const trocoVal = getVal('checkout-change-for');
-            paymentDetails = `Dinheiro (Troco para: ${trocoVal || 'Não precisa'})`;
-            paymentMsgShort = `Dinheiro ${trocoVal ? `(Troco p/ ${trocoVal})` : '(Sem troco)'}`;
-        }
-        paymentDetails += (payMode === 'online') ? " [Pago Online]" : " [Pagar na Entrega]";
-
-        const totalEl = document.getElementById('checkout-final-total');
-        let finalValue = 0;
-        let totalString = "R$ 0,00";
-        if (totalEl) {
-            totalString = totalEl.innerText;
-            finalValue = parseFloat(totalEl.innerText.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
-        }
-
-        let couponData = null;
-        if (state.currentCoupon) {
-            let subtotal = state.cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-            let discountVal = state.currentCoupon.type === 'percent' ? subtotal * (state.currentCoupon.val / 100) : state.currentCoupon.val;
-            if (discountVal > subtotal) discountVal = subtotal;
-            couponData = { code: state.currentCoupon.code, value: discountVal };
-        }
-
-        const cancelMinutes = parseInt(dConfig.cancelTimeMin) || 5;
-        let securityCode = null;
-        if (payMode === 'delivery' && dConfig.reqCustomerCode === true) securityCode = Math.floor(1000 + Math.random() * 9000);
-
-        const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
-        const nextCode = await getNextOrderNumber(state.siteId);
-
-        const shipRule = dConfig.shippingRule || 'none';
-        const shipValue = parseFloat(dConfig.shippingValue) || 0;
-        let valueToSave = 0;
-        if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery && shipValue > 0) {
-            if (shipRule === 'both' || (shipRule === 'online' && payMode === 'online') || (shipRule === 'delivery' && payMode === 'delivery')) {
-                valueToSave = shipValue;
+            const data = await res.json();
+            
+            // Verifica se a resposta tem coordenadas
+            if (data.location && data.location.coordinates) {
+                const lat = parseFloat(data.location.coordinates.latitude);
+                const lon = parseFloat(data.location.coordinates.longitude);
+                
+                if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
             }
+            return null;
+        } catch (e) {
+            console.error("Erro na requisição BrasilAPI:", e);
+            return null;
         }
+    };
 
-        const order = {
-            code: nextCode, date: new Date().toISOString(),
-            customer: { name, phone, address: fullAddress, addressNum: number, cep, district, street, comp },
-            items: state.cart || [], total: finalValue, status: 'Aguardando aprovação',
-            paymentMethod: paymentDetails, securityCode, shippingFee: valueToSave,
-            couponData, cupom: couponData ? couponData.code : null,
-            cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
-        };
+    console.log(`Calculando distância entre: ${cepOrigin} e ${cepDest}`);
 
-        const btnSubmit = document.getElementById('btn-finish-payment');
-        if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.innerText = "⏳ Enviando..."; }
+    // Executa as duas buscas ao mesmo tempo
+    const [c1, c2] = await Promise.all([getCoords(cepOrigin), getCoords(cepDest)]);
 
-        const docRef = await addDoc(collection(db, `sites/${state.siteId}/sales`), order);
-        const newOrderLocal = { id: docRef.id, ...order };
-        if (!Array.isArray(state.myOrders)) state.myOrders = [];
-        state.myOrders.push(newOrderLocal);
-        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+    // Se falhar qualquer um dos dois, retorna null
+    if (!c1) { console.error("Não foi possível localizar o CEP da LOJA."); return null; }
+    if (!c2) { console.error("Não foi possível localizar o CEP do CLIENTE."); return null; }
 
-        startBackgroundListeners(); checkActiveOrders(); state.cart = []; state.currentCoupon = null;
-        localStorage.setItem('cart', JSON.stringify([])); updateCartUI();
-
-        if (payMode === 'online') {
-            let msg = `*NOVO PEDIDO #${order.code}*\n--------------------------------\n`;
-            msg += `👤 *Cliente:* ${name}\n📞 *Tel:* ${phone}\n\n🛒 *ITENS:*\n`;
-            order.items.forEach(item => { msg += `▪ ${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}\n`; });
-            msg += `\n💰 *TOTAL: ${totalString}*\n🚚 *Tipo:* ${payMode === 'online' ? "Pagar Agora (Online)" : "Pagar na Entrega"}\n💳 *Pagamento:* ${paymentMsgShort}\n`;
-            if (valueToSave > 0) msg += `🛵 *Frete:* R$ ${valueToSave.toFixed(2).replace('.', ',')}\n`;
-            msg += `\n📍 *Endereço:*\n${fullAddress}`;
-
-            let storePhone = state.storeProfile.whatsapp || "";
-            let targetNumber = storePhone.replace(/\D/g, '');
-            if (targetNumber.length >= 10) {
-                if (targetNumber.length <= 11) targetNumber = "55" + targetNumber;
-                const url = `https://api.whatsapp.com/send?phone=${targetNumber}&text=${encodeURIComponent(msg)}`;
-                const newWindow = window.open(url, '_blank');
-                if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') window.location.href = url;
-            }
-        }
-        openTrackModal();
-
-    } catch (e) {
-        console.error("Erro Submit:", e);
-        alert("Erro ao enviar pedido: " + e.message);
-    } finally {
-        const btnSubmit = document.getElementById('btn-finish-payment');
-        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerText = "Confirmar Pedido"; }
-    }
-};
-
-
+    return getDistanceFromLatLonInKm(c1.lat, c1.lon, c2.lat, c2.lon);
+}
 
 function enablePaymentSection() {
     els.paymentSection.classList.remove('hidden');
@@ -5815,6 +5663,7 @@ function enablePaymentSection() {
         els.btnFinishOrder.disabled = false;
     }, 100);
 }
+
 
 // --- LÓGICA DE PAGAMENTO ---
 
@@ -6499,6 +6348,161 @@ async function getNextOrderNumber(siteId) {
     }
 }
 
+// --- ENVIAR PEDIDO (ATUALIZADO COM TROCO) ---
+window.submitOrder = async () => {
+    try {
+        const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
+
+        // Configurações
+        const dConfig = state.storeProfile?.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
+        
+        // --- TRAVA DE SEGURANÇA FINAL ---
+        const payModeEl = document.querySelector('input[name="pay-mode"]:checked');
+        const payMode = payModeEl ? payModeEl.value : null;
+
+        // Se for Entrega Própria (delivery) e a validação FALHOU ou NÃO RODOU
+        if (dConfig.ownDelivery === true && payMode === 'delivery') {
+            if (checkoutState.isValidDelivery === false) {
+                return alert("⛔ ENDEREÇO INVÁLIDO OU FORA DA ÁREA\n\nA distância não foi validada corretamente.\nPor favor, digite o CEP novamente e aguarde o cálculo.");
+            }
+        }
+        // ---------------------------------
+
+        const name = getVal('checkout-name');
+        const phone = getVal('checkout-phone');
+        const cep = getVal('checkout-cep');
+        const street = getVal('checkout-street');
+        const district = getVal('checkout-district');
+        const number = getVal('checkout-number');
+        const comp = getVal('checkout-comp');
+
+        if (!name || !phone || !cep || !number || !street) {
+            return alert("⚠️ Preencha todos os campos obrigatórios.");
+        }
+
+        const methodEl = document.querySelector('input[name="payment-method-selection"]:checked');
+        if (!payMode || !methodEl) {
+            return alert("⚠️ Selecione a forma de pagamento.");
+        }
+
+        const method = methodEl.value;
+
+        // ... (O RESTANTE DA FUNÇÃO PERMANECE IGUAL AO QUE VOCÊ JÁ TINHA) ...
+        // ... (Copie o resto da sua lógica de montagem de pedido, firebase e whatsapp aqui) ...
+        
+        // Para garantir que você tenha o código completo e correto, aqui está o resto:
+        
+        let paymentDetails = "";
+        let paymentMsgShort = "";
+
+        if (method === 'pix') { paymentDetails = "Pix"; paymentMsgShort = "Pix"; }
+        else if (method === 'credit') {
+            const select = document.getElementById('checkout-installments');
+            let parcelas = "1x (À vista)";
+            if (payMode === 'online' && select && select.selectedIndex >= 0) parcelas = select.options[select.selectedIndex].text;
+            else if (payMode === 'delivery') parcelas = "Na Maquininha";
+            paymentDetails = `Cartão de Crédito (${parcelas})`;
+            paymentMsgShort = `Crédito (${parcelas})`;
+        }
+        else if (method === 'debit') { paymentDetails = "Cartão de Débito"; paymentMsgShort = "Débito"; }
+        else if (method === 'cash') {
+            const trocoVal = getVal('checkout-change-for');
+            paymentDetails = `Dinheiro (Troco para: ${trocoVal || 'Não precisa'})`;
+            paymentMsgShort = `Dinheiro ${trocoVal ? `(Troco p/ ${trocoVal})` : ''}`;
+        }
+        paymentDetails += (payMode === 'online') ? " [Pago Online]" : " [Pagar na Entrega]";
+
+        const totalEl = document.getElementById('checkout-final-total');
+        let finalValue = 0;
+        let totalString = "R$ 0,00";
+        if (totalEl) {
+            totalString = totalEl.innerText;
+            finalValue = parseFloat(totalEl.innerText.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+        }
+
+        let couponData = null;
+        if (state.currentCoupon) {
+            let subtotal = state.cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+            let discountVal = 0;
+            if (state.currentCoupon.type === 'percent') discountVal = subtotal * (state.currentCoupon.val / 100);
+            else discountVal = state.currentCoupon.val;
+            if (discountVal > subtotal) discountVal = subtotal;
+            couponData = { code: state.currentCoupon.code, value: discountVal };
+        }
+
+        const cancelMinutes = parseInt(dConfig.cancelTimeMin) || 5;
+        let securityCode = null;
+        if (payMode === 'delivery' && dConfig.reqCustomerCode === true) securityCode = Math.floor(1000 + Math.random() * 9000);
+
+        const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
+        const nextCode = await getNextOrderNumber(state.siteId);
+
+        const shipRule = dConfig.shippingRule || 'none';
+        const shipValue = parseFloat(dConfig.shippingValue) || 0;
+        let valueToSave = 0;
+        if (checkoutState.isValidDelivery && shipValue > 0) {
+            if (shipRule === 'both') valueToSave = shipValue;
+            else if (shipRule === 'online' && payMode === 'online') valueToSave = shipValue;
+            else if (shipRule === 'delivery' && payMode === 'delivery') valueToSave = shipValue;
+        }
+
+        const order = {
+            code: nextCode,
+            date: new Date().toISOString(),
+            customer: { name, phone, address: fullAddress, addressNum: number, cep, district, street, comp },
+            items: state.cart || [],
+            total: finalValue,
+            status: 'Aguardando aprovação',
+            paymentMethod: paymentDetails,
+            securityCode: securityCode,
+            shippingFee: valueToSave,
+            couponData: couponData,
+            cupom: couponData ? couponData.code : null,
+            cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
+        };
+
+        const btnSubmit = document.getElementById('btn-finish-payment');
+        if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.innerText = "⏳ Enviando..."; }
+
+        const docRef = await addDoc(collection(db, `sites/${state.siteId}/sales`), order);
+        const newOrderLocal = { id: docRef.id, ...order };
+        if (!Array.isArray(state.myOrders)) state.myOrders = [];
+        state.myOrders.push(newOrderLocal);
+        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+
+        startBackgroundListeners();
+        checkActiveOrders();
+        state.cart = [];
+        state.currentCoupon = null;
+        localStorage.setItem('cart', JSON.stringify([]));
+        updateCartUI();
+
+        if (payMode === 'online') {
+            let msg = `*NOVO PEDIDO #${order.code}*\n--------------------------------\n`;
+            msg += `👤 *Cliente:* ${name}\n📞 *Tel:* ${phone}\n\n🛒 *ITENS:*\n`;
+            order.items.forEach(item => { msg += `▪ ${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}\n`; });
+            msg += `\n💰 *TOTAL: ${totalString}*\n🚚 *Tipo:* ${payMode === 'online' ? "Pagar Agora (Online)" : "Pagar na Entrega"}\n💳 *Pagamento:* ${paymentMsgShort}\n`;
+            if (valueToSave > 0) msg += `🛵 *Frete:* R$ ${valueToSave.toFixed(2).replace('.', ',')}\n`;
+            msg += `\n📍 *Endereço:*\n${fullAddress}`;
+
+            let storePhone = state.storeProfile.whatsapp || "";
+            let targetNumber = storePhone.replace(/\D/g, '');
+            if (targetNumber.length >= 10) {
+                if (targetNumber.length <= 11) targetNumber = "55" + targetNumber;
+                const url = `https://api.whatsapp.com/send?phone=${targetNumber}&text=${encodeURIComponent(msg)}`;
+                window.open(url, '_blank');
+            }
+        }
+        openTrackModal();
+
+    } catch (e) {
+        console.error("Erro Submit:", e);
+        alert("Erro ao enviar pedido: " + e.message);
+    } finally {
+        const btnSubmit = document.getElementById('btn-finish-payment');
+        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerText = "Confirmar Pedido"; }
+    }
+};
 
 window.sendOrderToWhatsapp = (order) => {
     console.log("Gerando link do WhatsApp...");
@@ -8090,5 +8094,3 @@ window.cancelPixGlobal = () => {
 
     showToast("Alterações descartadas.", "info");
 };
-
-

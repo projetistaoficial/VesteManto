@@ -330,22 +330,3 @@ function renderList(containerId, data, templateFn) {
     });
 }
 
-// Helper para normalizar nomes de pagamento
-function normalizePaymentMethod(rawMethod) {
-    if (!rawMethod) return null;
-    const m = rawMethod.toLowerCase();
-
-    // 1. PIX
-    if (m.includes('pix')) return 'Pix';
-
-    // 2. DINHEIRO
-    if (m.includes('dinheiro') || m.includes('cash') || m.includes('espécie')) return 'Dinheiro';
-
-    // 3. DÉBITO (Verifica antes de crédito/cartão genérico)
-    if (m.includes('débito') || m.includes('debit')) return 'Cartão de Débito';
-
-    // 4. CRÉDITO (Pega crédito explícito OU 'cartão'/'card' genérico antigo)
-    if (m.includes('crédito') || m.includes('credit') || m.includes('parcelado') || m.includes('card') || m.includes('cartão')) return 'Cartão de Crédito';
-
-    return null; // Ignora o que não for um desses 4 (ex: whatsapp, testes)
-}

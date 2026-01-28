@@ -5782,7 +5782,6 @@ window.submitOrder = async () => {
             msg += `👤 *Cliente:* ${name}\n📞 *Tel:* ${phone}\n\n🛒 *ITENS:*\n`;
             order.items.forEach(item => { msg += `▪ ${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}\n`; });
             msg += `\n💰 *TOTAL: ${totalString}*\n🚚 *Tipo:* ${payMode === 'online' ? "Pagar Agora (Online)" : "Pagar na Entrega"}\n💳 *Pagamento:* ${paymentMsgShort}\n`;
-            if (valueToSave > 0) msg += `🛵 *Frete:* R$ ${valueToSave.toFixed(2).replace('.', ',')}\n`;
             msg += `\n📍 *Endereço:*\n${fullAddress}`;
 
             let storePhone = state.storeProfile.whatsapp || "";
@@ -6819,48 +6818,25 @@ window.showOrderListView = () => {
     sortedList.forEach(order => {
         // --- Definição de Cores e Status ---
         let statusColor = 'bg-gray-400';
-        let statusLabel = order.status; // Padrão: usa o texto do próprio status
+        let statusLabel = order.status; 
 
         // Mapeamento visual
         switch (order.status) {
-            case 'Aguardando aprovação':
-                statusColor = 'bg-gray-400';
-                break;
-
-            // --- CORREÇÃO: SEPARANDO OS STATUS ---
-            case 'Aprovado':
-                statusColor = 'bg-yellow-500';
-                statusLabel = 'Aprovado'; // Exibe exatamente "Aprovado"
-                break;
-
-            case 'Preparando pedido':
-                statusColor = 'bg-yellow-600';
-                statusLabel = 'Preparando Pedido';
-                break;
-            // -------------------------------------
-
-            case 'Saiu para entrega':
-                statusColor = 'bg-orange-500';
-                statusLabel = 'Saiu para Entrega';
-                break;
-            case 'Entregue':
-                statusColor = 'bg-green-500'; // Entregue mas não finalizado
-                statusLabel = 'Entregue';
-                break;
-            case 'Concluído':
-                statusColor = 'bg-green-600';
-                statusLabel = 'Concluído';
-                break;
+            case 'Aguardando aprovação': statusColor = 'bg-gray-400'; break;
+            case 'Aprovado': statusColor = 'bg-yellow-500'; break;
+            case 'Preparando pedido': statusColor = 'bg-yellow-600'; break;
+            case 'Saiu para entrega': statusColor = 'bg-orange-500'; break;
+            case 'Entregue': statusColor = 'bg-green-500'; break;
+            case 'Concluído': statusColor = 'bg-green-600'; break;
+            case 'Reembolsado': statusColor = 'bg-purple-600'; break; // Roxo para reembolsado
             case 'Cancelado':
-            case 'Cancelado pelo Cliente':
-                statusColor = 'bg-red-600';
-                statusLabel = 'Cancelado';
-                break;
+            case 'Cancelado pelo Cliente': statusColor = 'bg-red-600'; break;
         }
 
-        // --- Legenda Superior ---
+        // --- CORREÇÃO AQUI: Lista de status FINALIZADOS ---
+        // Adicionei 'Reembolsado' nesta lista
         let metaLabel = "Em andamento";
-        if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente'].includes(order.status)) {
+        if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente', 'Reembolsado'].includes(order.status)) {
             metaLabel = "Finalizado";
         }
 
@@ -7234,6 +7210,7 @@ window.clientCancelOrder = async (orderId) => {
 
 
 // Função Auxiliar: Controla a bolinha vermelha da moto
+// Função Auxiliar: Controla a bolinha vermelha da moto
 function checkActiveOrders() {
     const indicator = document.getElementById('track-indicator');
     if (!indicator) return;
@@ -7249,13 +7226,14 @@ function checkActiveOrders() {
         const s = o.status;
 
         // Verifica se o status é considerado "Finalizado"
-        // (Inclui: Concluído, Entregue, e qualquer tipo de Cancelado)
+        // --- CORREÇÃO AQUI: Adicionado s === 'Reembolsado' ---
         const isFinished =
             s === 'Concluído' ||
             s === 'Entregue' ||
-            s.includes('Cancelado'); // Pega 'Cancelado' e 'Cancelado pelo Cliente'
+            s === 'Reembolsado' ||
+            s.includes('Cancelado'); 
 
-        // Retorna TRUE se o pedido NÃO estiver finalizado (ou seja, é um pedido ativo)
+        // Retorna TRUE se o pedido NÃO estiver finalizado
         return !isFinished;
     });
 
