@@ -2074,25 +2074,17 @@ function filterAndRenderSales() {
             }
         }
 
-        // F. Data (CORREÇÃO DE FUSO HORÁRIO)
+        // F. Data
         let matchDate = true;
         if (dateStart || dateEnd) {
-            const oDate = new Date(o.date); // Data do pedido (Objeto JS)
-
+            const oDate = new Date(o.date).getTime();
             if (dateStart) {
-                // Quebra a string "2026-01-28" para garantir que o navegador use o fuso LOCAL
-                const [ano, mes, dia] = dateStart.split('-').map(Number);
-                // Cria data local: 00:00:00 do dia escolhido
-                const s = new Date(ano, mes - 1, dia, 0, 0, 0, 0); 
-                
-                if (oDate < s) matchDate = false;
+                const s = new Date(dateStart); s.setHours(0, 0, 0, 0);
+                if (oDate < s.getTime()) matchDate = false;
             }
             if (dateEnd) {
-                const [ano, mes, dia] = dateEnd.split('-').map(Number);
-                // Cria data local: 23:59:59 do dia escolhido
-                const e = new Date(ano, mes - 1, dia, 23, 59, 59, 999);
-                
-                if (oDate > e) matchDate = false;
+                const e = new Date(dateEnd); e.setHours(23, 59, 59, 999);
+                if (oDate > e.getTime()) matchDate = false;
             }
         }
 
@@ -3493,14 +3485,14 @@ function setupEventListeners() {
                 e.stopPropagation();
                 
                 // Exibe o Toast
-                showToast("Por favor, preencha Nome, Telefone e Endereço (CEP) primeiro.", "error");
+                showToast("⚠️ Por favor, preencha Nome, Telefone e Endereço (CEP) primeiro.", "error");
                 
                 // Opcional: Destaca visualmente o que falta (shake effect ou borda vermelha)
                 const name = document.getElementById('checkout-name');
                 const cep = document.getElementById('checkout-cep');
                 
-                if (!cep.value) cep.focus();
-                else if (!name.value) name.focus();
+                if (!name.value) name.focus();
+                else if (!cep.value) cep.focus();
             }
         }, true); // <--- O 'true' aqui é essencial (Use Capture)
     }

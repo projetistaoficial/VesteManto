@@ -387,14 +387,13 @@
                             <div>
                                 <label
                                     class="text-[10px] uppercase font-bold text-gray-500 mb-1 block">Pagamento</label>
-                                <select id="filter-payment"
-                                    class="w-full bg-gray-900 border border-gray-700 text-white text-sm rounded px-3 h-10 outline-none focus:border-yellow-500">
-                                    <option value="">Todos</option>
-                                    <option value="pix">Pix</option>
-                                    <option value="credit">Cartão de Crédito</option>
-                                    <option value="debit">Cartão de Débito</option>
-                                    <option value="cash">Dinheiro</option>
-                                </select>
+                                <select id="filter-payment" class="w-full bg-gray-900 border border-gray-700 text-white text-sm rounded px-3 h-10 outline-none focus:border-yellow-500">
+    <option value="">Todos</option>
+    <option value="pix">Pix</option>
+    <option value="credit">Cartão de Crédito</option>
+    <option value="debit">Cartão de Débito</option>
+    <option value="cash">Dinheiro</option>
+</select>
                             </div>
 
                             <div>
@@ -1053,100 +1052,79 @@
                         </div>
 
                         <div class="border-t border-gray-800 pt-6 mt-6">
-                            <div class="flex items-center justify-between mb-4">
-                                <h4
-                                    class="text-yellow-500 font-bold text-sm uppercase tracking-wide flex items-center gap-2">
-                                    <i class="fab fa-pix"></i> Regras de Desconto Pix
-                                </h4>
-                            </div>
+    <div class="flex items-center justify-between mb-4">
+        <h4 class="text-yellow-500 font-bold text-sm uppercase tracking-wide flex items-center gap-2">
+            <i class="fab fa-pix"></i> Regras de Desconto Pix
+        </h4>
+    </div>
 
-                            <div class="bg-gray-900 rounded-xl p-4 border border-gray-800 space-y-4">
+    <div class="bg-gray-900 rounded-xl p-4 border border-gray-800 space-y-4">
+        
+        <label class="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-800 transition border border-transparent hover:border-gray-700">
+            <input type="checkbox" id="conf-pix-disable-all" class="rounded bg-black border-gray-600 text-red-500 focus:ring-0">
+            <span class="text-white text-sm font-bold">⛔ Remover descontos Pix de TODOS os produtos</span>
+        </label>
 
-                                <label
-                                    class="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-800 transition border border-transparent hover:border-gray-700">
-                                    <input type="checkbox" id="conf-pix-disable-all"
-                                        class="rounded bg-black border-gray-600 text-red-500 focus:ring-0">
-                                    <span class="text-white text-sm font-bold">⛔ Remover descontos Pix de TODOS os
-                                        produtos</span>
-                                </label>
+        <hr class="border-gray-800">
 
-                                <hr class="border-gray-800">
+        <div id="container-pix-global">
+            <label class="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-800 transition border border-transparent hover:border-gray-700">
+                <input type="checkbox" id="conf-pix-global-active" class="rounded bg-black border-gray-600 text-green-500 focus:ring-0">
+                <div>
+                    <span class="text-white text-sm font-bold block">Ativar Padronização Global</span>
+                    <span class="text-xs text-gray-500">Sobrescreve os descontos individuais cadastrados nos produtos</span>
+                </div>
+            </label>
 
-                                <div id="container-pix-global">
-                                    <label
-                                        class="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-800 transition border border-transparent hover:border-gray-700">
-                                        <input type="checkbox" id="conf-pix-global-active"
-                                            class="rounded bg-black border-gray-600 text-green-500 focus:ring-0">
-                                        <div>
-                                            <span class="text-white text-sm font-bold block">Ativar Padronização
-                                                Global</span>
-                                            <span class="text-xs text-gray-500">Sobrescreve os descontos individuais
-                                                cadastrados nos produtos</span>
-                                        </div>
-                                    </label>
+            <div id="pix-global-settings" class="mt-4 pl-4 border-l-2 border-green-500/30 ml-2 space-y-4 opacity-50 pointer-events-none transition-all">
+                
+                <div>
+                    <label class="text-gray-400 text-xs font-bold uppercase block mb-2">Tipo de Desconto:</label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="conf-pix-type" value="percent" class="accent-green-500" checked>
+                            <span class="text-gray-300 text-xs">Porcentagem (%)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="conf-pix-type" value="fixed" class="accent-green-500">
+                            <span class="text-gray-300 text-xs">Valor Fixo (R$)</span>
+                        </label>
+                    </div>
+                </div>
 
-                                    <div id="pix-global-settings"
-                                        class="mt-4 pl-4 border-l-2 border-green-500/30 ml-2 space-y-4 opacity-50 pointer-events-none transition-all">
+                <div>
+                    <label class="text-gray-400 text-xs font-bold uppercase block mb-1">Valor do Desconto</label>
+                    <input type="number" id="conf-pix-global-value" placeholder="Ex: 5 ou 10.00" step="0.01"
+                        class="w-full bg-black border border-gray-700 text-white text-sm rounded p-2 outline-none focus:border-green-500 font-bold">
+                </div>
 
-                                        <div>
-                                            <label class="text-gray-400 text-xs font-bold uppercase block mb-2">Tipo de
-                                                Desconto:</label>
-                                            <div class="flex gap-4">
-                                                <label class="flex items-center gap-2 cursor-pointer">
-                                                    <input type="radio" name="conf-pix-type" value="percent"
-                                                        class="accent-green-500" checked>
-                                                    <span class="text-gray-300 text-xs">Porcentagem (%)</span>
-                                                </label>
-                                                <label class="flex items-center gap-2 cursor-pointer">
-                                                    <input type="radio" name="conf-pix-type" value="fixed"
-                                                        class="accent-green-500">
-                                                    <span class="text-gray-300 text-xs">Valor Fixo (R$)</span>
-                                                </label>
-                                            </div>
-                                        </div>
+                <div>
+                    <label class="text-gray-400 text-xs font-bold uppercase block mb-2">Modo de Aplicação:</label>
+                    <div class="flex flex-col gap-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="conf-pix-mode" value="product" class="accent-green-500">
+                            <span class="text-gray-300 text-xs">Individual por Produto (Exibe no card do item)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="conf-pix-mode" value="total" class="accent-green-500">
+                            <span class="text-gray-300 text-xs">Apenas no Total Final (Checkout)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-                                        <div>
-                                            <label class="text-gray-400 text-xs font-bold uppercase block mb-1">Valor do
-                                                Desconto</label>
-                                            <input type="number" id="conf-pix-global-value" placeholder="Ex: 5 ou 10.00"
-                                                step="0.01"
-                                                class="w-full bg-black border border-gray-700 text-white text-sm rounded p-2 outline-none focus:border-green-500 font-bold">
-                                        </div>
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-800 mt-2">
+            <button onclick="cancelPixGlobal()" class="text-gray-400 hover:text-white text-xs font-bold px-4 py-2 rounded hover:bg-gray-800 transition">
+                Cancelar
+            </button>
+            <button onclick="savePixGlobal()" class="bg-green-600 hover:bg-green-500 text-white text-xs font-bold px-6 py-2 rounded shadow-lg transition transform active:scale-95">
+                Salvar Alterações
+            </button>
+        </div>
 
-                                        <div>
-                                            <label class="text-gray-400 text-xs font-bold uppercase block mb-2">Modo de
-                                                Aplicação:</label>
-                                            <div class="flex flex-col gap-2">
-                                                <label class="flex items-center gap-2 cursor-pointer">
-                                                    <input type="radio" name="conf-pix-mode" value="product"
-                                                        class="accent-green-500">
-                                                    <span class="text-gray-300 text-xs">Individual por Produto (Exibe no
-                                                        card do item)</span>
-                                                </label>
-                                                <label class="flex items-center gap-2 cursor-pointer">
-                                                    <input type="radio" name="conf-pix-mode" value="total"
-                                                        class="accent-green-500">
-                                                    <span class="text-gray-300 text-xs">Apenas no Total Final
-                                                        (Checkout)</span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-800 mt-2">
-                                    <button onclick="cancelPixGlobal()"
-                                        class="text-gray-400 hover:text-white text-xs font-bold px-4 py-2 rounded hover:bg-gray-800 transition">
-                                        Cancelar
-                                    </button>
-                                    <button onclick="savePixGlobal()"
-                                        class="bg-green-600 hover:bg-green-500 text-white text-xs font-bold px-6 py-2 rounded shadow-lg transition transform active:scale-95">
-                                        Salvar Alterações
-                                    </button>
-                                </div>
-
-                            </div>
-                        </div>
+    </div>
+</div>
 
                         <div>
                             <h4 class="text-white font-bold text-sm mb-4 flex items-center gap-2">
@@ -1630,21 +1608,13 @@
                             <span id="distance-display" class="text-gray-400 font-normal text-[10px] hidden"></span>
                         </p>
 
-                        <div class="relative flex gap-2 items-center">
-                            <div class="relative flex-1">
-                                <input type="tel" id="checkout-cep" placeholder="CEP (00000-000)" maxlength="9"
-                                    class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none transition-colors"
-                                    onblur="handleCheckoutCep()">
-
-                                <div id="cep-loading" class="hidden absolute right-3 top-3 text-yellow-500">
-                                    <i class="fas fa-spinner fa-spin"></i>
-                                </div>
+                        <div class="relative">
+                            <input type="tel" id="checkout-cep" placeholder="CEP (00000-000)" maxlength="9"
+                                class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none transition-colors"
+                                onblur="handleCheckoutCep()">
+                            <div id="cep-loading" class="hidden absolute right-3 top-3 text-yellow-500">
+                                <i class="fas fa-spinner fa-spin"></i>
                             </div>
-
-                            <button type="button" onclick="handleCheckoutCep()"
-                                class="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-4 py-3 rounded text-sm transition h-full shadow-lg">
-                                OK
-                            </button>
                         </div>
 
                         <div id="delivery-error"
@@ -1682,8 +1652,7 @@
 
                     <div class="border-t border-gray-700 my-2"></div>
 
-                    <div class="space-y-2 opacity-50 pointer-events-none transition-all duration-300"
-                        id="checkout-payment-options">
+                    <div class="space-y-2" id="checkout-payment-options">
                         <label class="text-gray-300 text-xs font-bold uppercase ml-1" id="lbl-payment-mode">Modalidade
                             de Pagamento</label>
 

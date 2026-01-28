@@ -290,6 +290,40 @@ async function getNextProductCode(siteId) {
     }
 }
 
+
+// Função que verifica se tudo está preenchido para liberar o pagamento
+function validateCheckoutForm() {
+    // 1. Pega os valores
+    const name = document.getElementById('checkout-name')?.value.trim();
+    const phone = document.getElementById('checkout-phone')?.value.trim();
+    const number = document.getElementById('checkout-number')?.value.trim();
+    const street = document.getElementById('checkout-street')?.value.trim();
+    
+    // 2. Elementos para bloquear/desbloquear
+    const paymentSection = document.getElementById('checkout-payment-options');
+    const btnFinish = document.getElementById('btn-finish-payment');
+
+    // 3. Regra: Precisa ter Nome, Telefone, Número e Rua (que vem do CEP válido)
+    // E também verifica se o CEP foi validado pelo sistema (checkoutState.isValidDelivery)
+    const isAddressOk = street !== "" && number !== "" && (typeof checkoutState !== 'undefined' ? checkoutState.isValidDelivery : true);
+    const isUserOk = name !== "" && phone !== "";
+
+    if (isAddressOk && isUserOk) {
+        // LIBERA
+        if (paymentSection) paymentSection.classList.remove('opacity-50', 'pointer-events-none');
+        if (btnFinish) {
+            btnFinish.disabled = false;
+            btnFinish.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    } else {
+        // BLOQUEIA
+        if (paymentSection) paymentSection.classList.add('opacity-50', 'pointer-events-none');
+        if (btnFinish) {
+            btnFinish.disabled = true;
+            btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    }
+}
 // =================================================================
 // 2. ESTADO GLOBAL E DOM
 // =================================================================
@@ -2074,25 +2108,17 @@ function filterAndRenderSales() {
             }
         }
 
-        // F. Data (CORREÇÃO DE FUSO HORÁRIO)
+        // F. Data
         let matchDate = true;
         if (dateStart || dateEnd) {
-            const oDate = new Date(o.date); // Data do pedido (Objeto JS)
-
+            const oDate = new Date(o.date).getTime();
             if (dateStart) {
-                // Quebra a string "2026-01-28" para garantir que o navegador use o fuso LOCAL
-                const [ano, mes, dia] = dateStart.split('-').map(Number);
-                // Cria data local: 00:00:00 do dia escolhido
-                const s = new Date(ano, mes - 1, dia, 0, 0, 0, 0); 
-                
-                if (oDate < s) matchDate = false;
+                const s = new Date(dateStart); s.setHours(0, 0, 0, 0);
+                if (oDate < s.getTime()) matchDate = false;
             }
             if (dateEnd) {
-                const [ano, mes, dia] = dateEnd.split('-').map(Number);
-                // Cria data local: 23:59:59 do dia escolhido
-                const e = new Date(ano, mes - 1, dia, 23, 59, 59, 999);
-                
-                if (oDate > e) matchDate = false;
+                const e = new Date(dateEnd); e.setHours(23, 59, 59, 999);
+                if (oDate > e.getTime()) matchDate = false;
             }
         }
 
@@ -3473,37 +3499,13 @@ function setupEventListeners() {
         });
     }
 
-   ['checkout-name', 'checkout-phone', 'checkout-number'].forEach(id => {
+    // Monitores de Validação do Checkout (Nome, Telefone, Número)
+    ['checkout-name', 'checkout-phone', 'checkout-number'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-            // Toda vez que digitar, verifica se pode liberar
-            el.addEventListener('input', validateCheckoutForm); 
+            el.addEventListener('input', validateCheckoutForm); // Valida ao digitar
         }
     });
-
-    // --- Listener de Bloqueio do Pagamento (Toast de Aviso) ---
-    const paySection = document.getElementById('checkout-payment-options');
-    if (paySection) {
-        // Usa 'click' com capture: true para interceptar ANTES dos radio buttons
-        paySection.addEventListener('click', (e) => {
-            // Se estiver bloqueado (classe que definimos na validação)
-            if (paySection.classList.contains('locked-section')) {
-                // PARA TUDO: Impede que o radio button seja marcado
-                e.preventDefault();
-                e.stopPropagation();
-                
-                // Exibe o Toast
-                showToast("Por favor, preencha Nome, Telefone e Endereço (CEP) primeiro.", "error");
-                
-                // Opcional: Destaca visualmente o que falta (shake effect ou borda vermelha)
-                const name = document.getElementById('checkout-name');
-                const cep = document.getElementById('checkout-cep');
-                
-                if (!cep.value) cep.focus();
-                else if (!name.value) name.focus();
-            }
-        }, true); // <--- O 'true' aqui é essencial (Use Capture)
-    }
 }
 
 function updateCardStyles(isLight) {
@@ -5476,28 +5478,23 @@ window.applyCheckoutVisibility = () => {
 };
 
 window.openCheckoutModal = () => {
+
+    // FORÇA O BLOQUEIO AO ABRIR
+    const paySection = document.getElementById('checkout-payment-options');
+    if (paySection) paySection.classList.add('opacity-50', 'pointer-events-none');
     // 1. Limpa campos anteriores
-    ['checkout-cep', 'checkout-number', 'checkout-comp', 'checkout-name', 'checkout-phone'].forEach(id => {
-        const el = document.getElementById(id); 
-        if (el) el.value = '';
+    ['checkout-cep', 'checkout-number', 'checkout-comp'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
     });
-    
     ['address-details', 'delivery-error'].forEach(id => {
-        const el = document.getElementById(id); 
-        if (el) el.classList.add('hidden');
+        const el = document.getElementById(id); if (el) el.classList.add('hidden');
     });
 
-    // 2. Reseta o estado do CEP
-    if (typeof checkoutState !== 'undefined') {
-        checkoutState.isValidDelivery = false;
-        checkoutState.address = null;
-        checkoutState.distance = 0;
-    }
 
-    // 3. Aplica visibilidade das opções (Pix, Cartão, etc)
+    // 2. APLICA VISIBILIDADE E SELEÇÃO (AQUI O SEGREDO)
     applyCheckoutVisibility();
 
-    // 4. Exibição das Telas
+    // 3. EXIBIÇÃO DAS TELAS
     const viewCart = document.getElementById('view-cart-list');
     const viewCheckout = document.getElementById('view-checkout');
 
@@ -5510,24 +5507,10 @@ window.openCheckoutModal = () => {
     document.getElementById('btn-modal-back')?.classList.remove('hidden');
     document.getElementById('btn-go-checkout')?.classList.add('hidden');
 
-    // 5. TRAVAMENTO INICIAL (AQUI ESTAVA O ERRO)
     const btnFinish = document.getElementById('btn-finish-payment');
-    const paySection = document.getElementById('checkout-payment-options');
-
-    // Força o bloqueio visual e funcional IMEDIATAMENTE
-    if (paySection) {
-        paySection.classList.add('opacity-50', 'pointer-events-none');
-    }
-    
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = true; // <--- AGORA TRAVA O BOTÃO
-        btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
-    }
-
-    // 6. Roda a validação final para garantir que continue travado
-    if (typeof validateCheckoutForm === 'function') {
-        validateCheckoutForm();
+        btnFinish.disabled = false;
     }
 };
 
@@ -5731,9 +5714,9 @@ window.handleCheckoutCep = async () => {
         if (elLoading) elLoading.classList.add('hidden');
         if (typeof window.populateInstallments === 'function') window.populateInstallments();
         if (typeof window.calcCheckoutTotal === 'function') window.calcCheckoutTotal();
-
-        validateCheckoutForm();
     }
+
+    validateCheckoutForm();
 };
 
 // 4. Submit Order (Para garantir que use a validação)
@@ -6272,10 +6255,9 @@ window.togglePaymentMode = () => {
 
     const mode = modeEl.value;
     const lblMethod = document.getElementById('lbl-payment-method');
-    
-    // --- CORREÇÃO: REMOVIDAS AS LINHAS QUE DESBLOQUEAVAM AUTOMATICAMENTE ---
-    // Quem decide se desbloqueia agora é APENAS a função validateCheckoutForm()
-    // -----------------------------------------------------------------------
+    const optionsDiv = document.getElementById('checkout-payment-options');
+
+    if (optionsDiv) optionsDiv.classList.remove('opacity-50', 'pointer-events-none');
 
     // Recupera Configs (com fallback seguro para credit/debit)
     const pm = state.storeProfile?.paymentMethods || {};
@@ -6348,9 +6330,6 @@ window.togglePaymentMode = () => {
     } else {
         if (typeof window.toggleMethodSelection === 'function') window.toggleMethodSelection();
     }
-    
-    // IMPORTANTE: Após ajustar o visual, validamos se deve continuar bloqueado
-    if (typeof validateCheckoutForm === 'function') validateCheckoutForm();
 };
 
 // 2. Controla a Seleção Específica (Pix vs Cartão vs Dinheiro)
@@ -8160,48 +8139,3 @@ window.cancelPixGlobal = () => {
 };
 
 
-// Função que LIBERA ou TRAVA o pagamento (Atualizada para permitir clique de aviso)
-function validateCheckoutForm() {
-    // 1. Pega os valores
-    const name = document.getElementById('checkout-name')?.value.trim();
-    const phone = document.getElementById('checkout-phone')?.value.trim();
-    const number = document.getElementById('checkout-number')?.value.trim();
-    
-    // O campo Rua é preenchido pelo CEP
-    const street = document.getElementById('checkout-street')?.value.trim(); 
-    
-    // 2. Elementos
-    const paymentSection = document.getElementById('checkout-payment-options');
-    const btnFinish = document.getElementById('btn-finish-payment');
-
-    // 3. Regra: Tudo deve estar preenchido
-    const isAddressOk = street && street !== "" && number && number !== "";
-    const isUserOk = name && name !== "" && phone && phone !== "";
-    const isCepValid = (typeof checkoutState !== 'undefined') ? checkoutState.isValidDelivery : true;
-
-    const isValid = isAddressOk && isUserOk && isCepValid;
-
-    if (isValid) {
-        // --- LIBERA ---
-        if (paymentSection) {
-            paymentSection.classList.remove('opacity-50', 'locked-section');
-            // Removemos pointer-events-none para permitir interação
-            paymentSection.classList.remove('pointer-events-none');
-        }
-        if (btnFinish) {
-            btnFinish.disabled = false;
-            btnFinish.classList.remove('opacity-50', 'cursor-not-allowed');
-        }
-    } else {
-        // --- BLOQUEIA (VISUALMENTE) ---
-        if (paymentSection) {
-            paymentSection.classList.add('opacity-50', 'locked-section');
-            // IMPORTANTE: Removemos pointer-events-none para o clique funcionar e mostrar o Toast
-            paymentSection.classList.remove('pointer-events-none');
-        }
-        if (btnFinish) {
-            btnFinish.disabled = true;
-            btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
-        }
-    }
-}

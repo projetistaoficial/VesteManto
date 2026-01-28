@@ -1630,21 +1630,13 @@
                             <span id="distance-display" class="text-gray-400 font-normal text-[10px] hidden"></span>
                         </p>
 
-                        <div class="relative flex gap-2 items-center">
-                            <div class="relative flex-1">
-                                <input type="tel" id="checkout-cep" placeholder="CEP (00000-000)" maxlength="9"
-                                    class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none transition-colors"
-                                    onblur="handleCheckoutCep()">
-
-                                <div id="cep-loading" class="hidden absolute right-3 top-3 text-yellow-500">
-                                    <i class="fas fa-spinner fa-spin"></i>
-                                </div>
+                        <div class="relative">
+                            <input type="tel" id="checkout-cep" placeholder="CEP (00000-000)" maxlength="9"
+                                class="w-full bg-black border border-gray-700 text-white font-bold rounded p-3 text-sm focus:border-yellow-500 outline-none transition-colors"
+                                onblur="handleCheckoutCep()">
+                            <div id="cep-loading" class="hidden absolute right-3 top-3 text-yellow-500">
+                                <i class="fas fa-spinner fa-spin"></i>
                             </div>
-
-                            <button type="button" onclick="handleCheckoutCep()"
-                                class="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-4 py-3 rounded text-sm transition h-full shadow-lg">
-                                OK
-                            </button>
                         </div>
 
                         <div id="delivery-error"
@@ -1682,8 +1674,7 @@
 
                     <div class="border-t border-gray-700 my-2"></div>
 
-                    <div class="space-y-2 opacity-50 pointer-events-none transition-all duration-300"
-                        id="checkout-payment-options">
+                    <div class="space-y-2" id="checkout-payment-options">
                         <label class="text-gray-300 text-xs font-bold uppercase ml-1" id="lbl-payment-mode">Modalidade
                             de Pagamento</label>
 
