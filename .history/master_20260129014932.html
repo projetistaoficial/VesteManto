@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acesso Lojista - Seu Sistema</title>
+    <link rel="stylesheet" href="css/auth.css"> </head>
+<body>
+    <div class="auth-container">
+        <div id="auth-card">
+            <h2 id="auth-title">Entrar no Painel</h2>
+            
+            <form id="login-form">
+                <input type="email" id="login-email" placeholder="E-mail" required>
+                <input type="password" id="login-senha" placeholder="Senha" required>
+                <button type="submit">Acessar Painel</button>
+                <p>Não tem uma conta? <a href="#" onclick="toggleAuth()">Cadastrar minha loja</a></p>
+            </form>
+
+            <form id="register-form" style="display: none;">
+                <input type="text" id="reg-nome-loja" placeholder="Nome da Loja" required>
+                <input type="text" id="reg-id-loja" placeholder="URL desejada (ex: pizzaria-do-ze)" required>
+                <input type="email" id="reg-email" placeholder="E-mail de acesso" required>
+                <input type="password" id="reg-senha" placeholder="Crie uma senha" required>
+                <button type="submit">Criar Minha Loja Agora</button>
+                <p>Já tem conta? <a href="#" onclick="toggleAuth()">Fazer Login</a></p>
+            </form>
+        </div>
+    </div>
+
+    <script type="module" src="js/auth-handler.js"></script>
+</body>
+</html>

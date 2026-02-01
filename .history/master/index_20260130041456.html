@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Master - Gestão SaaS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center font-sans">
+
+    <div class="w-full max-w-lg bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-2xl">
+        <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+            <h1 class="text-2xl font-bold text-blue-400">Novo Cliente</h1>
+            <i class="fas fa-server text-slate-500 text-xl"></i>
+        </div>
+
+        <div class="space-y-5">
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Nome da Loja</label>
+                <input type="text" id="store-name" placeholder="Ex: Hamburgueria do Zé" 
+                       class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-blue-500 outline-none transition">
+            </div>
+            
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">ID da URL (Link)</label>
+                <div class="flex items-center">
+                    <span class="bg-slate-700 text-slate-400 p-3 rounded-l-lg border-y border-l border-slate-600 text-xs">?site=</span>
+                    <input type="text" id="store-id" placeholder="hamburgueria-ze" 
+                           class="w-full bg-slate-900 border border-slate-600 rounded-r-lg p-3 text-white focus:border-blue-500 outline-none transition">
+                </div>
+                <p class="text-[10px] text-slate-500 mt-1">Sem espaços ou acentos. Ex: <code>minha-loja</code></p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Tipo de Plano</label>
+                <select id="store-plan" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-blue-500 outline-none">
+                    <option value="trial">Teste Grátis (7 Dias)</option>
+                    <option value="monthly">Mensal (30 Dias)</option>
+                    <option value="lifetime">Vitalício (Sem validade)</option>
+                </select>
+            </div>
+
+            <button onclick="createStore()" 
+                    class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-lg transition shadow-lg transform active:scale-95 mt-4">
+                GERAR ACESSO
+            </button>
+        </div>
+
+        <div id="result-area" class="hidden mt-6 bg-slate-900/50 p-4 rounded-lg border border-green-500/30">
+            <p class="text-green-400 font-bold mb-2 flex items-center gap-2"><i class="fas fa-check-circle"></i> Loja Criada!</p>
+            <p class="text-xs text-slate-400 mb-1">Envie este link para o cliente:</p>
+            
+            <div class="flex gap-2">
+                <input type="text" id="final-link" readonly class="w-full bg-slate-800 text-white text-xs p-2 rounded border border-slate-600 select-all">
+                <button onclick="copyLink()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 rounded border border-slate-600 text-xs">Copiar</button>
+            </div>
+            <p id="expiry-date-display" class="text-[10px] text-yellow-500 mt-2 text-right"></p>
+        </div>
+    </div>
+
+    <script type="module">
+        // Importa as funções necessárias (Adicionei collection e getDocs)
+        import { db, doc, setDoc, collection, getDocs, writeBatch } from '../js/firebase-config.js';
+
+        // Função principal de criar
+        window.createStore = async () => {
+            const btn = document.querySelector('button');
+            const name = document.getElementById('store-name').value;
+            const id = document.getElementById('store-id').value.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+            const plan = document.getElementById('store-plan').value;
+
+            if(!name || !id) return alert("Preencha o nome e o ID.");
+
+            btn.innerText = "Criando e Configurando...";
+            btn.disabled = true;
+
+            // 1. Calcula Validade
+            let expiryDate = null;
+            const now = new Date();
+            if(plan === 'trial') {
+                expiryDate = new Date();
+                expiryDate.setDate(now.getDate() + 7); 
+            } else if (plan === 'monthly') {
+                expiryDate = new Date();
+                expiryDate.setDate(now.getDate() + 30);
+            }
+
+            try {
+                // 2. CRIA A LOJA (Documento Pai)
+                await setDoc(doc(db, "sites", id), {
+                    name: name,
+                    status: 'active',
+                    createdAt: new Date(),
+                    expiryDate: expiryDate,
+                    planType: plan
+                });
+
+                // 3. CLONAGEM DE DADOS (O Segredo para não virar tela preta)
+                // Vamos copiar dados da loja 'demo' para a nova loja
+                await clonarDadosBase('demo', id, name);
+
+                // 4. Mostra o Link Final
+                const baseUrl = window.location.origin; 
+                // Ajuste se estiver rodando local ou em subpasta
+                const link = `${baseUrl}/index.html?site=${id}`;
+
+                document.getElementById('final-link').value = link;
+                document.getElementById('expiry-date-display').innerText = expiryDate ? `Vence em: ${expiryDate.toLocaleDateString()}` : "Acesso Vitalício";
+                document.getElementById('result-area').classList.remove('hidden');
+
+            } catch (error) {
+                console.error(error);
+                alert("Erro: " + error.message);
+            } finally {
+                btn.innerText = "GERAR ACESSO";
+                btn.disabled = false;
+            }
+        };
+
+        // --- FUNÇÃO DE CLONAGEM ---
+        async function clonarDadosBase(sourceId, targetId, newStoreName) {
+            console.log(`Clonando de ${sourceId} para ${targetId}...`);
+            const batch = writeBatch(db); // Usa Batch para ser rápido e seguro
+
+            // A. Copiar Configurações (Settings)
+            // Se a loja demo não tiver settings, criamos um padrão
+            const settingsRef = collection(db, `sites/${sourceId}/settings`);
+            const settingsSnap = await getDocs(settingsRef);
+            
+            if (settingsSnap.empty) {
+                // Cria settings padrão se não existir na Demo
+                const defaultProfile = {
+                    name: newStoreName,
+                    installments: { active: false },
+                    deliveryConfig: { ownDelivery: false }
+                };
+                batch.set(doc(db, `sites/${targetId}/settings`, 'profile'), defaultProfile);
+                batch.set(doc(db, `sites/${targetId}/settings`, 'general'), { allowNoStock: false });
+            } else {
+                settingsSnap.forEach(docSnap => {
+                    const data = docSnap.data();
+                    // Se for o perfil, atualiza o nome para o da nova loja
+                    if (docSnap.id === 'profile') {
+                        data.name = newStoreName; 
+                    }
+                    batch.set(doc(db, `sites/${targetId}/settings`, docSnap.id), data);
+                });
+            }
+
+            // B. Copiar Categorias (Categories)
+            const catsRef = collection(db, `sites/${sourceId}/categories`);
+            const catsSnap = await getDocs(catsRef);
+            catsSnap.forEach(docSnap => {
+                batch.set(doc(db, `sites/${targetId}/categories`, docSnap.id), docSnap.data());
+            });
+
+            // C. Copiar Produtos (Products) - Opcional: Copiar apenas alguns ou todos
+            const prodsRef = collection(db, `sites/${sourceId}/products`);
+            const prodsSnap = await getDocs(prodsRef);
+            
+            // Limite de segurança: Copia no máximo 20 produtos para não estourar cota num clique
+            let count = 0;
+            prodsSnap.forEach(docSnap => {
+                if(count < 20) {
+                    batch.set(doc(db, `sites/${targetId}/products`, docSnap.id), docSnap.data());
+                    count++;
+                }
+            });
+
+            // Executa a gravação em lote
+            await batch.commit();
+            console.log("Clonagem concluída!");
+        }
+
+        window.copyLink = () => {
+            const copyText = document.getElementById("final-link");
+            copyText.select();
+            document.execCommand("copy");
+            alert("Link copiado!");
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel Master - Gestão de Clientes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+
+    <div class="bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-md border border-gray-700">
+        <h1 class="text-2xl font-bold text-blue-500 mb-6 text-center">Criar Nova Loja</h1>
+
+        <div class="space-y-4">
+            <div>
+                <label class="text-sm text-gray-400">Nome do Estabelecimento</label>
+                <input type="text" id="nome-loja" placeholder="Ex: Pizzaria do João" 
+                       class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white focus:border-blue-500 outline-none">
+            </div>
+
+            <div>
+                <label class="text-sm text-gray-400">ID da URL (Slug)</label>
+                <input type="text" id="id-loja" placeholder="ex: pizzaria-do-joao" 
+                       class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white focus:border-blue-500 outline-none">
+                <p class="text-xs text-gray-500 mt-1">Sem espaços ou caracteres especiais.</p>
+            </div>
+
+            <div>
+                <label class="text-sm text-gray-400">Plano</label>
+                <select id="plano" class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white">
+                    <option value="trial">Teste Grátis (7 Dias)</option>
+                    <option value="mensal">Assinatura Mensal</option>
+                    <option value="vitalicio">Vitalício</option>
+                </select>
+            </div>
+
+            <button onclick="gerarLoja()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded transition">
+                CRIAR LOJA
+            </button>
+        </div>
+
+        <div id="resultado" class="hidden mt-6 p-4 bg-black/40 rounded border border-green-500/30 text-center">
+            <p class="text-green-400 font-bold mb-2">Loja Criada com Sucesso!</p>
+            <input type="text" id="link-gerado" readonly class="w-full bg-transparent text-center text-sm text-gray-300 outline-none mb-2">
+            <button onclick="copiarLink()" class="text-xs text-blue-400 underline">Copiar Link</button>
+        </div>
+    </div>
+
+    <script type="module">
+        // Importando do arquivo que está na pasta anterior (../)
+        import { db, doc, setDoc } from '../js/firebase-config.js';
+
+        window.gerarLoja = async () => {
+            const nome = document.getElementById('nome-loja').value;
+            const id = document.getElementById('id-loja').value.toLowerCase().trim().replace(/\s+/g, '-');
+            const plano = document.getElementById('plano').value;
+            const btn = document.querySelector('button');
+
+            if (!nome || !id) return alert("Preencha todos os campos!");
+
+            btn.innerText = "Processando...";
+            btn.disabled = true;
+
+            // Calcula validade
+            let validade = null;
+            const hoje = new Date();
+            
+            if (plano === 'trial') {
+                validade = new Date(hoje.setDate(hoje.getDate() + 7)); // +7 dias
+            } else if (plano === 'mensal') {
+                validade = new Date(hoje.setDate(hoje.getDate() + 30)); // +30 dias
+            }
+
+            try {
+                // Salva no Firestore na coleção 'sites'
+                await setDoc(doc(db, "sites", id), {
+                    nome: nome,
+                    status: 'ativo',
+                    criadoEm: new Date(),
+                    trialExpires: validade,
+                    plano: plano
+                });
+
+                // Gera o Link para a raiz do site
+                const urlBase = window.location.origin; // Pega o domínio atual
+                const linkFinal = `${urlBase}/index.html?site=${id}`;
+
+                document.getElementById('link-gerado').value = linkFinal;
+                document.getElementById('resultado').classList.remove('hidden');
+
+            } catch (error) {
+                console.error(error);
+                alert("Erro ao criar: " + error.message);
+            } finally {
+                btn.innerText = "CRIAR LOJA";
+                btn.disabled = false;
+            }
+        };
+
+        window.copiarLink = () => {
+            const input = document.getElementById('link-gerado');
+            input.select();
+            document.execCommand('copy');
+            alert("Link copiado!");
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Master Admin - Gestão de Clientes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-950 text-white p-6">
+    <header class="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
+        <h1 class="text-2xl font-bold text-blue-500">Controle de Lojistas (SaaS)</h1>
+        <button onclick="abrirModalNovaLoja()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-bold">
+            + Cadastrar Novo Cliente
+        </button>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div class="bg-gray-900 p-6 rounded-xl border border-gray-800">
+            <p class="text-gray-400">Total de Clientes</p>
+            <h2 id="total-clientes" class="text-3xl font-bold">0</h2>
+        </div>
+        <div class="bg-gray-900 p-6 rounded-xl border border-gray-800">
+            <p class="text-gray-400">Lojas Ativas</p>
+            <h2 id="lojas-ativas" class="text-3xl font-bold text-green-500">0</h2>
+        </div>
+        <div class="bg-gray-900 p-6 rounded-xl border border-gray-800">
+            <p class="text-gray-400">Previsão Mensal (MRR)</p>
+            <h2 id="mrr-total" class="text-3xl font-bold text-blue-400">R$ 0,00</h2>
+        </div>
+    </div>
+
+    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+        <table class="w-full text-left">
+            <thead class="bg-gray-800 text-gray-400 text-sm">
+                <tr>
+                    <th class="p-4">Loja / ID</th>
+                    <th class="p-4">E-mail do Dono</th>
+                    <th class="p-4">Status</th>
+                    <th class="p-4">Ações</th>
+                </tr>
+            </thead>
+            <tbody id="lista-clientes-body">
+            </tbody>
+        </table>
+    </div>
+
+    <div id="modal-novo-cliente" class="bg-gray-900 p-6 rounded-xl border border-gray-800 mb-8">
+        <h3 class="text-lg font-bold mb-4">Gerar Novo Acesso (Trial 7 Dias)</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input type="text" id="new-store-name" placeholder="Nome da Loja"
+                class="bg-black border border-gray-700 p-2 rounded">
+            <input type="text" id="new-store-id" placeholder="ID da URL (ex: burguer-king)"
+                class="bg-black border border-gray-700 p-2 rounded">
+            <button onclick="gerarLinkTrial()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded">
+                Gerar Link de Teste
+            </button>
+        </div>
+        <div id="display-link-gerado" class="mt-4 p-3 bg-gray-800 rounded hidden text-sm break-all">
+        </div>
+    </div>
+
+    <script type="module" src="js/master-logic.js"></script>
+</body>
+
+</html>

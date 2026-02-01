@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Master - Gestão de Lojas</title>
+    <style>
+        body { font-family: sans-serif; background: #1a1a1a; color: white; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card { background: #2d2d2d; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #444; }
+        h2 { color: #facc15; margin-top: 0; }
+        input, select { padding: 10px; width: 100%; margin: 5px 0; background: #444; border: 1px solid #555; color: white; border-radius: 5px; box-sizing: border-box; }
+        button { padding: 10px 20px; background: #2563eb; color: white; border: none; cursor: pointer; border-radius: 5px; width: 100%; font-weight: bold; margin-top: 10px; }
+        button:hover { background: #1d4ed8; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #444; }
+        .btn-sm { width: auto; padding: 5px 10px; font-size: 12px; margin: 0 5px; }
+        .status-ativo { color: #4ade80; }
+        .status-bloqueado { color: #f87171; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>👑 Gestão Master</h1>
+
+        <div class="card">
+            <h2>Nova Loja</h2>
+            <input type="text" id="nome-loja" placeholder="Nome do Cliente (Ex: Hamburgueria X)">
+            <input type="text" id="id-url" placeholder="ID da URL (Ex: hamburgueriax) - Sem espaços!">
+            <select id="plano">
+                <option value="7">Teste Grátis (7 Dias)</option>
+                <option value="30">Mensal (30 Dias)</option>
+                <option value="365">Anual (365 Dias)</option>
+            </select>
+            <button onclick="criarNovaLoja()">GERAR ACESSO</button>
+        </div>
+
+        <div class="card">
+            <h2>Lojas Ativas</h2>
+            <table id="tabela-lojas">
+                <thead>
+                    <tr>
+                        <th>Loja / Link</th>
+                        <th>Status</th>
+                        <th>Vencimento</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-corpo">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module" src="js/painel.js"></script>
+</body>
+</html>
