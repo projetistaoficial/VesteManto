@@ -596,107 +596,78 @@ if (document.readyState === 'loading') {
     startApplication();
 }
 
-async function initApp() {
-    const params = new URLSearchParams(window.location.search);
-    const siteId = params.get('site');
+function initApp() {
+    // 1. Carregamentos Iniciais (Mantenha apenas uma vez)
+    loadSiteStats();
+    incrementVisitsCounter();
 
-    console.log(`🔍 [CHECK] Verificando ID na URL: "${siteId}"`);
+    loadSettings();
+    loadCategories();
+    loadProducts();
+    loadStoreProfile(); // <--- Importante
+    loadCoupons();      // <--- Faltava carregar cupons aqui no início
 
-    if (!siteId) {
-        console.error("❌ [ERRO] Sem ID na URL.");
-        exibirTelaMorte("Loja não identificada", "Link inválido.");
-        return false; // Bloqueia
+    updateCartUI();
+    // updateDashboardUI(); <--- Pode remover, pois o listener de loadAdminSales já vai chamar isso
+
+    startBackgroundListeners(); // <--- Inicia o monitoramento em tempo real
+
+    initStatsModule();
+
+    loadTheme();
+
+    // Checa status a cada 60 segundos
+    setInterval(() => {
+        if (state.storeProfile) updateStoreStatusUI();
+    }, 60000);
+
+
+    // 2. Tema
+    if (localStorage.getItem('theme') === 'light') toggleTheme(false);
+
+    // 3. Auth Listener
+    onAuthStateChanged(auth, (user) => {
+        state.user = user;
+        const btnText = user ? 'Painel' : 'Área Admin';
+
+        if (els.menuBtnAdmin) {
+            els.menuBtnAdmin.innerHTML = `
+                <i class="fas fa-user-shield text-white group-hover:text-white transition"></i>
+                <span class="font-bold uppercase text-sm tracking-wide">${btnText}</span>
+            `;
+        }
+
+        // Compatibilidade
+        const btnLoginNav = getEl('btn-admin-login');
+        if (btnLoginNav) btnLoginNav.innerText = btnText;
+
+        if (user) {
+            filterAndRenderProducts();
+            loadAdminSales(); // Carrega vendas apenas se for admin
+            setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
+        } else {
+            showView('catalog');
+            // Se não é admin, não precisamos carregar todas as vendas do site, economiza dados
+            setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
+        }
+    });
+
+    // 4. Timer de atualização de cupons (mantém)
+    setInterval(() => {
+        if (state.coupons.length > 0 && !getEl('view-admin').classList.contains('hidden')) {
+            renderAdminCoupons();
+        }
+    }, 10000);
+
+    // 5. Verifica Pedidos Ativos (Motoquinha)
+    // Recupera do LocalStorage para mostrar a bolinha vermelha se tiver pedido pendente
+    const savedHistory = localStorage.getItem('site_orders_history');
+    if (savedHistory) {
+        state.myOrders = JSON.parse(savedHistory);
     }
-
-    state.siteId = siteId;
-
-    try {
-        console.log(`📡 [REDE] Contactando servidor para: sites/${siteId}`);
-        const docRef = doc(db, "sites", siteId);
-
-        // FORÇA A IDA AO SERVIDOR (IGNORA CACHE)
-        const snap = await getDocFromServer(docRef);
-
-        console.log(`📡 [REDE] Resposta recebida.`);
-        console.log(`❓ [DIAGNÓSTICO] O documento existe? -> ${snap.exists()}`);
-
-        // A. CENÁRIO: SITE EXCLUÍDO
-        if (!snap.exists()) {
-            console.error("❌ [FATAL] O SITE FOI DELETADO. (snap.exists = false)");
-            localStorage.removeItem('vestemanto_cart');
-            exibirTelaMorte("404", "Esta loja não existe mais.");
-            return false; // RETORNA FALSE PARA BLOQUEAR O RESTANTE
-        }
-
-        const data = snap.data();
-        console.log("ℹ️ [DADOS] Status da loja:", data.status, "| Active:", data.active);
-
-        // B. CENÁRIO: SITE BLOQUEADO
-        if (data.status === 'bloqueado' || data.active === false || data.status === 'excluido') {
-            console.error("⛔ [BLOQUEIO] Site marcado como bloqueado/inativo.");
-            exibirTelaMorte("Suspenso", "Loja indisponível.");
-            return false; // RETORNA FALSE
-        }
-
-        // === SUCESSO ===
-        console.log("🔓 [SUCESSO] Loja válida. Carregando dados...");
-        state.storeProfile = data;
-
-        // Carregamentos do sistema (Seguros pois já sabemos que o site existe)
-        loadSiteStats();
-        incrementVisitsCounter();
-        loadSettings();
-        loadCategories();
-        loadProducts();
-
-        if (typeof renderStoreProfile === 'function') renderStoreProfile();
-
-        loadCoupons();
-        updateCartUI();
-        startBackgroundListeners();
-        initStatsModule();
-        loadTheme();
-
-        // Monitoramento em tempo real (mata a sessão se deletar durante o uso)
-        setInterval(async () => {
-            try {
-                const check = await getDocFromServer(docRef);
-                if (!check.exists()) {
-                    console.warn("⚠️ [MONITOR] Site deletado em tempo real. Recarregando...");
-                    window.location.reload();
-                }
-            } catch (e) { }
-        }, 15000);
-
-        if (localStorage.getItem('theme') === 'light') toggleTheme(false);
-        setupAuthListener();
-        checkActiveOrders();
-
-        return true; // LIBERA O STARTAPPLICATION
-
-    } catch (error) {
-        console.error("🔥 [EXCEPTION] Erro crítico na verificação:", error);
-
-        // Garante que o corpo apareça para mostrar o erro
-        document.body.style.display = 'block';
-
-        let titulo = "Erro";
-        let msg = "Não foi possível carregar.";
-
-        // Se der erro de permissão, é porque foi deletado e a regra de segurança bloqueou (O QUE É BOM)
-        if (error.code === 'permission-denied') {
-            console.log("🛡️ [SEGURANÇA] Permissão negada (Provavelmente site deletado).");
-            titulo = "404";
-            msg = "Esta loja foi encerrada.";
-        }
-        else if (error.message === "SITE_DELETED") {
-            titulo = "404"; msg = "Loja não encontrada.";
-        }
-
-        exibirTelaMorte(titulo, msg);
-        return false; // BLOQUEIA
-    }
+    checkActiveOrders();
 }
+
 
 /// ============================================================
 // FUNÇÃO AUXILIAR ÚNICA: TELA DE MORTE (KILL SCREEN)
