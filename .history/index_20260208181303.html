@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Veste Manto - Catálogo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* BLOQUEIO VISUAL PADRÃO */
+        /* O site começa invisível e intocável */
+        body {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            background-color: #000 !important;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Classe que libera o site SÓ SE o JS confirmar que existe */
+        body.acesso-liberado {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            background-color: var(--bg-main, #050505) !important;
+        }
+    </style>
+    <style id="dynamic-theme-style">
+        /* 1. VARIÁVEIS GLOBAIS */
+        :root {
+            --bg-main: #050505;
+            --bg-header: #000000;
+            --bg-card: #151720;
+            --clr-accent: #EAB308;
+            --txt-body: #9ca3af;
+            --txt-title: #ffffff;
+        }
+    </style>
+</head>
+<script>
+    // === SCRIPT DE LIMPEZA DE EMERGÊNCIA ===
+    // Coloque isso no topo do seu index.html
+    
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for(let registration of registrations) {
+                // Desregistra o Service Worker
+                registration.unregister();
+                console.log("☠️ Service Worker Zumbi removido.");
+            }
+        });
+    }
+    
+    // Limpa o cache de arquivos (HTML, CSS, JS antigos)
+    if ('caches' in window) {
+        caches.keys().then(function(names) {
+            for (let name of names) {
+                caches.delete(name);
+                console.log("🗑️ Cache antigo deletado: " + name);
+            }
+        });
+    }
+</script>
+
+
+
+</html>

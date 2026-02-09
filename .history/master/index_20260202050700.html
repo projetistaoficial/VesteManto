@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master - Gestão de Clientes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="bg-gray-900 text-white overflow-hidden h-screen flex">
+
+    <div class="w-1/2 h-full flex flex-col border-r border-gray-800 bg-[#0B1120] relative" id="panel-clients">
+
+        <div class="p-4 border-b border-gray-800">
+            <h1 class="text-xl font-bold mb-3 flex justify-between items-center">
+                Gestão de Clientes
+                <i class="fas fa-chevron-down text-sm"></i>
+            </h1>
+            <div class="relative">
+                <input type="text" id="search-input" placeholder="Pesquisar Cliente (Nome ou Código)"
+                    class="w-full bg-[#1e293b] border border-gray-700 rounded p-2 pl-3 text-sm focus:outline-none focus:border-blue-500">
+                <i class="fas fa-search absolute right-3 top-2.5 text-gray-500"></i>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-bold text-gray-400 border-b border-gray-800">
+            <div class="col-span-1 text-center">Cód</div>
+            <div class="col-span-4">Nome da Loja</div>
+            <div class="col-span-3 text-center">Link</div>
+            <div class="col-span-2 text-center">Plano</div>
+            <div class="col-span-2 text-center">Situação</div>
+        </div>
+
+        <div id="clients-list" class="flex-1 overflow-y-auto custom-scrollbar">
+        </div>
+
+        <div class="p-4 border-t border-gray-800 bg-[#0B1120] flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <button id="btn-select-mode"
+                    class="bg-black border border-gray-600 px-4 py-1.5 rounded text-sm hover:bg-gray-800 transition">
+                    Selecionar
+                </button>
+                <button id="btn-delete-selected"
+                    class="hidden bg-red-600 px-4 py-1.5 rounded text-sm hover:bg-red-700 transition">
+                    Excluir Selecionados (<span id="count-selected">0</span>)
+                </button>
+            </div>
+
+            <button onclick="openClientModal()"
+                class="bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded text-sm font-bold flex items-center gap-2 transition">
+                Novo Cliente <i class="fas fa-plus"></i>
+            </button>
+        </div>
+
+        <div id="client-modal" class="fixed inset-0 bg-black/90 z-50 translate-y-full transition-transform duration-300 flex flex-col">
+    
+    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-[#111827]">
+        <h2 class="text-xl font-bold text-white" id="modal-title">Gerenciar Cliente</h2>
+        <button onclick="closeClientModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
+        
+        <div id="tab-cadastro" class="tab-content block space-y-4">
+            
+            <div class="grid grid-cols-12 gap-3">
+                <div class="col-span-2">
+                    <label class="text-xs text-gray-400 font-bold">Cód. (Auto)</label>
+                    <input type="number" id="inp-id" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-gray-500" readonly>
+                </div>
+                <div class="col-span-10">
+                    <label class="text-xs text-gray-400 font-bold">Nome da Loja</label>
+                    <input type="text" id="inp-name" class="w-full bg-black border border-gray-700 rounded p-2 text-sm text-white" placeholder="Nome da Loja">
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-12 gap-3">
+                <div class="col-span-4">
+                    <label class="text-xs text-gray-400 font-bold">ID URL (Slug)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="inp-site-slug" class="w-full bg-black border border-gray-700 rounded p-2 text-sm text-blue-400 font-mono">
+                        <button type="button" onclick="generateSiteLink()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 rounded text-xs font-bold"><i class="fas fa-magic"></i></button>
+                    </div>
+                </div>
+                <div class="col-span-8">
+                    <label class="text-xs text-gray-400 font-bold">Link Final</label>
+                    <div class="flex">
+                        <input type="text" id="inp-site-link" class="w-full bg-gray-900 border border-gray-700 rounded-l p-2 text-sm text-gray-500" readonly>
+                        <button onclick="copyToClipboard(document.getElementById('inp-site-link').value)" class="bg-gray-700 px-3 rounded-r text-white hover:bg-gray-600"><i class="far fa-copy"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-gray-400">Data Cadastro</label>
+                    <input type="date" id="inp-date" class="w-full bg-black border border-gray-700 rounded p-2 text-sm text-gray-400">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-400">Situação Atual</label>
+                    <div id="inp-status-display" class="w-full bg-black border border-gray-700 rounded p-2 text-sm text-green-500 font-bold text-center">Ativo</div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-800 my-4"></div>
+            <h3 class="text-sm font-bold text-gray-300 mb-2">Dados do Responsável (Preencher Tudo)</h3>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-gray-400">Nome Responsável</label>
+                    <input type="text" id="inp-owner" class="w-full bg-black border border-gray-700 rounded p-2 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-400">CPF/CNPJ</label>
+                    <input type="text" id="inp-doc" class="w-full bg-black border border-gray-700 rounded p-2 text-sm text-white">
+                </div>
+            </div>
+
+            <div class="space-y-2 mt-2">
+                <label class="text-xs text-gray-400">Redes Sociais</label>
+                <div class="flex gap-2">
+                    <input type="text" id="inp-insta" class="bg-black border border-gray-700 rounded p-2 text-sm w-1/3 text-white" placeholder="Instagram">
+                    <input type="text" id="inp-face" class="bg-black border border-gray-700 rounded p-2 text-sm w-1/3 text-white" placeholder="Facebook">
+                    <input type="text" id="inp-yt" class="bg-black border border-gray-700 rounded p-2 text-sm w-1/3 text-white" placeholder="Youtube">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 mt-2">
+                <div>
+                    <label class="text-xs text-gray-400">Telefone</label>
+                    <input type="text" id="inp-tel" class="w-full bg-black border border-gray-700 rounded p-2 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-400">WhatsApp</label>
+                    <input type="text" id="inp-whats" class="w-full bg-black border border-gray-700 rounded p-2 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-400">Email</label>
+                    <input type="text" id="inp-email" class="w-full bg-black border border-gray-700 rounded p-2 text-sm text-white">
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-acoes" class="tab-content hidden space-y-6 pt-4">
+            <div class="space-y-3">
+                <h3 class="text-sm font-bold text-gray-300">Controle de Acesso</h3>
+                
+                <div id="actions-active" class="flex gap-3">
+                    <button onclick="changeClientStatus('block')" class="bg-red-900/30 border border-red-600 text-red-500 px-4 py-3 rounded font-bold hover:bg-red-600 hover:text-white transition w-1/2">
+                        <i class="fas fa-lock mr-2"></i> Bloquear
+                    </button>
+                    <button onclick="changeClientStatus('pause')" class="bg-yellow-900/30 border border-yellow-600 text-yellow-500 px-4 py-3 rounded font-bold hover:bg-yellow-600 hover:text-white transition w-1/2">
+                        <i class="fas fa-pause mr-2"></i> Pausar
+                    </button>
+                </div>
+
+                <div id="actions-inactive" class="hidden">
+                    <button id="btn-reactivate" onclick="changeClientStatus('activate')" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded transition shadow-lg shadow-green-900/50 flex justify-center items-center gap-2">
+                        <i class="fas fa-power-off"></i> <span>REATIVAR LOJA AGORA</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="pt-10 border-t border-gray-800">
+                <button onclick="deleteCurrentClient()" class="w-full text-red-500 hover:text-red-400 text-sm font-bold underline">
+                    Excluir registro permanentemente
+                </button>
+            </div>
+        </div>
+
+        <div id="tab-financeiro" class="tab-content hidden h-full flex flex-col pt-4">
+            <div class="grid grid-cols-1 gap-px bg-gray-700 border border-gray-700 rounded overflow-hidden">
+                <div class="bg-[#0f172a] p-4 flex justify-between"><span class="text-yellow-500">Pedidos</span><span class="text-white font-bold" id="fin-orders">0</span></div>
+                <div class="bg-[#0f172a] p-4 flex justify-between"><span class="text-white">Vendas</span><span class="text-white font-bold" id="fin-sales">0</span></div>
+                <div class="bg-[#0f172a] p-4 flex justify-between"><span class="text-green-500">Faturamento</span><span class="text-green-400 font-bold" id="fin-revenue">R$ 0,00</span></div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="p-4 border-t border-gray-800 bg-[#111827] flex justify-between items-center">
+        <div class="flex gap-2">
+            <button onclick="switchTab('cadastro')" class="tab-btn px-3 py-1 rounded bg-gray-700 text-white text-xs font-bold" data-target="cadastro">Dados</button>
+            <button onclick="switchTab('acoes')" class="tab-btn px-3 py-1 rounded text-gray-400 text-xs font-bold hover:bg-gray-800" data-target="acoes">Ações</button>
+            <button onclick="switchTab('financeiro')" class="tab-btn px-3 py-1 rounded text-gray-400 text-xs font-bold hover:bg-gray-800" data-target="financeiro">Financeiro</button>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="closeClientModal()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-white font-bold text-sm">Voltar</button>
+            <button onclick="saveClientData()" class="px-4 py-2 bg-green-600 hover:bg-green-500 rounded text-white font-bold text-sm">Salvar Alterações</button>
+        </div>
+    </div>
+</div>
+    </div>
+
+    <div class="w-1/2 h-full bg-black flex items-center justify-center text-gray-600">
+        <div class="text-center">
+            <i class="fas fa-chart-pie text-4xl mb-4"></i>
+            <p>Painel Financeiro Geral</p>
+            <p class="text-xs">(Em desenvolvimento)</p>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+
+</html>

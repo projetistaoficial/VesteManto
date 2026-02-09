@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body { font-family: 'Inter', sans-serif; }
+
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: #0f111a; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+.input-dark {
+    background-color: #0f1014;
+    border: 1px solid #2D3748;
+    color: #fff;
+    border-radius: 4px;
+    padding: 8px;
+    font-size: 0.75rem; /* text-xs */
+    outline: none;
+    transition: border-color 0.2s;
+}
+.input-dark:focus { border-color: #22c55e; }
+.input-dark:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Scrollbar fina e escura */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0B0E14; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+/* Modal Backdrop */
+#client-modal {
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(2px);
+}
+
+/* Inputs do Design */
+.input-dark {
+    background-color: #0f1014; /* Quase preto */
+    border: 1px solid #2D3748;
+    color: #fff;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.875rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.input-dark:focus {
+    border-color: #22c55e;
+}
+
+/* Tabela Financeira (Estilo Grid da Imagem) */
+.fin-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid #2D3748;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.fin-row {
+    display: contents;
+}
+.fin-cell {
+    padding: 12px;
+    background-color: #0B0E14;
+    border-bottom: 1px solid #2D3748;
+    border-right: 1px solid #2D3748;
+    text-align: center;
+    font-weight: bold;
+}
+.fin-cell:nth-child(2n) { border-right: none; } /* Remove borda direita do último */
+.fin-label { color: #facc15; } /* Amarelo Padrão */
+.fin-val { color: #fff; }
+
+/* Botões de Ação */
+.btn-action {
+    padding: 10px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    transition: all 0.2s;
+}

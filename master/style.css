@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body { 
+    font-family: 'Inter', sans-serif; 
+    background-color: #0B0E14; /* Cor de fundo global para evitar clarões */
+}
+
+/* === SCROLLBARS === */
+/* Estilo Global */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0B0E14; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* Estilo específico para áreas internas (opcional, se quiser mais fino) */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: #0f111a; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+/* === MODAL (AJUSTE CRÍTICO) === */
+#client-modal {
+    /* IMPORTANTE: Cor sólida para cobrir a lista atrás dele. 
+       Se usar rgba transparente, as letras da lista vão aparecer atrás do modal */
+    background-color: #0f111a; 
+    z-index: 50; /* Garante que fique acima de tudo na div esquerda */
+}
+
+/* === INPUTS === */
+/* Unifiquei as duas versões que você tinha em uma só */
+.input-dark {
+    background-color: #0f1014; /* Fundo input */
+    border: 1px solid #2D3748;
+    color: #fff;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 0.75rem; /* Tamanho bom para painel denso */
+    outline: none;
+    transition: all 0.2s;
+    width: 100%; /* Garante que o input ocupe o espaço pai */
+}
+.input-dark:focus { 
+    border-color: #22c55e; /* Verde ao focar */
+    background-color: #161821;
+}
+.input-dark:disabled { 
+    opacity: 0.6; 
+    cursor: not-allowed; 
+    border-color: #1e293b;
+}
+
+/* === TABELA FINANCEIRA (GRID) === */
+.fin-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Duas colunas */
+    border: 1px solid #2D3748;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #0B0E14;
+}
+.fin-row {
+    display: contents; /* Faz os filhos diretos participarem do grid pai */
+}
+.fin-cell {
+    padding: 12px;
+    border-bottom: 1px solid #2D3748;
+    border-right: 1px solid #2D3748;
+    text-align: center;
+    font-weight: bold;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Remove a borda direita dos elementos da segunda coluna */
+.fin-cell:nth-child(2n) { border-right: none; } 
+
+/* Remove a borda inferior dos últimos dois elementos */
+.fin-row:last-child .fin-cell { border-bottom: none; }
+
+.fin-label { font-size: 0.65rem; text-transform: uppercase; margin-bottom: 4px; }
+.fin-val { font-size: 1rem; color: #fff; }
+
+/* === BOTÕES === */
+.btn-action {
+    padding: 10px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    transition: all 0.2s;
+    cursor: pointer;
+}
