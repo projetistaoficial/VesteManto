@@ -569,32 +569,6 @@ const els = {
 // 3. INICIALIZAÇÃO CORRIGIDA
 // =================================================================
 
-const startApplication = async () => {
-    console.log("🚀 Iniciando App V4...");
-
-    // 1. Tenta Validar o Acesso (O await segura o código aqui)
-    const acessoPermitido = await initApp();
-
-    // 2. Só carrega o resto se o initApp retornar TRUE
-    if (acessoPermitido) {
-        console.log("✅ Acesso Liberado. Carregando interface...");
-        setupEventListeners();
-        setupKeyboardListeners();
-
-        // Remove a "Cortina" (Mostra o site)
-        document.body.classList.add('loaded');
-    } else {
-        console.log("⛔ Acesso Negado. Site permanece oculto/bloqueado.");
-        // Não faz nada, a função initApp já exibiu a tela de morte
-    }
-};
-
-// Auto-execução
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', startApplication);
-} else {
-    startApplication();
-}
 
 function initApp() {
     // 1. Carregamentos Iniciais (Mantenha apenas uma vez)
