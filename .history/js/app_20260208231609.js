@@ -780,7 +780,6 @@ function setupAuthListener() {
             if (typeof showView === 'function') showView('catalog');
         }
     })
-}
 
 // Substitua a função loadSettings atual por esta:
 function loadSettings() {

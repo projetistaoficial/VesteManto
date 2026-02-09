@@ -5,42 +5,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Veste Manto - Catálogo</title>
-    
-    <style>
-        html, body {
-            background-color: #000 !important;
-            display: none !important; /* ESCONDE TUDO ATÉ O JS AUTORIZAR */
-        }
-        /* Classe que o JS vai adicionar se estiver tudo ok */
-        body.acesso-liberado {
-            display: block !important;
-            background-color: var(--bg-main, #050505) !important;
-        }
-    </style>
-
-    <script>
-        // Esse script roda antes de tudo para garantir que não haja versão velha salva
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                for(let registration of registrations) {
-                    registration.unregister();
-                    console.log("💀 Service Worker Zumbi Removido.");
-                }
-            });
-        }
-        if ('caches' in window) {
-            caches.keys().then(function(names) {
-                for (let name of names) caches.delete(name);
-            });
-        }
-    </script>
-
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* BLOQUEIO VISUAL PADRÃO */
+        /* O site começa invisível e intocável */
+        body {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            background-color: #000 !important;
+            transition: opacity 0.3s ease;
+        }
 
+        /* Classe que libera o site SÓ SE o JS confirmar que existe */
+        body.acesso-liberado {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            background-color: var(--bg-main, #050505) !important;
+        }
+    </style>
     <style id="dynamic-theme-style">
+        /* 1. VARIÁVEIS GLOBAIS */
         :root {
             --bg-main: #050505;
             --bg-header: #000000;
@@ -52,83 +39,7 @@
     </style>
 </head>
 
-<body class="bg-[var(--bg-main)] text-[var(--txt-body)] text-white font-sans antialiased">
-
-    <script type="module" src="js/firebase-config.js"></script>
-    <script type="module" src="js/stats.js"></script>
-    <script type="module" src="js/support.js"></script>
-
-    <script type="module">
-        import { db, doc, getDocFromServer } from './js/firebase-config.js';
-
-        const urlParams = new URLSearchParams(window.location.search);
-        let siteId = urlParams.get('site');
-
-        // AJUSTE PRO LIVE SERVER: Se não tiver ID, usa um de teste
-        if (!siteId && (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
-            console.warn("⚠️ MODO DEV: Usando ID de teste 'veste-manto'");
-            siteId = 'veste-manto';
-        }
-
-        function destruirTudo(motivo) {
-            console.error("⛔ ACESSO NEGADO: " + motivo);
-            document.body.innerHTML = '';
-            document.body.style.setProperty('display', 'block', 'important'); // Mostra a mensagem
-            document.body.style.backgroundColor = 'black';
-            document.body.innerHTML = `
-            <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; font-family:sans-serif; text-align:center; background:black;">
-                <h1 style="font-size:5rem; color:#ff4444; margin:0;">404</h1>
-                <h2 style="margin:10px 0;">LOJA REMOVIDA</h2>
-                <p style="color:#666;">${motivo}</p>
-            </div>
-        `;
-            throw new Error("SISTEMA_BLOQUEADO");
-        }
-
-        async function validar() {
-            console.log("🔍 Iniciando Verificação...");
-
-            if (!siteId) {
-                // Se não tem ID e não é localhost, bloqueia ou mostra erro
-                destruirTudo("ID da loja não encontrado.");
-                return;
-            }
-
-            try {
-                const docRef = doc(db, "sites", siteId);
-                // getDocFromServer OBRIGA a ir na internet, ignorando cache
-                const snap = await getDocFromServer(docRef);
-
-                if (!snap.exists()) {
-                    destruirTudo("Esta loja foi excluída permanentemente.");
-                    return;
-                }
-
-                const data = snap.data();
-                if (data.status === 'bloqueado' || data.active === false || data.status === 'excluido') {
-                    destruirTudo("A conta desta loja está suspensa.");
-                    return;
-                }
-
-                console.log("✅ Autorizado! Carregando...");
-                window.SITE_ID = siteId;
-
-                // CARREGA O APP.JS COM NOME DIFERENTE PARA EVITAR CACHE VELHO
-                await import(`./js/app.js?v=${Date.now()}`);
-
-                // SÓ AGORA MOSTRA O SITE
-                document.body.classList.add('acesso-liberado');
-
-            } catch (e) {
-                console.error(e);
-                if (e.message !== "SISTEMA_BLOQUEADO") {
-                    destruirTudo("Erro de conexão com o servidor.");
-                }
-            }
-        }
-
-        validar();
-    </script>
+<body class="bg-[var(--bg-main)] text-[var(--txt-body)] text-white font-sans antialiased ">
 
     <div id="site-floating-capsule"
         class="fixed top-6 right-4 z-[60] flex items-center gap-2 bg-black/30 backdrop-blur-md p-2 rounded-full border border-gray-700 shadow-2xl animate-fade-in transition-all duration-300 hover:bg-black/80">
@@ -2310,6 +2221,100 @@
 
         </div>
     </footer>
+
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/stats.js"></script>
+    <script type="module" src="js/support.js"></script>
+
+    <script type="module">
+        // 1. Tenta importar a config. Se falhar, cai no erro do navegador.
+        import { db, doc, getDocFromServer } from './js/firebase-config.js';
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const siteNaUrl = urlParams.get('site');
+
+        // Função que destrói o site e mostra o erro
+        function bloquearAcesso(titulo, motivo) {
+            document.body.innerHTML = ''; // Limpa qualquer HTML que existia
+            document.body.style.backgroundColor = 'black';
+            document.body.innerHTML = `
+            <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#ef4444; font-family:sans-serif; text-align:center; padding: 20px;">
+                <div style="font-size: 4rem; margin-bottom: 20px;">🚫</div>
+                <h1 style="font-size: 3rem; margin:0; font-weight: bold;">${titulo}</h1>
+                <p style="color:#aaa; margin-top:10px; font-size: 1.2rem;">${motivo}</p>
+                <button onclick="window.location.reload()" style="margin-top:30px; padding:12px 24px; cursor:pointer; border-radius: 8px; border: none; font-weight: bold;">Tentar Novamente</button>
+            </div>
+        `;
+            // IMPORTANTE: Agora que montamos a tela de erro, tornamos o corpo visível
+            document.body.style.display = 'block';
+            document.body.style.opacity = '1';
+        }
+
+        async function iniciar() {
+            // Se não tiver ID na URL, nem tenta ir no banco
+            if (!siteNaUrl) {
+                console.log("Modo Demo ou Sem ID");
+                // Se for demo, libera direto (ajuste conforme sua necessidade)
+                window.SITE_ID = 'demo';
+                document.body.classList.add('visivel');
+                import('./js/app.js');
+                return;
+            }
+
+            window.SITE_ID = siteNaUrl;
+
+            try {
+                console.log(`🔒 Verificando loja: ${siteNaUrl}`);
+
+                // 2. VERIFICAÇÃO RIGOROSA (Vai no servidor Google)
+                const docRef = doc(db, "sites", siteNaUrl);
+                const snap = await getDocFromServer(docRef);
+
+                // A. NÃO EXISTE (FOI DELETADO)
+                if (!snap.exists()) {
+                    console.error("Site deletado.");
+                    localStorage.removeItem('vestemanto_cart'); // Limpa cache local
+                    bloquearAcesso("404", "Esta loja não existe mais.");
+                    return; // Para tudo aqui.
+                }
+
+                const data = snap.data();
+
+                // B. ESTÁ BLOQUEADO/INATIVO
+                if (data.status === 'bloqueado' || data.active === false || data.status === 'excluido') {
+                    bloquearAcesso("ACESSO SUSPENSO", "Loja temporariamente indisponível.");
+                    return; // Para tudo aqui.
+                }
+
+                // =================================================
+                // 3. SUCESSO: O SITE EXISTE!
+                // =================================================
+                console.log("✅ Acesso permitido. Carregando sistema...");
+
+                // Carrega o app.js principal forçando versão nova (cache busting)
+                await import(`./js/app.js?t=${Date.now()}`);
+
+                // FINALMENTE: Remove a cortina preta e mostra o site
+                document.body.classList.add('visivel');
+
+            } catch (error) {
+                console.error("Erro fatal:", error);
+
+                // Tratamento de erros específicos
+                if (error.code === 'permission-denied') {
+                    bloquearAcesso("404", "Loja removida ou sem permissão.");
+                } else if (error.message && error.message.includes("Failed to fetch")) {
+                    // Se estiver sem internet, talvez queira deixar tentar carregar o cache ou bloquear
+                    bloquearAcesso("SEM CONEXÃO", "Verifique sua internet.");
+                } else {
+                    bloquearAcesso("ERRO", "Falha ao verificar disponibilidade.");
+                }
+            }
+        }
+
+        // Inicia o processo
+        iniciar();
+    </script>
 </body>
 
 </html>

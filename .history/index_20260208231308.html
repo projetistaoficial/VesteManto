@@ -5,130 +5,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Veste Manto - Catálogo</title>
-    
-    <style>
-        html, body {
-            background-color: #000 !important;
-            display: none !important; /* ESCONDE TUDO ATÉ O JS AUTORIZAR */
-        }
-        /* Classe que o JS vai adicionar se estiver tudo ok */
-        body.acesso-liberado {
-            display: block !important;
-            background-color: var(--bg-main, #050505) !important;
-        }
-    </style>
-
-    <script>
-        // Esse script roda antes de tudo para garantir que não haja versão velha salva
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                for(let registration of registrations) {
-                    registration.unregister();
-                    console.log("💀 Service Worker Zumbi Removido.");
-                }
-            });
-        }
-        if ('caches' in window) {
-            caches.keys().then(function(names) {
-                for (let name of names) caches.delete(name);
-            });
-        }
-    </script>
-
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 
-    <style id="dynamic-theme-style">
-        :root {
-            --bg-main: #050505;
-            --bg-header: #000000;
-            --bg-card: #151720;
-            --clr-accent: #EAB308;
-            --txt-body: #9ca3af;
-            --txt-title: #ffffff;
-        }
-    </style>
 </head>
 
-<body class="bg-[var(--bg-main)] text-[var(--txt-body)] text-white font-sans antialiased">
 
-    <script type="module" src="js/firebase-config.js"></script>
-    <script type="module" src="js/stats.js"></script>
-    <script type="module" src="js/support.js"></script>
-
-    <script type="module">
-        import { db, doc, getDocFromServer } from './js/firebase-config.js';
-
-        const urlParams = new URLSearchParams(window.location.search);
-        let siteId = urlParams.get('site');
-
-        // AJUSTE PRO LIVE SERVER: Se não tiver ID, usa um de teste
-        if (!siteId && (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
-            console.warn("⚠️ MODO DEV: Usando ID de teste 'veste-manto'");
-            siteId = 'veste-manto';
-        }
-
-        function destruirTudo(motivo) {
-            console.error("⛔ ACESSO NEGADO: " + motivo);
-            document.body.innerHTML = '';
-            document.body.style.setProperty('display', 'block', 'important'); // Mostra a mensagem
-            document.body.style.backgroundColor = 'black';
-            document.body.innerHTML = `
-            <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; font-family:sans-serif; text-align:center; background:black;">
-                <h1 style="font-size:5rem; color:#ff4444; margin:0;">404</h1>
-                <h2 style="margin:10px 0;">LOJA REMOVIDA</h2>
-                <p style="color:#666;">${motivo}</p>
-            </div>
-        `;
-            throw new Error("SISTEMA_BLOQUEADO");
-        }
-
-        async function validar() {
-            console.log("🔍 Iniciando Verificação...");
-
-            if (!siteId) {
-                // Se não tem ID e não é localhost, bloqueia ou mostra erro
-                destruirTudo("ID da loja não encontrado.");
-                return;
-            }
-
-            try {
-                const docRef = doc(db, "sites", siteId);
-                // getDocFromServer OBRIGA a ir na internet, ignorando cache
-                const snap = await getDocFromServer(docRef);
-
-                if (!snap.exists()) {
-                    destruirTudo("Esta loja foi excluída permanentemente.");
-                    return;
-                }
-
-                const data = snap.data();
-                if (data.status === 'bloqueado' || data.active === false || data.status === 'excluido') {
-                    destruirTudo("A conta desta loja está suspensa.");
-                    return;
-                }
-
-                console.log("✅ Autorizado! Carregando...");
-                window.SITE_ID = siteId;
-
-                // CARREGA O APP.JS COM NOME DIFERENTE PARA EVITAR CACHE VELHO
-                await import(`./js/app.js?v=${Date.now()}`);
-
-                // SÓ AGORA MOSTRA O SITE
-                document.body.classList.add('acesso-liberado');
-
-            } catch (e) {
-                console.error(e);
-                if (e.message !== "SISTEMA_BLOQUEADO") {
-                    destruirTudo("Erro de conexão com o servidor.");
-                }
-            }
-        }
-
-        validar();
-    </script>
+<body class="bg-[var(--bg-main)] text-[var(--txt-body)] text-white font-sans antialiased ">
 
     <div id="site-floating-capsule"
         class="fixed top-6 right-4 z-[60] flex items-center gap-2 bg-black/30 backdrop-blur-md p-2 rounded-full border border-gray-700 shadow-2xl animate-fade-in transition-all duration-300 hover:bg-black/80">
@@ -2310,6 +2195,78 @@
 
         </div>
     </footer>
+
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/stats.js"></script>
+    <script type="module" src="js/support.js"></script>
+
+    <script type="module">
+        import { db, doc, getDocFromServer } from './js/firebase-config.js';
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const siteId = urlParams.get('site');
+
+        function destruirTudo(motivo) {
+            console.error("⛔ ACESSO NEGADO: " + motivo);
+            document.body.innerHTML = '';
+            document.body.style.display = 'block';
+            document.body.style.backgroundColor = 'black';
+            document.body.innerHTML = `
+            <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; font-family:sans-serif; text-align:center; background:black;">
+                <h1 style="font-size:5rem; color:#ff4444; margin:0;">404</h1>
+                <h2 style="margin:10px 0;">LOJA REMOVIDA</h2>
+                <p style="color:#666;">${motivo}</p>
+            </div>
+        `;
+            throw new Error("SISTEMA_BLOQUEADO");
+        }
+
+        async function validar() {
+            console.log("🔍 Iniciando Verificação de Segurança...");
+
+            if (!siteId) {
+                console.warn("⚠️ Sem ID na URL.");
+                // Se não tem ID, você decide se mostra a loja demo ou bloqueia.
+                // Para bloquear use: destruirTudo("ID Inválido");
+                document.body.style.display = 'block';
+                return;
+            }
+
+            try {
+                const docRef = doc(db, "sites", siteId);
+                // O getDocFromServer ignora o lixo que o navegador salvou
+                const snap = await getDocFromServer(docRef);
+
+                if (!snap.exists()) {
+                    destruirTudo("Esta loja foi excluída permanentemente do banco de dados.");
+                    return;
+                }
+
+                const data = snap.data();
+                if (data.status === 'bloqueado' || data.active === false || data.status === 'excluido') {
+                    destruirTudo("A conta desta loja está suspensa.");
+                    return;
+                }
+
+                console.log("✅ Loja autorizada! Carregando...");
+                window.SITE_ID = siteId;
+
+                // Carrega o app.js com uma "chave" de tempo para o navegador não usar o velho
+                await import(`./js/app.js?v=${Date.now()}`);
+
+                // SÓ AGORA mostra o site
+                document.body.style.setProperty('display', 'block', 'important');
+
+            } catch (e) {
+                console.error(e);
+                if (e.message !== "SISTEMA_BLOQUEADO") {
+                    destruirTudo("Erro de conexão com o servidor.");
+                }
+            }
+        }
+
+        validar();
+    </script>
 </body>
 
 </html>
