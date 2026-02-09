@@ -26,21 +26,47 @@
             background-color: var(--bg-main, #050505) !important;
         }
     </style>
-    <style id="dynamic-theme-style">
-        /* 1. VARIÁVEIS GLOBAIS */
-        :root {
-            --bg-main: #050505;
-            --bg-header: #000000;
-            --bg-card: #151720;
-            --clr-accent: #EAB308;
-            --txt-body: #9ca3af;
-            --txt-title: #ffffff;
+    <style>
+        html, body {
+            background-color: #000 !important;
+            display: none !important; /* Esconde tudo */
         }
-    </style>/
+    </style>
+
+    <script>
+        // Função auto-executável para limpar o navegador
+        (async function limparTudo() {
+            console.log("🧹 EXECUTANDO LIMPEZA PROFUNDA...");
+
+            // A. Remove Service Workers (O Vilão)
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for(let registration of registrations) {
+                    await registration.unregister();
+                    console.log("💀 Service Worker Desregistrado");
+                }
+            }
+
+            // B. Limpa Cache de Arquivos (Storage)
+            if ('caches' in window) {
+                const keys = await caches.keys();
+                for (const key of keys) {
+                    await caches.delete(key);
+                    console.log("🗑️ Cache deletado:", key);
+                }
+            }
+
+            // C. Libera o CSS para mostrar o site NOVO (ou o bloqueio novo)
+            // Apenas removemos o 'display: none', o initApp cuidará do resto
+            document.body.style.display = 'block';
+        })();
+    </script>
 </head>
 
 
 <body class="bg-[var(--bg-main)] text-[var(--txt-body)] text-white font-sans antialiased ">
+
+    
 
     <div id="site-floating-capsule"
         class="fixed top-6 right-4 z-[60] flex items-center gap-2 bg-black/30 backdrop-blur-md p-2 rounded-full border border-gray-700 shadow-2xl animate-fade-in transition-all duration-300 hover:bg-black/80">

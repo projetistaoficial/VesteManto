@@ -26,21 +26,113 @@
             background-color: var(--bg-main, #050505) !important;
         }
     </style>
-    <style id="dynamic-theme-style">
-        /* 1. VARIÁVEIS GLOBAIS */
-        :root {
-            --bg-main: #050505;
-            --bg-header: #000000;
-            --bg-card: #151720;
-            --clr-accent: #EAB308;
-            --txt-body: #9ca3af;
-            --txt-title: #ffffff;
+    <style>
+        html, body {
+            background-color: #000 !important;
+            display: none !important; /* Esconde tudo */
         }
-    </style>/
+    </style>
+
+    <script>
+        // Função auto-executável para limpar o navegador
+        (async function limparTudo() {
+            console.log("🧹 EXECUTANDO LIMPEZA PROFUNDA...");
+
+            // A. Remove Service Workers (O Vilão)
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for(let registration of registrations) {
+                    await registration.unregister();
+                    console.log("💀 Service Worker Desregistrado");
+                }
+            }
+
+            // B. Limpa Cache de Arquivos (Storage)
+            if ('caches' in window) {
+                const keys = await caches.keys();
+                for (const key of keys) {
+                    await caches.delete(key);
+                    console.log("🗑️ Cache deletado:", key);
+                }
+            }
+
+            // C. Libera o CSS para mostrar o site NOVO (ou o bloqueio novo)
+            // Apenas removemos o 'display: none', o initApp cuidará do resto
+            document.body.style.display = 'block';
+        })();
+    </script>
 </head>
 
 
 <body class="bg-[var(--bg-main)] text-[var(--txt-body)] text-white font-sans antialiased ">
+
+    <script type="module">
+        import { db, doc, getDocFromServer } from './js/firebase-config.js';
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const siteId = urlParams.get('site');
+
+        function destruirTudo(motivo) {
+            console.error("⛔ ACESSO NEGADO: " + motivo);
+            document.body.innerHTML = '';
+            // Força o display block APENAS para mostrar a mensagem de erro
+            document.body.style.setProperty('display', 'block', 'important');
+            document.body.style.backgroundColor = 'black';
+            document.body.innerHTML = `
+            <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; font-family:sans-serif; text-align:center; background:black;">
+                <h1 style="font-size:5rem; color:#ff4444; margin:0;">404</h1>
+                <h2 style="margin:10px 0;">LOJA REMOVIDA</h2>
+                <p style="color:#666;">${motivo}</p>
+                 <button onclick="window.location.reload()" style="margin-top:20px; padding:10px 20px; cursor:pointer;">Recarregar</button>
+            </div>
+        `;
+            throw new Error("SISTEMA_BLOQUEADO");
+        }
+
+        async function validar() {
+            console.log("🔍 Iniciando Verificação...");
+
+            if (!siteId) {
+                // Se for demo/local, libera
+                document.body.style.setProperty('display', 'block', 'important');
+                import('./js/app.js'); 
+                return;
+            }
+
+            try {
+                const docRef = doc(db, "sites", siteId);
+                const snap = await getDocFromServer(docRef);
+
+                if (!snap.exists()) {
+                    destruirTudo("Esta loja foi excluída permanentemente.");
+                    return;
+                }
+
+                const data = snap.data();
+                if (data.status === 'bloqueado' || data.active === false || data.status === 'excluido') {
+                    destruirTudo("A conta desta loja está suspensa.");
+                    return;
+                }
+
+                console.log("✅ Autorizado! Baixando sistema atualizado...");
+                window.SITE_ID = siteId;
+
+                // AQUI ESTÁ O SEGREDO: O ?v=Date.now()
+                await import(`./js/app.js?v=${Date.now()}`);
+
+                // SÓ AGORA MOSTRA O SITE
+                document.body.style.setProperty('display', 'block', 'important');
+
+            } catch (e) {
+                console.error(e);
+                if (e.message !== "SISTEMA_BLOQUEADO") {
+                    destruirTudo("Erro de conexão.");
+                }
+            }
+        }
+
+        validar();
+    </script>
 
     <div id="site-floating-capsule"
         class="fixed top-6 right-4 z-[60] flex items-center gap-2 bg-black/30 backdrop-blur-md p-2 rounded-full border border-gray-700 shadow-2xl animate-fade-in transition-all duration-300 hover:bg-black/80">

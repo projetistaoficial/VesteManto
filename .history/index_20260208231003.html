@@ -37,6 +37,30 @@
             --txt-title: #ffffff;
         }
     </style>/
+    <script>
+    // === SCRIPT DE LIMPEZA DE EMERGÊNCIA ===
+    // Coloque isso no topo do seu index.html
+    
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for(let registration of registrations) {
+                // Desregistra o Service Worker
+                registration.unregister();
+                console.log("☠️ Service Worker Zumbi removido.");
+            }
+        });
+    }
+    
+    // Limpa o cache de arquivos (HTML, CSS, JS antigos)
+    if ('caches' in window) {
+        caches.keys().then(function(names) {
+            for (let name of names) {
+                caches.delete(name);
+                console.log("🗑️ Cache antigo deletado: " + name);
+            }
+        });
+    }
+</script>
 </head>
 
 
