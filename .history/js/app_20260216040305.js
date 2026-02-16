@@ -2942,7 +2942,6 @@ function setupEventListeners() {
                 showView('admin');
                 return;
             }
-            
             try {
                 await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
                 sessionStorage.removeItem('support_mode');

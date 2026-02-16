@@ -611,7 +611,7 @@ async function initApp() {
     try {
         console.log(`🔒 Verificando segurança para: ${siteId}`);
         const docRef = doc(db, "sites", siteId);
-
+        
         // Vai no servidor checar se existe ou foi banido
         const snap = await getDocFromServer(docRef);
 
@@ -631,7 +631,7 @@ async function initApp() {
         }
 
         // === SUCESSO: SALVA O PERFIL NO ESTADO ===
-        state.storeProfile = data;
+        state.storeProfile = data; 
         console.log("✅ Acesso permitido. Carregando sistema...");
 
         // --- 2. CARREGAMENTOS DO SEU CÓDIGO ANTIGO ---
@@ -640,13 +640,13 @@ async function initApp() {
         loadSettings();
         loadCategories();
         loadProducts();
-
+        
         // Aqui substituímos o loadStoreProfile() antigo, pois já carregamos os dados acima na segurança
-        loadStoreProfile();
+        loadStoreProfile(); 
 
-        loadCoupons();
+        loadCoupons();      
         updateCartUI();
-        startBackgroundListeners();
+        startBackgroundListeners(); 
         initStatsModule();
         loadTheme();
 
@@ -655,7 +655,7 @@ async function initApp() {
             try {
                 const check = await getDocFromServer(docRef);
                 if (!check.exists() || check.data().status === 'bloqueado') window.location.reload();
-            } catch (e) { }
+            } catch(e) {}
         }, 15000);
 
         // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
@@ -678,11 +678,11 @@ async function initApp() {
             if (btnLoginNav) btnLoginNav.innerText = btnText;
 
             if (user) {
-                if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-                if (typeof loadAdminSales === 'function') loadAdminSales();
+                if(typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+                if(typeof loadAdminSales === 'function') loadAdminSales();
                 setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
             } else {
-                if (typeof showView === 'function') showView('catalog');
+                if(typeof showView === 'function') showView('catalog');
                 setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
             }
         });
@@ -770,8 +770,8 @@ function setupAuthListener() {
         state.user = user; // Salva no estado global
 
         // Atualiza o botão do Menu (Login vs Painel)
-        const btnLogin = document.getElementById('menu-btn-admin');
-        const btnLoginModal = document.getElementById('btn-admin-login');
+        const btnLogin = document.getElementById('menu-btn-admin'); 
+        const btnLoginModal = document.getElementById('btn-admin-login'); 
 
         const texto = user ? 'Painel Admin' : 'Área Admin';
 
@@ -2912,37 +2912,6 @@ function setupEventListeners() {
                 showView('support');
                 return;
             }
-            const savedAccess = state.storeProfile.access || {};
-            const clientAdminPass = savedAccess.admin;
-
-            if (clientAdminPass && pass === clientAdminPass) {
-                console.log("🔓 Acesso liberado via Senha da Loja");
-
-                // Simula um usuário logado no Estado Global
-                state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
-
-                // Fecha modal e limpa senha
-                modal.close();
-                passInput.value = '';
-
-                // --- ATUALIZA A INTERFACE MANUALMENTE ---
-                // (Como não é um login real do Firebase, o onAuthStateChanged não dispara, 
-                // então precisamos chamar as funções de atualização de tela aqui)
-
-                // 1. Muda botão do menu
-                if (els.menuBtnAdmin) {
-                    els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield"></i> <span class="ml-2">Painel Admin</span>`;
-                }
-
-                // 2. Carrega dados do Admin
-                if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-                if (typeof loadAdminSales === 'function') loadAdminSales();
-
-                // 3. Mostra a tela
-                showView('admin');
-                return;
-            }
-            
             try {
                 await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
                 sessionStorage.removeItem('support_mode');
