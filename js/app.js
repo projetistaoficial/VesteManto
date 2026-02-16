@@ -597,104 +597,116 @@ if (document.readyState === 'loading') {
 }
 
 async function initApp() {
+    // --- 1. SEGURANÇA E BLOQUEIO (NOVO) ---
     const params = new URLSearchParams(window.location.search);
     const siteId = params.get('site');
 
-    console.log(`🔍 [CHECK] Verificando ID na URL: "${siteId}"`);
-
     if (!siteId) {
-        console.error("❌ [ERRO] Sem ID na URL.");
         exibirTelaMorte("Loja não identificada", "Link inválido.");
-        return false; // Bloqueia
+        return false;
     }
 
     state.siteId = siteId;
 
     try {
-        console.log(`📡 [REDE] Contactando servidor para: sites/${siteId}`);
+        console.log(`🔒 Verificando segurança para: ${siteId}`);
         const docRef = doc(db, "sites", siteId);
-
-        // FORÇA A IDA AO SERVIDOR (IGNORA CACHE)
+        
+        // Vai no servidor checar se existe ou foi banido
         const snap = await getDocFromServer(docRef);
 
-        console.log(`📡 [REDE] Resposta recebida.`);
-        console.log(`❓ [DIAGNÓSTICO] O documento existe? -> ${snap.exists()}`);
-
-        // A. CENÁRIO: SITE EXCLUÍDO
+        // A. SITE NÃO EXISTE (EXCLUÍDO)
         if (!snap.exists()) {
-            console.error("❌ [FATAL] O SITE FOI DELETADO. (snap.exists = false)");
             localStorage.removeItem('vestemanto_cart');
             exibirTelaMorte("404", "Esta loja não existe mais.");
-            return false; // RETORNA FALSE PARA BLOQUEAR O RESTANTE
+            return false;
         }
 
         const data = snap.data();
-        console.log("ℹ️ [DADOS] Status da loja:", data.status, "| Active:", data.active);
 
-        // B. CENÁRIO: SITE BLOQUEADO
+        // B. SITE BLOQUEADO
         if (data.status === 'bloqueado' || data.active === false || data.status === 'excluido') {
-            console.error("⛔ [BLOQUEIO] Site marcado como bloqueado/inativo.");
             exibirTelaMorte("Suspenso", "Loja indisponível.");
-            return false; // RETORNA FALSE
+            return false;
         }
 
-        // === SUCESSO ===
-        console.log("🔓 [SUCESSO] Loja válida. Carregando dados...");
-        state.storeProfile = data;
+        // === SUCESSO: SALVA O PERFIL NO ESTADO ===
+        state.storeProfile = data; 
+        console.log("✅ Acesso permitido. Carregando sistema...");
 
-        // Carregamentos do sistema (Seguros pois já sabemos que o site existe)
+        // --- 2. CARREGAMENTOS DO SEU CÓDIGO ANTIGO ---
         loadSiteStats();
         incrementVisitsCounter();
         loadSettings();
         loadCategories();
         loadProducts();
+        
+        // Aqui substituímos o loadStoreProfile() antigo, pois já carregamos os dados acima na segurança
+        if(typeof renderStoreProfile === 'function') renderStoreProfile(); 
 
-        if (typeof renderStoreProfile === 'function') renderStoreProfile();
-
-        loadCoupons();
+        loadCoupons();      
         updateCartUI();
-        startBackgroundListeners();
+        startBackgroundListeners(); 
         initStatsModule();
         loadTheme();
 
-        // Monitoramento em tempo real (mata a sessão se deletar durante o uso)
+        // Monitoramento de segurança em tempo real (15s)
         setInterval(async () => {
             try {
                 const check = await getDocFromServer(docRef);
-                if (!check.exists()) {
-                    console.warn("⚠️ [MONITOR] Site deletado em tempo real. Recarregando...");
-                    window.location.reload();
-                }
-            } catch (e) { }
+                if (!check.exists() || check.data().status === 'bloqueado') window.location.reload();
+            } catch(e) {}
         }, 15000);
 
+        // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);
-        setupAuthListener();
+
+        // --- 4. AUTH LISTENER (DO SEU CÓDIGO ANTIGO) ---
+        // Mantivemos a lógica inline como você preferia
+        onAuthStateChanged(auth, (user) => {
+            state.user = user;
+            const btnText = user ? 'Painel' : 'Área Admin';
+
+            if (els.menuBtnAdmin) {
+                els.menuBtnAdmin.innerHTML = `
+                    <i class="fas fa-user-shield text-white group-hover:text-white transition"></i>
+                    <span class="font-bold uppercase text-sm tracking-wide">${btnText}</span>
+                `;
+            }
+
+            const btnLoginNav = getEl('btn-admin-login');
+            if (btnLoginNav) btnLoginNav.innerText = btnText;
+
+            if (user) {
+                if(typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+                if(typeof loadAdminSales === 'function') loadAdminSales();
+                setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
+            } else {
+                if(typeof showView === 'function') showView('catalog');
+                setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
+            }
+        });
+
+        // --- 5. TIMERS E EXTRAS (DO SEU CÓDIGO ANTIGO) ---
+        setInterval(() => {
+            if (state.coupons.length > 0 && !getEl('view-admin').classList.contains('hidden')) {
+                renderAdminCoupons();
+            }
+        }, 10000);
+
+        // Verifica Pedidos Ativos (Motoquinha)
+        const savedHistory = localStorage.getItem('site_orders_history');
+        if (savedHistory) {
+            state.myOrders = JSON.parse(savedHistory);
+        }
         checkActiveOrders();
 
-        return true; // LIBERA O STARTAPPLICATION
+        return true; // Libera o startApplication
 
     } catch (error) {
-        console.error("🔥 [EXCEPTION] Erro crítico na verificação:", error);
-
-        // Garante que o corpo apareça para mostrar o erro
-        document.body.style.display = 'block';
-
-        let titulo = "Erro";
-        let msg = "Não foi possível carregar.";
-
-        // Se der erro de permissão, é porque foi deletado e a regra de segurança bloqueou (O QUE É BOM)
-        if (error.code === 'permission-denied') {
-            console.log("🛡️ [SEGURANÇA] Permissão negada (Provavelmente site deletado).");
-            titulo = "404";
-            msg = "Esta loja foi encerrada.";
-        }
-        else if (error.message === "SITE_DELETED") {
-            titulo = "404"; msg = "Loja não encontrada.";
-        }
-
-        exibirTelaMorte(titulo, msg);
-        return false; // BLOQUEIA
+        console.error("Erro fatal:", error);
+        exibirTelaMorte("Erro", "Falha no carregamento.");
+        return false;
     }
 }
 
