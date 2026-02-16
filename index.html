@@ -5,21 +5,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Veste Manto - Catálogo</title>
-    
-  
+
+
 
     <script>
         // Esse script roda antes de tudo para garantir que não haja versão velha salva
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                for(let registration of registrations) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                for (let registration of registrations) {
                     registration.unregister();
                     console.log("💀 Service Worker Zumbi Removido.");
                 }
             });
         }
         if ('caches' in window) {
-            caches.keys().then(function(names) {
+            caches.keys().then(function (names) {
                 for (let name of names) caches.delete(name);
             });
         }
@@ -54,11 +54,24 @@
         const urlParams = new URLSearchParams(window.location.search);
         let siteId = urlParams.get('site');
 
-        // AJUSTE PRO LIVE SERVER: Se não tiver ID, usa um de teste
-        if (!siteId && (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
-            console.warn("⚠️ MODO DEV: Usando ID de teste 'veste-manto'");
+        // ============================================================
+        // 🛠️ MODO DESENVOLVEDOR (Correção para Live Server)
+        // ============================================================
+        // Se estiver rodando no seu PC (localhost ou 127.0.0.1) e não tiver ID,
+        // ele força automaticamente o ID de uma loja que existe.
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        if (!siteId && isLocalhost) {
+            console.warn("⚠️ AMBIENTE DEV DETECTADO: Usando ID de teste automático.");
+
+            // COLOQUE AQUI O ID DE UMA LOJA QUE EXISTE NO SEU FIRESTORE
             siteId = 'veste-manto';
+
+            // (Opcional) Adiciona o ID na URL visualmente sem recarregar
+            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?site=' + siteId;
+            window.history.replaceState({ path: newUrl }, '', newUrl);
         }
+        // ============================================================
 
         function destruirTudo(motivo) {
             console.error("⛔ ACESSO NEGADO: " + motivo);
