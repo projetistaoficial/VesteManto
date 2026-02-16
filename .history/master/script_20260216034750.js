@@ -284,12 +284,7 @@ async function saveClientData() {
     const name = document.getElementById('inp-name').value.trim();
     if (!slug || !name) return alert("Preencha Nome e Slug");
     
-    // Captura os elementos de senha (verifique se os IDs no HTML batem com esses)
-    const elPassAdmin = document.getElementById('inp-pass-admin');
-    const elPassDev = document.getElementById('inp-pass-dev');
-
     const docId = currentDocId || slug;
-    
     const data = {
         name: name,
         ownerData: {
@@ -302,24 +297,16 @@ async function saveClientData() {
             whats: document.getElementById('inp-whats').value,
             email: document.getElementById('inp-email').value
         },
-        // === [NOVO] SALVA AS SENHAS ===
-        access: {
-            admin: elPassAdmin ? elPassAdmin.value.trim() : '',
-            dev: elPassDev ? elPassDev.value.trim() : ''
-        },
-        // ==============================
         plan: { name: document.getElementById('inp-plan').value },
         ...(!currentDocId && { code: parseInt(document.getElementById('inp-id').value), createdAt: new Date().toISOString(), status: 'ativo', active: true })
     };
 
     try {
         await setDoc(doc(db, "sites", docId), data, { merge: true });
-        alert("Salvo com sucesso!");
+        alert("Salvo!");
         closeClientModal();
         loadClients();
-    } catch (e) { 
-        alert("Erro ao salvar: " + e.message); 
-    }
+    } catch (e) { alert("Erro ao salvar: " + e.message); }
 }
 
 async function changeClientStatus(action) {
