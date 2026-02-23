@@ -5668,6 +5668,7 @@ window.handleCheckoutCep = async () => {
 
     const cep = cepInput.value.replace(/\D/g, '');
 
+    // Elementos da UI
     const elDistDisplay = document.getElementById('distance-display');
     const elErrorMsg = document.getElementById('delivery-error-msg');
     const elErrorDiv = document.getElementById('delivery-error');
@@ -5675,13 +5676,13 @@ window.handleCheckoutCep = async () => {
     const elLoading = document.getElementById('cep-loading');
     const btnFinish = document.getElementById('btn-finish-payment');
 
-    // 1. Bloqueia o botão de finalizar IMEDIATAMENTE ao iniciar
+    // Bloqueia botão ao iniciar
     if (btnFinish) {
         btnFinish.disabled = true;
         btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
     }
 
-    // 2. Reseta estado de segurança global
+    // Reseta estado global
     if (typeof checkoutState !== 'undefined') {
         checkoutState.isValidDelivery = false;
         checkoutState.distance = 0;
@@ -5689,16 +5690,17 @@ window.handleCheckoutCep = async () => {
 
     if (cep.length !== 8) return;
 
-    // 3. Feedback Visual Inicial
+    // Feedback Visual
     if (elLoading) elLoading.classList.remove('hidden');
     if (elErrorDiv) elErrorDiv.classList.add('hidden');
+
     if (elDistDisplay) {
         elDistDisplay.innerText = "Calculando frete...";
         elDistDisplay.className = "text-yellow-500 font-bold text-xs mt-1 block";
     }
 
     try {
-        // A. Preenche endereço via ViaCEP
+        // A. Preenche endereço (ViaCEP para texto é seguro)
         const viaCepRes = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
         const data = await viaCepRes.json();
 
@@ -5711,62 +5713,59 @@ window.handleCheckoutCep = async () => {
         if (elAddrFields) elAddrFields.classList.remove('opacity-50', 'pointer-events-none');
         document.getElementById('checkout-number')?.focus();
 
-        // B. Cálculo de Distância (AGORA TOTALMENTE INDEPENDENTE)
+        // B. Cálculo de Distância (Lógica V3)
+        const config = state.storeProfile.deliveryConfig || {};
         const storeCep = state.storeProfile.cep ? state.storeProfile.cep.replace(/\D/g, '') : '';
         const maxDist = parseFloat(state.storeProfile.maxDistance) || 0;
 
-        if (!storeCep) {
-            // Se a loja não configurou o próprio CEP no painel, não tem como calcular a distância
-            if (elDistDisplay) {
-                 elDistDisplay.innerText = "⚠️ CEP da loja não configurado.";
-                 elDistDisplay.className = "text-orange-500 font-bold text-xs mt-1 block";
-            }
-            if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = true; // Libera a venda
-        } else {
-            // Calcula distância real
+        // Apenas se for Entrega Própria
+        if (config.ownDelivery === true) {
+            if (!storeCep) throw new Error("CEP da loja não configurado.");
+
+            // USA A NOVA FUNÇÃO V3
             const dist = await calculateDist_FinalV3(storeCep, cep);
 
             if (dist === null || isNaN(dist)) {
-                // Se a API de mapa falhar e tivermos um limite rigoroso, bloqueia.
-                if (maxDist > 0) {
-                    if (elDistDisplay) {
-                        elDistDisplay.innerText = "⛔ Rota indisponível no mapa.";
-                        elDistDisplay.className = "text-red-500 font-bold text-xs mt-1 block";
-                    }
-                    if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = false;
-                    throw new Error("Não foi possível traçar a rota até este CEP.");
-                } else {
-                    // Sem limite configurado, deixa passar com aviso
-                    if (elDistDisplay) {
-                        elDistDisplay.innerText = "⚠️ Rota não calculada (Sem limite)";
-                        elDistDisplay.className = "text-orange-500 font-bold text-xs mt-1 block";
-                    }
-                    if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = true;
+                // Erro de API: Libera com aviso (Melhor vender do que travar por erro técnico)
+                if (elDistDisplay) {
+                    elDistDisplay.innerText = "⚠️ CEP válido (Mapa indisponível)";
+                    elDistDisplay.className = "text-orange-500 font-bold text-xs mt-1 block";
                 }
-            } else {
+                // Libera venda mesmo com erro de mapa
+                if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = true;
+            }
+            else {
+                // Sucesso no cálculo
                 if (typeof checkoutState !== 'undefined') checkoutState.distance = dist;
-                const distText = dist.toFixed(1).replace('.', ',');
 
-                // VALIDAÇÃO PRINCIPAL: Passou do limite?
-                if (maxDist > 0 && dist > maxDist) {
-                    if (elDistDisplay) {
+                if (elDistDisplay) {
+                    const distText = dist.toFixed(1).replace('.', ',');
+
+                    if (maxDist > 0 && dist > maxDist) {
+                        // BLOQUEIA: LONGE DEMAIS
                         elDistDisplay.innerText = `⛔ Indisponível: ${distText}km (Máx: ${maxDist}km)`;
                         elDistDisplay.className = "text-red-500 font-bold text-xs mt-1 block";
-                    }
-                    if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = false;
-                    throw new Error(`Endereço muito distante (${distText}km). O limite da loja é de ${maxDist}km.`);
-                } else {
-                    // Libera e mostra a distância
-                    if (elDistDisplay) {
+
+                        if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = false;
+
+                        if (elErrorMsg) elErrorMsg.innerText = `Endereço muito distante (${distText}km). Limite da loja: ${maxDist}km.`;
+                        if (elErrorDiv) elErrorDiv.classList.remove('hidden');
+
+                        return; // Encerra mantendo botão travado
+                    } else {
+                        // LIBERA: DENTRO DO RAIO
                         elDistDisplay.innerText = `✅ Atendido (${distText}km)`;
                         elDistDisplay.className = "text-green-500 font-bold text-xs mt-1 block";
+                        if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = true;
                     }
-                    if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = true;
                 }
             }
+        } else {
+            // Se não for entrega própria, libera sempre
+            if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = true;
         }
 
-        // Libera botão de finalizar se passar nos testes do CEP
+        // Libera botão se estiver tudo ok
         if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery) {
             if (btnFinish) {
                 btnFinish.disabled = false;
@@ -5777,19 +5776,17 @@ window.handleCheckoutCep = async () => {
     } catch (err) {
         console.error("Erro Processo CEP:", err);
         if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = false;
-        
+
         if (elErrorMsg) elErrorMsg.innerText = err.message;
         if (elErrorDiv) elErrorDiv.classList.remove('hidden');
-        if (elDistDisplay && elDistDisplay.innerText === "Calculando frete...") {
-            elDistDisplay.innerText = ""; // Limpa texto se travou no erro
-        }
+        if (elDistDisplay) elDistDisplay.innerText = "";
+
     } finally {
         if (elLoading) elLoading.classList.add('hidden');
         if (typeof window.populateInstallments === 'function') window.populateInstallments();
         if (typeof window.calcCheckoutTotal === 'function') window.calcCheckoutTotal();
 
-        // VALIDA A TELA INTEIRA AGORA (Destrava as formas de pagamento)
-        if (typeof validateCheckoutForm === 'function') validateCheckoutForm();
+        validateCheckoutForm();
     }
 };
 
@@ -8244,28 +8241,31 @@ window.cancelPixGlobal = () => {
 
 // Função que LIBERA ou TRAVA o pagamento (Atualizada para permitir clique de aviso)
 function validateCheckoutForm() {
-    // 1. Pega os valores obrigatórios
+    // 1. Pega os valores
     const name = document.getElementById('checkout-name')?.value.trim();
     const phone = document.getElementById('checkout-phone')?.value.trim();
     const number = document.getElementById('checkout-number')?.value.trim();
+    
+    // O campo Rua é preenchido pelo CEP
     const street = document.getElementById('checkout-street')?.value.trim();
 
-    // 2. Elementos da Tela
+    // 2. Elementos
     const paymentSection = document.getElementById('checkout-payment-options');
     const btnFinish = document.getElementById('btn-finish-payment');
 
-    // 3. Regra Blindada: Tudo deve estar preenchido E o CEP DEVE ter passado no teste de distância
+    // 3. Regra: Tudo deve estar preenchido E o CEP deve ter sido validado com sucesso
     const isAddressOk = street && street !== "" && number && number !== "";
     const isUserOk = name && name !== "" && phone && phone !== "";
+    // Garantia dupla: A variável global checkoutState DEVE estar true
     const isCepValid = (typeof checkoutState !== 'undefined') ? checkoutState.isValidDelivery === true : false;
 
-    // Se tudo estiver certo, é válido.
     const isValid = isAddressOk && isUserOk && isCepValid;
 
     if (isValid) {
-        // --- DESTRAVA PAGAMENTO ---
+        // --- LIBERA AS FORMAS DE PAGAMENTO E O BOTÃO DE FINALIZAR ---
         if (paymentSection) {
             paymentSection.classList.remove('opacity-50', 'locked-section');
+            // Removemos pointer-events-none para permitir interação
             paymentSection.classList.remove('pointer-events-none');
         }
         if (btnFinish) {
@@ -8273,11 +8273,11 @@ function validateCheckoutForm() {
             btnFinish.classList.remove('opacity-50', 'cursor-not-allowed');
         }
     } else {
-        // --- TRAVA PAGAMENTO ---
+        // --- BLOQUEIA AS FORMAS DE PAGAMENTO E O BOTÃO DE FINALIZAR ---
         if (paymentSection) {
             paymentSection.classList.add('opacity-50', 'locked-section');
-            // Mantém os eventos de clique funcionando para exibir o alerta caso a pessoa clique
-            paymentSection.classList.remove('pointer-events-none'); 
+            // IMPORTANTE: Removemos pointer-events-none para o clique funcionar e mostrar o Toast de aviso
+            paymentSection.classList.remove('pointer-events-none');
         }
         if (btnFinish) {
             btnFinish.disabled = true;
