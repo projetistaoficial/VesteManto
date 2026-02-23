@@ -596,9 +596,6 @@ if (document.readyState === 'loading') {
     startApplication();
 }
 
-// =================================================================
-// INIT APP ATUALIZADA COM O MODO PAUSA E O LOGIN CORRIGIDO
-// =================================================================
 async function initApp() {
     // --- 1. SEGURANÇA E BLOQUEIO (NOVO) ---
     const params = new URLSearchParams(window.location.search);
@@ -627,17 +624,7 @@ async function initApp() {
 
         const data = snap.data();
 
-        // B. SITE PAUSADO (NOVO)
-        if (data.status === 'pausado') {
-            exibirTelaMorte(
-                "Site Indisponível Temporariamente", 
-                "Estamos realizando manutenções ou atualizações na loja. Volte em breve!", 
-                "pausado"
-            );
-            return false; // Bloqueia o carregamento do resto do site
-        }
-
-        // C. SITE BLOQUEADO
+        // B. SITE BLOQUEADO
         if (data.status === 'bloqueado' || data.active === false || data.status === 'excluido') {
             exibirTelaMorte("Suspenso", "Loja indisponível.");
             return false;
@@ -667,25 +654,18 @@ async function initApp() {
         setInterval(async () => {
             try {
                 const check = await getDocFromServer(docRef);
-                // Atualizado para recarregar se for pausado também
-                if (!check.exists() || check.data().status === 'bloqueado' || check.data().status === 'pausado') {
-                     window.location.reload();
-                }
+                if (!check.exists() || check.data().status === 'bloqueado') window.location.reload();
             } catch (e) { }
         }, 15000);
 
         // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);
 
-        // --- 4. AUTH LISTENER (AGORA COM SUPORTE À SENHA DO CLIENTE) ---
-        // A lógica do botão está no setupEventListeners, aqui só definimos a view baseada na sessão
+        // --- 4. AUTH LISTENER (DO SEU CÓDIGO ANTIGO) ---
+        // Mantivemos a lógica inline como você preferia
         onAuthStateChanged(auth, (user) => {
-            // Só sobrescreve se o usuário não for o 'store-admin' simulado que criamos no botão de login
-            if (!state.user || state.user.uid !== 'store-admin') {
-                state.user = user;
-            }
-            
-            const btnText = state.user ? 'Painel' : 'Área Admin';
+            state.user = user;
+            const btnText = user ? 'Painel' : 'Área Admin';
 
             if (els.menuBtnAdmin) {
                 els.menuBtnAdmin.innerHTML = `
@@ -697,7 +677,7 @@ async function initApp() {
             const btnLoginNav = getEl('btn-admin-login');
             if (btnLoginNav) btnLoginNav.innerText = btnText;
 
-            if (state.user) {
+            if (user) {
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
                 if (typeof loadAdminSales === 'function') loadAdminSales();
                 setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
@@ -793,7 +773,95 @@ function exibirTelaMorte(titulo, msg, tipo = 'erro') {
 }
 window.renderKillScreen = exibirTelaMorte;
 
+// =================================================================
+// INIT APP ATUALIZADA COM O MODO PAUSA
+// =================================================================
+async function initApp() {
+    const params = new URLSearchParams(window.location.search);
+    const siteId = params.get('site');
 
+    if (!siteId) {
+        exibirTelaMorte("Loja não identificada", "Link inválido.");
+        return false;
+    }
+
+    state.siteId = siteId;
+
+    try {
+        console.log(`🔒 Verificando segurança para: ${siteId}`);
+        const docRef = doc(db, "sites", siteId);
+        const snap = await getDocFromServer(docRef);
+
+        // A. SITE NÃO EXISTE (EXCLUÍDO)
+        if (!snap.exists()) {
+            localStorage.removeItem('vestemanto_cart');
+            exibirTelaMorte("404", "Esta loja não existe mais.");
+            return false;
+        }
+
+        const data = snap.data();
+
+        // B. SITE PAUSADO (NOVO)
+        if (data.status === 'pausado') {
+            exibirTelaMorte(
+                "Site Indisponível Temporariamente", 
+                "Estamos realizando manutenções ou atualizações na loja. Volte em breve!", 
+                "pausado"
+            );
+            return false;
+        }
+
+        // C. SITE BLOQUEADO
+        if (data.status === 'bloqueado' || data.active === false || data.status === 'excluido') {
+            exibirTelaMorte("Acesso Suspenso", "Esta loja encontra-se temporariamente indisponível.");
+            return false;
+        }
+
+        // SALVA DADOS BÁSICOS
+        state.storeProfile = data; 
+        console.log("✅ Acesso permitido. Carregando sistema...");
+
+        // CARREGAMENTOS DO SISTEMA
+        loadSiteStats();
+        incrementVisitsCounter();
+        loadSettings(); 
+        loadCategories();
+        loadProducts();
+        loadStoreProfile(); 
+        loadCoupons();      
+        updateCartUI();
+        startBackgroundListeners(); 
+        initStatsModule();
+        loadTheme();
+
+        setInterval(async () => {
+            try {
+                const check = await getDocFromServer(docRef);
+                if (!check.exists() || check.data().status === 'bloqueado' || check.data().status === 'pausado') window.location.reload();
+            } catch(e) {}
+        }, 15000);
+
+        if (localStorage.getItem('theme') === 'light') toggleTheme(false);
+        setupAuthListener();
+
+        setInterval(() => {
+            if (state.coupons.length > 0 && !document.getElementById('view-admin').classList.contains('hidden')) {
+                renderAdminCoupons();
+            }
+        }, 10000);
+
+        const savedHistory = localStorage.getItem('site_orders_history');
+        if (savedHistory) state.myOrders = JSON.parse(savedHistory);
+        checkActiveOrders();
+
+        return true; 
+
+    } catch (error) {
+        console.error("Erro fatal:", error);
+        exibirTelaMorte("Erro", "Falha no carregamento.");
+        return false;
+    }
+}
 
 // =================================================================
 // 4. LÓGICA DE DADOS (CARREGAMENTO)
