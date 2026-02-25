@@ -2944,62 +2944,84 @@ function setupEventListeners() {
             const passInput = document.getElementById('admin-pass');
             const pass = passInput.value.trim();
             const modal = document.getElementById('login-modal');
+            const btnOriginalText = btnLoginSubmit.innerText;
 
-            // Pega as senhas cadastradas no painel mestre para este cliente
-            const savedAccess = state.storeProfile?.access || {};
-            const clientAdminPass = savedAccess.admin;
-            const clientDevPass = savedAccess.dev;
+            // Efeito visual de carregamento
+            btnLoginSubmit.innerText = "Verificando...";
+            btnLoginSubmit.disabled = true;
 
-            // ============================================================
-            // 1. VERIFICA SENHA DE DESENVOLVEDOR (SUPORTE)
-            // ============================================================
-            // Funciona se for a senha dev específica da loja OU a senha mestre global
-            if ((clientDevPass && pass === clientDevPass) || checkAndActivateSupport(pass)) {
-                console.log("🛠️ Acesso Liberado: Modo Desenvolvedor");
-                modal.close();
-                passInput.value = '';
-                showView('admin');
-                showView('support');
-                return;
-            }
-
-            // ============================================================
-            // 2. VERIFICA SENHA DO ADMIN (LOJISTA)
-            // ============================================================
-            if (clientAdminPass && pass === clientAdminPass) {
-                console.log("🔓 Acesso liberado via Senha da Loja");
-
-                // Simula um usuário logado no Estado Global
-                state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
-
-                // Fecha modal e limpa senha
-                modal.close();
-                passInput.value = '';
-
-                // --- ATUALIZA A INTERFACE MANUALMENTE ---
-                if (els.menuBtnAdmin) {
-                    els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield"></i> <span class="ml-2">Painel Admin</span>`;
+            try {
+                // 1. Verifica Modo Suporte (Senha Mestre Fixa: projetista47@)
+                if (checkAndActivateSupport(pass)) {
+                    modal.close();
+                    passInput.value = '';
+                    showView('admin');
+                    showView('support');
+                    return;
                 }
 
-                if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-                if (typeof loadAdminSales === 'function') loadAdminSales();
+                // ============================================================
+                // 2. BUSCA A SENHA FRESQUINHA DIRETO DO BANCO DE DADOS
+                // Garante que pega a senha real que acabou de ser criada
+                // ============================================================
+                const docRef = doc(db, "sites", state.siteId);
+                const snap = await getDocFromServer(docRef); // Ignora cache
+                
+                if (snap.exists()) {
+                    const data = snap.data();
+                    const savedAccess = data.access || {};
+                    const clientAdminPass = savedAccess.admin;
+                    const clientDevPass = savedAccess.dev;
 
-                showView('admin');
-                return;
-            }
-            
-            // ============================================================
-            // 3. FALLBACK: LOGIN FIREBASE AUTH (Opcional/Segurança)
-            // ============================================================
-            try {
+                    // A. Verifica Senha DEV exclusiva desta Loja
+                    if (clientDevPass && pass === clientDevPass) {
+                        console.log("🛠️ Acesso Liberado: Modo Desenvolvedor da Loja");
+                        modal.close();
+                        passInput.value = '';
+                        showView('admin');
+                        showView('support');
+                        return;
+                    }
+
+                    // B. Verifica Senha ADMIN (Lojista) exclusiva desta Loja
+                    if (clientAdminPass && pass === clientAdminPass) {
+                        console.log("🔓 Acesso liberado via Senha da Loja");
+                        
+                        // Simula um usuário logado
+                        state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
+                        
+                        modal.close();
+                        passInput.value = '';
+
+                        if (els.menuBtnAdmin) {
+                            els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield"></i> <span class="ml-2">Painel Admin</span>`;
+                        }
+
+                        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+                        if (typeof loadAdminSales === 'function') loadAdminSales();
+
+                        showView('admin');
+                        return;
+                    }
+                }
+
+                // ============================================================
+                // 3. FALLBACK: LOGIN FIREBASE AUTH (admin123 Mestre)
+                // ============================================================
                 await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
                 sessionStorage.removeItem('support_mode');
                 modal.close();
                 passInput.value = '';
                 showView('admin');
+
             } catch (error) {
+                // Se chegou aqui, nenhuma das 4 senhas funcionou
                 alert("Senha incorreta.");
-                console.error("Erro auth mestre:", error);
+                console.error("Tentativa de login falhou:", error);
+            } finally {
+                // Restaura o botão
+                btnLoginSubmit.innerText = btnOriginalText;
+                btnLoginSubmit.disabled = false;
             }
         };
     }
