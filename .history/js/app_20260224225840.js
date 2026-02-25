@@ -730,9 +730,7 @@ async function initApp() {
     }
 }
 
-/// ============================================================
-// FUNÇÃO AUXILIAR ÚNICA: TELA DE MORTE / PAUSA
-// ============================================================
+
 function exibirTelaMorte(titulo, msg, tipo = 'erro') {
     console.error(`[KILL SCREEN] ${titulo}: ${msg}`);
 
@@ -772,13 +770,6 @@ function exibirTelaMorte(titulo, msg, tipo = 'erro') {
             " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
                 Tentar Novamente
             </button>
-
-            <div style="margin-top: 80px; display: flex; flex-direction: column; align-items: center; opacity: 0.6; transition: opacity 0.3s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">
-                <span style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; font-weight: bold;">Aproveite para conhecer a Projetista</span>
-                <a href="https://instagram.com/projetista_oficial" target="_blank" title="Siga a Projetista no Instagram" style="color: #ec4899; font-size: 2.2rem; text-decoration: none; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
-                    <i class="fab fa-instagram"></i>
-                </a>
-            </div>
         </div>
     `;
 
@@ -787,7 +778,7 @@ function exibirTelaMorte(titulo, msg, tipo = 'erro') {
     document.body.style.pointerEvents = "auto";
     document.body.classList.add('acesso-liberado', 'loaded');
 
-    // 5. Garante Fonte de Ícones (Para o Insta funcionar mesmo sem carregar o resto)
+    // 5. Garante Fonte de Ícones
     if (!document.querySelector('link[href*="font-awesome"]')) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';

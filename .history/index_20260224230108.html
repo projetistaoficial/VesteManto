@@ -59,18 +59,9 @@
         // ============================================================
         // Se estiver rodando no seu PC (localhost ou 127.0.0.1) e não tiver ID,
         // ele força automaticamente o ID de uma loja que existe.
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        // const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-        if (!siteId && isLocalhost) {
-            console.warn("⚠️ AMBIENTE DEV DETECTADO: Usando ID de teste automático.");
-
-            // COLOQUE AQUI O ID DE UMA LOJA QUE EXISTE NO SEU FIRESTORE
-            siteId = 'veste-manto';
-
-            // (Opcional) Adiciona o ID na URL visualmente sem recarregar
-            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?site=' + siteId;
-            window.history.replaceState({ path: newUrl }, '', newUrl);
-        }
+        
         // ============================================================
 
         function destruirTudo(titulo, motivo, tipo = 'erro') {

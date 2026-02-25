@@ -59,7 +59,7 @@
         // ============================================================
         // Se estiver rodando no seu PC (localhost ou 127.0.0.1) e não tiver ID,
         // ele força automaticamente o ID de uma loja que existe.
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        // const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
         if (!siteId && isLocalhost) {
             console.warn("⚠️ AMBIENTE DEV DETECTADO: Usando ID de teste automático.");
