@@ -1833,7 +1833,7 @@ function getCurrentFilteredProducts() {
     const categoryInput = els.adminFilterCat || getEl('admin-filter-cat');
     const term = searchInput ? searchInput.value.toLowerCase().trim() : '';
     const catFilter = categoryInput ? categoryInput.value : '';
-
+onsnap
     return state.products.filter(p => {
         const codeStr = p.code ? String(p.code) : '';
         const matchText = p.name.toLowerCase().includes(term) || codeStr.includes(term);
@@ -2938,34 +2938,21 @@ function setupEventListeners() {
     const btnLoginCancel = getEl('btn-login-cancel');
     if (btnLoginCancel) btnLoginCancel.onclick = () => getEl('login-modal').close();
 
-   const btnLoginSubmit = document.getElementById('btn-login-submit');
+    const btnLoginSubmit = document.getElementById('btn-login-submit');
     if (btnLoginSubmit) {
         btnLoginSubmit.onclick = async () => {
             const passInput = document.getElementById('admin-pass');
             const pass = passInput.value.trim();
             const modal = document.getElementById('login-modal');
-
-            // Pega as senhas cadastradas no painel mestre para este cliente
-            const savedAccess = state.storeProfile?.access || {};
-            const clientAdminPass = savedAccess.admin;
-            const clientDevPass = savedAccess.dev;
-
-            // ============================================================
-            // 1. VERIFICA SENHA DE DESENVOLVEDOR (SUPORTE)
-            // ============================================================
-            // Funciona se for a senha dev específica da loja OU a senha mestre global
-            if ((clientDevPass && pass === clientDevPass) || checkAndActivateSupport(pass)) {
-                console.log("🛠️ Acesso Liberado: Modo Desenvolvedor");
+            if (checkAndActivateSupport(pass)) {
                 modal.close();
-                passInput.value = '';
                 showView('admin');
                 showView('support');
                 return;
             }
+            const savedAccess = state.storeProfile.access || {};
+            const clientAdminPass = savedAccess.admin;
 
-            // ============================================================
-            // 2. VERIFICA SENHA DO ADMIN (LOJISTA)
-            // ============================================================
             if (clientAdminPass && pass === clientAdminPass) {
                 console.log("🔓 Acesso liberado via Senha da Loja");
 
@@ -2977,20 +2964,23 @@ function setupEventListeners() {
                 passInput.value = '';
 
                 // --- ATUALIZA A INTERFACE MANUALMENTE ---
+                // (Como não é um login real do Firebase, o onAuthStateChanged não dispara, 
+                // então precisamos chamar as funções de atualização de tela aqui)
+
+                // 1. Muda botão do menu
                 if (els.menuBtnAdmin) {
                     els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield"></i> <span class="ml-2">Painel Admin</span>`;
                 }
 
+                // 2. Carrega dados do Admin
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
                 if (typeof loadAdminSales === 'function') loadAdminSales();
 
+                // 3. Mostra a tela
                 showView('admin');
                 return;
             }
             
-            // ============================================================
-            // 3. FALLBACK: LOGIN FIREBASE AUTH (Opcional/Segurança)
-            // ============================================================
             try {
                 await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
                 sessionStorage.removeItem('support_mode');
@@ -2999,7 +2989,7 @@ function setupEventListeners() {
                 showView('admin');
             } catch (error) {
                 alert("Senha incorreta.");
-                console.error("Erro auth mestre:", error);
+                console.error(error);
             }
         };
     }
