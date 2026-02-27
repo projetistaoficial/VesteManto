@@ -20,9 +20,6 @@ let currentDocId = null;
 let currentClientOrders = []; 
 let currentClientProducts = [];
 
-let isClientSelectionMode = false;
-let selectedClients = new Set();
-
 const listContainer = document.getElementById('clients-list');
 const clientModal = document.getElementById('client-modal');
 
@@ -63,97 +60,40 @@ async function loadClients() {
 
 function renderClients(clients) {
     listContainer.innerHTML = '';
-    
-    // --- 1. BARRA DE CONTROLES EM MASSA ---
-    if (isClientSelectionMode) {
-        const controlsBar = document.createElement('div');
-        controlsBar.className = "flex flex-wrap justify-between items-center bg-[#161821] p-3 rounded-t-lg border-b border-gray-800 mb-2 gap-2 sticky top-0 z-10 shadow-md";
-        
-        const count = selectedClients.size;
-        const allSelected = clients.length > 0 && clients.every(c => selectedClients.has(c.docId));
-        
-        controlsBar.innerHTML = `
-            <div class="flex items-center gap-3 pl-2">
-                <input type="checkbox" id="master-check-clients" onchange="toggleSelectAllClients(this)" ${allSelected ? 'checked' : ''} class="cursor-pointer w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-0">
-                <label for="master-check-clients" class="text-xs text-gray-400 font-bold uppercase tracking-wider cursor-pointer select-none hover:text-white transition">
-                    Selecionar Todos
-                </label>
-            </div>
-            
-            <div class="flex items-center gap-2">
-                ${count > 0 ? `
-                    <span class="text-white text-[10px] font-bold bg-blue-600 px-3 py-1.5 rounded">${count} Loja${count > 1 ? 's' : ''}</span>
-                    <button onclick="bulkChangeStatus('ativo')" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shadow-sm">
-                        <i class="fas fa-play"></i> Ativar
-                    </button>
-                    <button onclick="bulkChangeStatus('pausado')" class="bg-yellow-500 hover:bg-yellow-400 text-black px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shadow-sm">
-                        <i class="fas fa-pause"></i> Pausar
-                    </button>
-                    <button onclick="bulkChangeStatus('bloqueado')" class="bg-red-900 hover:bg-red-800 text-white px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 border border-red-700 shadow-sm">
-                        <i class="fas fa-lock"></i> Bloquear
-                    </button>
-                    <div class="w-px h-6 bg-gray-700 mx-1"></div>
-                    <button onclick="bulkDeleteClients()" class="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shadow-sm">
-                        <i class="fas fa-trash"></i> Excluir
-                    </button>
-                ` : `
-                    <span class="text-gray-500 text-[10px] font-bold px-3 py-1.5">Selecione clientes para ver as ações</span>
-                `}
-            </div>
-        `;
-        listContainer.appendChild(controlsBar);
-    }
-
-    // --- 2. VERIFICA SE ESTÁ VAZIO ---
     if (clients.length === 0) {
-        listContainer.innerHTML += '<div class="text-center text-gray-500 mt-10 text-xs py-8 bg-[#161821] rounded-lg">Nenhum cliente encontrado</div>';
+        listContainer.innerHTML = '<div class="text-center text-gray-500 mt-10 text-xs">Nenhum cliente</div>';
         return;
     }
 
-    // --- 3. RENDERIZA OS CLIENTES ---
     clients.forEach(client => {
         let badgeColor = 'text-green-500 bg-green-900/20 border-green-900';
-        let statusText = 'ATIVO';
+        let statusText = 'Ativo';
 
+        // Lógica de Status
         if (client.status === 'pausado') {
             badgeColor = 'text-yellow-500 bg-yellow-900/20 border-yellow-900';
-            statusText = 'PAUSADO';
+            statusText = 'Pausado';
         } else if (client.status === 'bloqueado' || client.active === false) {
             badgeColor = 'text-red-500 bg-red-900/20 border-red-900';
-            statusText = 'BLOQUEADO';
+            statusText = 'Bloqueado';
         }
 
-        const isChecked = selectedClients.has(client.docId) ? 'checked' : '';
-        const bgClass = selectedClients.has(client.docId) ? 'bg-blue-900/20 border-blue-900/50' : 'bg-[#161821] border-gray-800 hover:bg-[#1e2029]';
         const fullLink = `${PRODUCTION_DOMAIN}?site=${client.docId}`;
-        
         const row = document.createElement('div');
-        row.className = `grid grid-cols-12 gap-2 px-4 py-3 ${bgClass} border-b items-center cursor-pointer transition rounded mb-1 select-none`;
+        row.className = "grid grid-cols-12 gap-2 px-4 py-3 bg-[#161821] border-b border-gray-800 items-center hover:bg-[#1e2029] cursor-pointer transition rounded mb-1";
         
         row.onclick = (e) => {
-            if (isClientSelectionMode) {
-                if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
-                    toggleClientSelection(client.docId);
-                }
-            } else {
-                if(!e.target.closest('a') && !e.target.closest('button')) {
-                    openClientModal(client.docId);
-                }
-            }
+            if(!e.target.closest('a') && !e.target.closest('button')) openClientModal(client.docId);
         };
 
-        const firstCol = isClientSelectionMode 
-            ? `<div class="col-span-1 flex justify-start pl-1"><input type="checkbox" class="w-4 h-4 cursor-pointer pointer-events-none rounded border-gray-600 text-blue-500" ${isChecked}></div>` 
-            : `<div class="col-span-1 text-center text-gray-500 font-bold text-xs">${client.code || '#'}</div>`;
-
         row.innerHTML = `
-            ${firstCol}
-            <div class="col-span-4 font-bold text-white truncate text-sm">${client.name || 'Sem Nome'}</div>
+            <div class="col-span-1 text-center text-white font-bold text-xs">${client.code || '#'}</div>
+            <div class="col-span-4 font-bold text-white truncate text-sm pl-2">${client.name || 'Sem Nome'}</div>
             <div class="col-span-3 text-center flex items-center justify-center gap-2 bg-[#0f1014] border border-gray-700 rounded px-2 py-1">
-                 <a href="${fullLink}" target="_blank" onclick="event.stopPropagation()" class="text-blue-400 text-[10px] truncate w-full hover:underline">.../?site=${client.docId}</a>
-                 <button onclick="event.stopPropagation(); copyToClipboard('${fullLink}')" class="text-gray-500 hover:text-white transition" title="Copiar"><i class="far fa-copy text-xs"></i></button>
+                 <a href="${fullLink}" target="_blank" class="text-blue-400 text-[10px] truncate w-full hover:underline">.../?site=${client.docId}</a>
+                 <button onclick="copyToClipboard('${fullLink}')" class="text-gray-500 hover:text-white transition" title="Copiar"><i class="far fa-copy text-xs"></i></button>
             </div>
-            <div class="col-span-2 text-center text-gray-400 text-[10px]">${client.plan?.name || '30 dias (Mensal)'}</div>
+            <div class="col-span-2 text-center text-gray-400 text-[10px]">${client.plan?.name || 'Mensal'}</div>
             <div class="col-span-2 text-center"><span class="${badgeColor} border px-2 py-1 rounded text-[10px] font-bold uppercase block w-24 mx-auto">${statusText}</span></div>
         `;
         listContainer.appendChild(row);
@@ -589,134 +529,3 @@ window.generateSiteLink = () => { const n = document.getElementById('inp-name').
 window.copyToClipboard = (t) => navigator.clipboard.writeText(t).then(()=>alert("Copiado!"));
 window.closeClientModal = () => { clientModal.classList.add('translate-y-full'); currentDocId=null; }
 window.switchTab = (t) => { document.querySelectorAll('.tab-content').forEach(e=>e.classList.add('hidden')); document.getElementById(`tab-${t}`).classList.remove('hidden'); document.querySelectorAll('.tab-btn').forEach(b=>b.className=b.dataset.target===t?"tab-btn px-3 py-1 text-[10px] font-bold rounded bg-gray-700 text-white":"tab-btn px-3 py-1 text-[10px] font-bold rounded text-gray-400 hover:text-white"); }
-
-
-// =================================================================
-// FUNÇÕES DE AÇÃO EM MASSA (LOTE)
-// =================================================================
-
-// Atualiza a tela baseada no filtro de busca atual
-function refreshClientList() {
-    const searchInput = document.getElementById('search-input');
-    const term = searchInput ? searchInput.value : '';
-    filterClients(term);
-}
-
-// Liga/Desliga o modo de seleção
-window.toggleClientSelectionMode = () => {
-    isClientSelectionMode = !isClientSelectionMode;
-    if (!isClientSelectionMode) selectedClients.clear();
-    
-    // Controle visual dos botões no rodapé
-    const btnSel = document.getElementById('btn-selecionar-lote');
-    const btnCan = document.getElementById('btn-cancelar-lote');
-    
-    if(btnSel && btnCan) {
-        if(isClientSelectionMode) {
-            btnSel.classList.add('hidden');
-            btnCan.classList.remove('hidden');
-        } else {
-            btnSel.classList.remove('hidden');
-            btnCan.classList.add('hidden');
-        }
-    }
-    
-    refreshClientList();
-};
-
-// Seleciona um cliente específico
-window.toggleClientSelection = (docId) => {
-    if (selectedClients.has(docId)) selectedClients.delete(docId);
-    else selectedClients.add(docId);
-    refreshClientList();
-};
-
-// Seleciona Todos da lista atual
-window.toggleSelectAllClients = (checkbox) => {
-    const searchInput = document.getElementById('search-input');
-    const term = searchInput ? searchInput.value.toLowerCase() : '';
-    
-    // Pega só os visíveis se houver filtro
-    const visibleClients = term 
-        ? allClients.filter(c => (c.name||'').toLowerCase().includes(term))
-        : allClients;
-
-    if (checkbox.checked) {
-        visibleClients.forEach(c => selectedClients.add(c.docId));
-    } else {
-        selectedClients.clear();
-    }
-    refreshClientList();
-};
-
-// Pausar/Ativar em Lote
-window.bulkChangeStatus = async (newStatus) => {
-    const count = selectedClients.size;
-    let actionText = newStatus === 'ativo' ? 'ATIVAR' : 'PAUSAR';
-    
-    if(!confirm(`Tem certeza que deseja ${actionText} ${count} loja(s)?`)) return;
-
-    try {
-        // Mostra loading no botão
-        document.body.style.cursor = 'wait';
-        
-        const updatePromises = Array.from(selectedClients).map(docId => {
-            const isActive = newStatus === 'ativo';
-            return updateDoc(doc(db, "sites", docId), { status: newStatus, active: isActive });
-        });
-        
-        await Promise.all(updatePromises);
-        
-        alert(`${count} loja(s) atualizada(s) para ${newStatus.toUpperCase()}!`);
-        selectedClients.clear();
-        isClientSelectionMode = false;
-        await loadClients(); // Recarrega do banco
-        
-    } catch (e) {
-        console.error("Erro em lote:", e);
-        alert("Erro ao atualizar em lote.");
-    } finally {
-        document.body.style.cursor = 'default';
-    }
-};
-
-// Excluir em Lote (Com limpeza profunda)
-window.bulkDeleteClients = async () => {
-    const count = selectedClients.size;
-    const confirmacao = prompt(`ATENÇÃO EXTREMA!\n\nVocê está prestes a EXCLUIR DEFINITIVAMENTE ${count} loja(s) e TODOS os seus dados (produtos, vendas, etc).\n\nDigite DELETAR para confirmar:`);
-    
-    if(confirmacao !== "DELETAR") return alert("Ação cancelada.");
-
-    try {
-        document.body.style.cursor = 'wait';
-        const subcollections = ['products', 'categories', 'sales', 'orders', 'coupons', 'settings', 'dailyStats'];
-        
-        // Exclui loja por loja para garantir que todas as subcoleções sejam limpas
-        for (const docId of selectedClients) {
-            console.log(`Apagando dados da loja: ${docId}`);
-            
-            for (const subColName of subcollections) {
-                const colRef = collection(db, `sites/${docId}/${subColName}`); 
-                const snapshot = await getDocs(colRef);
-                
-                if (!snapshot.empty) {
-                    const deletePromises = snapshot.docs.map(docSnap => deleteDoc(docSnap.ref));
-                    await Promise.all(deletePromises);
-                }
-            }
-            // Apaga documento raiz
-            await deleteDoc(doc(db, "sites", docId));
-        }
-
-        alert(`SUCESSO: ${count} loja(s) apagada(s) permanentemente.`);
-        selectedClients.clear();
-        isClientSelectionMode = false;
-        await loadClients();
-
-    } catch (e) {
-        console.error("Erro exclusão lote:", e);
-        alert("Erro durante a exclusão em lote. Veja o console (F12).");
-    } finally {
-        document.body.style.cursor = 'default';
-    }
-};

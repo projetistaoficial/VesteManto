@@ -65,62 +65,68 @@ function renderClients(clients) {
     listContainer.innerHTML = '';
     
     // --- 1. BARRA DE CONTROLES EM MASSA ---
-    if (isClientSelectionMode) {
-        const controlsBar = document.createElement('div');
-        controlsBar.className = "flex flex-wrap justify-between items-center bg-[#161821] p-3 rounded-t-lg border-b border-gray-800 mb-2 gap-2 sticky top-0 z-10 shadow-md";
-        
-        const count = selectedClients.size;
-        const allSelected = clients.length > 0 && clients.every(c => selectedClients.has(c.docId));
-        
-        controlsBar.innerHTML = `
-            <div class="flex items-center gap-3 pl-2">
-                <input type="checkbox" id="master-check-clients" onchange="toggleSelectAllClients(this)" ${allSelected ? 'checked' : ''} class="cursor-pointer w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-0">
-                <label for="master-check-clients" class="text-xs text-gray-400 font-bold uppercase tracking-wider cursor-pointer select-none hover:text-white transition">
-                    Selecionar Todos
-                </label>
-            </div>
-            
-            <div class="flex items-center gap-2">
-                ${count > 0 ? `
-                    <span class="text-white text-[10px] font-bold bg-blue-600 px-3 py-1.5 rounded">${count} Loja${count > 1 ? 's' : ''}</span>
-                    <button onclick="bulkChangeStatus('ativo')" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shadow-sm">
-                        <i class="fas fa-play"></i> Ativar
-                    </button>
-                    <button onclick="bulkChangeStatus('pausado')" class="bg-yellow-500 hover:bg-yellow-400 text-black px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shadow-sm">
-                        <i class="fas fa-pause"></i> Pausar
-                    </button>
-                    <button onclick="bulkChangeStatus('bloqueado')" class="bg-red-900 hover:bg-red-800 text-white px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 border border-red-700 shadow-sm">
-                        <i class="fas fa-lock"></i> Bloquear
-                    </button>
-                    <div class="w-px h-6 bg-gray-700 mx-1"></div>
-                    <button onclick="bulkDeleteClients()" class="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shadow-sm">
-                        <i class="fas fa-trash"></i> Excluir
-                    </button>
-                ` : `
-                    <span class="text-gray-500 text-[10px] font-bold px-3 py-1.5">Selecione clientes para ver as ações</span>
-                `}
+    const controlsBar = document.createElement('div');
+    controlsBar.className = "flex flex-wrap justify-between items-center bg-[#161821] p-3 rounded-t-lg border-b border-gray-800 mb-1 gap-2 sticky top-0 z-10 shadow-md";
+    
+    const selectBtnText = isClientSelectionMode ? '<i class="fas fa-times mr-2"></i> Cancelar' : '<i class="fas fa-check-square mr-2"></i> Selecionar Lote';
+    const selectBtnClass = isClientSelectionMode 
+        ? "text-red-400 hover:text-red-300 text-xs font-bold uppercase py-1.5 px-3 bg-red-900/20 rounded border border-red-900/50 transition" 
+        : "text-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase py-1.5 px-3 hover:bg-yellow-900/20 border border-transparent hover:border-yellow-900/50 rounded transition";
+
+    let bulkActionsHTML = '';
+    if (isClientSelectionMode && selectedClients.size > 0) {
+        bulkActionsHTML = `
+            <div class="flex items-center gap-2 animate-fade-in bg-black p-1 rounded-lg border border-gray-700">
+                <span class="text-white text-[10px] font-bold bg-blue-600 px-2 py-1.5 rounded ml-1">${selectedClients.size} Lojas</span>
+                
+                <button onclick="bulkChangeStatus('ativo')" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1" title="Ativar Todos">
+                    <i class="fas fa-play"></i> <span class="hidden sm:inline">Ativar</span>
+                </button>
+                
+                <button onclick="bulkChangeStatus('pausado')" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1" title="Pausar Todos">
+                    <i class="fas fa-pause"></i> <span class="hidden sm:inline">Pausar</span>
+                </button>
+                
+                <div class="w-px h-6 bg-gray-700 mx-1"></div>
+                
+                <button onclick="bulkDeleteClients()" class="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1" title="Excluir Todos">
+                    <i class="fas fa-trash"></i> <span class="hidden sm:inline">Excluir</span>
+                </button>
             </div>
         `;
-        listContainer.appendChild(controlsBar);
     }
+
+    const allSelected = clients.length > 0 && clients.every(c => selectedClients.has(c.docId));
+    const masterCheckHTML = isClientSelectionMode 
+        ? `<input type="checkbox" onchange="toggleSelectAllClients(this)" ${allSelected ? 'checked' : ''} class="cursor-pointer w-4 h-4 ml-3 rounded border-gray-600 bg-gray-900 text-yellow-500 focus:ring-0">` 
+        : '';
+
+    controlsBar.innerHTML = `
+        <div class="flex items-center">
+            <button onclick="toggleClientSelectionMode()" class="${selectBtnClass}">${selectBtnText}</button>
+            ${masterCheckHTML}
+        </div>
+        ${bulkActionsHTML}
+    `;
+    listContainer.appendChild(controlsBar);
 
     // --- 2. VERIFICA SE ESTÁ VAZIO ---
     if (clients.length === 0) {
-        listContainer.innerHTML += '<div class="text-center text-gray-500 mt-10 text-xs py-8 bg-[#161821] rounded-lg">Nenhum cliente encontrado</div>';
+        listContainer.innerHTML += '<div class="text-center text-gray-500 mt-10 text-xs py-8 bg-[#161821] rounded-b-lg">Nenhum cliente encontrado</div>';
         return;
     }
 
     // --- 3. RENDERIZA OS CLIENTES ---
     clients.forEach(client => {
         let badgeColor = 'text-green-500 bg-green-900/20 border-green-900';
-        let statusText = 'ATIVO';
+        let statusText = 'Ativo';
 
         if (client.status === 'pausado') {
             badgeColor = 'text-yellow-500 bg-yellow-900/20 border-yellow-900';
-            statusText = 'PAUSADO';
+            statusText = 'Pausado';
         } else if (client.status === 'bloqueado' || client.active === false) {
             badgeColor = 'text-red-500 bg-red-900/20 border-red-900';
-            statusText = 'BLOQUEADO';
+            statusText = 'Bloqueado';
         }
 
         const isChecked = selectedClients.has(client.docId) ? 'checked' : '';
@@ -130,6 +136,7 @@ function renderClients(clients) {
         const row = document.createElement('div');
         row.className = `grid grid-cols-12 gap-2 px-4 py-3 ${bgClass} border-b items-center cursor-pointer transition rounded mb-1 select-none`;
         
+        // Lógica do clique (Abre modal ou seleciona)
         row.onclick = (e) => {
             if (isClientSelectionMode) {
                 if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
@@ -143,17 +150,17 @@ function renderClients(clients) {
         };
 
         const firstCol = isClientSelectionMode 
-            ? `<div class="col-span-1 flex justify-start pl-1"><input type="checkbox" class="w-4 h-4 cursor-pointer pointer-events-none rounded border-gray-600 text-blue-500" ${isChecked}></div>` 
+            ? `<div class="col-span-1 flex justify-center"><input type="checkbox" class="w-4 h-4 cursor-pointer pointer-events-none rounded border-gray-600 text-yellow-500" ${isChecked}></div>` 
             : `<div class="col-span-1 text-center text-gray-500 font-bold text-xs">${client.code || '#'}</div>`;
 
         row.innerHTML = `
             ${firstCol}
-            <div class="col-span-4 font-bold text-white truncate text-sm">${client.name || 'Sem Nome'}</div>
+            <div class="col-span-4 font-bold text-white truncate text-sm pl-2">${client.name || 'Sem Nome'}</div>
             <div class="col-span-3 text-center flex items-center justify-center gap-2 bg-[#0f1014] border border-gray-700 rounded px-2 py-1">
                  <a href="${fullLink}" target="_blank" onclick="event.stopPropagation()" class="text-blue-400 text-[10px] truncate w-full hover:underline">.../?site=${client.docId}</a>
                  <button onclick="event.stopPropagation(); copyToClipboard('${fullLink}')" class="text-gray-500 hover:text-white transition" title="Copiar"><i class="far fa-copy text-xs"></i></button>
             </div>
-            <div class="col-span-2 text-center text-gray-400 text-[10px]">${client.plan?.name || '30 dias (Mensal)'}</div>
+            <div class="col-span-2 text-center text-gray-400 text-[10px]">${client.plan?.name || 'Mensal'}</div>
             <div class="col-span-2 text-center"><span class="${badgeColor} border px-2 py-1 rounded text-[10px] font-bold uppercase block w-24 mx-auto">${statusText}</span></div>
         `;
         listContainer.appendChild(row);
@@ -606,21 +613,6 @@ function refreshClientList() {
 window.toggleClientSelectionMode = () => {
     isClientSelectionMode = !isClientSelectionMode;
     if (!isClientSelectionMode) selectedClients.clear();
-    
-    // Controle visual dos botões no rodapé
-    const btnSel = document.getElementById('btn-selecionar-lote');
-    const btnCan = document.getElementById('btn-cancelar-lote');
-    
-    if(btnSel && btnCan) {
-        if(isClientSelectionMode) {
-            btnSel.classList.add('hidden');
-            btnCan.classList.remove('hidden');
-        } else {
-            btnSel.classList.remove('hidden');
-            btnCan.classList.add('hidden');
-        }
-    }
-    
     refreshClientList();
 };
 

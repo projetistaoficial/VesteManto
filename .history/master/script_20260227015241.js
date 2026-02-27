@@ -64,7 +64,7 @@ async function loadClients() {
 function renderClients(clients) {
     listContainer.innerHTML = '';
     
-    // --- 1. BARRA DE CONTROLES EM MASSA ---
+    // --- 1. BARRA DE CONTROLES EM MASSA (Estilo da Imagem) ---
     if (isClientSelectionMode) {
         const controlsBar = document.createElement('div');
         controlsBar.className = "flex flex-wrap justify-between items-center bg-[#161821] p-3 rounded-t-lg border-b border-gray-800 mb-2 gap-2 sticky top-0 z-10 shadow-md";
@@ -73,11 +73,11 @@ function renderClients(clients) {
         const allSelected = clients.length > 0 && clients.every(c => selectedClients.has(c.docId));
         
         controlsBar.innerHTML = `
-            <div class="flex items-center gap-3 pl-2">
-                <input type="checkbox" id="master-check-clients" onchange="toggleSelectAllClients(this)" ${allSelected ? 'checked' : ''} class="cursor-pointer w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-0">
-                <label for="master-check-clients" class="text-xs text-gray-400 font-bold uppercase tracking-wider cursor-pointer select-none hover:text-white transition">
-                    Selecionar Todos
-                </label>
+            <div class="flex items-center gap-4">
+                <button onclick="toggleClientSelectionMode()" class="text-red-500 hover:text-red-400 text-xs font-bold uppercase py-1.5 px-3 bg-red-900/20 rounded border border-red-900 transition flex items-center gap-2">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <input type="checkbox" onchange="toggleSelectAllClients(this)" ${allSelected ? 'checked' : ''} class="cursor-pointer w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-0">
             </div>
             
             <div class="flex items-center gap-2">
@@ -130,6 +130,7 @@ function renderClients(clients) {
         const row = document.createElement('div');
         row.className = `grid grid-cols-12 gap-2 px-4 py-3 ${bgClass} border-b items-center cursor-pointer transition rounded mb-1 select-none`;
         
+        // Lógica do clique (Abre modal ou seleciona na caixinha)
         row.onclick = (e) => {
             if (isClientSelectionMode) {
                 if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
@@ -606,21 +607,6 @@ function refreshClientList() {
 window.toggleClientSelectionMode = () => {
     isClientSelectionMode = !isClientSelectionMode;
     if (!isClientSelectionMode) selectedClients.clear();
-    
-    // Controle visual dos botões no rodapé
-    const btnSel = document.getElementById('btn-selecionar-lote');
-    const btnCan = document.getElementById('btn-cancelar-lote');
-    
-    if(btnSel && btnCan) {
-        if(isClientSelectionMode) {
-            btnSel.classList.add('hidden');
-            btnCan.classList.remove('hidden');
-        } else {
-            btnSel.classList.remove('hidden');
-            btnCan.classList.add('hidden');
-        }
-    }
-    
     refreshClientList();
 };
 

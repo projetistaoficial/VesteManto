@@ -606,21 +606,6 @@ function refreshClientList() {
 window.toggleClientSelectionMode = () => {
     isClientSelectionMode = !isClientSelectionMode;
     if (!isClientSelectionMode) selectedClients.clear();
-    
-    // Controle visual dos botões no rodapé
-    const btnSel = document.getElementById('btn-selecionar-lote');
-    const btnCan = document.getElementById('btn-cancelar-lote');
-    
-    if(btnSel && btnCan) {
-        if(isClientSelectionMode) {
-            btnSel.classList.add('hidden');
-            btnCan.classList.remove('hidden');
-        } else {
-            btnSel.classList.remove('hidden');
-            btnCan.classList.add('hidden');
-        }
-    }
-    
     refreshClientList();
 };
 

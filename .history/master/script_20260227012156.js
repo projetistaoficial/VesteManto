@@ -18,10 +18,6 @@ const PRODUCTION_DOMAIN = "https://projetistaoficial.github.io/VesteManto/";
 let allClients = [];
 let currentDocId = null;
 let currentClientOrders = []; 
-let currentClientProducts = [];
-
-let isClientSelectionMode = false;
-let selectedClients = new Set();
 
 const listContainer = document.getElementById('clients-list');
 const clientModal = document.getElementById('client-modal');
@@ -63,97 +59,40 @@ async function loadClients() {
 
 function renderClients(clients) {
     listContainer.innerHTML = '';
-    
-    // --- 1. BARRA DE CONTROLES EM MASSA ---
-    if (isClientSelectionMode) {
-        const controlsBar = document.createElement('div');
-        controlsBar.className = "flex flex-wrap justify-between items-center bg-[#161821] p-3 rounded-t-lg border-b border-gray-800 mb-2 gap-2 sticky top-0 z-10 shadow-md";
-        
-        const count = selectedClients.size;
-        const allSelected = clients.length > 0 && clients.every(c => selectedClients.has(c.docId));
-        
-        controlsBar.innerHTML = `
-            <div class="flex items-center gap-3 pl-2">
-                <input type="checkbox" id="master-check-clients" onchange="toggleSelectAllClients(this)" ${allSelected ? 'checked' : ''} class="cursor-pointer w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-0">
-                <label for="master-check-clients" class="text-xs text-gray-400 font-bold uppercase tracking-wider cursor-pointer select-none hover:text-white transition">
-                    Selecionar Todos
-                </label>
-            </div>
-            
-            <div class="flex items-center gap-2">
-                ${count > 0 ? `
-                    <span class="text-white text-[10px] font-bold bg-blue-600 px-3 py-1.5 rounded">${count} Loja${count > 1 ? 's' : ''}</span>
-                    <button onclick="bulkChangeStatus('ativo')" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shadow-sm">
-                        <i class="fas fa-play"></i> Ativar
-                    </button>
-                    <button onclick="bulkChangeStatus('pausado')" class="bg-yellow-500 hover:bg-yellow-400 text-black px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shadow-sm">
-                        <i class="fas fa-pause"></i> Pausar
-                    </button>
-                    <button onclick="bulkChangeStatus('bloqueado')" class="bg-red-900 hover:bg-red-800 text-white px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 border border-red-700 shadow-sm">
-                        <i class="fas fa-lock"></i> Bloquear
-                    </button>
-                    <div class="w-px h-6 bg-gray-700 mx-1"></div>
-                    <button onclick="bulkDeleteClients()" class="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shadow-sm">
-                        <i class="fas fa-trash"></i> Excluir
-                    </button>
-                ` : `
-                    <span class="text-gray-500 text-[10px] font-bold px-3 py-1.5">Selecione clientes para ver as ações</span>
-                `}
-            </div>
-        `;
-        listContainer.appendChild(controlsBar);
-    }
-
-    // --- 2. VERIFICA SE ESTÁ VAZIO ---
     if (clients.length === 0) {
-        listContainer.innerHTML += '<div class="text-center text-gray-500 mt-10 text-xs py-8 bg-[#161821] rounded-lg">Nenhum cliente encontrado</div>';
+        listContainer.innerHTML = '<div class="text-center text-gray-500 mt-10 text-xs">Nenhum cliente</div>';
         return;
     }
 
-    // --- 3. RENDERIZA OS CLIENTES ---
     clients.forEach(client => {
         let badgeColor = 'text-green-500 bg-green-900/20 border-green-900';
-        let statusText = 'ATIVO';
+        let statusText = 'Ativo';
 
+        // Lógica de Status
         if (client.status === 'pausado') {
             badgeColor = 'text-yellow-500 bg-yellow-900/20 border-yellow-900';
-            statusText = 'PAUSADO';
+            statusText = 'Pausado';
         } else if (client.status === 'bloqueado' || client.active === false) {
             badgeColor = 'text-red-500 bg-red-900/20 border-red-900';
-            statusText = 'BLOQUEADO';
+            statusText = 'Bloqueado';
         }
 
-        const isChecked = selectedClients.has(client.docId) ? 'checked' : '';
-        const bgClass = selectedClients.has(client.docId) ? 'bg-blue-900/20 border-blue-900/50' : 'bg-[#161821] border-gray-800 hover:bg-[#1e2029]';
         const fullLink = `${PRODUCTION_DOMAIN}?site=${client.docId}`;
-        
         const row = document.createElement('div');
-        row.className = `grid grid-cols-12 gap-2 px-4 py-3 ${bgClass} border-b items-center cursor-pointer transition rounded mb-1 select-none`;
+        row.className = "grid grid-cols-12 gap-2 px-4 py-3 bg-[#161821] border-b border-gray-800 items-center hover:bg-[#1e2029] cursor-pointer transition rounded mb-1";
         
         row.onclick = (e) => {
-            if (isClientSelectionMode) {
-                if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
-                    toggleClientSelection(client.docId);
-                }
-            } else {
-                if(!e.target.closest('a') && !e.target.closest('button')) {
-                    openClientModal(client.docId);
-                }
-            }
+            if(!e.target.closest('a') && !e.target.closest('button')) openClientModal(client.docId);
         };
 
-        const firstCol = isClientSelectionMode 
-            ? `<div class="col-span-1 flex justify-start pl-1"><input type="checkbox" class="w-4 h-4 cursor-pointer pointer-events-none rounded border-gray-600 text-blue-500" ${isChecked}></div>` 
-            : `<div class="col-span-1 text-center text-gray-500 font-bold text-xs">${client.code || '#'}</div>`;
-
         row.innerHTML = `
-            ${firstCol}
-            <div class="col-span-4 font-bold text-white truncate text-sm">${client.name || 'Sem Nome'}</div>
+            <div class="col-span-1 text-center text-white font-bold text-xs">${client.code || '#'}</div>
+            <div class="col-span-4 font-bold text-white truncate text-sm pl-2">${client.name || 'Sem Nome'}</div>
             <div class="col-span-3 text-center flex items-center justify-center gap-2 bg-[#0f1014] border border-gray-700 rounded px-2 py-1">
-                 <a href="${fullLink}" target="_blank" onclick="event.stopPropagation()" class="text-blue-400 text-[10px] truncate w-full hover:underline">.../?site=${client.docId}</a>
-                 <button onclick="event.stopPropagation(); copyToClipboard('${fullLink}')" class="text-gray-500 hover:text-white transition" title="Copiar"><i class="far fa-copy text-xs"></i></button>
+                 <a href="${fullLink}" target="_blank" class="text-blue-400 text-[10px] truncate w-full hover:underline">.../?site=${client.docId}</a>
+                 <button onclick="copyToClipboard('${fullLink}')" class="text-gray-500 hover:text-white transition" title="Copiar"><i class="far fa-copy text-xs"></i></button>
             </div>
-            <div class="col-span-2 text-center text-gray-400 text-[10px]">${client.plan?.name || '30 dias (Mensal)'}</div>
+            <div class="col-span-2 text-center text-gray-400 text-[10px]">${client.plan?.name || 'Mensal'}</div>
             <div class="col-span-2 text-center"><span class="${badgeColor} border px-2 py-1 rounded text-[10px] font-bold uppercase block w-24 mx-auto">${statusText}</span></div>
         `;
         listContainer.appendChild(row);
@@ -220,42 +159,30 @@ async function openClientModal(docId = null) {
     switchTab('cadastro');
 }
 
-// =================================================================
-// --- MÓDULO FINANCEIRO DO PAINEL MESTRE ---
-// =================================================================
-
-// =================================================================
-// --- MÓDULO FINANCEIRO DO PAINEL MESTRE ---
-// =================================================================
-
+// --- FINANCEIRO ---
 async function loadFinancials(siteId) {
-    resetFinancialUI(); 
+    resetFinancialUI(); // Limpa visualmente antes de carregar
     
     try {
-        currentClientOrders = []; 
-        currentClientProducts = []; 
+        currentClientOrders = []; // Zera a lista para preencher
 
-        // 1. BUSCA O ESTOQUE (Necessário para o Capital de Giro)
-        let productsRef = collection(db, `sites/${siteId}/products`);
-        let productsSnap = await getDocs(productsRef);
-        productsSnap.forEach(doc => {
-            currentClientProducts.push({ id: doc.id, ...doc.data() });
-        });
-
-        // 2. BUSCA VENDAS (Coleção 'sales' - atual)
+        // 1. Busca na coleção NOVA ('sales' - onde os pedidos atuais caem)
         let salesRef = collection(db, `sites/${siteId}/sales`);
         let salesSnap = await getDocs(salesRef);
+        
         salesSnap.forEach(doc => {
             const d = doc.data();
             let dateObj = new Date();
+            // Aceita o formato novo (date) ou antigo (createdAt)
             if (d.date) dateObj = new Date(d.date);
             else if (d.createdAt) dateObj = d.createdAt.toDate ? d.createdAt.toDate() : new Date(d.createdAt);
             currentClientOrders.push({ ...d, dateObj });
         });
 
-        // 3. BUSCA VENDAS LEGADAS (Coleção 'orders' - antigas)
+        // 2. Busca na coleção ANTIGA ('orders' - legado/clientes velhos)
         let ordersRef = collection(db, `sites/${siteId}/orders`);
         let ordersSnap = await getDocs(ordersRef);
+
         ordersSnap.forEach(doc => {
             const d = doc.data();
             let dateObj = new Date();
@@ -264,63 +191,68 @@ async function loadFinancials(siteId) {
             currentClientOrders.push({ ...d, dateObj });
         });
 
-        // Força a UI a começar exibindo "TUDO" E CHAMA O CÁLCULO
-        setFinancialFilterType('tudo');
+        // 3. Se AMBAS estiverem vazias, tenta a global (Fallback do seu código original)
+        if (salesSnap.empty && ordersSnap.empty) {
+            console.log("Subcoleções vazias. Tentando busca global...");
+            const q = query(collection(db, "orders"), where("siteId", "==", siteId));
+            const globalSnap = await getDocs(q);
+            
+            globalSnap.forEach(doc => {
+                const d = doc.data();
+                let dateObj = new Date();
+                if (d.date) dateObj = new Date(d.date);
+                else if (d.createdAt) dateObj = d.createdAt.toDate ? d.createdAt.toDate() : new Date(d.createdAt);
+                currentClientOrders.push({ ...d, dateObj });
+            });
+        }
+
+        // Chama a função para calcular os totais
+        calculateAndRenderStats();
 
     } catch (error) {
-        console.error("Erro Financeiro:", error);
-        const elRev = document.getElementById('fin-faturamento');
+        console.error("Erro Financeiro (Verifique as Regras do Firestore):", error);
+        // Fallback pro id em português ou inglês dependendo do seu HTML
+        const elRev = document.getElementById('fin-revenue') || document.getElementById('fin-faturamento');
         if (elRev) elRev.innerText = "Erro Perm.";
     }
 }
 
 function calculateAndRenderStats(startDate = null, endDate = null) {
     let totalOrders = 0, confirmedSales = 0, totalRevenue = 0, totalCosts = 0;
-    let capitalGiro = 0;
     
-    // --- 1. CÁLCULO DE CAPITAL DE GIRO ---
-    currentClientProducts.forEach(p => {
-        const stock = parseInt(p.stock) || 0;
-        if (stock > 0) {
-            // PRIORIDADE: Usa o CUSTO do produto (Capital Real Investido)
-            let val = parseFloat(p.cost);
-            
-            // FALLBACK: Se o lojista não preencheu o Custo, usa o preço de venda para não zerar
-            if (isNaN(val) || val <= 0) {
-                val = parseFloat(p.promoPrice) || parseFloat(p.price) || 0;
-            }
-            
-            capitalGiro += (stock * val);
-        }
-    });
-
-    const elCapital = document.getElementById('fin-capital-giro');
-    if (elCapital) elCapital.innerText = formatMoney(capitalGiro);
-
-    // --- 2. CÁLCULO DE VENDAS E LUCROS ---
-    const validStatuses = ['confirmado', 'entregue', 'concluído', 'concluido'];
+    // LISTA DE STATUS QUE SOMAM DINHEIRO NO PAINEL (Híbrida: Novo + Antigo)
+    const validStatuses = [
+        'aguardando aprovação', // Novos
+        'pendente',             // Antigo (Legado)
+        'aprovado',             // Novos
+        'confirmado',           // Antigo (Legado - É AQUI QUE ESTÃO SUAS 2 VENDAS!)
+        'preparando pedido',    // Novos
+        'saiu para entrega',    // Novos
+        'entregue',             // Universal
+        'concluído',            // Universal
+        'concluido'             // Sem acento (Garantia)
+    ];
 
     currentClientOrders.forEach(order => {
-        // FILTRO DE DATA
         if (startDate && endDate) {
-            // Se a data do pedido for menor que a data inicial ou maior que a final, pula
             if (order.dateObj < startDate || order.dateObj > endDate) return;
         }
 
-        totalOrders++; // Contabiliza a intenção de compra
+        totalOrders++; // Conta a quantidade total de pedidos na bolha
         const status = (order.status || '').toLowerCase().trim();
 
+        // Se o status da venda estiver na lista de aprovados acima, soma o dinheiro
         if (validStatuses.includes(status)) {
-            confirmedSales++; // Venda finalizada
+            confirmedSales++; // Conta como venda efetuada
             
-            // Faturamento
+            // 1. Soma Faturamento
             let val = order.total || 0;
             if (typeof val === 'string') {
                 val = parseFloat(val.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
             }
             totalRevenue += val;
 
-            // Custos
+            // 2. Soma Custo (Calculando de dentro dos itens do carrinho)
             let orderCost = 0;
             if (order.items && Array.isArray(order.items)) {
                 order.items.forEach(item => {
@@ -333,7 +265,7 @@ function calculateAndRenderStats(startDate = null, endDate = null) {
         }
     });
 
-    // --- 3. ATUALIZAÇÃO VISUAL ---
+    // Atualiza os elementos visuais na tela
     animateValue("fin-pedidos", totalOrders);
     animateValue("fin-vendas", confirmedSales);
     
@@ -347,83 +279,33 @@ function calculateAndRenderStats(startDate = null, endDate = null) {
     const elLucro = document.getElementById('fin-lucro');
     if (elLucro) {
         elLucro.innerText = formatMoney(profit);
-        elLucro.className = profit >= 0 ? "text-2xl font-bold text-green-400" : "text-2xl font-bold text-red-500";
+        elLucro.className = profit >= 0 ? "text-2xl font-bold text-white" : "text-2xl font-bold text-red-500";
     }
 }
 
-// --- CONTROLES DE FILTRO (TUDO / PERÍODO) ---
-window.setFinancialFilterType = (type) => {
-    const btnTudo = document.getElementById('btn-fin-tudo');
-    const btnPeriodo = document.getElementById('btn-fin-periodo');
-    const dateContainer = document.getElementById('fin-date-container');
-
-    if (type === 'tudo') {
-        if(btnTudo) btnTudo.className = "px-4 py-1.5 text-xs font-bold rounded-md transition-colors bg-green-500 text-white shadow";
-        if(btnPeriodo) btnPeriodo.className = "px-4 py-1.5 text-xs font-bold rounded-md transition-colors bg-transparent text-gray-400 hover:text-white";
-        
-        if(dateContainer) {
-            dateContainer.classList.add('hidden');
-            dateContainer.classList.remove('flex');
-        }
-
-        // Limpa as datas na UI e calcula tudo sem filtro
-        if (document.getElementById('fin-data-inicio')) document.getElementById('fin-data-inicio').value = '';
-        if (document.getElementById('fin-data-fim')) document.getElementById('fin-data-fim').value = '';
-        
-        calculateAndRenderStats(null, null);
-
-    } else {
-        if(btnPeriodo) btnPeriodo.className = "px-4 py-1.5 text-xs font-bold rounded-md transition-colors bg-green-500 text-white shadow";
-        if(btnTudo) btnTudo.className = "px-4 py-1.5 text-xs font-bold rounded-md transition-colors bg-transparent text-gray-400 hover:text-white";
-        
-        if(dateContainer) {
-            dateContainer.classList.remove('hidden');
-            dateContainer.classList.add('flex');
-        }
-        
-        // Dispara o filtro para aplicar o que tiver no input de data (se já tiver)
-        applyFinancialFilter();
-    }
-};
-
+// --- FILTROS DE DATA ---
 window.applyFinancialFilter = () => {
-    // Se o filtro "Tudo" estiver ativo, aborta a busca
-    const dateContainer = document.getElementById('fin-date-container');
-    if (dateContainer && dateContainer.classList.contains('hidden')) {
-        return;
-    }
-
-    const s = document.getElementById('fin-data-inicio')?.value;
-    const e = document.getElementById('fin-data-fim')?.value;
+    const s = document.getElementById('fin-data-inicio').value;
+    const e = document.getElementById('fin-data-fim').value;
+    if(!s || !e) return alert("Selecione as datas");
     
-    // Se faltar alguma data, calcula como nulo
-    if(!s || !e) {
-        calculateAndRenderStats(null, null);
-        return;
-    }
-    
-    // Data inicio (00:00:00)
     const dS = new Date(s); dS.setHours(0,0,0,0);
-    // Data Fim (23:59:59 do dia escolhido - previne timezone)
     const dE = new Date(e); dE.setHours(23,59,59,999);
-    
     calculateAndRenderStats(dS, dE);
-};
+}
+
+window.clearFinancialFilter = () => {
+    document.getElementById('fin-data-inicio').value = '';
+    document.getElementById('fin-data-fim').value = '';
+    calculateAndRenderStats(null, null);
+}
 
 // --- UTILS ---
 function resetFinancialUI() {
-    ['fin-pedidos', 'fin-vendas'].forEach(id => {
-        const el = document.getElementById(id);
-        if(el) el.innerText = '-';
-    });
-    ['fin-faturamento', 'fin-custos', 'fin-lucro'].forEach(id => {
-        const el = document.getElementById(id);
-        if(el) el.innerText = 'R$ 0,00';
-    });
-    
-    if(document.getElementById('fin-data-inicio')) document.getElementById('fin-data-inicio').value = '';
-    if(document.getElementById('fin-data-fim')) document.getElementById('fin-data-fim').value = '';
-    if(document.getElementById('fin-capital-giro')) document.getElementById('fin-capital-giro').innerText = 'R$ 0,00';
+    ['fin-pedidos', 'fin-vendas'].forEach(id => document.getElementById(id).innerText = '-');
+    ['fin-faturamento', 'fin-custos', 'fin-lucro'].forEach(id => document.getElementById(id).innerText = '...');
+    document.getElementById('fin-data-inicio').value = '';
+    document.getElementById('fin-data-fim').value = '';
 }
 
 function updateStatusBadge(status, active) {
@@ -589,134 +471,3 @@ window.generateSiteLink = () => { const n = document.getElementById('inp-name').
 window.copyToClipboard = (t) => navigator.clipboard.writeText(t).then(()=>alert("Copiado!"));
 window.closeClientModal = () => { clientModal.classList.add('translate-y-full'); currentDocId=null; }
 window.switchTab = (t) => { document.querySelectorAll('.tab-content').forEach(e=>e.classList.add('hidden')); document.getElementById(`tab-${t}`).classList.remove('hidden'); document.querySelectorAll('.tab-btn').forEach(b=>b.className=b.dataset.target===t?"tab-btn px-3 py-1 text-[10px] font-bold rounded bg-gray-700 text-white":"tab-btn px-3 py-1 text-[10px] font-bold rounded text-gray-400 hover:text-white"); }
-
-
-// =================================================================
-// FUNÇÕES DE AÇÃO EM MASSA (LOTE)
-// =================================================================
-
-// Atualiza a tela baseada no filtro de busca atual
-function refreshClientList() {
-    const searchInput = document.getElementById('search-input');
-    const term = searchInput ? searchInput.value : '';
-    filterClients(term);
-}
-
-// Liga/Desliga o modo de seleção
-window.toggleClientSelectionMode = () => {
-    isClientSelectionMode = !isClientSelectionMode;
-    if (!isClientSelectionMode) selectedClients.clear();
-    
-    // Controle visual dos botões no rodapé
-    const btnSel = document.getElementById('btn-selecionar-lote');
-    const btnCan = document.getElementById('btn-cancelar-lote');
-    
-    if(btnSel && btnCan) {
-        if(isClientSelectionMode) {
-            btnSel.classList.add('hidden');
-            btnCan.classList.remove('hidden');
-        } else {
-            btnSel.classList.remove('hidden');
-            btnCan.classList.add('hidden');
-        }
-    }
-    
-    refreshClientList();
-};
-
-// Seleciona um cliente específico
-window.toggleClientSelection = (docId) => {
-    if (selectedClients.has(docId)) selectedClients.delete(docId);
-    else selectedClients.add(docId);
-    refreshClientList();
-};
-
-// Seleciona Todos da lista atual
-window.toggleSelectAllClients = (checkbox) => {
-    const searchInput = document.getElementById('search-input');
-    const term = searchInput ? searchInput.value.toLowerCase() : '';
-    
-    // Pega só os visíveis se houver filtro
-    const visibleClients = term 
-        ? allClients.filter(c => (c.name||'').toLowerCase().includes(term))
-        : allClients;
-
-    if (checkbox.checked) {
-        visibleClients.forEach(c => selectedClients.add(c.docId));
-    } else {
-        selectedClients.clear();
-    }
-    refreshClientList();
-};
-
-// Pausar/Ativar em Lote
-window.bulkChangeStatus = async (newStatus) => {
-    const count = selectedClients.size;
-    let actionText = newStatus === 'ativo' ? 'ATIVAR' : 'PAUSAR';
-    
-    if(!confirm(`Tem certeza que deseja ${actionText} ${count} loja(s)?`)) return;
-
-    try {
-        // Mostra loading no botão
-        document.body.style.cursor = 'wait';
-        
-        const updatePromises = Array.from(selectedClients).map(docId => {
-            const isActive = newStatus === 'ativo';
-            return updateDoc(doc(db, "sites", docId), { status: newStatus, active: isActive });
-        });
-        
-        await Promise.all(updatePromises);
-        
-        alert(`${count} loja(s) atualizada(s) para ${newStatus.toUpperCase()}!`);
-        selectedClients.clear();
-        isClientSelectionMode = false;
-        await loadClients(); // Recarrega do banco
-        
-    } catch (e) {
-        console.error("Erro em lote:", e);
-        alert("Erro ao atualizar em lote.");
-    } finally {
-        document.body.style.cursor = 'default';
-    }
-};
-
-// Excluir em Lote (Com limpeza profunda)
-window.bulkDeleteClients = async () => {
-    const count = selectedClients.size;
-    const confirmacao = prompt(`ATENÇÃO EXTREMA!\n\nVocê está prestes a EXCLUIR DEFINITIVAMENTE ${count} loja(s) e TODOS os seus dados (produtos, vendas, etc).\n\nDigite DELETAR para confirmar:`);
-    
-    if(confirmacao !== "DELETAR") return alert("Ação cancelada.");
-
-    try {
-        document.body.style.cursor = 'wait';
-        const subcollections = ['products', 'categories', 'sales', 'orders', 'coupons', 'settings', 'dailyStats'];
-        
-        // Exclui loja por loja para garantir que todas as subcoleções sejam limpas
-        for (const docId of selectedClients) {
-            console.log(`Apagando dados da loja: ${docId}`);
-            
-            for (const subColName of subcollections) {
-                const colRef = collection(db, `sites/${docId}/${subColName}`); 
-                const snapshot = await getDocs(colRef);
-                
-                if (!snapshot.empty) {
-                    const deletePromises = snapshot.docs.map(docSnap => deleteDoc(docSnap.ref));
-                    await Promise.all(deletePromises);
-                }
-            }
-            // Apaga documento raiz
-            await deleteDoc(doc(db, "sites", docId));
-        }
-
-        alert(`SUCESSO: ${count} loja(s) apagada(s) permanentemente.`);
-        selectedClients.clear();
-        isClientSelectionMode = false;
-        await loadClients();
-
-    } catch (e) {
-        console.error("Erro exclusão lote:", e);
-        alert("Erro durante a exclusão em lote. Veja o console (F12).");
-    } finally {
-        document.body.style.cursor = 'default';
-    }
-};
