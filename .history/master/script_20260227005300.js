@@ -164,92 +164,30 @@ async function loadFinancials(siteId) {
     resetFinancialUI(); // Limpa visualmente antes de carregar
     
     try {
-        // CORREÇÃO 1: A coleção correta no Firebase do site é 'sales' e não 'orders'
-        let salesRef = collection(db, `sites/${siteId}/sales`);
-        let snap = await getDocs(salesRef);
+        // 1. Tenta subcoleção
+        let ordersRef = collection(db, `sites/${siteId}/orders`);
+        let snap = await getDocs(ordersRef);
+
+        // 2. Se vazio, tenta global (Requer a Regra do Passo 1)
+        if (snap.empty) {
+            console.log("Subcoleção vazia. Tentando busca global...");
+            const q = query(collection(db, "orders"), where("siteId", "==", siteId));
+            snap = await getDocs(q);
+        }
 
         currentClientOrders = [];
         snap.forEach(doc => {
             const d = doc.data();
-            
-            // CORREÇÃO 2: O campo de data salvo no app.js chama-se 'date'
             let dateObj = new Date();
-            if (d.date) {
-                dateObj = new Date(d.date);
-            } else if (d.createdAt) {
-                dateObj = d.createdAt.toDate ? d.createdAt.toDate() : new Date(d.createdAt);
-            }
-            
+            if(d.createdAt) dateObj = d.createdAt.toDate ? d.createdAt.toDate() : new Date(d.createdAt);
             currentClientOrders.push({ ...d, dateObj });
         });
 
         calculateAndRenderStats();
 
     } catch (error) {
-        console.error("Erro Financeiro:", error);
-        document.getElementById('fin-faturamento').innerText = "Erro Perm.";
-    }
-}
-
-function calculateAndRenderStats(startDate = null, endDate = null) {
-    let totalOrders = 0, confirmedSales = 0, totalRevenue = 0, totalCosts = 0;
-    
-    // CORREÇÃO 3: Adicionados os status EXATOS que o seu site utiliza
-    const validStatuses = [
-        'aprovado', 
-        'preparando pedido', 
-        'saiu para entrega', 
-        'entregue', 
-        'concluído', // com acento (vital)
-        'concluido'  // sem acento (segurança)
-    ];
-
-    currentClientOrders.forEach(order => {
-        // Filtro de Data
-        if (startDate && endDate) {
-            if (order.dateObj < startDate || order.dateObj > endDate) return;
-        }
-
-        totalOrders++; // Conta todos os pedidos (inclusive pendentes e cancelados)
-        const status = (order.status || '').toLowerCase().trim();
-
-        // Se o status for de venda confirmada, soma valores
-        if (validStatuses.includes(status)) {
-            confirmedSales++;
-            
-            // 1. Soma Faturamento
-            let val = order.total || 0;
-            if (typeof val === 'string') val = parseFloat(val.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
-            totalRevenue += val;
-
-            // CORREÇÃO 4: O custo está dentro dos itens do pedido
-            let orderCost = 0;
-            if (order.items && Array.isArray(order.items)) {
-                order.items.forEach(item => {
-                    let itemCost = parseFloat(item.cost) || 0;
-                    let itemQty = parseInt(item.qty) || 1;
-                    orderCost += (itemCost * itemQty);
-                });
-            }
-            totalCosts += orderCost;
-        }
-    });
-
-    // Atualiza a tela
-    animateValue("fin-pedidos", totalOrders);
-    animateValue("fin-vendas", confirmedSales);
-    
-    const elFaturamento = document.getElementById('fin-faturamento');
-    if (elFaturamento) elFaturamento.innerText = formatMoney(totalRevenue);
-    
-    const elCustos = document.getElementById('fin-custos');
-    if (elCustos) elCustos.innerText = formatMoney(totalCosts);
-    
-    const profit = totalRevenue - totalCosts;
-    const elLucro = document.getElementById('fin-lucro');
-    if (elLucro) {
-        elLucro.innerText = formatMoney(profit);
-        elLucro.className = profit >= 0 ? "text-2xl font-bold text-white" : "text-2xl font-bold text-red-500";
+        console.error("Erro Financeiro (Verifique as Regras do Firestore):", error);
+        document.getElementById('fin-revenue').innerText = "Erro Perm.";
     }
 }
 
