@@ -3,17 +3,16 @@
 <head>
     <meta charset="utf-8">
     <script type="text/javascript">
-        // 1. Pega o nome da loja (ex: diadema)
+        // 1. Pega o que foi digitado na URL
         var pathParts = window.location.pathname.split('/').filter(Boolean);
         var slug = pathParts[0];
 
-        // 2. Se for "master", deixa entrar na pasta master (gestão)
+        // 2. Se o usuário digitou "master", deixa ele entrar na pasta master normalmente
         if (slug === 'master') {
-            // Não faz nada, o GitHub abre a pasta master
+            // Não faz nada, o GitHub cuida de abrir a pasta /master/
         } 
-        // 3. Se for qualquer outra coisa (LOJA), manda para a RAIZ com o parâmetro
+        // 3. Se for qualquer outra coisa (ex: /diadema), manda para a LOJA na raiz
         else if (slug) {
-            // AQUI ESTAVA O ERRO: mudamos de '/master/?site=' para '/?site='
             var newUrl = window.location.protocol + '//' + window.location.hostname + '/?site=' + slug;
             window.location.replace(newUrl);
         }

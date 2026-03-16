@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Veste Manto</title>
+    <script type="text/javascript">
+        // 1. Pega o caminho da URL (ex: /diadema)
+        var pathParts = window.location.pathname.split('/').filter(Boolean);
+        var slug = pathParts[0];
+
+        // 2. Se o que foi digitado NÃO for a pasta 'master', redireciona para lá com o parâmetro
+        if (slug && slug !== 'master') {
+            var newUrl = window.location.protocol + '//' + window.location.hostname + '/master/?site=' + slug;
+            window.location.replace(newUrl);
+        } else {
+            // Se for o domínio puro, vai para a gestão dentro da master
+            window.location.replace('/master/');
+        }
+    </script>
+</head>
+<body style="background:#0B0E14; color:#fff; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif;">
+    <h2>Buscando loja...</h2>
+</body>
+</html>
