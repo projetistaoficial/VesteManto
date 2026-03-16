@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <title>A carregar a sua loja...</title>
+    <script>
+        // Pega o que está depois da barra (ex: "diadema" de /diadema)
+        var path = window.location.pathname.replace(/^\/|\/$/g, '');
+        
+        // Se houver texto depois da barra, redireciona para o formato que o seu sistema lê
+        if(path) {
+            window.location.replace('/?site=' + path);
+        } else {
+            window.location.replace('/');
+        }
+    </script>
+</head>
+<body style="background-color: #0B0E14; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif;">
+    <h2>A carregar a sua loja...</h2>
+</body>
+</html>

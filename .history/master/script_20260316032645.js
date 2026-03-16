@@ -13,8 +13,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-// Adicione o /master no final do domínio de produção
-const PRODUCTION_DOMAIN = "https://projetistaoficial.com/master";
+const PRODUCTION_DOMAIN = "https://projetistaoficial.com/";
 
 // Variáveis de controle
 let pendingClientStatus = 'ativo';
@@ -117,7 +116,7 @@ function renderClients(clients) {
 
         const isChecked = selectedClients.has(client.docId) ? 'checked' : '';
         const bgClass = selectedClients.has(client.docId) ? 'bg-blue-900/20 border-blue-900/50' : 'bg-[#161821] border-gray-800 hover:bg-[#1e2029]';
-        const fullLink = `${PRODUCTION_DOMAIN}/${client.docId}`;
+        const fullLink = `${PRODUCTION_DOMAIN}?site=${client.docId}`;
         const docText = (client.ownerData && client.ownerData.doc) ? client.ownerData.doc : (client.cpf || client.cnpj || 'Sem Documento');
 
         const row = document.createElement('div');
@@ -144,7 +143,7 @@ function renderClients(clients) {
             <div class="col-span-3 font-bold text-white truncate text-base" title="${client.name || ''}">${client.name || 'Sem Nome'}</div>
             <div class="col-span-2 text-center text-gray-300 text-sm font-mono truncate" title="${docText}">${docText}</div>
             <div class="col-span-2 text-center flex items-center justify-center gap-2 bg-[#0f1014] border border-gray-700 rounded px-3 py-1.5">
-                 <a href="${fullLink}" target="_blank" onclick="event.stopPropagation()" class="text-blue-400 text-xs truncate w-full hover:underline">.../${client.docId}</a>
+                 <a href="${fullLink}" target="_blank" onclick="event.stopPropagation()" class="text-blue-400 text-xs truncate w-full hover:underline">.../?site=${client.docId}</a>
                  <button onclick="event.stopPropagation(); copyToClipboard('${fullLink}')" class="text-gray-400 hover:text-white transition" title="Copiar"><i class="far fa-copy text-sm"></i></button>
             </div>
             <div class="col-span-2 text-center text-gray-300 text-sm truncate">${client.plan?.name || '30 dias (Mensal)'}</div>
@@ -698,14 +697,7 @@ window.filterClients = (searchTerm = '') => {
     renderClients(filtered);
 };
 
-window.generateSiteLink = () => { 
-    const n = document.getElementById('inp-name').value; 
-    if (n) { 
-        const s = n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-'); 
-        document.getElementById('inp-site-slug').value = s; 
-        document.getElementById('inp-site-link').value = `${PRODUCTION_DOMAIN}/${s}`; 
-    } 
-}
+window.generateSiteLink = () => { const n = document.getElementById('inp-name').value; if (n) { const s = n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-'); document.getElementById('inp-site-slug').value = s; document.getElementById('inp-site-link').value = `${PRODUCTION_DOMAIN}?site=${s}`; } };
 
 window.copyToClipboard = (t) => navigator.clipboard.writeText(t).then(() => alert("Copiado!"));
 window.closeClientModal = () => { clientModal.classList.add('translate-y-full'); currentDocId = null; }

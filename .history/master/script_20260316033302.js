@@ -13,8 +13,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-// Adicione o /master no final do domínio de produção
-const PRODUCTION_DOMAIN = "https://projetistaoficial.com/master";
+const PRODUCTION_DOMAIN = "https://projetistaoficial.com";
 
 // Variáveis de controle
 let pendingClientStatus = 'ativo';

@@ -13,8 +13,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-// Adicione o /master no final do domínio de produção
-const PRODUCTION_DOMAIN = "https://projetistaoficial.com/master";
+const PRODUCTION_DOMAIN = "https://projetistaoficial.com";
 
 // Variáveis de controle
 let pendingClientStatus = 'ativo';
@@ -117,7 +116,7 @@ function renderClients(clients) {
 
         const isChecked = selectedClients.has(client.docId) ? 'checked' : '';
         const bgClass = selectedClients.has(client.docId) ? 'bg-blue-900/20 border-blue-900/50' : 'bg-[#161821] border-gray-800 hover:bg-[#1e2029]';
-        const fullLink = `${PRODUCTION_DOMAIN}/${client.docId}`;
+        const fullLink = `${PRODUCTION_DOMAIN}${client.docId}`;
         const docText = (client.ownerData && client.ownerData.doc) ? client.ownerData.doc : (client.cpf || client.cnpj || 'Sem Documento');
 
         const row = document.createElement('div');

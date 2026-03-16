@@ -22,11 +22,9 @@
                     <div class="bg-gray-800 text-gray-300 px-3 py-1.5 rounded border border-gray-700">Total: <span
                             id="count-total">0</span></div>
                     <div class="bg-green-900/20 text-green-500 px-3 py-1.5 rounded border border-green-900">Ativos:
-                        <span id="count-active">0</span>
-                    </div>
+                        <span id="count-active">0</span></div>
                     <div class="bg-yellow-900/20 text-yellow-500 px-3 py-1.5 rounded border border-yellow-900">Pausados:
-                        <span id="count-paused">0</span>
-                    </div>
+                        <span id="count-paused">0</span></div>
                     <div class="bg-red-900/20 text-red-500 px-3 py-1.5 rounded border border-red-900">Bloqueados: <span
                             id="count-blocked">0</span></div>
                 </div>
@@ -72,14 +70,7 @@
 
         <div
             class="grid grid-cols-12 gap-3 px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider bg-[#0f111a] border-b border-gray-800">
-            <div class="col-span-1 flex items-center justify-center gap-1.5 select-none">
-                <span id="header-code-text" onclick="toggleCodeType()"
-                    class="cursor-pointer hover:text-white transition" title="Mudar tipo de código">CÓD</span>
-                <i id="header-code-icon" onclick="toggleSortDirection()"
-                    class="fas fa-sort-numeric-down cursor-pointer hover:text-white transition text-[13px] text-gray-500"
-                    title="Inverter ordem"></i>
-            </div>
-
+            <div class="col-span-1 text-center">Cód</div>
             <div class="col-span-3 pl-2">Loja</div>
             <div class="col-span-2 text-center">CPF / CNPJ</div>
             <div class="col-span-2 text-center">Link</div>
@@ -138,17 +129,16 @@
                                 <label
                                     class="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1.5">Cód.
                                     Alternativo</label>
-                                <input type="text" id="inp-alt-code" placeholder="..."
+                                <input type="text" id="inp-alt-code" placeholder="Opcional"
                                     class="w-full bg-[#0f1014] border border-gray-700 text-center rounded p-2 text-base font-bold text-blue-400 focus:border-blue-500 outline-none transition font-mono">
                             </div>
 
-                            <div class="col-span-8">
-                                <label class="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">Nome
-                                    da Loja</label>
-                                <input type="text" id="inp-name"
-                                    class="w-full bg-[#0f1014] border border-gray-700 rounded p-2 text-base text-white font-bold focus:border-blue-500 outline-none transition"
-                                    placeholder="Ex: Veste Manto">
-                            </div>
+                          <div class="col-span-8">
+    <label class="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">Nome da Loja</label>
+    <input type="text" id="inp-name"
+        class="w-full bg-[#0f1014] border border-gray-700 rounded p-2 text-base text-white font-bold focus:border-blue-500 outline-none transition"
+        placeholder="Ex: Veste Manto">
+</div>
                         </div>
 
                         <div class="grid grid-cols-12 gap-4 mt-4">

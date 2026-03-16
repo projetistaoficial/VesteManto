@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Veste Manto - Redirecionando</title>
+    <script type="text/javascript">
+        // 1. Pega o nome da loja na URL (ex: "diadema")
+        var path = window.location.pathname.split('/').filter(Boolean);
+        var slug = path.pop(); 
+
+        // 2. Se não for um arquivo real, redireciona para a pasta MASTER
+        if (slug && slug !== 'index.html') {
+            // Enviamos para /master/ com o parâmetro da loja
+            var newUrl = window.location.protocol + '//' + window.location.hostname + '/master/?site=' + slug;
+            window.location.replace(newUrl);
+        } else {
+            // Se for apenas o domínio puro, manda para a gestão
+            window.location.replace('/master/');
+        }
+    </script>
+</head>
+<body style="background:#0B0E14; color:#fff; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif;">
+    <div style="text-align: center;">
+        <h2 style="margin-bottom: 10px;">Buscando loja...</h2>
+        <p style="color: #666; font-size: 14px;">Aguarde um instante.</p>
+    </div>
+</body>
+</html>
