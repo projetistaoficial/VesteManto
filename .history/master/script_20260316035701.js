@@ -117,7 +117,7 @@ function renderClients(clients) {
 
         const isChecked = selectedClients.has(client.docId) ? 'checked' : '';
         const bgClass = selectedClients.has(client.docId) ? 'bg-blue-900/20 border-blue-900/50' : 'bg-[#161821] border-gray-800 hover:bg-[#1e2029]';
-        const fullLink = `${PRODUCTION_DOMAIN}/${client.docId}`;
+        cconst fullLink = `${PRODUCTION_DOMAIN}/${client.docId}`;
         const docText = (client.ownerData && client.ownerData.doc) ? client.ownerData.doc : (client.cpf || client.cnpj || 'Sem Documento');
 
         const row = document.createElement('div');
@@ -174,7 +174,7 @@ async function openClientModal(docId = null) {
             document.getElementById('inp-name').value = client.name || '';
             document.getElementById('inp-site-slug').value = client.docId || '';
             document.getElementById('inp-site-slug').disabled = true;
-            document.getElementById('inp-site-link').value = `${PRODUCTION_DOMAIN}/${s}`;
+            document.getElementById('inp-site-link').value = `${PRODUCTION_DOMAIN}/${client.docId}`;
 
             if (client.plan) document.getElementById('inp-plan').value = client.plan.name || '30 dias (Mensal)';
 

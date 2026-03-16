@@ -174,7 +174,7 @@ async function openClientModal(docId = null) {
             document.getElementById('inp-name').value = client.name || '';
             document.getElementById('inp-site-slug').value = client.docId || '';
             document.getElementById('inp-site-slug').disabled = true;
-            document.getElementById('inp-site-link').value = `${PRODUCTION_DOMAIN}/${s}`;
+            document.getElementById('inp-site-link').value = `${PRODUCTION_DOMAIN}/${client.docId}`;
 
             if (client.plan) document.getElementById('inp-plan').value = client.plan.name || '30 dias (Mensal)';
 
