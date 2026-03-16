@@ -23,6 +23,16 @@
                 for (let name of names) caches.delete(name);
             });
         }
+
+        // 1. Pega o parâmetro ?site= na URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const siteSlug = urlParams.get('site');
+
+        // 2. Se o parâmetro existir, ele "mascara" a URL para ficar bonita
+        if (siteSlug) {
+            // Isso muda o texto na barra de endereço sem recarregar a página
+            window.history.replaceState(null, '', '/' + siteSlug);
+        }
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -53,13 +63,6 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         let siteId = urlParams.get('site');
-
-        // Se existir o parâmetro ?site= e não estivermos no localhost
-        if (siteId && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-            // Isso remove o "?site=nome" e deixa apenas "/nome" na barra do navegador
-            // sem recarregar a página e sem perder os dados.
-            window.history.replaceState(null, '', '/' + siteId);
-        }
 
         // ============================================================
         // 🛠️ MODO DESENVOLVEDOR (Correção para Live Server)
