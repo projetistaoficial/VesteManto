@@ -49,119 +49,118 @@
     <script type="module" src="js/support.js"></script>
 
     <script type="module">
-    import { db, doc, getDocFromServer } from './js/firebase-config.js';
+        import { db, doc, getDocFromServer } from './js/firebase-config.js';
 
-    // 1. Tenta pegar o ID pelo parâmetro ?site= (vindo do redirecionamento do 404.html)
-    const urlParams = new URLSearchParams(window.location.search);
-    let siteId = urlParams.get('site');
+        const urlParams = new URLSearchParams(window.location.search);
+        let siteId = urlParams.get('site');
 
-    // 2. Fallback: Se não houver parâmetro, tenta pegar direto da URL limpa (ex: /diadema)
-    if (!siteId) {
-        const pathParts = window.location.pathname.split('/').filter(Boolean);
-        // Garante que não estamos pegando a pasta 'master' ou o arquivo 'index.html' como ID
-        if (pathParts.length > 0 && pathParts[0] !== 'master' && pathParts[0] !== 'index.html') {
-            siteId = pathParts[0];
-        }
-    }
-
-    // 3. ✨ MÁSCARA DE URL: Se estivermos em produção, deixa o link "limpo" no navegador
-    if (siteId && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        // Isso transforma "site.com/?site=diadema" em "site.com/diadema" visualmente
-        window.history.replaceState(null, '', '/' + siteId);
-    }
-
-    // ============================================================
-    // 🛠️ MODO DESENVOLVEDOR (Correção para Live Server)
-    // ============================================================
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-    if (!siteId && isLocalhost) {
-        console.warn("⚠️ AMBIENTE DEV DETECTADO: Usando ID de teste automático.");
-        siteId = 'veste-manto'; // Altere para um ID que exista no seu banco
-        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?site=' + siteId;
-        window.history.replaceState({ path: newUrl }, '', newUrl);
-    }
-
-    // --- FUNÇÕES DE INTERFACE (destruirTudo, etc) ---
-    function destruirTudo(titulo, motivo, tipo = 'erro') {
-        console.error("⛔ ACESSO NEGADO: " + motivo);
-        document.body.innerHTML = '';
-        document.body.style.setProperty('display', 'block', 'important'); 
-        
-        let iconHtml = '🚫';
-        let mainColor = '#ef4444';
-        let bgStyle = 'background-color: black;';
-
-        if (tipo === 'pausado') {
-            iconHtml = '⚙️';
-            mainColor = '#facc15';
-            bgStyle = 'background: linear-gradient(135deg, #0f172a 0%, #000000 100%);';
+        // Se existir o parâmetro ?site= e não estivermos no localhost
+        if (siteId && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            // Isso remove o "?site=nome" e deixa apenas "/nome" na barra do navegador
+            // sem recarregar a página e sem perder os dados.
+            window.history.replaceState(null, '', '/' + siteId);
         }
 
-        document.body.style.cssText = `display: block !important; ${bgStyle}`;
-        
-        document.body.innerHTML = `
-        <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; font-family:sans-serif; text-align:center; padding: 20px;">
-            <div style="font-size: 4rem; margin-bottom: 20px;">${iconHtml}</div>
-            <h1 style="font-size:2rem; color:${mainColor}; margin:0; line-height: 1.2;">${titulo}</h1>
-            <p style="color:#94a3b8; margin-top: 15px; font-size: 1.1rem; max-width: 400px; line-height: 1.5;">${motivo}</p>
-            <button onclick="window.location.reload()" style="margin-top:40px; padding:12px 30px; background:${mainColor}; color:${tipo === 'pausado' ? '#000' : '#fff'}; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Atualizar</button>
-            <div style="margin-top: 80px; display: flex; flex-direction: column; align-items: center; opacity: 0.6;">
-                <span style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; font-weight: bold;">Aproveite para conhecer a Projetista</span>
-                <a href="https://instagram.com/projetista_oficial" target="_blank" style="color: #ec4899; font-size: 2.2rem;">
-                    <i class="fab fa-instagram"></i>
-                </a>
+        // ============================================================
+        // 🛠️ MODO DESENVOLVEDOR (Correção para Live Server)
+        // ============================================================
+        // Se estiver rodando no seu PC (localhost ou 127.0.0.1) e não tiver ID,
+        // ele força automaticamente o ID de uma loja que existe.
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        if (!siteId && isLocalhost) {
+            console.warn("⚠️ AMBIENTE DEV DETECTADO: Usando ID de teste automático.");
+
+            // COLOQUE AQUI O ID DE UMA LOJA QUE EXISTE NO SEU FIRESTORE
+            siteId = 'veste-manto';
+
+            // (Opcional) Adiciona o ID na URL visualmente sem recarregar
+            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?site=' + siteId;
+            window.history.replaceState({ path: newUrl }, '', newUrl);
+        }
+        // ============================================================
+
+        function destruirTudo(titulo, motivo, tipo = 'erro') {
+            console.error("⛔ ACESSO NEGADO: " + motivo);
+            document.body.innerHTML = '';
+            document.body.style.setProperty('display', 'block', 'important');
+
+            let iconHtml = '🚫';
+            let mainColor = '#ef4444';
+            let bgStyle = 'background-color: black;';
+
+            if (tipo === 'pausado') {
+                iconHtml = '⚙️'; // Emoji de ferramentas
+                mainColor = '#facc15';
+                bgStyle = 'background: linear-gradient(135deg, #0f172a 0%, #000000 100%);';
+            }
+
+            document.body.style.cssText = `display: block !important; ${bgStyle}`;
+
+            document.body.innerHTML = `
+            <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; font-family:sans-serif; text-align:center; padding: 20px;">
+                <div style="font-size: 4rem; margin-bottom: 20px;">${iconHtml}</div>
+                <h1 style="font-size:2rem; color:${mainColor}; margin:0; line-height: 1.2;">${titulo}</h1>
+                <p style="color:#94a3b8; margin-top: 15px; font-size: 1.1rem; max-width: 400px; line-height: 1.5;">${motivo}</p>
+                <button onclick="window.location.reload()" style="margin-top:40px; padding:12px 30px; background:${mainColor}; color:${tipo === 'pausado' ? '#000' : '#fff'}; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Atualizar</button>
+
+                <div style="margin-top: 80px; display: flex; flex-direction: column; align-items: center; opacity: 0.6; transition: opacity 0.3s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">
+                    <span style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; font-weight: bold;">Aproveite para conhecer a Projetista</span>
+                    <a href="https://instagram.com/projetista_oficial" target="_blank" title="Siga a Projetista no Instagram" style="color: #ec4899; font-size: 2.2rem; text-decoration: none; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+                        <i class="fab fa-instagram"></i>
+                    </a>
+                </div>
             </div>
-        </div>
-        `;
-        throw new Error("SISTEMA_BLOQUEADO");
-    }
-
-    // --- LÓGICA DE VALIDAÇÃO ---
-    async function validar() {
-        console.log("🔍 Iniciando Verificação para o ID:", siteId);
-
-        if (!siteId) {
-            destruirTudo("Erro", "ID da loja não encontrado na URL.");
-            return;
+            `;
+            throw new Error("SISTEMA_BLOQUEADO");
         }
 
-        try {
-            const docRef = doc(db, "sites", siteId);
-            const snap = await getDocFromServer(docRef);
+        async function validar() {
+            console.log("🔍 Iniciando Verificação...");
 
-            if (!snap.exists()) {
-                destruirTudo("404", `A loja "${siteId}" não foi encontrada ou foi excluída.`);
+            if (!siteId) {
+                destruirTudo("Erro", "ID da loja não encontrado.");
                 return;
             }
 
-            const data = snap.data();
+            try {
+                const docRef = doc(db, "sites", siteId);
+                const snap = await getDocFromServer(docRef);
 
-            if (data.status === 'pausado') {
-                destruirTudo("Indisponível Temporariamente", "Estamos realizando manutenções na loja. Volte em breve!", "pausado");
-                return;
-            }
+                if (!snap.exists()) {
+                    destruirTudo("404", "Esta loja foi excluída permanentemente.");
+                    return;
+                }
 
-            if (data.status === 'bloqueado' || data.active === false || data.status === 'excluido') {
-                destruirTudo("Acesso Suspenso", "A conta desta loja está suspensa ou desativada.");
-                return;
-            }
+                const data = snap.data();
 
-            console.log("✅ Autorizado! Carregando app.js...");
-            window.SITE_ID = siteId;
-            await import(`./js/app.js?v=${Date.now()}`);
-            document.body.classList.add('acesso-liberado');
+                // LÓGICA DE PAUSA (NOVO)
+                if (data.status === 'pausado') {
+                    destruirTudo("Indisponível Temporariamente", "Estamos realizando manutenções na loja. Volte em breve!", "pausado");
+                    return;
+                }
 
-        } catch (e) {
-            console.error(e);
-            if (e.message !== "SISTEMA_BLOQUEADO") {
-                destruirTudo("Erro", "Falha de conexão com o Firebase.");
+                if (data.status === 'bloqueado' || data.active === false || data.status === 'excluido') {
+                    destruirTudo("Acesso Suspenso", "A conta desta loja está suspensa.");
+                    return;
+                }
+
+                console.log("✅ Autorizado! Carregando...");
+                window.SITE_ID = siteId;
+
+                await import(`./js/app.js?v=${Date.now()}`);
+                document.body.classList.add('acesso-liberado');
+
+            } catch (e) {
+                console.error(e);
+                if (e.message !== "SISTEMA_BLOQUEADO") {
+                    destruirTudo("Erro", "Falha de conexão com o servidor.");
+                }
             }
         }
-    }
 
-    validar();
-</script>
+        validar();
+    </script>
 
     <div id="site-floating-capsule"
         class="fixed top-6 right-4 z-[60] flex items-center gap-2 bg-black/30 backdrop-blur-md p-2 rounded-full border border-gray-700 shadow-2xl animate-fade-in transition-all duration-300 hover:bg-black/80">
