@@ -49,39 +49,39 @@
     <script type="module" src="js/support.js"></script>
 
     <script type="module">
-        import { db, doc, getDocFromServer } from './js/firebase-config.js';
+    import { db, doc, getDocFromServer } from './js/firebase-config.js';
 
-        // 1. Tenta pegar o ID pelo parâmetro ?site= (vindo do 404.html)
-        const urlParams = new URLSearchParams(window.location.search);
-        let siteId = urlParams.get('site');
+    // 1. Tenta pegar o ID pelo parâmetro ?site= (vindo do 404.html)
+    const urlParams = new URLSearchParams(window.location.search);
+    let siteId = urlParams.get('site');
 
-        // 2. Fallback: Se não houver parâmetro, tenta pegar direto da URL limpa (ex: /diadema)
-        if (!siteId) {
-            const pathParts = window.location.pathname.split('/').filter(Boolean);
-            if (pathParts.length > 0 && pathParts[0] !== 'master' && pathParts[0] !== 'index.html') {
-                siteId = pathParts[0];
-            }
+    // 2. Fallback: Se não houver parâmetro, tenta pegar direto da URL limpa (ex: /diadema)
+    if (!siteId) {
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        if (pathParts.length > 0 && pathParts[0] !== 'master' && pathParts[0] !== 'index.html') {
+            siteId = pathParts[0];
+        }
+    }
+
+    // --- MANTENDO SEU DESIGN DE TELAS DE ERRO ---
+    function destruirTudo(titulo, motivo, tipo = 'erro') {
+        console.error("⛔ ACESSO NEGADO: " + motivo);
+        document.body.innerHTML = '';
+        document.body.style.setProperty('display', 'block', 'important'); 
+        
+        let iconHtml = '🚫';
+        let mainColor = '#ef4444';
+        let bgStyle = 'background-color: black;';
+
+        if (tipo === 'pausado') {
+            iconHtml = '⚙️';
+            mainColor = '#facc15';
+            bgStyle = 'background: linear-gradient(135deg, #0f172a 0%, #000000 100%);';
         }
 
-        // --- MANTENDO SEU DESIGN DE TELAS DE ERRO ---
-        function destruirTudo(titulo, motivo, tipo = 'erro') {
-            console.error("⛔ ACESSO NEGADO: " + motivo);
-            document.body.innerHTML = '';
-            document.body.style.setProperty('display', 'block', 'important');
-
-            let iconHtml = '🚫';
-            let mainColor = '#ef4444';
-            let bgStyle = 'background-color: black;';
-
-            if (tipo === 'pausado') {
-                iconHtml = '⚙️';
-                mainColor = '#facc15';
-                bgStyle = 'background: linear-gradient(135deg, #0f172a 0%, #000000 100%);';
-            }
-
-            document.body.style.cssText = `display: block !important; ${bgStyle}`;
-
-            document.body.innerHTML = `
+        document.body.style.cssText = `display: block !important; ${bgStyle}`;
+        
+        document.body.innerHTML = `
         <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; font-family:sans-serif; text-align:center; padding: 20px;">
             <div style="font-size: 4rem; margin-bottom: 20px;">${iconHtml}</div>
             <h1 style="font-size:2rem; color:${mainColor}; margin:0; line-height: 1.2;">${titulo}</h1>
@@ -95,55 +95,55 @@
             </div>
         </div>
         `;
-            throw new Error("SISTEMA_BLOQUEADO");
+        throw new Error("SISTEMA_BLOQUEADO");
+    }
+
+    // --- LÓGICA DE VALIDAÇÃO ---
+    async function validar() {
+        console.log("🔍 Verificando ID:", siteId);
+
+        if (!siteId) {
+            destruirTudo("Erro", "ID da loja não encontrado na URL.");
+            return;
         }
 
-        // --- LÓGICA DE VALIDAÇÃO ---
-        async function validar() {
-            console.log("🔍 Verificando ID:", siteId);
+        // Modo Dev Localhost
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-            if (!siteId) {
-                destruirTudo("Erro", "ID da loja não encontrado na URL.");
+        try {
+            const docRef = doc(db, "sites", siteId);
+            const snap = await getDocFromServer(docRef);
+
+            if (!snap.exists()) {
+                destruirTudo("404", `A loja "${siteId}" não existe.`);
                 return;
             }
 
-            // Modo Dev Localhost
-            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const data = snap.data();
+            if (data.status === 'pausado') { destruirTudo("Indisponível Temporariamente", "Estamos realizando manutenções na loja.", "pausado"); return; }
+            if (data.status === 'bloqueado' || data.active === false) { destruirTudo("Acesso Suspenso", "A conta desta loja está suspensa."); return; }
 
-            try {
-                const docRef = doc(db, "sites", siteId);
-                const snap = await getDocFromServer(docRef);
+            // ✅ TUDO OK: Define o ID global
+            window.SITE_ID = siteId;
 
-                if (!snap.exists()) {
-                    destruirTudo("404", `A loja "${siteId}" não existe.`);
-                    return;
-                }
+            // ✅ IMPORTA O APP (Damos a informação que ele precisa antes de limpar a URL)
+            await import(`./js/app.js?v=${Date.now()}`);
+            document.body.classList.add('acesso-liberado');
 
-                const data = snap.data();
-                if (data.status === 'pausado') { destruirTudo("Indisponível Temporariamente", "Estamos realizando manutenções na loja.", "pausado"); return; }
-                if (data.status === 'bloqueado' || data.active === false) { destruirTudo("Acesso Suspenso", "A conta desta loja está suspensa."); return; }
-
-                // ✅ TUDO OK: Define o ID global
-                window.SITE_ID = siteId;
-
-                // ✅ IMPORTA O APP (Damos a informação que ele precisa antes de limpar a URL)
-                await import(`./js/app.js?v=${Date.now()}`);
-                document.body.classList.add('acesso-liberado');
-
-                // ✨ AGORA SIM: Limpamos a URL para o cliente ver o link bonito
-                // Fazemos isso apenas se não estiver no localhost e se houver parâmetro para limpar
-                if (!isLocalhost && window.location.search.includes('site=')) {
-                    window.history.replaceState(null, '', '/' + siteId);
-                }
-
-            } catch (e) {
-                console.error(e);
-                if (e.message !== "SISTEMA_BLOQUEADO") destruirTudo("Erro", "Falha na conexão.");
+            // ✨ AGORA SIM: Limpamos a URL para o cliente ver o link bonito
+            // Fazemos isso apenas se não estiver no localhost e se houver parâmetro para limpar
+            if (!isLocalhost && window.location.search.includes('site=')) {
+                window.history.replaceState(null, '', '/' + siteId);
             }
-        }
 
-        validar();
-    </script>
+        } catch (e) {
+            console.error(e);
+            if (e.message !== "SISTEMA_BLOQUEADO") destruirTudo("Erro", "Falha na conexão.");
+        }
+    }
+
+    validar();
+</script>
 
     <div id="site-floating-capsule"
         class="fixed top-6 right-4 z-[60] flex items-center gap-2 bg-black/30 backdrop-blur-md p-2 rounded-full border border-gray-700 shadow-2xl animate-fade-in transition-all duration-300 hover:bg-black/80">
