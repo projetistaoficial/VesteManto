@@ -1010,9 +1010,7 @@ async function loadInvoices(clientId) {
         faturas.sort((a, b) => new Date(b.vencimento) - new Date(a.vencimento));
 
         document.getElementById('plan-total-paid').innerText = formatMoney(totalPago);
-        const client = allClients.find(c => c.docId === clientId);
-        const planData = client ? client.plan : {};
-        renderInvoices(faturas, planData);
+        renderInvoices(faturas);
         updatePlanStatusBadge(faturas);
 
     } catch (e) {
@@ -1021,7 +1019,7 @@ async function loadInvoices(clientId) {
     }
 }
 
-function renderInvoices(faturas, plan = {}) {
+function renderInvoices(faturas) {
     const tbody = document.getElementById('invoice-list-body');
     tbody.innerHTML = '';
 
@@ -1051,45 +1049,14 @@ function renderInvoices(faturas, plan = {}) {
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             const isAtrasado = hojeDate > vencDate;
 
-            if (f.status === 'pago') {
-                statusHtml = `<span class="bg-green-600 text-white px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">Pago</span>`;
-                acaoHtml = `<span class="text-gray-500 text-[10px] flex items-center justify-center gap-1"><i class="fas fa-check text-green-500"></i> Registrado</span>`;
+            if (isAtrasado) {
+                statusHtml = `
+                    <div class="flex flex-col items-center justify-center">
+                        <span class="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">Atrasado</span>
+                        <span class="text-[9px] text-red-400 font-bold mt-1">${diffDays} dia(s)</span>
+                    </div>`;
             } else {
-                const hojeDate = new Date();
-                hojeDate.setHours(0, 0, 0, 0);
-                const vencDate = new Date(f.vencimento + "T12:00:00");
-                vencDate.setHours(0, 0, 0, 0);
-
-                const diffTime = Math.abs(hojeDate - vencDate);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                const isAtrasado = hojeDate > vencDate;
-
-                // ✨ NOVO: Lê as regras de carência do cliente
-                const carenciaActive = plan.carenciaActive || false;
-                const carenciaDays = parseInt(plan.carenciaDays) || 0;
-
-                if (isAtrasado) {
-                    // Se está na carência -> LARANJA
-                    if (carenciaActive && diffDays <= carenciaDays) {
-                        statusHtml = `
-                        <div class="flex flex-col items-center justify-center">
-                            <span class="bg-orange-500 text-white px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">Carência</span>
-                            <span class="text-[9px] text-orange-400 font-bold mt-1">${diffDays} dia(s)</span>
-                        </div>`;
-                    }
-                    // Se estourou a carência (ou não tem) -> VERMELHO
-                    else {
-                        statusHtml = `
-                        <div class="flex flex-col items-center justify-center">
-                            <span class="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">Atrasado</span>
-                            <span class="text-[9px] text-red-400 font-bold mt-1">${diffDays} dia(s)</span>
-                        </div>`;
-                    }
-                } else {
-                    statusHtml = `<span class="bg-yellow-500 text-black px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">A Vencer</span>`;
-                }
-
-                acaoHtml = `<button onclick="openPayModal('${f.id}', ${f.valor})" class="bg-[#00d65f] hover:bg-green-500 text-white px-2 py-1 rounded text-[10px] font-bold uppercase transition w-full flex items-center justify-center gap-1"><i class="fas fa-check-circle"></i> Informar</button>`;
+                statusHtml = `<span class="bg-yellow-500 text-black px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">A Vencer</span>`;
             }
 
             acaoHtml = `<button onclick="openPayModal('${f.id}', ${f.valor})" class="bg-[#00d65f] hover:bg-green-500 text-white px-2 py-1 rounded text-[10px] font-bold uppercase transition w-full flex items-center justify-center gap-1"><i class="fas fa-check-circle"></i> Informar</button>`;
@@ -1142,16 +1109,16 @@ function updatePlanStatusBadge(faturas) {
 // Abre o modal para preencher a data que pagou
 window.openPayModal = (faturaId, valorEsperado) => {
     document.getElementById('pay-invoice-id').value = faturaId;
-
+    
     const inputValor = document.getElementById('pay-invoice-value');
     inputValor.value = formatForInput(valorEsperado);
-
+    
     // ✨ NOVO: Guarda o valor máximo (valor do plano) "escondido" no input
     inputValor.setAttribute('data-max', valorEsperado);
-
+    
     // Preenche com a data de hoje por padrão
     document.getElementById('pay-invoice-date').value = new Date().toISOString().split('T')[0];
-
+    
     document.getElementById('modal-pay-invoice').showModal();
 };
 
@@ -1160,51 +1127,51 @@ window.confirmInvoicePayment = async () => {
     // 1. Pegamos os elementos HTML e os valores
     const faturaId = document.getElementById('pay-invoice-id').value;
     const inputValorHTML = document.getElementById('pay-invoice-value');
-
+    
     // Converte o valor digitado (com máscara) para número
     const valorPago = parseCurrencyVal(inputValorHTML.value);
     const dataPagamento = document.getElementById('pay-invoice-date').value;
-
+    
     // Puxa o valor máximo que escondemos no input
     const valorMaximo = parseFloat(inputValorHTML.getAttribute('data-max')) || 0;
-
+    
     // 2. Fazemos as validações (Travas de Segurança)
     if (!dataPagamento || isNaN(valorPago) || valorPago <= 0) {
         return alert("Preencha a data e um valor válido.");
     }
-
+    
     if (valorPago > valorMaximo) {
         return alert(`⚠️ Ops! O valor pago (R$ ${formatForInput(valorPago)}) não pode ser maior que o valor da fatura (R$ ${formatForInput(valorMaximo)}).`);
     }
-
+    
     // 3. Prepara o botão de carregamento
     const btn = event.target;
     const txtOriginal = btn.innerText;
     btn.innerText = "Processando...";
     btn.disabled = true;
-
+    
     try {
         const faturaRef = doc(db, `sites/${currentDocId}/faturas`, faturaId);
-
+        
         // Marca a fatura atual como paga
         await updateDoc(faturaRef, {
             status: 'pago',
             dataPagamento: dataPagamento,
             valorPago: valorPago
         });
-
+        
         // Calcula e gera a fatura do PRÓXIMO ciclo
         await gerarProximaFatura(currentDocId);
-
+        
         // Libera o site automaticamente (se a opção estiver marcada)
         await verificarDesbloqueioAutomatico(currentDocId);
-
+        
         document.getElementById('modal-pay-invoice').close();
         showToast("Pagamento registrado com sucesso!");
-
+        
         // Recarrega a lista para mostrar atualizado
         loadInvoices(currentDocId);
-
+        
     } catch (e) {
         console.error("Erro ao pagar:", e);
         alert("Erro ao registrar pagamento.");
@@ -1452,49 +1419,3 @@ window.submitClientAlert = async () => {
     }
 };
 
-// =================================================================
-// ⚙️ MOTOR DE AUTOMAÇÃO E PUNIÇÕES (RODA EM SEGUNDO PLANO)
-// =================================================================
-
-window.runLazyPenaltyCheck = async () => {
-    try {
-        const snap = await getDocs(collection(db, "sites"));
-        
-        snap.forEach(async (documento) => {
-            const c = { docId: documento.id, ...documento.data() };
-            
-            // 1. Só verifica se o plano existe, se a carência está ativa e se o site AINDA está ativo
-            if (c.plan && c.plan.nextDue && c.plan.carenciaActive && c.status === 'ativo') {
-                
-                const hoje = new Date();
-                hoje.setHours(0,0,0,0);
-                const venc = new Date(c.plan.nextDue + "T12:00:00");
-                venc.setHours(0,0,0,0);
-
-                if (hoje > venc) {
-                    const diffDays = Math.ceil(Math.abs(hoje - venc) / (1000 * 60 * 60 * 24));
-                    const carencia = parseInt(c.plan.carenciaDays) || 0;
-
-                    // 2. O Atraso passou da carência permitida? PUNE O CLIENTE!
-                    if (diffDays > carencia) {
-                        const action = c.plan.carenciaAction || 'pausado'; // pausado ou bloqueado
-                        
-                        await updateDoc(doc(db, "sites", c.docId), {
-                            status: action,
-                            active: action === 'bloqueado' ? false : true
-                        });
-                        
-                        console.log(`[Xerife] Cliente ${c.name} excedeu a carência. Status alterado para: ${action.toUpperCase()}`);
-                    }
-                }
-            }
-        });
-    } catch(e) {
-        console.error("Erro no motor de automação:", e);
-    }
-};
-
-// Dispara o verificador automaticamente 3 segundos após você entrar no Painel Master
-setTimeout(() => {
-    if(window.runLazyPenaltyCheck) window.runLazyPenaltyCheck();
-}, 3000);
