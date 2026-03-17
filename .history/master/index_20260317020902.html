@@ -342,169 +342,160 @@
                 </div>
 
                 <div id="tab-acoes" class="tab-content hidden space-y-6">
+                    <button class="tab-btn px-3 py-1 text-[10px] font-bold rounded text-gray-400 hover:text-white"
+                        data-target="assinatura" onclick="switchTab('assinatura')">
+                        Assinatura & Plano
+                    </button>
 
-                    <div class="bg-[#161821] border border-gray-800 rounded-xl overflow-hidden shadow-inner">
+                    <div id="tab-assinatura" class="tab-content hidden space-y-4 pb-10">
 
-                        <button onclick="togglePlanAccordion()"
-                            class="w-full flex justify-between items-center p-5 bg-[#0f1014] hover:bg-gray-900 transition focus:outline-none border-b border-yellow-500/20">
-                            <h3 class="text-yellow-500 font-bold text-lg flex items-center gap-2">
-                                <i class="fas fa-file-invoice-dollar"></i> Gestão de Plano e Cobrança
-                            </h3>
-                            <i id="arrow-acc-plan"
-                                class="fas fa-chevron-down text-yellow-500 transition-transform duration-300"></i>
-                        </button>
+                        <div class="bg-[#0f111a] border border-gray-800 rounded-xl p-4 shadow-lg">
+                            <div class="flex justify-between items-center mb-4 border-b border-gray-800 pb-2">
+                                <h3 class="text-white font-bold text-sm tracking-wide">Plano Contratado</h3>
+                                <i class="fas fa-chevron-up text-white cursor-pointer hover:text-yellow-500"></i>
+                            </div>
 
-                        <div id="content-acc-plan" class="p-5 space-y-6 bg-[#161821]">
-
-                            <div class="border border-gray-800 rounded-xl p-4 bg-black/20">
-                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                                    <div>
-                                        <label
-                                            class="text-gray-400 text-[10px] font-bold uppercase mb-1 block">Período:</label>
-                                        <select id="plan-period"
-                                            class="w-full bg-[#0f1014] border border-gray-700 text-white rounded p-3 text-sm outline-none focus:border-yellow-500">
-                                            <option value="7">7 dias (Teste)</option>
-                                            <option value="30" selected>30 dias (Mensal)</option>
-                                            <option value="180">6 Meses (Semestral)</option>
-                                            <option value="365">1 Ano (Anual)</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="text-gray-400 text-[10px] font-bold uppercase mb-1 block">Próximo
-                                            Vencimento:</label>
-                                        <input type="date" id="plan-next-due"
-                                            class="w-full bg-[#0f1014] border border-gray-700 text-white rounded p-3 outline-none focus:border-yellow-500 text-sm font-bold text-center appearance-none">
-                                    </div>
-                                    <div>
-                                        <label class="text-gray-400 text-[10px] font-bold uppercase mb-1 block">Valor
-                                            (R$):</label>
-                                        <input type="tel" id="plan-value" placeholder="0,00"
-                                            oninput="maskCurrency(this)"
-                                            class="w-full bg-[#0f1014] border border-gray-700 text-white rounded p-3 outline-none focus:border-yellow-500 text-sm font-bold text-center">
-                                    </div>
-                                    <div>
-                                        <label
-                                            class="text-gray-400 text-[10px] font-bold uppercase mb-1 block">Situação:</label>
-                                        <div id="plan-status-badge"
-                                            class="w-full bg-yellow-500 text-black font-bold uppercase text-xs rounded p-3 text-center shadow-sm">
-                                            A Vencer
-                                        </div>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                                <div>
+                                    <label class="text-white text-xs font-bold mb-1 block">Período:</label>
+                                    <select id="plan-period"
+                                        class="w-full bg-black border border-gray-700 text-white rounded p-2 outline-none focus:border-yellow-500 text-sm font-bold">
+                                        <option value="7">7 dias (Teste)</option>
+                                        <option value="30" selected>30 dias (Mensal)</option>
+                                        <option value="180">6 Meses (Semestral)</option>
+                                        <option value="365">1 Ano (Anual)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-white text-xs font-bold mb-1 block">Próximo Vencimento:</label>
+                                    <input type="date" id="plan-next-due"
+                                        class="w-full bg-black border border-gray-700 text-white rounded p-2 outline-none focus:border-yellow-500 text-sm font-bold text-center">
+                                </div>
+                                <div>
+                                    <label class="text-white text-xs font-bold mb-1 block">Valor (R$):</label>
+                                    <input type="number" id="plan-value" placeholder="69.99" step="0.01"
+                                        class="w-full bg-black border border-gray-700 text-white rounded p-2 outline-none focus:border-yellow-500 text-sm font-bold text-center">
+                                </div>
+                                <div>
+                                    <label class="text-white text-xs font-bold mb-1 block">Situação:</label>
+                                    <div id="plan-status-badge"
+                                        class="w-full bg-yellow-500 text-black font-bold uppercase text-xs rounded p-2 text-center shadow-sm">
+                                        A Vencer
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            <div class="border border-gray-800 rounded-xl p-4 bg-black/20">
-                                <label
-                                    class="text-sm font-bold text-white block mb-4 border-b border-gray-800 pb-2">Histórico
-                                    de Pagamentos</label>
+                        <div class="bg-[#0f111a] border border-gray-800 rounded-xl p-4 shadow-lg">
+                            <h3 class="text-white font-bold text-sm tracking-wide mb-3 border-b border-gray-800 pb-2">
+                                Pagamentos:</h3>
 
-                                <div
-                                    class="overflow-x-auto overflow-y-auto max-h-[250px] custom-scrollbar rounded border border-gray-800 mb-4 relative bg-[#161821]">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="text-gray-400 text-[10px] uppercase border-b border-gray-700">
+                                            <th class="p-2">Vencimento:</th>
+                                            <th class="p-2">Pagamento:</th>
+                                            <th class="p-2">Valor:</th>
+                                            <th class="p-2 text-center">Situação:</th>
+                                            <th class="p-2 text-center">Ação:</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="invoice-list-body" class="text-sm font-bold">
+                                        <tr>
+                                            <td colspan="5" class="text-center p-4 text-gray-500 text-xs">Carregando
+                                                faturas...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
 
-                                    <div
-                                        class="grid grid-cols-5 bg-[#0f1014] sticky top-0 z-20 shadow-md text-gray-400 text-[10px] uppercase font-bold text-left border-b border-gray-800 min-w-[500px]">
-                                        <div class="p-3">Vencimento</div>
-                                        <div class="p-3">Pagamento</div>
-                                        <div class="p-3">Valor</div>
-                                        <div class="p-3 text-center">Situação</div>
-                                        <div class="p-3 text-center">Ação</div>
-                                    </div>
-
-                                    <div id="invoice-list-body"
-                                        class="text-sm text-white font-medium flex flex-col min-w-[500px] overflow-x-hidden">
-                                        <div class="text-center p-4 text-gray-500 text-xs italic w-full">Carregando
-                                            faturas...</div>
-                                    </div>
-
+                            <div class="flex justify-between items-end mt-4 pt-4 border-t border-gray-800">
+                                <button
+                                    class="bg-[#00d65f] hover:bg-green-500 text-white font-bold px-4 py-2 rounded text-xs transition shadow-lg opacity-50 cursor-not-allowed">
+                                    Enviar Alerta de Pagamento Pendente
+                                </button>
+                                <div class="text-right">
+                                    <span
+                                        class="text-purple-400 text-xs font-bold border border-purple-500/30 px-2 py-0.5 rounded">Total
+                                        Pago:</span>
+                                    <div id="plan-total-paid"
+                                        class="text-[#00d65f] text-lg font-bold mt-1 bg-black px-4 py-1 rounded border border-gray-800">
+                                        R$ 0,00</div>
                                 </div>
+                            </div>
+                        </div>
 
-                                <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-                                    <button onclick="openAlertModal()"
-                                        class="w-full md:w-auto bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-4 py-3 rounded text-xs transition shadow-lg">
-                                        <i class="fas fa-bell mr-1"></i> Enviar Aviso ao Cliente
-                                    </button>
+                        <div class="bg-[#0f111a] border border-gray-800 rounded-xl p-4 shadow-lg">
+                            <h3 class="text-white font-bold text-sm tracking-wide mb-4 border-b border-gray-800 pb-2">
+                                Ações:</h3>
+
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                                <div class="flex flex-col items-center">
+                                    <label class="text-gray-400 text-[10px] font-bold uppercase mb-2">Ativar
+                                        Carência:</label>
+                                    <input type="checkbox" id="conf-carencia-active"
+                                        class="w-6 h-6 rounded bg-black border-gray-600 text-white focus:ring-0 cursor-pointer">
+                                </div>
+                                <div>
+                                    <label class="text-gray-400 text-[10px] font-bold uppercase mb-1">Dias de
+                                        Carência:</label>
                                     <div
-                                        class="text-center md:text-right bg-[#0f1014] border border-gray-800 rounded px-6 py-2">
+                                        class="flex bg-black border border-gray-700 rounded overflow-hidden focus-within:border-yellow-500">
+                                        <input type="number" id="conf-carencia-days" value="4"
+                                            class="w-full bg-transparent text-white p-2 outline-none text-sm font-bold text-center">
                                         <span
-                                            class="text-purple-400 text-[10px] font-bold uppercase border border-purple-500/30 px-2 py-0.5 rounded">Total
-                                            Pago:</span>
-                                        <div id="plan-total-paid" class="text-[#00d65f] text-xl font-bold mt-1">R$ 0,00
-                                        </div>
+                                            class="bg-gray-800 text-gray-400 px-3 py-2 text-xs flex items-center border-l border-gray-700">Dias</span>
                                     </div>
+                                </div>
+                                <div>
+                                    <label class="text-gray-400 text-[10px] font-bold uppercase mb-1">Medida:</label>
+                                    <select id="conf-carencia-action"
+                                        class="w-full bg-black border border-gray-700 text-white rounded p-2 outline-none focus:border-yellow-500 text-sm font-bold">
+                                        <option value="pausar" selected>Pausar</option>
+                                        <option value="bloquear">Bloquear</option>
+                                    </select>
+                                </div>
+                                <div class="flex flex-col items-center">
+                                    <label
+                                        class="text-gray-400 text-[10px] font-bold uppercase mb-2 text-center">Liberar
+                                        Após<br>Pagamento:</label>
+                                    <input type="checkbox" id="conf-auto-unlock" checked
+                                        class="w-6 h-6 rounded bg-black border-gray-600 text-white focus:ring-0 cursor-pointer">
                                 </div>
                             </div>
 
-                            <div class="border border-gray-800 rounded-xl p-4 bg-black/20">
-                                <label
-                                    class="text-sm font-bold text-white block mb-4 border-b border-gray-800 pb-2">Regras
-                                    de Cobrança e Punição</label>
-
-                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                    <div class="flex flex-col items-center justify-center">
-                                        <label
-                                            class="text-gray-400 text-[10px] font-bold uppercase mb-2 text-center">Ativar
-                                            Carência:</label>
-                                        <input type="checkbox" id="conf-carencia-active"
-                                            class="w-6 h-6 rounded bg-[#0f1014] border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer transition">
-                                    </div>
-                                    <div>
-                                        <label class="text-gray-400 text-[10px] font-bold uppercase mb-1">Dias de
-                                            Carência:</label>
-                                        <div
-                                            class="flex bg-[#0f1014] border border-gray-700 rounded overflow-hidden focus-within:border-yellow-500 transition">
-                                            <input type="number" id="conf-carencia-days" value="4" min="1"
-                                                class="w-full bg-transparent text-white p-3 outline-none text-sm font-bold text-center">
-                                            <span
-                                                class="bg-gray-800 text-gray-400 px-3 py-3 text-xs font-bold flex items-center border-l border-gray-700">Dias</span>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label
-                                            class="text-gray-400 text-[10px] font-bold uppercase mb-1">Medida:</label>
-                                        <select id="conf-carencia-action"
-                                            class="w-full bg-[#0f1014] border border-gray-700 text-white rounded p-3 outline-none focus:border-yellow-500 text-sm font-bold">
-                                            <option value="pausar" selected>Pausar</option>
-                                            <option value="bloquear">Bloquear</option>
-                                        </select>
-                                    </div>
-                                    <div class="flex flex-col items-center justify-center">
-                                        <label
-                                            class="text-gray-400 text-[10px] font-bold uppercase mb-2 text-center">Liberar
-                                            Após Pagto:</label>
-                                        <input type="checkbox" id="conf-auto-unlock" checked
-                                            class="w-6 h-6 rounded bg-[#0f1014] border-gray-600 text-green-500 focus:ring-0 cursor-pointer transition">
-                                    </div>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-gray-800">
+                                <div class="flex flex-col items-center">
+                                    <label
+                                        class="text-gray-400 text-[10px] font-bold uppercase mb-2 text-center">Excluir
+                                        após<br>Inatividade:</label>
+                                    <input type="checkbox" id="conf-auto-delete"
+                                        class="w-6 h-6 rounded bg-black border-gray-600 text-white focus:ring-0 cursor-pointer">
                                 </div>
-
-                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-800">
-                                    <div class="flex flex-col items-center justify-center">
-                                        <label
-                                            class="text-gray-400 text-[10px] font-bold uppercase mb-2 text-center text-red-400">Excluir
-                                            Inativos:</label>
-                                        <input type="checkbox" id="conf-auto-delete"
-                                            class="w-6 h-6 rounded bg-[#0f1014] border-gray-600 text-red-500 focus:ring-0 cursor-pointer transition">
-                                    </div>
-                                    <div>
-                                        <label
-                                            class="text-gray-400 text-[10px] font-bold uppercase mb-1 text-red-400">Após
-                                            qual Período:</label>
-                                        <div
-                                            class="flex bg-[#0f1014] border border-gray-700 rounded overflow-hidden focus-within:border-red-500 transition">
-                                            <input type="number" id="conf-delete-days" value="30" min="1"
-                                                class="w-full bg-transparent text-white p-3 outline-none text-sm font-bold text-center">
-                                            <span
-                                                class="bg-gray-800 text-gray-400 px-3 py-3 text-xs font-bold flex items-center border-l border-gray-700">Dias</span>
-                                        </div>
+                                <div>
+                                    <label class="text-gray-400 text-[10px] font-bold uppercase mb-1">Após qual
+                                        Período:</label>
+                                    <div
+                                        class="flex bg-black border border-gray-700 rounded overflow-hidden focus-within:border-yellow-500">
+                                        <input type="number" id="conf-delete-days" value="30"
+                                            class="w-full bg-transparent text-white p-2 outline-none text-sm font-bold text-center">
+                                        <span
+                                            class="bg-gray-800 text-gray-400 px-3 py-2 text-xs flex items-center border-l border-gray-700">Dias</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
+
+
+
+
                     <div class="bg-[#161821] border border-gray-800 rounded-xl p-5 shadow-inner">
                         <label
                             class="text-sm font-bold text-white block mb-4 border-b border-gray-800 pb-2">Gerenciamento
-                            Manual de Status</label>
+                            de Status</label>
                         <div id="action-buttons-container" class="space-y-3"></div>
                     </div>
 
@@ -518,7 +509,6 @@
                             EXCLUIR CLIENTE PERMANENTEMENTE
                         </button>
                     </div>
-
                 </div>
 
                 <div id="tab-financeiro" class="tab-content hidden space-y-4">
@@ -628,71 +618,6 @@
         <i class="fas fa-chart-pie text-6xl mb-4 opacity-20"></i>
         <p class="font-bold">Dashboard Geral</p>
     </div>
-
-    </div>
-
-    <dialog id="modal-pay-invoice" class="bg-[#161821] border border-gray-700 p-6 rounded-xl shadow-2xl text-white backdrop:bg-black/80 w-full max-w-sm m-auto z-[9999]">
-        <h3 class="text-lg font-bold text-[#00d65f] mb-4 flex items-center gap-2">
-            <i class="fas fa-check-circle"></i> Confirmar Pagamento
-        </h3>
-        
-        <input type="hidden" id="pay-invoice-id">
-        
-        <div class="space-y-4 mb-6">
-            <div>
-                <label class="text-xs text-gray-400 uppercase font-bold mb-1 block">Data do Pagamento</label>
-                <input type="date" id="pay-invoice-date" class="w-full bg-[#0f1014] border border-gray-700 text-white p-3 rounded outline-none focus:border-[#00d65f] appearance-none">
-            </div>
-            <div>
-                <label class="text-xs text-gray-400 uppercase font-bold mb-1 block">Valor Pago (R$)</label>
-                <input type="tel" id="pay-invoice-value" placeholder="0,00" oninput="maskCurrency(this)" class="w-full bg-[#0f1014] border border-gray-700 text-[#00d65f] font-bold p-3 rounded outline-none focus:border-[#00d65f] text-center">
-            </div>
-        </div>
-        
-        <div class="flex justify-end gap-3">
-            <button type="button" onclick="document.getElementById('modal-pay-invoice').close()" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition">Cancelar</button>
-            <button type="button" onclick="confirmInvoicePayment()" class="bg-[#00d65f] hover:bg-green-500 text-white px-6 py-2 rounded text-sm font-bold shadow-lg transition">Confirmar</button>
-        </div>
-    </dialog>
-
-    <dialog id="modal-send-alert"
-        class="bg-[#161821] border border-gray-700 p-6 rounded-xl shadow-2xl text-white backdrop:bg-black/80 w-full max-w-md m-auto z-[999]">
-        <h3 class="text-lg font-bold text-yellow-500 mb-4 flex items-center gap-2">
-            <i class="fas fa-paper-plane"></i> Enviar Aviso
-        </h3>
-
-        <div class="space-y-4 mb-6">
-            <div>
-                <label class="text-xs text-gray-400 uppercase font-bold mb-2 block">Mensagens Rápidas:</label>
-                <div class="flex flex-col gap-2">
-                    <button type="button" onclick="setAlertTemplate(1)"
-                        class="bg-[#0f1014] hover:bg-gray-800 text-left px-3 py-2 rounded text-xs text-gray-300 transition border border-gray-700 hover:border-yellow-500">
-                        <i class="fas fa-exclamation-circle text-red-500 mr-1"></i> Cobrança / Atraso
-                    </button>
-                    <button type="button" onclick="setAlertTemplate(2)"
-                        class="bg-[#0f1014] hover:bg-gray-800 text-left px-3 py-2 rounded text-xs text-gray-300 transition border border-gray-700 hover:border-yellow-500">
-                        <i class="fas fa-tools text-yellow-500 mr-1"></i> Manutenção Programada
-                    </button>
-                </div>
-            </div>
-
-            <div>
-                <label class="text-xs text-gray-400 uppercase font-bold mb-1 block">Mensagem:</label>
-                <textarea id="alert-message-text" rows="4"
-                    class="w-full bg-[#0f1014] border border-gray-700 text-white p-3 rounded outline-none focus:border-yellow-500 text-sm resize-none"
-                    placeholder="Digite sua mensagem aqui..."></textarea>
-            </div>
-        </div>
-
-        <div class="flex justify-end gap-3">
-            <button type="button" onclick="document.getElementById('modal-send-alert').close()"
-                class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition">Cancelar</button>
-            <button type="button" onclick="submitClientAlert()"
-                class="bg-yellow-500 hover:bg-yellow-400 text-black px-6 py-2 rounded text-sm font-bold shadow-lg transition">Enviar
-                Mensagem</button>
-        </div>
-    </dialog>
-
 
     <script type="module" src="script.js"></script>
 </body>

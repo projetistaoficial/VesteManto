@@ -378,8 +378,7 @@
                                     <div>
                                         <label class="text-gray-400 text-[10px] font-bold uppercase mb-1 block">Valor
                                             (R$):</label>
-                                        <input type="tel" id="plan-value" placeholder="0,00"
-                                            oninput="maskCurrency(this)"
+                                        <input type="number" id="plan-value" placeholder="69.99" step="0.01"
                                             class="w-full bg-[#0f1014] border border-gray-700 text-white rounded p-3 outline-none focus:border-yellow-500 text-sm font-bold text-center">
                                     </div>
                                     <div>
@@ -399,23 +398,25 @@
                                     de Pagamentos</label>
 
                                 <div
-                                    class="overflow-x-auto overflow-y-auto max-h-[250px] custom-scrollbar rounded border border-gray-800 mb-4 relative bg-[#161821]">
-
-                                    <div
-                                        class="grid grid-cols-5 bg-[#0f1014] sticky top-0 z-20 shadow-md text-gray-400 text-[10px] uppercase font-bold text-left border-b border-gray-800 min-w-[500px]">
-                                        <div class="p-3">Vencimento</div>
-                                        <div class="p-3">Pagamento</div>
-                                        <div class="p-3">Valor</div>
-                                        <div class="p-3 text-center">Situação</div>
-                                        <div class="p-3 text-center">Ação</div>
-                                    </div>
-
-                                    <div id="invoice-list-body"
-                                        class="text-sm text-white font-medium flex flex-col min-w-[500px] overflow-x-hidden">
-                                        <div class="text-center p-4 text-gray-500 text-xs italic w-full">Carregando
-                                            faturas...</div>
-                                    </div>
-
+                                    class="overflow-x-auto overflow-y-auto max-h-[220px] custom-scrollbar rounded border border-gray-800 mb-4 relative">
+                                    <table class="w-full text-left border-collapse whitespace-nowrap">
+                                        <thead class="bg-[#0f1014] sticky top-0 z-10 shadow-md">
+                                            <tr class="text-gray-400 text-[10px] uppercase">
+                                                <th class="p-3 border-b border-gray-800">Vencimento:</th>
+                                                <th class="p-3 border-b border-gray-800">Pagamento:</th>
+                                                <th class="p-3 border-b border-gray-800">Valor:</th>
+                                                <th class="p-3 border-b border-gray-800 text-center">Situação:</th>
+                                                <th class="p-3 border-b border-gray-800 text-center">Ação:</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="invoice-list-body"
+                                            class="text-sm text-white font-medium divide-y divide-gray-800/50">
+                                            <tr>
+                                                <td colspan="5" class="text-center p-4 text-gray-500 text-xs italic">
+                                                    Carregando faturas...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
                                 </div>
 
                                 <div class="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -630,28 +631,32 @@
     </div>
 
     </div>
-
-    <dialog id="modal-pay-invoice" class="bg-[#161821] border border-gray-700 p-6 rounded-xl shadow-2xl text-white backdrop:bg-black/80 w-full max-w-sm m-auto z-[9999]">
+    <dialog id="modal-pay-invoice"
+        class="bg-[#161821] border border-gray-700 p-6 rounded-xl shadow-2xl text-white backdrop:bg-black/80 w-full max-w-sm m-auto z-[999]">
         <h3 class="text-lg font-bold text-[#00d65f] mb-4 flex items-center gap-2">
             <i class="fas fa-check-circle"></i> Confirmar Pagamento
         </h3>
-        
+
         <input type="hidden" id="pay-invoice-id">
-        
+
         <div class="space-y-4 mb-6">
             <div>
                 <label class="text-xs text-gray-400 uppercase font-bold mb-1 block">Data do Pagamento</label>
-                <input type="date" id="pay-invoice-date" class="w-full bg-[#0f1014] border border-gray-700 text-white p-3 rounded outline-none focus:border-[#00d65f] appearance-none">
+                <input type="date" id="pay-invoice-date"
+                    class="w-full bg-[#0f1014] border border-gray-700 text-white p-3 rounded outline-none focus:border-[#00d65f] appearance-none">
             </div>
             <div>
                 <label class="text-xs text-gray-400 uppercase font-bold mb-1 block">Valor Pago (R$)</label>
-                <input type="tel" id="pay-invoice-value" placeholder="0,00" oninput="maskCurrency(this)" class="w-full bg-[#0f1014] border border-gray-700 text-[#00d65f] font-bold p-3 rounded outline-none focus:border-[#00d65f] text-center">
+                <input type="number" id="pay-invoice-value" step="0.01"
+                    class="w-full bg-[#0f1014] border border-gray-700 text-[#00d65f] font-bold p-3 rounded outline-none focus:border-[#00d65f]">
             </div>
         </div>
-        
+
         <div class="flex justify-end gap-3">
-            <button type="button" onclick="document.getElementById('modal-pay-invoice').close()" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition">Cancelar</button>
-            <button type="button" onclick="confirmInvoicePayment()" class="bg-[#00d65f] hover:bg-green-500 text-white px-6 py-2 rounded text-sm font-bold shadow-lg transition">Confirmar</button>
+            <button type="button" onclick="document.getElementById('modal-pay-invoice').close()"
+                class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition">Cancelar</button>
+            <button type="button" onclick="confirmInvoicePayment()"
+                class="bg-[#00d65f] hover:bg-green-500 text-white px-6 py-2 rounded text-sm font-bold shadow-lg transition">Confirmar</button>
         </div>
     </dialog>
 
@@ -693,8 +698,9 @@
         </div>
     </dialog>
 
+</html>
 
-    <script type="module" src="script.js"></script>
+<script type="module" src="script.js"></script>
 </body>
 
 </html>

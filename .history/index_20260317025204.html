@@ -49,39 +49,39 @@
     <script type="module" src="js/support.js"></script>
 
     <script type="module">
-        // 1. TODOS OS IMPORTS DEVEM FICAR NO TOPO
-        import { db, doc, getDocFromServer, collection, getDocs, updateDoc } from './js/firebase-config.js';
+    // 1. TODOS OS IMPORTS DEVEM FICAR NO TOPO
+    import { db, doc, getDocFromServer, collection, getDocs, updateDoc } from './js/firebase-config.js';
 
-        // 2. CAPTURA DO ID DA URL
-        const urlParams = new URLSearchParams(window.location.search);
-        let siteId = urlParams.get('site');
+    // 2. CAPTURA DO ID DA URL
+    const urlParams = new URLSearchParams(window.location.search);
+    let siteId = urlParams.get('site');
 
-        if (!siteId) {
-            const pathParts = window.location.pathname.split('/').filter(Boolean);
-            if (pathParts.length > 0 && pathParts[0] !== 'master' && pathParts[0] !== 'index.html') {
-                siteId = pathParts[0];
-            }
+    if (!siteId) {
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        if (pathParts.length > 0 && pathParts[0] !== 'master' && pathParts[0] !== 'index.html') {
+            siteId = pathParts[0];
+        }
+    }
+
+    // --- MANTENDO SEU DESIGN DE TELAS DE ERRO ---
+    function destruirTudo(titulo, motivo, tipo = 'erro') {
+        console.error("⛔ ACESSO NEGADO: " + motivo);
+        document.body.innerHTML = '';
+        document.body.style.setProperty('display', 'block', 'important');
+
+        let iconHtml = '🚫';
+        let mainColor = '#ef4444';
+        let bgStyle = 'background-color: black;';
+
+        if (tipo === 'pausado') {
+            iconHtml = '⚙️';
+            mainColor = '#facc15';
+            bgStyle = 'background: linear-gradient(135deg, #0f172a 0%, #000000 100%);';
         }
 
-        // --- MANTENDO SEU DESIGN DE TELAS DE ERRO ---
-        function destruirTudo(titulo, motivo, tipo = 'erro') {
-            console.error("⛔ ACESSO NEGADO: " + motivo);
-            document.body.innerHTML = '';
-            document.body.style.setProperty('display', 'block', 'important');
+        document.body.style.cssText = `display: block !important; ${bgStyle}`;
 
-            let iconHtml = '🚫';
-            let mainColor = '#ef4444';
-            let bgStyle = 'background-color: black;';
-
-            if (tipo === 'pausado') {
-                iconHtml = '⚙️';
-                mainColor = '#facc15';
-                bgStyle = 'background: linear-gradient(135deg, #0f172a 0%, #000000 100%);';
-            }
-
-            document.body.style.cssText = `display: block !important; ${bgStyle}`;
-
-            document.body.innerHTML = `
+        document.body.innerHTML = `
         <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; font-family:sans-serif; text-align:center; padding: 20px;">
             <div style="font-size: 4rem; margin-bottom: 20px;">${iconHtml}</div>
             <h1 style="font-size:2rem; color:${mainColor}; margin:0; line-height: 1.2;">${titulo}</h1>
@@ -95,148 +95,148 @@
             </div>
         </div>
         `;
-            throw new Error("SISTEMA_BLOQUEADO");
+        throw new Error("SISTEMA_BLOQUEADO");
+    }
+
+    // --- LÓGICA DE VALIDAÇÃO ---
+    async function validar() {
+        console.log("🔍 Verificando ID:", siteId);
+
+        if (!siteId) {
+            destruirTudo("Erro", "ID da loja não encontrado na URL.");
+            return;
         }
 
-        // --- LÓGICA DE VALIDAÇÃO ---
-        async function validar() {
-            console.log("🔍 Verificando ID:", siteId);
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-            if (!siteId) {
-                destruirTudo("Erro", "ID da loja não encontrado na URL.");
+        try {
+            const docRef = doc(db, "sites", siteId);
+            const snap = await getDocFromServer(docRef);
+
+            if (!snap.exists()) {
+                destruirTudo("404", `A loja "${siteId}" não existe.`);
                 return;
             }
 
-            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const data = snap.data();
+            if (data.status === 'pausado') { destruirTudo("Indisponível Temporariamente", "Estamos realizando manutenções na loja.", "pausado"); return; }
+            if (data.status === 'bloqueado' || data.active === false) { destruirTudo("Acesso Suspenso", "A conta desta loja está suspensa."); return; }
 
-            try {
-                const docRef = doc(db, "sites", siteId);
-                const snap = await getDocFromServer(docRef);
+            // ✅ TUDO OK: Define o ID global
+            window.SITE_ID = siteId;
 
-                if (!snap.exists()) {
-                    destruirTudo("404", `A loja "${siteId}" não existe.`);
-                    return;
-                }
+            // --- CARREGA AVISOS AQUI (Atrasado 1 seg para não travar o carregamento principal) ---
+            setTimeout(() => window.loadClientAlerts(), 1000); 
 
-                const data = snap.data();
-                if (data.status === 'pausado') { destruirTudo("Indisponível Temporariamente", "Estamos realizando manutenções na loja.", "pausado"); return; }
-                if (data.status === 'bloqueado' || data.active === false) { destruirTudo("Acesso Suspenso", "A conta desta loja está suspensa."); return; }
+            // ✅ IMPORTA O APP E LIBERA ACESSO
+            await import(`./js/app.js?v=${Date.now()}`);
+            document.body.classList.add('acesso-liberado');
 
-                // ✅ TUDO OK: Define o ID global
-                window.SITE_ID = siteId;
-
-                // --- CARREGA AVISOS AQUI (Atrasado 1 seg para não travar o carregamento principal) ---
-                setTimeout(() => window.loadClientAlerts(), 1000);
-
-                // ✅ IMPORTA O APP E LIBERA ACESSO
-                await import(`./js/app.js?v=${Date.now()}`);
-                document.body.classList.add('acesso-liberado');
-
-                // ✨ Limpa a URL se tiver o ?site=
-                if (!isLocalhost && window.location.search.includes('site=')) {
-                    window.history.replaceState(null, '', '/' + siteId);
-                }
-
-            } catch (e) {
-                console.error(e);
-                if (e.message !== "SISTEMA_BLOQUEADO") destruirTudo("Erro", "Falha na conexão.");
+            // ✨ Limpa a URL se tiver o ?site=
+            if (!isLocalhost && window.location.search.includes('site=')) {
+                window.history.replaceState(null, '', '/' + siteId);
             }
+
+        } catch (e) {
+            console.error(e);
+            if (e.message !== "SISTEMA_BLOQUEADO") destruirTudo("Erro", "Falha na conexão.");
         }
+    }
 
-        // --- LÓGICA PARA LER OS AVISOS ---
-        window.toggleAlertsAccordion = async () => {
-            const content = document.getElementById('content-acc-alerts');
-            const arrow = document.getElementById('arrow-acc-alerts');
+    // --- LÓGICA PARA LER OS AVISOS ---
+    window.toggleAlertsAccordion = async () => {
+        const content = document.getElementById('content-acc-alerts');
+        const arrow = document.getElementById('arrow-acc-alerts');
 
-            if (content.classList.contains('hidden')) {
-                content.classList.remove('hidden');
-                arrow.classList.add('rotate-180');
-                await markAlertsAsRead(); // Marca como lido ao abrir
-            } else {
-                content.classList.add('hidden');
-                arrow.classList.remove('rotate-180');
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            arrow.classList.add('rotate-180');
+            await markAlertsAsRead(); // Marca como lido ao abrir
+        } else {
+            content.classList.add('hidden');
+            arrow.classList.remove('rotate-180');
+        }
+    };
+
+    window.loadClientAlerts = async () => {
+        if (!window.SITE_ID) return;
+        try {
+            const avisosRef = collection(db, `sites/${window.SITE_ID}/avisos`);
+            const snap = await getDocs(avisosRef);
+
+            const list = document.getElementById('alerts-list');
+            const badge = document.getElementById('badge-alerts');
+
+            if (snap.empty) {
+                list.innerHTML = '<p class="text-gray-500 text-sm italic text-center py-4">Nenhum aviso no momento.</p>';
+                return;
             }
-        };
 
-        window.loadClientAlerts = async () => {
-            if (!window.SITE_ID) return;
-            try {
-                const avisosRef = collection(db, `sites/${window.SITE_ID}/avisos`);
-                const snap = await getDocs(avisosRef);
+            let html = '';
+            let unreadCount = 0;
+            let avisosArray = [];
 
-                const list = document.getElementById('alerts-list');
-                const badge = document.getElementById('badge-alerts');
+            snap.forEach(d => avisosArray.push({ id: d.id, ...d.data() }));
+            avisosArray.sort((a, b) => new Date(b.data) - new Date(a.data));
 
-                if (snap.empty) {
-                    list.innerHTML = '<p class="text-gray-500 text-sm italic text-center py-4">Nenhum aviso no momento.</p>';
-                    return;
-                }
+            avisosArray.forEach(aviso => {
+                if (!aviso.lido) unreadCount++;
 
-                let html = '';
-                let unreadCount = 0;
-                let avisosArray = [];
+                const d = new Date(aviso.data);
+                const dataFormatada = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')} às ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 
-                snap.forEach(d => avisosArray.push({ id: d.id, ...d.data() }));
-                avisosArray.sort((a, b) => new Date(b.data) - new Date(a.data));
-
-                avisosArray.forEach(aviso => {
-                    if (!aviso.lido) unreadCount++;
-
-                    const d = new Date(aviso.data);
-                    const dataFormatada = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')} às ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-
-                    html += `
+                html += `
                 <div class="bg-black border border-gray-800 rounded p-4 relative alert-item ${!aviso.lido ? 'border-l-2 border-l-red-500' : ''}" data-id="${aviso.id}" data-lido="${aviso.lido}">
                     ${!aviso.lido ? '<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>' : ''}
                     <p class="text-gray-500 text-[10px] mb-2 font-bold"><i class="fas fa-clock"></i> ${dataFormatada}</p>
                     <p class="text-white text-sm leading-relaxed">${aviso.mensagem}</p>
                 </div>
                 `;
-                });
+            });
 
-                list.innerHTML = html;
+            list.innerHTML = html;
 
-                if (unreadCount > 0) {
-                    badge.innerText = unreadCount;
-                    badge.classList.remove('hidden');
-                } else {
-                    badge.classList.add('hidden');
-                }
-
-            } catch (e) {
-                console.error("Erro ao carregar avisos", e);
-            }
-        };
-
-        window.markAlertsAsRead = async () => {
-            const badge = document.getElementById('badge-alerts');
-            if (badge.classList.contains('hidden')) return; // Já leu tudo
-
-            try {
-                const unreadItems = document.querySelectorAll('.alert-item[data-lido="false"]');
-
-                for (let item of unreadItems) {
-                    const id = item.getAttribute('data-id');
-                    // Atualiza no banco
-                    await updateDoc(doc(db, `sites/${window.SITE_ID}/avisos`, id), { lido: true });
-
-                    // Atualiza visualmente tirando a borda e a bolinha vermelha
-                    item.classList.remove('border-l-2', 'border-l-red-500');
-                    item.setAttribute('data-lido', 'true');
-                    const dot = item.querySelector('.bg-red-500.rounded-full');
-                    if (dot) dot.remove();
-                }
-
+            if (unreadCount > 0) {
+                badge.innerText = unreadCount;
+                badge.classList.remove('hidden');
+            } else {
                 badge.classList.add('hidden');
-
-            } catch (e) {
-                console.error("Erro ao marcar como lido", e);
             }
-        };
 
-        // --- INICIA TUDO ---
-        validar();
-    </script>
+        } catch (e) {
+            console.error("Erro ao carregar avisos", e);
+        }
+    };
+
+    window.markAlertsAsRead = async () => {
+        const badge = document.getElementById('badge-alerts');
+        if (badge.classList.contains('hidden')) return; // Já leu tudo
+
+        try {
+            const unreadItems = document.querySelectorAll('.alert-item[data-lido="false"]');
+
+            for (let item of unreadItems) {
+                const id = item.getAttribute('data-id');
+                // Atualiza no banco
+                await updateDoc(doc(db, `sites/${window.SITE_ID}/avisos`, id), { lido: true });
+
+                // Atualiza visualmente tirando a borda e a bolinha vermelha
+                item.classList.remove('border-l-2', 'border-l-red-500');
+                item.setAttribute('data-lido', 'true');
+                const dot = item.querySelector('.bg-red-500.rounded-full');
+                if (dot) dot.remove();
+            }
+
+            badge.classList.add('hidden');
+
+        } catch (e) {
+            console.error("Erro ao marcar como lido", e);
+        }
+    };
+
+    // --- INICIA TUDO ---
+    validar();
+</script>
 
     <div id="site-floating-capsule"
         class="fixed top-6 right-4 z-[60] flex items-center gap-2 bg-black/30 backdrop-blur-md p-2 rounded-full border border-gray-700 shadow-2xl animate-fade-in transition-all duration-300 hover:bg-black/80">

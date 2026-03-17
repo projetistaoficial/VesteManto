@@ -202,7 +202,7 @@ async function openClientModal(docId = null) {
             // --- CARREGAR DADOS DO PLANO ---
             const plan = client.plan || {};
             document.getElementById('plan-period').value = plan.period || '30';
-            document.getElementById('plan-value').value = formatForInput(plan.value);
+            document.getElementById('plan-value').value = plan.value || '';
             document.getElementById('plan-next-due').value = plan.nextDue || '';
 
             document.getElementById('conf-carencia-active').checked = plan.carenciaActive || false;
@@ -355,7 +355,7 @@ async function saveClientData() {
     // Pegando os dados da nova aba de Assinatura
     const planData = {
         period: document.getElementById('plan-period').value,
-        value: parseCurrencyVal(document.getElementById('plan-value').value),
+        value: parseFloat(document.getElementById('plan-value').value) || 0,
         nextDue: document.getElementById('plan-next-due').value,
         carenciaActive: document.getElementById('conf-carencia-active').checked,
         carenciaDays: parseInt(document.getElementById('conf-carencia-days').value) || 4,
@@ -1109,69 +1109,49 @@ function updatePlanStatusBadge(faturas) {
 // Abre o modal para preencher a data que pagou
 window.openPayModal = (faturaId, valorEsperado) => {
     document.getElementById('pay-invoice-id').value = faturaId;
-    
-    const inputValor = document.getElementById('pay-invoice-value');
-    inputValor.value = formatForInput(valorEsperado);
-    
-    // ✨ NOVO: Guarda o valor máximo (valor do plano) "escondido" no input
-    inputValor.setAttribute('data-max', valorEsperado);
-    
+    document.getElementById('pay-invoice-value').value = valorEsperado;
+
     // Preenche com a data de hoje por padrão
     document.getElementById('pay-invoice-date').value = new Date().toISOString().split('T')[0];
-    
+
     document.getElementById('modal-pay-invoice').showModal();
 };
 
 // Salva o pagamento e gera a próxima conta
 window.confirmInvoicePayment = async () => {
-    // 1. Pegamos os elementos HTML e os valores
     const faturaId = document.getElementById('pay-invoice-id').value;
-    const inputValorHTML = document.getElementById('pay-invoice-value');
-    
-    // Converte o valor digitado (com máscara) para número
-    const valorPago = parseCurrencyVal(inputValorHTML.value);
+    const valorPago = parseFloat(document.getElementById('pay-invoice-value').value);
     const dataPagamento = document.getElementById('pay-invoice-date').value;
-    
-    // Puxa o valor máximo que escondemos no input
-    const valorMaximo = parseFloat(inputValorHTML.getAttribute('data-max')) || 0;
-    
-    // 2. Fazemos as validações (Travas de Segurança)
-    if (!dataPagamento || isNaN(valorPago) || valorPago <= 0) {
-        return alert("Preencha a data e um valor válido.");
-    }
-    
-    if (valorPago > valorMaximo) {
-        return alert(`⚠️ Ops! O valor pago (R$ ${formatForInput(valorPago)}) não pode ser maior que o valor da fatura (R$ ${formatForInput(valorMaximo)}).`);
-    }
-    
-    // 3. Prepara o botão de carregamento
+
+    if (!dataPagamento || isNaN(valorPago)) return alert("Preencha a data e o valor corretamente.");
+
     const btn = event.target;
     const txtOriginal = btn.innerText;
     btn.innerText = "Processando...";
     btn.disabled = true;
-    
+
     try {
         const faturaRef = doc(db, `sites/${currentDocId}/faturas`, faturaId);
-        
-        // Marca a fatura atual como paga
+
+        // 1. Marca a fatura atual como paga
         await updateDoc(faturaRef, {
             status: 'pago',
             dataPagamento: dataPagamento,
             valorPago: valorPago
         });
-        
-        // Calcula e gera a fatura do PRÓXIMO ciclo
+
+        // 2. Calcula e gera a fatura do PRÓXIMO ciclo
         await gerarProximaFatura(currentDocId);
-        
-        // Libera o site automaticamente (se a opção estiver marcada)
+
+        // 3. Libera o site automaticamente (se a opção estiver marcada e ele estiver pausado/bloqueado)
         await verificarDesbloqueioAutomatico(currentDocId);
-        
+
         document.getElementById('modal-pay-invoice').close();
         showToast("Pagamento registrado com sucesso!");
-        
+
         // Recarrega a lista para mostrar atualizado
         loadInvoices(currentDocId);
-        
+
     } catch (e) {
         console.error("Erro ao pagar:", e);
         alert("Erro ao registrar pagamento.");
@@ -1277,21 +1257,21 @@ window.deleteInvoice = async (faturaId) => {
 // 1. A máscara que roda enquanto você digita
 window.maskCurrency = (input) => {
     let value = input.value.replace(/\D/g, ''); // Remove tudo que não é número
-
+    
     if (value === '') {
         input.value = '';
         return;
     }
-
+    
     value = parseInt(value, 10).toString(); // Tira zeros à esquerda
     value = value.padStart(3, '0'); // Garante que tenha pelo menos 3 dígitos (ex: 001)
-
+    
     let integerPart = value.slice(0, -2);
     let decimalPart = value.slice(-2);
-
+    
     // Coloca os pontos de milhar
     integerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-
+    
     input.value = integerPart + ',' + decimalPart;
 };
 

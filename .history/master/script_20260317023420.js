@@ -58,16 +58,16 @@ window.addEventListener('DOMContentLoaded', () => {
     if (planPeriodSelect && planNextDueInput) {
         planPeriodSelect.addEventListener('change', () => {
             const dias = parseInt(planPeriodSelect.value) || 30;
-
+            
             // Pega a data atual
             let dataCalculada = new Date();
-
+            
             // Se já houver uma data definida no input, baseia o cálculo nela (opcional)
             // if (planNextDueInput.value) { dataCalculada = new Date(planNextDueInput.value + "T12:00:00"); }
-
+            
             // Soma os dias
             dataCalculada.setDate(dataCalculada.getDate() + dias);
-
+            
             // Formata para o padrão do input (YYYY-MM-DD)
             planNextDueInput.value = dataCalculada.toISOString().split('T')[0];
         });
@@ -198,13 +198,13 @@ async function openClientModal(docId = null) {
             document.getElementById('inp-site-slug').disabled = true;
             document.getElementById('inp-site-link').value = `${PRODUCTION_DOMAIN}/${client.docId}`;
 
-
+            
             // --- CARREGAR DADOS DO PLANO ---
             const plan = client.plan || {};
             document.getElementById('plan-period').value = plan.period || '30';
-            document.getElementById('plan-value').value = formatForInput(plan.value);
+            document.getElementById('plan-value').value = plan.value || '';
             document.getElementById('plan-next-due').value = plan.nextDue || '';
-
+            
             document.getElementById('conf-carencia-active').checked = plan.carenciaActive || false;
             document.getElementById('conf-carencia-days').value = plan.carenciaDays || 4;
             document.getElementById('conf-carencia-action').value = plan.carenciaAction || 'pausar';
@@ -301,7 +301,7 @@ async function saveClientData() {
         alert("⚠️ O campo 'Nome da Loja' é obrigatório.");
         return;
     }
-
+    
     if (!slug) {
         alert("⚠️ O 'Slug do Site' é obrigatório.");
         return;
@@ -355,7 +355,7 @@ async function saveClientData() {
     // Pegando os dados da nova aba de Assinatura
     const planData = {
         period: document.getElementById('plan-period').value,
-        value: parseCurrencyVal(document.getElementById('plan-value').value),
+        value: parseFloat(document.getElementById('plan-value').value) || 0,
         nextDue: document.getElementById('plan-next-due').value,
         carenciaActive: document.getElementById('conf-carencia-active').checked,
         carenciaDays: parseInt(document.getElementById('conf-carencia-days').value) || 4,
@@ -403,7 +403,7 @@ async function saveClientData() {
 
     try {
         await setDoc(doc(db, "sites", docId), data, { merge: true });
-
+        
         // Gera a primeira fatura automaticamente caso tenha vencimento e valor
         await checkAndCreateFirstInvoice(docId, planData);
 
@@ -802,14 +802,14 @@ window.filterClients = (searchTerm = '') => {
     renderClients(filtered);
 };
 
-window.generateSiteLink = () => {
-    const n = document.getElementById('inp-name').value;
-    if (n) {
-        const s = n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-');
-        document.getElementById('inp-site-slug').value = s;
+window.generateSiteLink = () => { 
+    const n = document.getElementById('inp-name').value; 
+    if (n) { 
+        const s = n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-'); 
+        document.getElementById('inp-site-slug').value = s; 
         // O ERRO ESTAVA AQUI: Você estava tentando usar 'client.docId' onde o correto era 's'
-        document.getElementById('inp-site-link').value = `${PRODUCTION_DOMAIN}/${s}`;
-    }
+        document.getElementById('inp-site-link').value = `${PRODUCTION_DOMAIN}/${s}`; 
+    } 
 }
 
 window.copyToClipboard = (t) => navigator.clipboard.writeText(t).then(() => alert("Copiado!"));
@@ -972,7 +972,7 @@ async function checkAndCreateFirstInvoice(clientId, planData) {
 
     const faturasRef = collection(db, `sites/${clientId}/faturas`);
     const snap = await getDocs(faturasRef);
-
+    
     // Se não tiver nenhuma fatura, cria a primeira
     if (snap.empty) {
         const novaFatura = {
@@ -990,14 +990,14 @@ async function checkAndCreateFirstInvoice(clientId, planData) {
 async function loadInvoices(clientId) {
     const tbody = document.getElementById('invoice-list-body');
     tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-gray-500 text-xs italic">Carregando...</td></tr>';
-
+    
     try {
         const faturasRef = collection(db, `sites/${clientId}/faturas`);
         const snap = await getDocs(faturasRef);
-
+        
         let faturas = [];
         let totalPago = 0;
-
+        
         snap.forEach(d => {
             const fatura = { id: d.id, ...d.data() };
             faturas.push(fatura);
@@ -1005,10 +1005,10 @@ async function loadInvoices(clientId) {
                 totalPago += parseFloat(fatura.valorPago || fatura.valor || 0);
             }
         });
-
+        
         // Ordena por data de vencimento (Mais recentes primeiro)
         faturas.sort((a, b) => new Date(b.vencimento) - new Date(a.vencimento));
-
+        
         document.getElementById('plan-total-paid').innerText = formatMoney(totalPago);
         renderInvoices(faturas);
         updatePlanStatusBadge(faturas);
@@ -1022,81 +1022,59 @@ async function loadInvoices(clientId) {
 function renderInvoices(faturas) {
     const tbody = document.getElementById('invoice-list-body');
     tbody.innerHTML = '';
-
+    
     if (faturas.length === 0) {
-        tbody.innerHTML = '<div class="text-center p-4 text-gray-500 text-xs italic w-full">Nenhuma fatura encontrada.</div>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-gray-500 text-xs italic">Nenhuma fatura encontrada.</td></tr>';
         return;
     }
-
+    
     faturas.forEach(f => {
+        const row = document.createElement('tr');
+        row.className = "border-b border-gray-800/50 hover:bg-gray-800/20 transition";
+        
+        // Formatar datas para o padrão BR (DD/MM/YYYY)
         const dataVenc = f.vencimento ? f.vencimento.split('-').reverse().join('/') : '--/--/----';
         const dataPag = f.dataPagamento ? f.dataPagamento.split('-').reverse().join('/') : 'Pendente';
         const valorFatura = formatMoney(parseFloat(f.valor));
-
+        
         let statusHtml = '';
         let acaoHtml = '';
-
+        
         if (f.status === 'pago') {
-            statusHtml = `<span class="bg-green-600 text-white px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">Pago</span>`;
-            acaoHtml = `<span class="text-gray-500 text-[10px] flex items-center justify-center gap-1"><i class="fas fa-check text-green-500"></i> Registrado</span>`;
+            statusHtml = `<span class="bg-green-600 text-white px-3 py-1 rounded text-[10px] font-bold uppercase block w-full text-center">Pago</span>`;
+            acaoHtml = `<span class="text-gray-500 text-[10px]"><i class="fas fa-check text-green-500"></i> Registrado</span>`;
         } else {
-            const hojeDate = new Date();
-            hojeDate.setHours(0, 0, 0, 0);
-            const vencDate = new Date(f.vencimento + "T12:00:00");
-            vencDate.setHours(0, 0, 0, 0);
-
-            const diffTime = Math.abs(hojeDate - vencDate);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            const isAtrasado = hojeDate > vencDate;
-
+            // Verifica se está atrasado
+            const hoje = new Date().toISOString().split('T')[0];
+            const isAtrasado = f.vencimento < hoje;
+            
             if (isAtrasado) {
-                statusHtml = `
-                    <div class="flex flex-col items-center justify-center">
-                        <span class="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">Atrasado</span>
-                        <span class="text-[9px] text-red-400 font-bold mt-1">${diffDays} dia(s)</span>
-                    </div>`;
+                statusHtml = `<span class="bg-red-600 text-white px-3 py-1 rounded text-[10px] font-bold uppercase block w-full text-center">Atrasado</span>`;
             } else {
-                statusHtml = `<span class="bg-yellow-500 text-black px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">A Vencer</span>`;
+                statusHtml = `<span class="bg-yellow-500 text-black px-3 py-1 rounded text-[10px] font-bold uppercase block w-full text-center">A Vencer</span>`;
             }
-
-            acaoHtml = `<button onclick="openPayModal('${f.id}', ${f.valor})" class="bg-[#00d65f] hover:bg-green-500 text-white px-2 py-1 rounded text-[10px] font-bold uppercase transition w-full flex items-center justify-center gap-1"><i class="fas fa-check-circle"></i> Informar</button>`;
+            
+            acaoHtml = `<button onclick="openPayModal('${f.id}', ${f.valor})" class="bg-[#00d65f] hover:bg-green-500 text-white px-3 py-1 rounded text-[10px] font-bold uppercase transition w-full flex items-center justify-center gap-1"><i class="fas fa-check-circle"></i> Informar</button>`;
         }
-
-        const wrapper = document.createElement('div');
-        // O fundo sempre vermelho
-        wrapper.className = "relative w-full border-b border-gray-800/50 group overflow-hidden";
-
-        // Fundo: Botão de Lixeira escondido do lado direito
-        const trashBtnHtml = `
-            <div class="absolute inset-y-0 right-0 w-[80px] bg-red-600 flex flex-col items-center justify-center text-white cursor-pointer hover:bg-red-700 transition" onclick="deleteInvoice('${f.id}')">
-                <i class="fas fa-trash mb-1 text-lg"></i>
-                <span class="text-[9px] font-bold uppercase">Excluir</span>
-            </div>
+        
+        row.innerHTML = `
+            <td class="p-3">${dataVenc}</td>
+            <td class="p-3 text-gray-400">${dataPag}</td>
+            <td class="p-3">${valorFatura}</td>
+            <td class="p-3">${statusHtml}</td>
+            <td class="p-3">${acaoHtml}</td>
         `;
-
-        // Frente: A linha arrastável com os dados
-        const frontHtml = `
-            <div class="grid grid-cols-5 w-full bg-[#161821] relative z-10 transition-transform duration-200 ease-out swipeable-row items-center min-h-[60px]" data-id="${f.id}">
-                <div class="p-3 truncate">${dataVenc}</div>
-                <div class="p-3 text-gray-400 truncate text-xs">${dataPag}</div>
-                <div class="p-3 truncate text-green-400">${valorFatura}</div>
-                <div class="p-3 flex justify-center">${statusHtml}</div>
-                <div class="p-3 flex justify-center">${acaoHtml}</div>
-            </div>
-        `;
-
-        wrapper.innerHTML = trashBtnHtml + frontHtml;
-        tbody.appendChild(wrapper);
+        tbody.appendChild(row);
     });
 }
 
 function updatePlanStatusBadge(faturas) {
     const badge = document.getElementById('plan-status-badge');
     const hoje = new Date().toISOString().split('T')[0];
-
+    
     // Verifica se há alguma pendente atrasada
     const temAtraso = faturas.some(f => f.status !== 'pago' && f.vencimento < hoje);
-
+    
     if (temAtraso) {
         badge.className = "w-full bg-red-600 text-white font-bold uppercase text-xs rounded p-3 text-center shadow-sm";
         badge.innerText = "ATRASADO (PENDENTE)";
@@ -1109,12 +1087,7 @@ function updatePlanStatusBadge(faturas) {
 // Abre o modal para preencher a data que pagou
 window.openPayModal = (faturaId, valorEsperado) => {
     document.getElementById('pay-invoice-id').value = faturaId;
-    
-    const inputValor = document.getElementById('pay-invoice-value');
-    inputValor.value = formatForInput(valorEsperado);
-    
-    // ✨ NOVO: Guarda o valor máximo (valor do plano) "escondido" no input
-    inputValor.setAttribute('data-max', valorEsperado);
+    document.getElementById('pay-invoice-value').value = valorEsperado;
     
     // Preenche com a data de hoje por padrão
     document.getElementById('pay-invoice-date').value = new Date().toISOString().split('T')[0];
@@ -1124,27 +1097,12 @@ window.openPayModal = (faturaId, valorEsperado) => {
 
 // Salva o pagamento e gera a próxima conta
 window.confirmInvoicePayment = async () => {
-    // 1. Pegamos os elementos HTML e os valores
     const faturaId = document.getElementById('pay-invoice-id').value;
-    const inputValorHTML = document.getElementById('pay-invoice-value');
-    
-    // Converte o valor digitado (com máscara) para número
-    const valorPago = parseCurrencyVal(inputValorHTML.value);
+    const valorPago = parseFloat(document.getElementById('pay-invoice-value').value);
     const dataPagamento = document.getElementById('pay-invoice-date').value;
     
-    // Puxa o valor máximo que escondemos no input
-    const valorMaximo = parseFloat(inputValorHTML.getAttribute('data-max')) || 0;
+    if (!dataPagamento || isNaN(valorPago)) return alert("Preencha a data e o valor corretamente.");
     
-    // 2. Fazemos as validações (Travas de Segurança)
-    if (!dataPagamento || isNaN(valorPago) || valorPago <= 0) {
-        return alert("Preencha a data e um valor válido.");
-    }
-    
-    if (valorPago > valorMaximo) {
-        return alert(`⚠️ Ops! O valor pago (R$ ${formatForInput(valorPago)}) não pode ser maior que o valor da fatura (R$ ${formatForInput(valorMaximo)}).`);
-    }
-    
-    // 3. Prepara o botão de carregamento
     const btn = event.target;
     const txtOriginal = btn.innerText;
     btn.innerText = "Processando...";
@@ -1153,17 +1111,17 @@ window.confirmInvoicePayment = async () => {
     try {
         const faturaRef = doc(db, `sites/${currentDocId}/faturas`, faturaId);
         
-        // Marca a fatura atual como paga
+        // 1. Marca a fatura atual como paga
         await updateDoc(faturaRef, {
             status: 'pago',
             dataPagamento: dataPagamento,
             valorPago: valorPago
         });
         
-        // Calcula e gera a fatura do PRÓXIMO ciclo
+        // 2. Calcula e gera a fatura do PRÓXIMO ciclo
         await gerarProximaFatura(currentDocId);
         
-        // Libera o site automaticamente (se a opção estiver marcada)
+        // 3. Libera o site automaticamente (se a opção estiver marcada e ele estiver pausado/bloqueado)
         await verificarDesbloqueioAutomatico(currentDocId);
         
         document.getElementById('modal-pay-invoice').close();
@@ -1185,27 +1143,27 @@ window.confirmInvoicePayment = async () => {
 async function gerarProximaFatura(clientId) {
     const client = allClients.find(c => c.docId === clientId);
     if (!client || !client.plan) return;
-
+    
     const periodoDias = parseInt(client.plan.period) || 30;
     const valorPlano = client.plan.value;
     const ultimoVencimento = client.plan.nextDue; // Vencimento da fatura que acabou de ser paga
-
+    
     if (!ultimoVencimento) return;
-
+    
     // Soma os dias na data
     let d = new Date(ultimoVencimento + "T12:00:00");
     d.setDate(d.getDate() + periodoDias);
     const novoVencimento = d.toISOString().split('T')[0];
-
+    
     // Atualiza o documento principal do cliente com o novo vencimento
     await updateDoc(doc(db, "sites", clientId), {
         "plan.nextDue": novoVencimento
     });
-
+    
     // Atualiza o input visualmente no painel (se estiver aberto)
     const inputDue = document.getElementById('plan-next-due');
     if (inputDue) inputDue.value = novoVencimento;
-
+    
     // Cria a nova fatura "A Vencer" na subcoleção
     const novaFatura = {
         vencimento: novoVencimento,
@@ -1213,7 +1171,7 @@ async function gerarProximaFatura(clientId) {
         status: 'pendente',
         createdAt: new Date().toISOString()
     };
-
+    
     await setDoc(doc(collection(db, `sites/${clientId}/faturas`)), novaFatura);
 }
 
@@ -1221,15 +1179,15 @@ async function gerarProximaFatura(clientId) {
 async function verificarDesbloqueioAutomatico(clientId) {
     const client = allClients.find(c => c.docId === clientId);
     if (!client || !client.plan) return;
-
+    
     if (client.plan.autoUnlock !== false) { // Se for true ou indefinido (padrão)
         if (client.status === 'pausado' || client.status === 'bloqueado' || !client.active) {
-
+            
             await updateDoc(doc(db, "sites", clientId), {
                 status: 'ativo',
                 active: true
             });
-
+            
             // Atualiza variáveis globais e UI se for o cliente atual
             if (currentDocId === clientId) {
                 pendingClientStatus = 'ativo';
@@ -1241,181 +1199,3 @@ async function verificarDesbloqueioAutomatico(clientId) {
         }
     }
 }
-
-// --- TOGGLE ACORDEÃO DE PLANOS ---
-window.togglePlanAccordion = () => {
-    const content = document.getElementById('content-acc-plan');
-    const arrow = document.getElementById('arrow-acc-plan');
-
-    if (content.classList.contains('hidden')) {
-        content.classList.remove('hidden');
-        arrow.classList.add('rotate-180');
-    } else {
-        content.classList.add('hidden');
-        arrow.classList.remove('rotate-180');
-    }
-};
-// =================================================================
-// 💥 FUNÇÃO DE EXCLUIR E SWIPE TO DELETE (ARRASTAR)
-// =================================================================
-window.deleteInvoice = async (faturaId) => {
-    if (!confirm("Tem certeza que deseja EXCLUIR este registro de pagamento?")) return;
-
-    try {
-        await deleteDoc(doc(db, `sites/${currentDocId}/faturas`, faturaId));
-        showToast("Registro excluído com sucesso!");
-        loadInvoices(currentDocId); // Recarrega a tabela e recalcula o total
-    } catch (e) {
-        console.error("Erro ao excluir faturas", e);
-        alert("Erro ao excluir registro.");
-    }
-};
-// =================================================================
-// 💰 MÁSCARAS E FORMATAÇÃO DE MOEDA
-// =================================================================
-
-// 1. A máscara que roda enquanto você digita
-window.maskCurrency = (input) => {
-    let value = input.value.replace(/\D/g, ''); // Remove tudo que não é número
-
-    if (value === '') {
-        input.value = '';
-        return;
-    }
-
-    value = parseInt(value, 10).toString(); // Tira zeros à esquerda
-    value = value.padStart(3, '0'); // Garante que tenha pelo menos 3 dígitos (ex: 001)
-
-    let integerPart = value.slice(0, -2);
-    let decimalPart = value.slice(-2);
-
-    // Coloca os pontos de milhar
-    integerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-
-    input.value = integerPart + ',' + decimalPart;
-};
-
-// 2. Converte "1.200,50" para número real (1200.50) para salvar no Firebase
-window.parseCurrencyVal = (str) => {
-    if (!str) return 0;
-    let cleanStr = String(str).replace(/\./g, '').replace(',', '.');
-    return parseFloat(cleanStr) || 0;
-};
-
-// 3. Converte número real (1200.5) para formato de input ("1.200,50") ao carregar a tela
-window.formatForInput = (num) => {
-    if (!num || isNaN(num)) return '';
-    return parseFloat(num).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-};
-
-// Variáveis de controle do movimento
-let swipeStartX = 0;
-let swipeCurrentX = 0;
-let swipeIsDragging = false;
-let swipeActiveRow = null;
-
-// INÍCIO DO ARRASTO
-const handleDragStart = (e) => {
-    const row = e.target.closest('.swipeable-row');
-    if (row) {
-        swipeIsDragging = true;
-        swipeActiveRow = row;
-        swipeStartX = e.type.includes('mouse') ? e.pageX : e.touches[0].clientX;
-        swipeActiveRow.style.transition = 'none'; // Desliga animação pra seguir o dedo junto
-    }
-};
-
-// MOVIMENTO DO ARRASTO
-const handleDragMove = (e) => {
-    if (!swipeIsDragging || !swipeActiveRow) return;
-    const x = e.type.includes('mouse') ? e.pageX : e.touches[0].clientX;
-    swipeCurrentX = x - swipeStartX;
-
-    // Permite arrastar apenas para a esquerda (valores negativos)
-    if (swipeCurrentX < 0) {
-        if (swipeCurrentX < -100) swipeCurrentX = -100; // Trava o máximo que ele pode ir
-        swipeActiveRow.style.transform = `translateX(${swipeCurrentX}px)`;
-    } else {
-        swipeActiveRow.style.transform = `translateX(0px)`;
-    }
-};
-
-// FIM DO ARRASTO
-const handleDragEnd = () => {
-    if (!swipeIsDragging || !swipeActiveRow) return;
-    swipeIsDragging = false;
-    swipeActiveRow.style.transition = 'transform 0.2s ease-out';
-
-    // Se puxou mais que 40px pra esquerda, o botão "encaixa" aberto (-80px)
-    if (swipeCurrentX < -40) {
-        swipeActiveRow.style.transform = `translateX(-80px)`;
-
-        // Detalhe premium: fecha sozinho depois de 4 segundos se o usuário não clicar na lixeira
-        const rowToClose = swipeActiveRow;
-        setTimeout(() => {
-            if (rowToClose) rowToClose.style.transform = `translateX(0px)`;
-        }, 4000);
-
-    } else {
-        // Se puxou muito pouco, volta pro lugar (cancela)
-        swipeActiveRow.style.transform = `translateX(0px)`;
-    }
-
-    swipeActiveRow = null;
-};
-
-// Registra os ouvintes globais (Funciona em PC e Mobile)
-document.addEventListener('touchstart', handleDragStart, { passive: true });
-document.addEventListener('touchmove', handleDragMove, { passive: true });
-document.addEventListener('touchend', handleDragEnd);
-
-document.addEventListener('mousedown', handleDragStart);
-document.addEventListener('mousemove', handleDragMove);
-document.addEventListener('mouseup', handleDragEnd);
-
-
-// --- SISTEMA DE AVISOS ---
-window.openAlertModal = () => {
-    if (!currentDocId) return alert("Selecione um cliente primeiro.");
-    document.getElementById('alert-message-text').value = '';
-    document.getElementById('modal-send-alert').showModal();
-};
-
-window.setAlertTemplate = (type) => {
-    const txtArea = document.getElementById('alert-message-text');
-    if (type === 1) {
-        txtArea.value = "Lembrete de Pagamento de Fatura em Atraso. Por favor, regularize para evitar suspensão da sua loja, ou entre em contato com a Projetista ;)";
-    } else if (type === 2) {
-        txtArea.value = "O Site entrará em período de manutenção programada em breve. Algumas instabilidades podem ocorrer.";
-    }
-};
-
-window.submitClientAlert = async () => {
-    const msg = document.getElementById('alert-message-text').value.trim();
-    if (!msg) return alert("Digite uma mensagem para enviar.");
-
-    const btn = event.target;
-    const txtOriginal = btn.innerText;
-    btn.innerText = "Enviando...";
-    btn.disabled = true;
-
-    try {
-        const aviso = {
-            mensagem: msg,
-            data: new Date().toISOString(),
-            lido: false
-        };
-        // Salva na subcoleção "avisos" do cliente
-        await setDoc(doc(collection(db, `sites/${currentDocId}/avisos`)), aviso);
-
-        showToast("Aviso enviado com sucesso!");
-        document.getElementById('modal-send-alert').close();
-    } catch (e) {
-        console.error(e);
-        alert("Erro ao enviar aviso.");
-    } finally {
-        btn.innerText = txtOriginal;
-        btn.disabled = false;
-    }
-};
-

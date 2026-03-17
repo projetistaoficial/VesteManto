@@ -49,13 +49,13 @@
     <script type="module" src="js/support.js"></script>
 
     <script type="module">
-        // 1. TODOS OS IMPORTS DEVEM FICAR NO TOPO
-        import { db, doc, getDocFromServer, collection, getDocs, updateDoc } from './js/firebase-config.js';
+        import { db, doc, getDocFromServer } from './js/firebase-config.js';
 
-        // 2. CAPTURA DO ID DA URL
+        // 1. Tenta pegar o ID pelo parâmetro ?site= (vindo do 404.html)
         const urlParams = new URLSearchParams(window.location.search);
         let siteId = urlParams.get('site');
 
+        // 2. Fallback: Se não houver parâmetro, tenta pegar direto da URL limpa (ex: /diadema)
         if (!siteId) {
             const pathParts = window.location.pathname.split('/').filter(Boolean);
             if (pathParts.length > 0 && pathParts[0] !== 'master' && pathParts[0] !== 'index.html') {
@@ -107,6 +107,7 @@
                 return;
             }
 
+            // Modo Dev Localhost
             const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
             try {
@@ -125,14 +126,12 @@
                 // ✅ TUDO OK: Define o ID global
                 window.SITE_ID = siteId;
 
-                // --- CARREGA AVISOS AQUI (Atrasado 1 seg para não travar o carregamento principal) ---
-                setTimeout(() => window.loadClientAlerts(), 1000);
-
-                // ✅ IMPORTA O APP E LIBERA ACESSO
+                // ✅ IMPORTA O APP (Damos a informação que ele precisa antes de limpar a URL)
                 await import(`./js/app.js?v=${Date.now()}`);
                 document.body.classList.add('acesso-liberado');
 
-                // ✨ Limpa a URL se tiver o ?site=
+                // ✨ AGORA SIM: Limpamos a URL para o cliente ver o link bonito
+                // Fazemos isso apenas se não estiver no localhost e se houver parâmetro para limpar
                 if (!isLocalhost && window.location.search.includes('site=')) {
                     window.history.replaceState(null, '', '/' + siteId);
                 }
@@ -143,7 +142,11 @@
             }
         }
 
-        // --- LÓGICA PARA LER OS AVISOS ---
+        validar();
+
+        // --- LÓGICA PARA LER OS AVISOS (Cole dentro do script type="module" no index.html raiz) ---
+        import { collection, getDocs, updateDoc } from './js/firebase-config.js';
+
         window.toggleAlertsAccordion = async () => {
             const content = document.getElementById('content-acc-alerts');
             const arrow = document.getElementById('arrow-acc-alerts');
@@ -177,7 +180,7 @@
                 let avisosArray = [];
 
                 snap.forEach(d => avisosArray.push({ id: d.id, ...d.data() }));
-                avisosArray.sort((a, b) => new Date(b.data) - new Date(a.data));
+                avisosArray.sort((a, b) => new Date(b.data) - new Date(a.data)); // Mais novos primeiro
 
                 avisosArray.forEach(aviso => {
                     if (!aviso.lido) unreadCount++;
@@ -186,12 +189,12 @@
                     const dataFormatada = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')} às ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 
                     html += `
-                <div class="bg-black border border-gray-800 rounded p-4 relative alert-item ${!aviso.lido ? 'border-l-2 border-l-red-500' : ''}" data-id="${aviso.id}" data-lido="${aviso.lido}">
-                    ${!aviso.lido ? '<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>' : ''}
-                    <p class="text-gray-500 text-[10px] mb-2 font-bold"><i class="fas fa-clock"></i> ${dataFormatada}</p>
-                    <p class="text-white text-sm leading-relaxed">${aviso.mensagem}</p>
-                </div>
-                `;
+            <div class="bg-black border border-gray-800 rounded p-4 relative alert-item ${!aviso.lido ? 'border-l-2 border-l-red-500' : ''}" data-id="${aviso.id}" data-lido="${aviso.lido}">
+                ${!aviso.lido ? '<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>' : ''}
+                <p class="text-gray-500 text-[10px] mb-2 font-bold"><i class="fas fa-clock"></i> ${dataFormatada}</p>
+                <p class="text-white text-sm leading-relaxed">${aviso.mensagem}</p>
+            </div>
+            `;
                 });
 
                 list.innerHTML = html;
@@ -234,8 +237,8 @@
             }
         };
 
-        // --- INICIA TUDO ---
-        validar();
+        // Adicione esta linha no final da sua função "validar()", DENTRO do bloco que deu Sucesso (antes de carregar o app.js):
+        // setTimeout(() => window.loadClientAlerts(), 1000);
     </script>
 
     <div id="site-floating-capsule"

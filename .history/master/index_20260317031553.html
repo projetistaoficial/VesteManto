@@ -630,28 +630,32 @@
     </div>
 
     </div>
-
-    <dialog id="modal-pay-invoice" class="bg-[#161821] border border-gray-700 p-6 rounded-xl shadow-2xl text-white backdrop:bg-black/80 w-full max-w-sm m-auto z-[9999]">
+    <dialog id="modal-pay-invoice"
+        class="bg-[#161821] border border-gray-700 p-6 rounded-xl shadow-2xl text-white backdrop:bg-black/80 w-full max-w-sm m-auto z-[999]">
         <h3 class="text-lg font-bold text-[#00d65f] mb-4 flex items-center gap-2">
             <i class="fas fa-check-circle"></i> Confirmar Pagamento
         </h3>
-        
+
         <input type="hidden" id="pay-invoice-id">
-        
+
         <div class="space-y-4 mb-6">
             <div>
                 <label class="text-xs text-gray-400 uppercase font-bold mb-1 block">Data do Pagamento</label>
-                <input type="date" id="pay-invoice-date" class="w-full bg-[#0f1014] border border-gray-700 text-white p-3 rounded outline-none focus:border-[#00d65f] appearance-none">
+                <input type="tel" id="pay-invoice-value" placeholder="0,00" oninput="maskCurrency(this)"
+                    class="w-full bg-[#0f1014] border border-gray-700 text-[#00d65f] font-bold p-3 rounded outline-none focus:border-[#00d65f] text-center">
             </div>
             <div>
                 <label class="text-xs text-gray-400 uppercase font-bold mb-1 block">Valor Pago (R$)</label>
-                <input type="tel" id="pay-invoice-value" placeholder="0,00" oninput="maskCurrency(this)" class="w-full bg-[#0f1014] border border-gray-700 text-[#00d65f] font-bold p-3 rounded outline-none focus:border-[#00d65f] text-center">
+                <input type="number" id="pay-invoice-value" step="0.01"
+                    class="w-full bg-[#0f1014] border border-gray-700 text-[#00d65f] font-bold p-3 rounded outline-none focus:border-[#00d65f]">
             </div>
         </div>
-        
+
         <div class="flex justify-end gap-3">
-            <button type="button" onclick="document.getElementById('modal-pay-invoice').close()" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition">Cancelar</button>
-            <button type="button" onclick="confirmInvoicePayment()" class="bg-[#00d65f] hover:bg-green-500 text-white px-6 py-2 rounded text-sm font-bold shadow-lg transition">Confirmar</button>
+            <button type="button" onclick="document.getElementById('modal-pay-invoice').close()"
+                class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition">Cancelar</button>
+            <button type="button" onclick="confirmInvoicePayment()"
+                class="bg-[#00d65f] hover:bg-green-500 text-white px-6 py-2 rounded text-sm font-bold shadow-lg transition">Confirmar</button>
         </div>
     </dialog>
 

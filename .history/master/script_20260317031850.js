@@ -1124,54 +1124,39 @@ window.openPayModal = (faturaId, valorEsperado) => {
 
 // Salva o pagamento e gera a próxima conta
 window.confirmInvoicePayment = async () => {
-    // 1. Pegamos os elementos HTML e os valores
     const faturaId = document.getElementById('pay-invoice-id').value;
-    const inputValorHTML = document.getElementById('pay-invoice-value');
-    
-    // Converte o valor digitado (com máscara) para número
-    const valorPago = parseCurrencyVal(inputValorHTML.value);
+    const valorPago = parseCurrencyVal(document.getElementById('pay-invoice-value').value);
     const dataPagamento = document.getElementById('pay-invoice-date').value;
-    
-    // Puxa o valor máximo que escondemos no input
-    const valorMaximo = parseFloat(inputValorHTML.getAttribute('data-max')) || 0;
-    
-    // 2. Fazemos as validações (Travas de Segurança)
-    if (!dataPagamento || isNaN(valorPago) || valorPago <= 0) {
-        return alert("Preencha a data e um valor válido.");
-    }
-    
-    if (valorPago > valorMaximo) {
-        return alert(`⚠️ Ops! O valor pago (R$ ${formatForInput(valorPago)}) não pode ser maior que o valor da fatura (R$ ${formatForInput(valorMaximo)}).`);
-    }
-    
-    // 3. Prepara o botão de carregamento
+
+    if (!dataPagamento || isNaN(valorPago)) return alert("Preencha a data e o valor corretamente.");
+
     const btn = event.target;
     const txtOriginal = btn.innerText;
     btn.innerText = "Processando...";
     btn.disabled = true;
-    
+
     try {
         const faturaRef = doc(db, `sites/${currentDocId}/faturas`, faturaId);
-        
-        // Marca a fatura atual como paga
+
+        // 1. Marca a fatura atual como paga
         await updateDoc(faturaRef, {
             status: 'pago',
             dataPagamento: dataPagamento,
             valorPago: valorPago
         });
-        
-        // Calcula e gera a fatura do PRÓXIMO ciclo
+
+        // 2. Calcula e gera a fatura do PRÓXIMO ciclo
         await gerarProximaFatura(currentDocId);
-        
-        // Libera o site automaticamente (se a opção estiver marcada)
+
+        // 3. Libera o site automaticamente (se a opção estiver marcada e ele estiver pausado/bloqueado)
         await verificarDesbloqueioAutomatico(currentDocId);
-        
+
         document.getElementById('modal-pay-invoice').close();
         showToast("Pagamento registrado com sucesso!");
-        
+
         // Recarrega a lista para mostrar atualizado
         loadInvoices(currentDocId);
-        
+
     } catch (e) {
         console.error("Erro ao pagar:", e);
         alert("Erro ao registrar pagamento.");
