@@ -310,10 +310,6 @@ async function openClientModal(docId = null) {
         document.getElementById('invoice-list-body').innerHTML = '<div class="text-center p-4 text-gray-500 text-xs italic w-full">Salve o cliente para gerar faturas.</div>';
         document.getElementById('plan-total-paid').innerText = 'R$ 0,00';
 
-        if (document.getElementById('plan-paid-count')) {
-            document.getElementById('plan-paid-count').innerText = '0';
-        };
-
         // ✨ LIMPANDO O FANTASMA: Reseta a caixinha de status e oculta o botão
         const planBadge = document.getElementById('plan-status-badge');
         if (planBadge) {

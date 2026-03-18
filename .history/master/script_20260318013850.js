@@ -312,8 +312,8 @@ async function openClientModal(docId = null) {
 
         if (document.getElementById('plan-paid-count')) {
             document.getElementById('plan-paid-count').innerText = '0';
-        };
-
+        }
+        
         // ✨ LIMPANDO O FANTASMA: Reseta a caixinha de status e oculta o botão
         const planBadge = document.getElementById('plan-status-badge');
         if (planBadge) {

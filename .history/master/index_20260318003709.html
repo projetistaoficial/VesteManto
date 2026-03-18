@@ -383,19 +383,16 @@
                                             class="w-full bg-[#0f1014] border border-gray-700 text-white rounded p-3 outline-none focus:border-yellow-500 text-sm font-bold text-center">
                                     </div>
                                     <div>
-                                        <label
-                                            class="text-gray-400 text-[10px] font-bold uppercase mb-1 block">Situação:</label>
-                                        <div class="flex gap-2">
-                                            <div id="plan-status-badge"
-                                                class="w-full bg-yellow-500 text-black font-bold uppercase text-xs rounded p-3 text-center shadow-sm transition-colors">
-                                                A Vencer
-                                            </div>
-                                            <button id="btn-criar-plano" type="button" onclick="createManualPlan()"
-                                                class="hidden bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase text-xs rounded px-4 py-3 shadow-sm transition whitespace-nowrap">
-                                                Criar Plano
-                                            </button>
-                                        </div>
-                                    </div>
+    <label class="text-gray-400 text-[10px] font-bold uppercase mb-1 block">Situação:</label>
+    <div class="flex gap-2">
+        <div id="plan-status-badge" class="w-full bg-yellow-500 text-black font-bold uppercase text-xs rounded p-3 text-center shadow-sm transition-colors">
+            A Vencer
+        </div>
+        <button id="btn-criar-plano" type="button" onclick="createManualPlan()" class="hidden bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase text-xs rounded px-4 py-3 shadow-sm transition whitespace-nowrap">
+            Criar Plano
+        </button>
+    </div>
+</div>
                                 </div>
                             </div>
 
@@ -429,26 +426,12 @@
                                         class="w-full md:w-auto bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-4 py-3 rounded text-xs transition shadow-lg">
                                         <i class="fas fa-bell mr-1"></i> Enviar Aviso ao Cliente
                                     </button>
-
-                                    <div class="flex justify-end gap-2 w-full md:w-auto">
-                                        <div
-                                            class="border border-gray-800 bg-[#0f1014] rounded-lg p-2 text-center min-w-[110px] shadow-sm flex flex-col items-center justify-center">
-                                            <span
-                                                class="bg-blue-900/30 text-blue-400 border border-blue-800/50 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase block mb-1">
-                                                Faturas Pagas
-                                            </span>
-                                            <p id="plan-paid-count" class="text-lg font-bold text-white leading-none">0
-                                            </p>
-                                        </div>
-
-                                        <div
-                                            class="border border-gray-800 bg-[#0f1014] rounded-lg p-2 text-center min-w-[110px] shadow-sm flex flex-col items-center justify-center">
-                                            <span
-                                                class="bg-purple-900/30 text-purple-400 border border-purple-800/50 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase block mb-1">
-                                                Total Pago
-                                            </span>
-                                            <p id="plan-total-paid"
-                                                class="text-lg font-bold text-green-500 leading-none">R$ 0,00</p>
+                                    <div
+                                        class="text-center md:text-right bg-[#0f1014] border border-gray-800 rounded px-6 py-2">
+                                        <span
+                                            class="text-purple-400 text-[10px] font-bold uppercase border border-purple-500/30 px-2 py-0.5 rounded">Total
+                                            Pago:</span>
+                                        <div id="plan-total-paid" class="text-[#00d65f] text-xl font-bold mt-1">R$ 0,00
                                         </div>
                                     </div>
                                 </div>
@@ -651,32 +634,27 @@
 
     </div>
 
-    <dialog id="modal-pay-invoice"
-        class="bg-[#161821] border border-gray-700 p-6 rounded-xl shadow-2xl text-white backdrop:bg-black/80 w-full max-w-sm m-auto z-[9999]">
+    <dialog id="modal-pay-invoice" class="bg-[#161821] border border-gray-700 p-6 rounded-xl shadow-2xl text-white backdrop:bg-black/80 w-full max-w-sm m-auto z-[9999]">
         <h3 class="text-lg font-bold text-[#00d65f] mb-4 flex items-center gap-2">
             <i class="fas fa-check-circle"></i> Confirmar Pagamento
         </h3>
-
+        
         <input type="hidden" id="pay-invoice-id">
-
+        
         <div class="space-y-4 mb-6">
             <div>
                 <label class="text-xs text-gray-400 uppercase font-bold mb-1 block">Data do Pagamento</label>
-                <input type="date" id="pay-invoice-date"
-                    class="w-full bg-[#0f1014] border border-gray-700 text-white p-3 rounded outline-none focus:border-[#00d65f] appearance-none">
+                <input type="date" id="pay-invoice-date" class="w-full bg-[#0f1014] border border-gray-700 text-white p-3 rounded outline-none focus:border-[#00d65f] appearance-none">
             </div>
             <div>
                 <label class="text-xs text-gray-400 uppercase font-bold mb-1 block">Valor Pago (R$)</label>
-                <input type="tel" id="pay-invoice-value" placeholder="0,00" oninput="maskCurrency(this)"
-                    class="w-full bg-[#0f1014] border border-gray-700 text-[#00d65f] font-bold p-3 rounded outline-none focus:border-[#00d65f] text-center">
+                <input type="tel" id="pay-invoice-value" placeholder="0,00" oninput="maskCurrency(this)" class="w-full bg-[#0f1014] border border-gray-700 text-[#00d65f] font-bold p-3 rounded outline-none focus:border-[#00d65f] text-center">
             </div>
         </div>
-
+        
         <div class="flex justify-end gap-3">
-            <button type="button" onclick="document.getElementById('modal-pay-invoice').close()"
-                class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition">Cancelar</button>
-            <button type="button" onclick="confirmInvoicePayment()"
-                class="bg-[#00d65f] hover:bg-green-500 text-white px-6 py-2 rounded text-sm font-bold shadow-lg transition">Confirmar</button>
+            <button type="button" onclick="document.getElementById('modal-pay-invoice').close()" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition">Cancelar</button>
+            <button type="button" onclick="confirmInvoicePayment()" class="bg-[#00d65f] hover:bg-green-500 text-white px-6 py-2 rounded text-sm font-bold shadow-lg transition">Confirmar</button>
         </div>
     </dialog>
 

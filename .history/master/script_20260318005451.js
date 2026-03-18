@@ -266,8 +266,8 @@ async function openClientModal(docId = null) {
             pendingClientStatus = client.status || 'ativo';
             pendingClientActive = client.active !== false;
 
-            // ✨ XERIFE INSTANTÂNEO (AO ABRIR)
-            if (plan.nextDue && pendingClientStatus === 'ativo') {
+            // ✨ XERIFE INSTANTÂNEO (AO ABRIR): Só pune se o escudo estiver desligado!
+            if (!window.manualOverrideFlag && plan.nextDue && pendingClientStatus === 'ativo') {
                 const hoje = new Date();
                 hoje.setHours(0, 0, 0, 0);
                 const venc = new Date(plan.nextDue + "T12:00:00");
@@ -276,8 +276,8 @@ async function openClientModal(docId = null) {
                 if (hoje > venc) {
                     const diffDays = Math.ceil(Math.abs(hoje - venc) / (1000 * 60 * 60 * 24));
                     const carenciaAtiva = plan.carenciaActive === true || String(plan.carenciaActive).toLowerCase() === "true";
-
-                    // 🔥 REGRA ABSOLUTA: Só pune se a caixinha estiver marcada
+                    
+                    // 🔥 CORREÇÃO: Só aplica punição se a caixinha de carência estiver MARCADAAA
                     if (carenciaAtiva) {
                         const carenciaDias = parseInt(plan.carenciaDays) || 0;
 
@@ -310,11 +310,7 @@ async function openClientModal(docId = null) {
         document.getElementById('invoice-list-body').innerHTML = '<div class="text-center p-4 text-gray-500 text-xs italic w-full">Salve o cliente para gerar faturas.</div>';
         document.getElementById('plan-total-paid').innerText = 'R$ 0,00';
 
-        if (document.getElementById('plan-paid-count')) {
-            document.getElementById('plan-paid-count').innerText = '0';
-        };
-
-        // ✨ LIMPANDO O FANTASMA: Reseta a caixinha de status e oculta o botão
+       // ✨ LIMPANDO O FANTASMA: Reseta a caixinha de status e oculta o botão
         const planBadge = document.getElementById('plan-status-badge');
         if (planBadge) {
             // Usa um visual tracejado cinza para não parecer um botão clicável
@@ -329,6 +325,9 @@ async function openClientModal(docId = null) {
         // Pega o maior codigo alternativo pra somar +1 pro novo
         const maxCode = allClients.reduce((max, c) => Math.max(max, parseInt(c.altCode) || 0), 0);
         document.getElementById('inp-alt-code').value = maxCode + 1;
+
+        // ✨ RESETA O ESCUDO PARA NOVOS CLIENTES
+        window.manualOverrideFlag = false;
 
         pendingClientStatus = 'ativo';
         pendingClientActive = true;
@@ -422,11 +421,11 @@ async function saveClientData() {
         deleteDays: parseInt(document.getElementById('conf-delete-days').value) || 30
     };
 
-    // ✨ XERIFE INSTANTÂNEO (AO SALVAR)
     let finalStatus = pendingClientStatus;
     let finalActive = pendingClientActive;
 
-    if (planData.nextDue && finalStatus === 'ativo') {
+    // 🔥 SÓ PUNE SE O ESCUDO MANUAL ESTIVER DESLIGADO
+    if (!window.manualOverrideFlag && planData.nextDue && finalStatus === 'ativo') {
         const hoje = new Date();
         hoje.setHours(0, 0, 0, 0);
         const venc = new Date(planData.nextDue + "T12:00:00");
@@ -434,26 +433,20 @@ async function saveClientData() {
 
         if (hoje > venc) {
             const diffDays = Math.ceil(Math.abs(hoje - venc) / (1000 * 60 * 60 * 24));
-            const carenciaAtiva = planData.carenciaActive === true || String(planData.carenciaActive).toLowerCase() === "true";
+            const carenciaDias = planData.carenciaActive ? planData.carenciaDays : 0;
 
-            // 🔥 REGRA ABSOLUTA: Se a caixa estiver marcada, o sistema bloqueia e emite um alerta
-            if (carenciaAtiva) {
-                const carenciaDias = parseInt(planData.carenciaDays) || 0;
+            if (diffDays > carenciaDias) {
+                let action = planData.carenciaAction || 'pausado';
+                if (action === 'pausar') action = 'pausado';
+                if (action === 'bloquear') action = 'bloqueado';
 
-                if (diffDays > carenciaDias) {
-                    let action = planData.carenciaAction || 'pausado';
-                    if (action === 'pausar') action = 'pausado';
-                    if (action === 'bloquear') action = 'bloqueado';
-                    
-                    finalStatus = action;
-                    finalActive = action === 'bloqueado' ? false : true;
-                    
-                    pendingClientStatus = finalStatus;
-                    pendingClientActive = finalActive;
-                    updateStatusBadge(finalStatus, finalActive);
-                    renderActionButtons(finalStatus, finalActive);
+                finalStatus = action;
+                finalActive = action === 'bloqueado' ? false : true;
 
-                }
+                pendingClientStatus = finalStatus;
+                pendingClientActive = finalActive;
+                updateStatusBadge(finalStatus, finalActive);
+                renderActionButtons(finalStatus, finalActive);
             }
         }
     }
@@ -463,6 +456,7 @@ async function saveClientData() {
         altCode: inputAltCode,
         status: finalStatus,
         active: finalActive,
+        manualOverride: window.manualOverrideFlag || false, // 🔥 SALVA O ESCUDO NO BANCO
         ownerData: {
             name: document.getElementById('inp-owner').value.trim(),
             doc: document.getElementById('inp-doc').value.trim(),
@@ -775,39 +769,16 @@ function renderActionButtons(status, active = true) {
 }
 
 window.changeClientStatus = (action) => {
-    if (action === 'activate') {
-        // ✨ VALIDAÇÃO INSTANTÂNEA: Lê o que está na tela antes de deixar ativar
-        const nextDue = document.getElementById('plan-next-due').value;
-        const carenciaAtiva = document.getElementById('conf-carencia-active').checked;
-        const carenciaDias = parseInt(document.getElementById('conf-carencia-days').value) || 0;
-        
-        if (nextDue && carenciaAtiva) {
-            const hoje = new Date();
-            hoje.setHours(0,0,0,0);
-            const venc = new Date(nextDue + "T12:00:00");
-            venc.setHours(0,0,0,0);
-            
-            if (hoje > venc) {
-                const diffDays = Math.ceil(Math.abs(hoje - venc) / (1000 * 60 * 60 * 24));
-                if (diffDays > carenciaDias) {
-                    alert(`⚠️ AÇÃO RECUSADA: Você não pode forçar a ativação da loja enquanto a opção "Ativar Carência" estiver marcada e a fatura continuar em atraso.\n\nPara desbloquear manualmente, DESMARQUE a caixinha "Ativar Carência" primeiro e tente novamente.`);
-                    return; // Cancela o clique na hora! Não deixa o botão ficar verde.
-                }
-            }
-        }
-        
-        pendingClientStatus = 'ativo'; 
-        pendingClientActive = true; 
+    if (action === 'block') {
+        pendingClientStatus = 'bloqueado'; pendingClientActive = false; window.manualOverrideFlag = false;
     }
-    else if (action === 'block') { 
-        pendingClientStatus = 'bloqueado'; 
-        pendingClientActive = false; 
+    else if (action === 'pause') {
+        pendingClientStatus = 'pausado'; pendingClientActive = false; window.manualOverrideFlag = false;
     }
-    else if (action === 'pause') { 
-        pendingClientStatus = 'pausado'; 
-        pendingClientActive = false; 
+    else if (action === 'activate') {
+        pendingClientStatus = 'ativo'; pendingClientActive = true;
+        window.manualOverrideFlag = true; // ✨ LIGA O ESCUDO DE IMUNIDADE!
     }
-    
     updateStatusBadge(pendingClientStatus, pendingClientActive);
     renderActionButtons(pendingClientStatus, pendingClientActive);
 };
@@ -1122,48 +1093,22 @@ async function loadInvoices(clientId) {
 
         let faturas = [];
         let totalPago = 0;
-        let qtdPagas = 0;
 
         snap.forEach(d => {
             const fatura = { id: d.id, ...d.data() };
             faturas.push(fatura);
             if (fatura.status === 'pago') {
                 totalPago += parseFloat(fatura.valorPago || fatura.valor || 0);
-                qtdPagas++;
             }
         });
 
-        // ✨ ORDENAÇÃO INTELIGENTE DE FATURAS
-        faturas.sort((a, b) => {
-            // 1. Prioridade: Pendentes SEMPRE no topo
-            if (a.status !== 'pago' && b.status === 'pago') return -1;
-            if (a.status === 'pago' && b.status !== 'pago') return 1;
-
-            // Transforma em data real para comparar
-            const dateA = new Date(a.vencimento + "T12:00:00");
-            const dateB = new Date(b.vencimento + "T12:00:00");
-
-            // 2. Se as duas estão pendentes -> Ordem Crescente (Cronológica: Jan, Fev, Mar...)
-            if (a.status !== 'pago') {
-                return dateA - dateB;
-            } 
-            // 3. Se as duas estão pagas -> Ordem Decrescente (Mais recentes que ele pagou no topo das pagas)
-            else {
-                return dateB - dateA;
-            }
-        });
-
+        // Ordena por data de vencimento (Mais recentes primeiro)
         document.getElementById('plan-total-paid').innerText = formatMoney(totalPago);
-
-        const elQtdPagas = document.getElementById('plan-paid-count');
-        if (elQtdPagas) elQtdPagas.innerText = qtdPagas;
         const client = allClients.find(c => c.docId === clientId);
         const planData = client ? client.plan : {};
-        
-        // Passa para desenhar a lista já com a ordem perfeita
         renderInvoices(faturas, planData);
 
-        // Passa o planData para a badge e controla o botão de Criar Plano
+        // ✨ NOVO: Passa o planData para a badge e controla o botão de Criar Plano
         updatePlanStatusBadge(faturas, planData);
 
         const btnCriarPlano = document.getElementById('btn-criar-plano');
@@ -1187,11 +1132,6 @@ function renderInvoices(faturas, plan = {}) {
         return;
     }
 
-    // ✨ TRAVA DE SEGURANÇA: Identifica a fatura principal (A pendente mais antiga/próxima a vencer)
-    // Como a lista já está ordenada, é só pegar a primeira que não está paga!
-    const faturaPrincipal = faturas.find(f => f.status !== 'pago');
-    const idProtegido = faturaPrincipal ? faturaPrincipal.id : null;
-
     faturas.forEach(f => {
         const dataVenc = f.vencimento ? f.vencimento.split('-').reverse().join('/') : '--/--/----';
         const dataPag = f.dataPagamento ? f.dataPagamento.split('-').reverse().join('/') : 'Pendente';
@@ -1213,60 +1153,69 @@ function renderInvoices(faturas, plan = {}) {
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             const isAtrasado = hojeDate > vencDate;
 
-            const carenciaActive = plan.carenciaActive || false;
-            const carenciaDays = parseInt(plan.carenciaDays) || 0;
-
-            if (isAtrasado) {
-                if (carenciaActive && diffDays <= carenciaDays) {
-                    statusHtml = `
-                    <div class="flex flex-col items-center justify-center">
-                        <span class="bg-orange-500 text-white px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">Carência</span>
-                        <span class="text-[9px] text-orange-400 font-bold mt-1">${diffDays} dia(s)</span>
-                    </div>`;
-                } else {
-                    statusHtml = `
-                    <div class="flex flex-col items-center justify-center">
-                        <span class="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">Atrasado</span>
-                        <span class="text-[9px] text-red-400 font-bold mt-1">${diffDays} dia(s)</span>
-                    </div>`;
-                }
+            if (f.status === 'pago') {
+                statusHtml = `<span class="bg-green-600 text-white px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">Pago</span>`;
+                acaoHtml = `<span class="text-gray-500 text-[10px] flex items-center justify-center gap-1"><i class="fas fa-check text-green-500"></i> Registrado</span>`;
             } else {
-                statusHtml = `<span class="bg-yellow-500 text-black px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">A Vencer</span>`;
-            }
+                const hojeDate = new Date();
+                hojeDate.setHours(0, 0, 0, 0);
+                const vencDate = new Date(f.vencimento + "T12:00:00");
+                vencDate.setHours(0, 0, 0, 0);
 
-            acaoHtml = `<button onclick="openPayModal('${f.id}', ${f.valor})" class="bg-[#00d65f] hover:bg-green-500 text-white px-2 py-1 rounded text-[10px] font-bold uppercase transition w-full flex items-center justify-center gap-1"><i class="fas fa-check-circle"></i> Informar</button>`;
+                const diffTime = Math.abs(hojeDate - vencDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const isAtrasado = hojeDate > vencDate;
+
+                // ✨ NOVO: Lê as regras de carência do cliente
+                const carenciaActive = plan.carenciaActive || false;
+                const carenciaDays = parseInt(plan.carenciaDays) || 0;
+
+                if (isAtrasado) {
+                    // Se está na carência -> LARANJA
+                    if (carenciaActive && diffDays <= carenciaDays) {
+                        statusHtml = `
+                        <div class="flex flex-col items-center justify-center">
+                            <span class="bg-orange-500 text-white px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">Carência</span>
+                            <span class="text-[9px] text-orange-400 font-bold mt-1">${diffDays} dia(s)</span>
+                        </div>`;
+                    }
+                    // Se estourou a carência (ou não tem) -> VERMELHO
+                    else {
+                        statusHtml = `
+                        <div class="flex flex-col items-center justify-center">
+                            <span class="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">Atrasado</span>
+                            <span class="text-[9px] text-red-400 font-bold mt-1">${diffDays} dia(s)</span>
+                        </div>`;
+                    }
+                } else {
+                    statusHtml = `<span class="bg-yellow-500 text-black px-2 py-1 rounded text-[10px] font-bold uppercase block w-full text-center shadow-sm">A Vencer</span>`;
+                }
+
+                acaoHtml = `<button onclick="openPayModal('${f.id}', ${f.valor})" class="bg-[#00d65f] hover:bg-green-500 text-white px-2 py-1 rounded text-[10px] font-bold uppercase transition w-full flex items-center justify-center gap-1"><i class="fas fa-check-circle"></i> Informar</button>`;
+            }
         }
 
+        const wrapper = document.createElement('div');
+        // O fundo sempre vermelho
+        wrapper.className = "relative w-full border-b border-gray-800/50 group overflow-hidden";
+
+        // Fundo: Botão de Lixeira escondido do lado direito
+        const trashBtnHtml = `
+            <div class="absolute inset-y-0 right-0 w-[80px] bg-red-600 flex flex-col items-center justify-center text-white cursor-pointer hover:bg-red-700 transition" onclick="deleteInvoice('${f.id}')">
+                <i class="fas fa-trash mb-1 text-lg"></i>
+                <span class="text-[9px] font-bold uppercase">Excluir</span>
+            </div>
+        `;
+
+        // Frente: A linha arrastável com os dados
         let valorHtml = `<div class="p-3 truncate text-green-400">${valorFatura}</div>`;
-        
+
+        // Se a fatura estiver pendente, o valor ganha um clique editável
         if (f.status !== 'pago') {
             valorHtml = `
             <div class="p-3 truncate text-green-400 cursor-pointer hover:text-white transition group flex items-center gap-1" onclick="editInvoiceValue('${f.id}', ${f.valor})" title="Clique para editar valor">
                 ${valorFatura} <i class="fas fa-edit text-gray-500 group-hover:text-white opacity-50 text-[10px]"></i>
             </div>`;
-        }
-
-        const wrapper = document.createElement('div');
-        wrapper.className = "relative w-full border-b border-gray-800/50 group overflow-hidden";
-
-        // ✨ A MÁGICA DO CADEADO: Verifica se é a fatura protegida
-        let acaoFundoHtml = '';
-        if (f.id === idProtegido) {
-            // Fundo Cinza com Cadeado (Sem a função onclick)
-            acaoFundoHtml = `
-                <div class="absolute inset-y-0 right-0 w-[80px] bg-gray-700 flex flex-col items-center justify-center text-gray-400 transition cursor-not-allowed" title="A fatura atual não pode ser excluída">
-                    <i class="fas fa-lock mb-1 text-lg"></i>
-                    <span class="text-[9px] font-bold uppercase text-center leading-tight">Sistema<br>Protegido</span>
-                </div>
-            `;
-        } else {
-            // Lixeira Vermelha normal para o resto das faturas
-            acaoFundoHtml = `
-                <div class="absolute inset-y-0 right-0 w-[80px] bg-red-600 flex flex-col items-center justify-center text-white cursor-pointer hover:bg-red-700 transition" onclick="deleteInvoice('${f.id}')">
-                    <i class="fas fa-trash mb-1 text-lg"></i>
-                    <span class="text-[9px] font-bold uppercase">Excluir</span>
-                </div>
-            `;
         }
 
         const frontHtml = `
@@ -1279,7 +1228,7 @@ function renderInvoices(faturas, plan = {}) {
             </div>
         `;
 
-        wrapper.innerHTML = acaoFundoHtml + frontHtml;
+        wrapper.innerHTML = trashBtnHtml + frontHtml;
         tbody.appendChild(wrapper);
     });
 }
@@ -1420,7 +1369,8 @@ async function gerarProximaFatura(clientId, dataBase) {
 
     // Atualiza o novo vencimento no cadastro do cliente e remove imunidade manual
     await updateDoc(doc(db, "sites", clientId), {
-        "plan.nextDue": novoVencimento
+        "plan.nextDue": novoVencimento,
+        "manualOverride": false
     });
 
     if (currentDocId === clientId) window.manualOverrideFlag = false;
@@ -1673,33 +1623,30 @@ window.runLazyPenaltyCheck = async () => {
                         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
                         const carenciaAtiva = c.plan.carenciaActive === true || String(c.plan.carenciaActive).toLowerCase() === "true";
+                        const carenciaDias = carenciaAtiva ? (parseInt(c.plan.carenciaDays) || 0) : 0;
 
-                        // 🔥 CORREÇÃO: O robô só pune se a carência estiver MARCADA
-                        if (carenciaAtiva) {
-                            const carenciaDias = parseInt(c.plan.carenciaDays) || 0;
+                        if (diffDays > carenciaDias) {
 
-                            if (diffDays > carenciaDias) {
-                                let action = c.plan.carenciaAction || 'pausado';
-                                if (action === 'pausar') action = 'pausado';
-                                if (action === 'bloquear') action = 'bloqueado';
+                            // ✨ O TRUQUE DE MESTRE: Traduz os verbos para adjetivos
+                            let action = c.plan.carenciaAction || 'pausado';
+                            if (action === 'pausar') action = 'pausado';
+                            if (action === 'bloquear') action = 'bloqueado';
 
-                                console.log(`🚨 [Xerife] ENQUADROU! Punindo '${c.name}' com: ${action.toUpperCase()}`);
+                            console.log(`🚨 [Xerife] ENQUADROU! Punindo '${c.name}' com: ${action.toUpperCase()}`);
 
-                                await updateDoc(doc(db, "sites", c.docId), {
-                                    status: action,
-                                    active: action === 'bloqueado' ? false : true
-                                });
+                            await updateDoc(doc(db, "sites", c.docId), {
+                                status: action,
+                                active: action === 'bloqueado' ? false : true
+                            });
 
-                                sofreuAlteracao = true;
+                            sofreuAlteracao = true;
 
-                                const index = allClients.findIndex(client => client.docId === c.docId);
-                                if (index !== -1) {
-                                    allClients[index].status = action;
-                                    allClients[index].active = action === 'bloqueado' ? false : true;
-                                }
+                            // Atualiza os dados na memória para refletir na tabela
+                            const index = allClients.findIndex(client => client.docId === c.docId);
+                            if (index !== -1) {
+                                allClients[index].status = action;
+                                allClients[index].active = action === 'bloqueado' ? false : true;
                             }
-                        } else {
-                            console.log(`   🛡️ Ignorado: Carência está desativada para a loja '${c.name}'.`);
                         }
                     }
                 }
@@ -1765,7 +1712,7 @@ window.createManualPlan = async () => {
 
     const valorParsed = parseCurrencyVal(inputVal);
     const btn = document.getElementById('btn-criar-plano');
-
+    
     btn.innerText = "Gerando...";
     btn.disabled = true;
 
@@ -1798,14 +1745,14 @@ window.createManualPlan = async () => {
         });
 
         showToast("Plano ativado e Fatura gerada!");
-
+        
         // 5. Recarrega a tabela de faturas para a linha aparecer
-        await loadInvoices(currentDocId);
-
+        await loadInvoices(currentDocId); 
+        
         // Esconde o botão, já que agora o plano existe
         btn.classList.add('hidden');
 
-    } catch (e) {
+    } catch(e) {
         console.error("Erro ao criar plano:", e);
         alert("Falha ao criar o plano. Verifique o console.");
     } finally {
