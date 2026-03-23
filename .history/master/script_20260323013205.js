@@ -121,12 +121,12 @@ function renderClients(clients) {
 
         // --- GERADOR DAS DUAS URLs ---
         // Remove a barra no final do domínio (se houver) para evitar barra dupla
-        const baseUrl = PRODUCTION_DOMAIN.endsWith('/') ? PRODUCTION_DOMAIN.slice(0, -1) : PRODUCTION_DOMAIN;
+const baseUrl = PRODUCTION_DOMAIN.endsWith('/') ? PRODUCTION_DOMAIN.slice(0, -1) : PRODUCTION_DOMAIN;
 
-        // Cria os links. Você pode deixar a vitrine com o ?site para garantir compatibilidade,
-        // e o admin com a sua URL bonita e secreta!
-        const linkVitrine = `${baseUrl}?site=${client.docId}`;
-        const linkAdmin = `${baseUrl}/${client.docId}/master`;
+// Cria os links. Você pode deixar a vitrine com o ?site para garantir compatibilidade,
+// e o admin com a sua URL bonita e secreta!
+const linkVitrine = `${baseUrl}?site=${client.docId}`;
+const linkAdmin = `${baseUrl}/${client.docId}/master`;
 
         const fullLink = `${PRODUCTION_DOMAIN}/${client.docId}`;
         const docText = (client.ownerData && client.ownerData.doc) ? client.ownerData.doc : (client.cpf || client.cnpj || 'Sem Documento');
@@ -1641,10 +1641,6 @@ window.runLazyPenaltyCheck = async () => {
 
                     const hoje = new Date();
                     hoje.setHours(0, 0, 0, 0);
-
-                    // Declarar o 'venc' baseado no banco de dados primeiro
-                    const venc = new Date(c.plan.nextDue + "T12:00:00");
-                    venc.setHours(0, 0, 0, 0);
 
                     if (hoje > venc) {
                         const diffTime = Math.abs(hoje - venc);

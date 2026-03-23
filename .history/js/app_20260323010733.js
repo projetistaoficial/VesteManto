@@ -720,6 +720,7 @@ async function initApp() {
             state.myOrders = JSON.parse(savedHistory);
         }
         checkActiveOrders();
+
         // Agora lê da variável global que o index.html salvou
         if (window.IS_ADMIN_LOGIN === true) {
             // Dá um tempinho de 0.5s para a loja carregar o layout de fundo
@@ -733,7 +734,6 @@ async function initApp() {
                 }
             }, 500);
         }
-
         return true; // Libera o startApplication
 
     } catch (error) {

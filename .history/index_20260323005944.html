@@ -52,24 +52,24 @@
         // 1. TODOS OS IMPORTS DEVEM FICAR NO TOPO
         import { db, doc, getDocFromServer, collection, getDocs, updateDoc } from './js/firebase-config.js';
 
-        // 2. LEITURA INTELIGENTE DA URL
+        // 2. CAPTURA DO ID DA URL
         const urlParams = new URLSearchParams(window.location.search);
         let siteId = urlParams.get('site');
-        
-        // Pega todos os pedaços da URL (ex: ['VesteManto', 'diadema', 'master'])
-        const pathParts = window.location.pathname.split('/').filter(Boolean);
 
-        // NOVO: Define se é Admin se a URL contiver a palavra "master"
-        window.IS_ADMIN_LOGIN = urlParams.get('admin') === 'true' || pathParts.includes('master');
+        // NOVO: Salva na memória global antes da URL ser limpa
+        window.IS_ADMIN_LOGIN = urlParams.get('admin') === 'true'; 
 
-        // NOVO: Descobre o nome da loja na URL bonita
         if (!siteId) {
-            // Ignora palavras do sistema para sobrar só o slug do cliente
-            const palavrasIgnoradas = ['VesteManto', 'index.html', 'master'];
-            const idsValidos = pathParts.filter(p => !palavrasIgnoradas.includes(p));
-            
-            if (idsValidos.length > 0) {
-                siteId = idsValidos[idsValidos.length - 1]; // Ex: Pega 'diadema'
+            const pathParts = window.location.pathname.split('/').filter(Boolean);
+            if (pathParts.length > 0 && pathParts[0] !== 'master' && pathParts[0] !== 'index.html') {
+                siteId = pathParts[0];
+            }
+        }
+
+        if (!siteId) {
+            const pathParts = window.location.pathname.split('/').filter(Boolean);
+            if (pathParts.length > 0 && pathParts[0] !== 'master' && pathParts[0] !== 'index.html') {
+                siteId = pathParts[0];
             }
         }
 

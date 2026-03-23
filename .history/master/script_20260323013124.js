@@ -120,6 +120,7 @@ function renderClients(clients) {
         const bgClass = selectedClients.has(client.docId) ? 'bg-blue-900/20 border-blue-900/50' : 'bg-[#161821] border-gray-800 hover:bg-[#1e2029]';
 
         // --- GERADOR DAS DUAS URLs ---
+        const linkVitrine = `${PRODUCTION_DOMAIN}?site=${client.docId}`;
         // Remove a barra no final do domínio (se houver) para evitar barra dupla
         const baseUrl = PRODUCTION_DOMAIN.endsWith('/') ? PRODUCTION_DOMAIN.slice(0, -1) : PRODUCTION_DOMAIN;
 
@@ -1641,10 +1642,6 @@ window.runLazyPenaltyCheck = async () => {
 
                     const hoje = new Date();
                     hoje.setHours(0, 0, 0, 0);
-
-                    // Declarar o 'venc' baseado no banco de dados primeiro
-                    const venc = new Date(c.plan.nextDue + "T12:00:00");
-                    venc.setHours(0, 0, 0, 0);
 
                     if (hoje > venc) {
                         const diffTime = Math.abs(hoje - venc);

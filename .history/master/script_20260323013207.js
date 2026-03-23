@@ -1642,10 +1642,6 @@ window.runLazyPenaltyCheck = async () => {
                     const hoje = new Date();
                     hoje.setHours(0, 0, 0, 0);
 
-                    // Declarar o 'venc' baseado no banco de dados primeiro
-                    const venc = new Date(c.plan.nextDue + "T12:00:00");
-                    venc.setHours(0, 0, 0, 0);
-
                     if (hoje > venc) {
                         const diffTime = Math.abs(hoje - venc);
                         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));

@@ -720,19 +720,6 @@ async function initApp() {
             state.myOrders = JSON.parse(savedHistory);
         }
         checkActiveOrders();
-        // Agora lê da variável global que o index.html salvou
-        if (window.IS_ADMIN_LOGIN === true) {
-            // Dá um tempinho de 0.5s para a loja carregar o layout de fundo
-            setTimeout(() => {
-                const loginModal = document.getElementById('login-modal');
-                if (loginModal && typeof loginModal.showModal === 'function') {
-                    loginModal.showModal();
-                } else if (loginModal) {
-                    // Fallback
-                    loginModal.classList.remove('hidden');
-                }
-            }, 500);
-        }
 
         return true; // Libera o startApplication
 
@@ -742,6 +729,19 @@ async function initApp() {
         return false;
     }
 
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('admin') === 'true') {
+        // Dá um tempinho de 0.5s para a loja carregar o layout de fundo
+        setTimeout(() => {
+            const loginModal = document.getElementById('login-modal');
+            if (loginModal && typeof loginModal.showModal === 'function') {
+                loginModal.showModal();
+            } else if (loginModal) {
+                // Fallback caso não use a tag <dialog> nativa
+                loginModal.classList.remove('hidden');
+            }
+        }, 500);
+    }
 }
 
 /// ============================================================
