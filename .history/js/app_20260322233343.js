@@ -3729,41 +3729,30 @@ function showView(viewName) {
 
     // 2. Lógica do TOPO (Cabeçalho)
     if (viewName === 'admin' || viewName === 'support') {
+        // Se for Admin/Suporte -> ESCONDE o topo
         if (header) header.classList.add('hidden');
         if (searchBar) searchBar.classList.add('hidden');
         if (floatCapsule) floatCapsule.classList.add('hidden');
-        document.body.classList.remove('pt-6'); 
+        document.body.classList.remove('pt-6'); // Remove espaçamento extra se houver
     } else {
+        // Se for Loja -> MOSTRA o topo
         if (header) header.classList.remove('hidden');
         if (searchBar) searchBar.classList.remove('hidden');
         if (floatCapsule) floatCapsule.classList.remove('hidden');
     }
 
-    // =========================================================
-    // 3. MOSTRA A TELA ESPECÍFICA E MUDA O TÍTULO DA ABA
-    // =========================================================
-    const storeName = state.storeProfile?.name || 'Loja';
-
+    // 3. Mostra a tela específica
     if (viewName === 'admin') {
         if (viewAdmin) viewAdmin.classList.remove('hidden');
         if (typeof loadAdminSales === 'function') loadAdminSales();
-        
-        // Título do Painel Admin
-        document.title = `${storeName} - Painel Admin`;
     }
     else if (viewName === 'support') {
         if (viewSupport) viewSupport.classList.remove('hidden');
-        
-        // Título do Suporte
-        document.title = `Suporte - ${storeName}`;
     }
     else {
         // Padrão: Catálogo
         if (viewCatalog) viewCatalog.classList.remove('hidden');
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        
-        // Título da Vitrine
-        document.title = `${storeName} - Catálogo`;
     }
 
     if (typeof window.checkFooter === 'function') window.checkFooter();

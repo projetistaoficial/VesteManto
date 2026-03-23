@@ -305,6 +305,9 @@ async function openClientModal(docId = null) {
         renderActionButtons(pendingClientStatus, pendingClientActive);
         updateStatusBadge(pendingClientStatus, pendingClientActive);
 
+        // Dispara a lógica de cálculo automático para novos clientes
+        const evt = new Event('change');
+        document.getElementById('plan-period').dispatchEvent(evt);
     }
     switchTab('cadastro');
 }
@@ -437,23 +440,24 @@ async function saveClientData() {
     try {
         await setDoc(doc(db, "sites", docId), data, { merge: true });
 
-        // Gera a primeira fatura automaticamente caso não exista nenhuma
+        // Gera a primeira fatura automaticamente caso tenha vencimento e valor
         await checkAndCreateFirstInvoice(docId, planData);
 
-        // ✨ SINCRONIZADOR FORÇADO E ABSOLUTO
-        // Agora ele roda INDEPENDENTE de ser cadastro novo ou edição.
-        const faturasRef = collection(db, `sites/${docId}/faturas`);
-        const q = query(faturasRef, where("status", "==", "pendente"));
-        const pendentesSnap = await getDocs(q);
+        // ✨ SINCRONIZADOR FORÇADO: Faz a fatura pendente obedecer exatamente o que foi digitado
+        if (currentDocId) {
+            const faturasRef = collection(db, `sites/${docId}/faturas`);
+            const q = query(faturasRef, where("status", "==", "pendente"));
+            const pendentesSnap = await getDocs(q);
 
-        const updatePromises = [];
-        pendentesSnap.forEach((docSnap) => {
-            updatePromises.push(updateDoc(docSnap.ref, {
-                vencimento: planData.nextDue,
-                valor: planData.value
-            }));
-        });
-        await Promise.all(updatePromises);
+            const updatePromises = [];
+            pendentesSnap.forEach((docSnap) => {
+                updatePromises.push(updateDoc(docSnap.ref, {
+                    vencimento: planData.nextDue,
+                    valor: planData.value
+                }));
+            });
+            await Promise.all(updatePromises);
+        }
 
         await shiftAltCodes(docId, oldAltCode, inputAltCode);
 

@@ -305,6 +305,9 @@ async function openClientModal(docId = null) {
         renderActionButtons(pendingClientStatus, pendingClientActive);
         updateStatusBadge(pendingClientStatus, pendingClientActive);
 
+        // Dispara a lógica de cálculo automático para novos clientes
+        const evt = new Event('change');
+        document.getElementById('plan-period').dispatchEvent(evt);
     }
     switchTab('cadastro');
 }
@@ -313,37 +316,76 @@ async function openClientModal(docId = null) {
 async function saveClientData() {
     // 1. CAPTURA DOS CAMPOS
     const slug = document.getElementById('inp-site-slug').value.trim();
-    const name = document.getElementById('inp-name').value.trim(); 
-    const docInput = document.getElementById('inp-doc').value.trim(); 
-    const telInput = document.getElementById('inp-tel').value.trim(); 
+    const name = document.getElementById('inp-name').value.trim(); // Nome da Loja
+    const docInput = document.getElementById('inp-doc').value.trim(); // CPF/CNPJ
+    const telInput = document.getElementById('inp-tel').value.trim(); // Número de Telefone
     const passAdmin = document.getElementById('inp-pass-admin').value.trim();
     const passDev = document.getElementById('inp-pass-dev').value.trim();
 
     // 2. VERIFICAÇÕES (VALIDAÇÃO)
-    if (!name) return alert("⚠️ O campo 'Nome da Loja' é obrigatório.");
-    if (!slug) return alert("⚠️ O 'Slug do Site' é obrigatório.");
-    if (!docInput) return alert("⚠️ É necessário informar um CPF ou CNPJ.");
-    if (!telInput) return alert("⚠️ O número de telefone/WhatsApp é obrigatório.");
-    if (!passAdmin || !passDev) return alert("⚠️ Defina as senhas de Admin e Desenvolvedor.");
-    if (passAdmin === passDev) return alert("❌ Segurança: A senha de Admin e a de Desenvolvedor NÃO podem ser iguais.");
+    if (!name) {
+        alert("⚠️ O campo 'Nome da Loja' é obrigatório.");
+        return;
+    }
+
+    if (!slug) {
+        alert("⚠️ O 'Slug do Site' é obrigatório.");
+        return;
+    }
+
+    if (!docInput) {
+        alert("⚠️ É necessário informar um CPF ou CNPJ.");
+        return;
+    }
+
+    if (!telInput) {
+        alert("⚠️ O número de telefone/WhatsApp é obrigatório.");
+        return;
+    }
+
+    // Validação de Senhas
+    if (!passAdmin || !passDev) {
+        alert("⚠️ Defina as senhas de Admin e Desenvolvedor.");
+        return;
+    }
+
+    if (passAdmin === passDev) {
+        alert("❌ Segurança: A senha de Admin e a de Desenvolvedor NÃO podem ser iguais.");
+        return;
+    }
+
+    // Validação de Senhas
+    if (!passAdmin || !passDev) {
+        alert("⚠️ Defina as senhas de Admin e Desenvolvedor.");
+        return;
+    }
+
+    if (passAdmin === passDev) {
+        alert("❌ Segurança: A senha de Admin e a de Desenvolvedor NÃO podem ser iguais.");
+        return;
+    }
 
     // ✨ TRAVA: OBRIGA A CRIAR O PLANO ANTES DE SALVAR (Somente para clientes novos)
     if (!currentDocId && !window.planGeneratedInUI) {
-        alert("⚠️ Informe o Plano do Cliente (Vá na aba Assinatura e clique em Criar Plano).");
-        return; 
-    }
+        alert("⚠️ Informe o Plano do Cliente");
+        return; // Bloqueia o salvamento e para o código aqui!
+    };
 
     const docId = currentDocId || slug;
     const elPassAdmin = document.getElementById('inp-pass-admin');
     const elPassDev = document.getElementById('inp-pass-dev');
 
+    // Identifica o código antigo (se for edição)
     let oldAltCode = null;
     if (currentDocId) {
         const existing = allClients.find(c => c.docId === docId);
         oldAltCode = existing ? (parseInt(existing.altCode) || null) : null;
     }
 
+    // Pega o código que você digitou
     let inputAltCode = parseInt(document.getElementById('inp-alt-code').value);
+
+    // Se deixou em branco ou digitou letras, mantém o antigo ou gera o próximo da fila
     if (isNaN(inputAltCode) || inputAltCode < 1) {
         if (oldAltCode) {
             inputAltCode = oldAltCode;
@@ -366,6 +408,7 @@ async function saveClientData() {
         deleteDays: parseInt(document.getElementById('conf-delete-days').value) || 30
     };
 
+    // ✨ XERIFE INSTANTÂNEO (AO SALVAR)
     let finalStatus = pendingClientStatus;
     let finalActive = pendingClientActive;
 
@@ -379,8 +422,10 @@ async function saveClientData() {
             const diffDays = Math.ceil(Math.abs(hoje - venc) / (1000 * 60 * 60 * 24));
             const carenciaAtiva = planData.carenciaActive === true || String(planData.carenciaActive).toLowerCase() === "true";
 
+            // 🔥 REGRA ABSOLUTA: Se a caixa estiver marcada, o sistema bloqueia e emite um alerta
             if (carenciaAtiva) {
                 const carenciaDias = parseInt(planData.carenciaDays) || 0;
+
                 if (diffDays > carenciaDias) {
                     let action = planData.carenciaAction || 'pausado';
                     if (action === 'pausar') action = 'pausado';
@@ -393,6 +438,7 @@ async function saveClientData() {
                     pendingClientActive = finalActive;
                     updateStatusBadge(finalStatus, finalActive);
                     renderActionButtons(finalStatus, finalActive);
+
                 }
             }
         }
@@ -437,24 +483,10 @@ async function saveClientData() {
     try {
         await setDoc(doc(db, "sites", docId), data, { merge: true });
 
-        // Gera a primeira fatura automaticamente caso não exista nenhuma
+        // Gera a primeira fatura automaticamente caso tenha vencimento e valor
         await checkAndCreateFirstInvoice(docId, planData);
 
-        // ✨ SINCRONIZADOR FORÇADO E ABSOLUTO
-        // Agora ele roda INDEPENDENTE de ser cadastro novo ou edição.
-        const faturasRef = collection(db, `sites/${docId}/faturas`);
-        const q = query(faturasRef, where("status", "==", "pendente"));
-        const pendentesSnap = await getDocs(q);
-
-        const updatePromises = [];
-        pendentesSnap.forEach((docSnap) => {
-            updatePromises.push(updateDoc(docSnap.ref, {
-                vencimento: planData.nextDue,
-                valor: planData.value
-            }));
-        });
-        await Promise.all(updatePromises);
-
+        // CHAMA O MOTOR CERTO (Deslizamento inteligente)
         await shiftAltCodes(docId, oldAltCode, inputAltCode);
 
         showToast("Dados salvos com sucesso!");

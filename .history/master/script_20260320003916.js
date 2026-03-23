@@ -45,12 +45,46 @@ window.addEventListener('DOMContentLoaded', () => {
     window.generateSiteLink = generateSiteLink;
     window.copyToClipboard = copyToClipboard;
     window.applyFinancialFilter = applyFinancialFilter;
+    // window.clearFinancialFilter = clearFinancialFilter;
     window.filtrarFinanceiro = applyFinancialFilter;
 
     const searchInput = document.getElementById('search-input');
     if (searchInput) searchInput.addEventListener('input', (e) => filterClients(e.target.value));
 
-    // ✨ O Piloto Automático que bagunçava as datas foi apagado daqui!
+    // --- EVENTO: CÁLCULO AUTOMÁTICO DO VENCIMENTO ---
+    const planPeriodSelect = document.getElementById('plan-period');
+    const planNextDueInput = document.getElementById('plan-next-due');
+
+    if (planPeriodSelect && planNextDueInput) {
+        planPeriodSelect.addEventListener('change', () => {
+            // --- EVENTO: CÁLCULO AUTOMÁTICO DO VENCIMENTO ---
+            const planPeriodSelect = document.getElementById('plan-period');
+            const planNextDueInput = document.getElementById('plan-next-due');
+
+            if (planPeriodSelect && planNextDueInput) {
+                planPeriodSelect.addEventListener('change', () => {
+                    const periodo = parseInt(planPeriodSelect.value) || 30;
+
+                    // Baseia a partir de hoje
+                    let d = new Date();
+
+                    // Adiciona meses reais em vez de dias absolutos (perfeito para meses com 28, 30 ou 31 dias)
+                    if (periodo === 7) d.setDate(d.getDate() + 7);
+                    else if (periodo === 30) d.setMonth(d.getMonth() + 1); // 1 Mês
+                    else if (periodo === 180) d.setMonth(d.getMonth() + 6); // 6 Meses
+                    else if (periodo === 365) d.setFullYear(d.getFullYear() + 1); // 1 Ano exato
+                    else d.setDate(d.getDate() + periodo);
+
+                    // Monta a data no formato YYYY-MM-DD travado no horário local (Evita bug de UTC/Fuso)
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+
+                    planNextDueInput.value = `${y}-${m}-${day}`;
+                });
+            }
+        });
+    }
 });
 
 // --- CARREGAR LISTA ---
@@ -286,13 +320,13 @@ async function openClientModal(docId = null) {
             planBadge.className = "w-full bg-[#0f1014] border-2 border-dashed border-gray-600 text-gray-400 font-bold uppercase text-[10px] rounded p-3 text-center transition-colors";
             planBadge.innerText = "AGUARDANDO PLANO";
         }
-
+        
         // Exibe o botão e zera a lista
         const btnCriarPlano = document.getElementById('btn-criar-plano');
-        if (btnCriarPlano) btnCriarPlano.classList.remove('hidden');
-
+        if (btnCriarPlano) btnCriarPlano.classList.remove('hidden'); 
+        
         document.getElementById('invoice-list-body').innerHTML = '<div class="text-center p-4 text-gray-500 text-xs italic w-full">Clique em Criar Plano para gerar a primeira fatura.</div>';
-
+        
         window.planGeneratedInUI = false;
 
         // Pega o maior codigo alternativo pra somar +1 pro novo
@@ -305,6 +339,9 @@ async function openClientModal(docId = null) {
         renderActionButtons(pendingClientStatus, pendingClientActive);
         updateStatusBadge(pendingClientStatus, pendingClientActive);
 
+        // Dispara a lógica de cálculo automático para novos clientes
+        const evt = new Event('change');
+        document.getElementById('plan-period').dispatchEvent(evt);
     }
     switchTab('cadastro');
 }
@@ -313,37 +350,78 @@ async function openClientModal(docId = null) {
 async function saveClientData() {
     // 1. CAPTURA DOS CAMPOS
     const slug = document.getElementById('inp-site-slug').value.trim();
-    const name = document.getElementById('inp-name').value.trim(); 
-    const docInput = document.getElementById('inp-doc').value.trim(); 
-    const telInput = document.getElementById('inp-tel').value.trim(); 
+    const name = document.getElementById('inp-name').value.trim(); // Nome da Loja
+    const docInput = document.getElementById('inp-doc').value.trim(); // CPF/CNPJ
+    const telInput = document.getElementById('inp-tel').value.trim(); // Número de Telefone
     const passAdmin = document.getElementById('inp-pass-admin').value.trim();
     const passDev = document.getElementById('inp-pass-dev').value.trim();
 
     // 2. VERIFICAÇÕES (VALIDAÇÃO)
-    if (!name) return alert("⚠️ O campo 'Nome da Loja' é obrigatório.");
-    if (!slug) return alert("⚠️ O 'Slug do Site' é obrigatório.");
-    if (!docInput) return alert("⚠️ É necessário informar um CPF ou CNPJ.");
-    if (!telInput) return alert("⚠️ O número de telefone/WhatsApp é obrigatório.");
-    if (!passAdmin || !passDev) return alert("⚠️ Defina as senhas de Admin e Desenvolvedor.");
-    if (passAdmin === passDev) return alert("❌ Segurança: A senha de Admin e a de Desenvolvedor NÃO podem ser iguais.");
+    if (!name) {
+        alert("⚠️ O campo 'Nome da Loja' é obrigatório.");
+        return;
+    }
+
+    if (!slug) {
+        alert("⚠️ O 'Slug do Site' é obrigatório.");
+        return;
+    }
+
+    if (!docInput) {
+        alert("⚠️ É necessário informar um CPF ou CNPJ.");
+        return;
+    }
+
+    if (!telInput) {
+        alert("⚠️ O número de telefone/WhatsApp é obrigatório.");
+        return;
+    }
+
+    // Validação de Senhas
+    if (!passAdmin || !passDev) {
+        alert("⚠️ Defina as senhas de Admin e Desenvolvedor.");
+        return;
+    }
+
+    if (passAdmin === passDev) {
+        alert("❌ Segurança: A senha de Admin e a de Desenvolvedor NÃO podem ser iguais.");
+        return;
+    }
+
+    // Validação de Senhas
+    if (!passAdmin || !passDev) {
+        alert("⚠️ Defina as senhas de Admin e Desenvolvedor.");
+        return;
+    }
+
+    if (passAdmin === passDev) {
+        alert("❌ Segurança: A senha de Admin e a de Desenvolvedor NÃO podem ser iguais.");
+        return;
+    }
 
     // ✨ TRAVA: OBRIGA A CRIAR O PLANO ANTES DE SALVAR (Somente para clientes novos)
     if (!currentDocId && !window.planGeneratedInUI) {
-        alert("⚠️ Informe o Plano do Cliente (Vá na aba Assinatura e clique em Criar Plano).");
-        return; 
+        alert("⚠️ ATENÇÃO: Vá na aba de assinatura e clique no botão azul 'CRIAR PLANO' para gerar a fatura antes de Salvar o Cliente.");
+        return; // Bloqueia o salvamento e para o código aqui!
     }
+
+    // ... o código continua normal: const docId = currentDocId || slug; ...
 
     const docId = currentDocId || slug;
     const elPassAdmin = document.getElementById('inp-pass-admin');
     const elPassDev = document.getElementById('inp-pass-dev');
 
+    // Identifica o código antigo (se for edição)
     let oldAltCode = null;
     if (currentDocId) {
         const existing = allClients.find(c => c.docId === docId);
         oldAltCode = existing ? (parseInt(existing.altCode) || null) : null;
     }
 
+    // Pega o código que você digitou
     let inputAltCode = parseInt(document.getElementById('inp-alt-code').value);
+
+    // Se deixou em branco ou digitou letras, mantém o antigo ou gera o próximo da fila
     if (isNaN(inputAltCode) || inputAltCode < 1) {
         if (oldAltCode) {
             inputAltCode = oldAltCode;
@@ -366,6 +444,7 @@ async function saveClientData() {
         deleteDays: parseInt(document.getElementById('conf-delete-days').value) || 30
     };
 
+    // ✨ XERIFE INSTANTÂNEO (AO SALVAR)
     let finalStatus = pendingClientStatus;
     let finalActive = pendingClientActive;
 
@@ -379,20 +458,23 @@ async function saveClientData() {
             const diffDays = Math.ceil(Math.abs(hoje - venc) / (1000 * 60 * 60 * 24));
             const carenciaAtiva = planData.carenciaActive === true || String(planData.carenciaActive).toLowerCase() === "true";
 
+            // 🔥 REGRA ABSOLUTA: Se a caixa estiver marcada, o sistema bloqueia e emite um alerta
             if (carenciaAtiva) {
                 const carenciaDias = parseInt(planData.carenciaDays) || 0;
+
                 if (diffDays > carenciaDias) {
                     let action = planData.carenciaAction || 'pausado';
                     if (action === 'pausar') action = 'pausado';
                     if (action === 'bloquear') action = 'bloqueado';
-
+                    
                     finalStatus = action;
                     finalActive = action === 'bloqueado' ? false : true;
-
+                    
                     pendingClientStatus = finalStatus;
                     pendingClientActive = finalActive;
                     updateStatusBadge(finalStatus, finalActive);
                     renderActionButtons(finalStatus, finalActive);
+
                 }
             }
         }
@@ -437,24 +519,10 @@ async function saveClientData() {
     try {
         await setDoc(doc(db, "sites", docId), data, { merge: true });
 
-        // Gera a primeira fatura automaticamente caso não exista nenhuma
+        // Gera a primeira fatura automaticamente caso tenha vencimento e valor
         await checkAndCreateFirstInvoice(docId, planData);
 
-        // ✨ SINCRONIZADOR FORÇADO E ABSOLUTO
-        // Agora ele roda INDEPENDENTE de ser cadastro novo ou edição.
-        const faturasRef = collection(db, `sites/${docId}/faturas`);
-        const q = query(faturasRef, where("status", "==", "pendente"));
-        const pendentesSnap = await getDocs(q);
-
-        const updatePromises = [];
-        pendentesSnap.forEach((docSnap) => {
-            updatePromises.push(updateDoc(docSnap.ref, {
-                vencimento: planData.nextDue,
-                valor: planData.value
-            }));
-        });
-        await Promise.all(updatePromises);
-
+        // CHAMA O MOTOR CERTO (Deslizamento inteligente)
         await shiftAltCodes(docId, oldAltCode, inputAltCode);
 
         showToast("Dados salvos com sucesso!");
@@ -734,13 +802,13 @@ window.changeClientStatus = (action) => {
         const nextDue = document.getElementById('plan-next-due').value;
         const carenciaAtiva = document.getElementById('conf-carencia-active').checked;
         const carenciaDias = parseInt(document.getElementById('conf-carencia-days').value) || 0;
-
+        
         if (nextDue && carenciaAtiva) {
             const hoje = new Date();
-            hoje.setHours(0, 0, 0, 0);
+            hoje.setHours(0,0,0,0);
             const venc = new Date(nextDue + "T12:00:00");
-            venc.setHours(0, 0, 0, 0);
-
+            venc.setHours(0,0,0,0);
+            
             if (hoje > venc) {
                 const diffDays = Math.ceil(Math.abs(hoje - venc) / (1000 * 60 * 60 * 24));
                 if (diffDays > carenciaDias) {
@@ -749,19 +817,19 @@ window.changeClientStatus = (action) => {
                 }
             }
         }
-
-        pendingClientStatus = 'ativo';
-        pendingClientActive = true;
+        
+        pendingClientStatus = 'ativo'; 
+        pendingClientActive = true; 
     }
-    else if (action === 'block') {
-        pendingClientStatus = 'bloqueado';
-        pendingClientActive = false;
+    else if (action === 'block') { 
+        pendingClientStatus = 'bloqueado'; 
+        pendingClientActive = false; 
     }
-    else if (action === 'pause') {
-        pendingClientStatus = 'pausado';
-        pendingClientActive = false;
+    else if (action === 'pause') { 
+        pendingClientStatus = 'pausado'; 
+        pendingClientActive = false; 
     }
-
+    
     updateStatusBadge(pendingClientStatus, pendingClientActive);
     renderActionButtons(pendingClientStatus, pendingClientActive);
 };
@@ -1100,7 +1168,7 @@ async function loadInvoices(clientId) {
             // 2. Se as duas estão pendentes -> Ordem Crescente (Cronológica: Jan, Fev, Mar...)
             if (a.status !== 'pago') {
                 return dateA - dateB;
-            }
+            } 
             // 3. Se as duas estão pagas -> Ordem Decrescente (Mais recentes que ele pagou no topo das pagas)
             else {
                 return dateB - dateA;
@@ -1113,7 +1181,7 @@ async function loadInvoices(clientId) {
         if (elQtdPagas) elQtdPagas.innerText = qtdPagas;
         const client = allClients.find(c => c.docId === clientId);
         const planData = client ? client.plan : {};
-
+        
         // Passa para desenhar a lista já com a ordem perfeita
         renderInvoices(faturas, planData);
 
@@ -1192,7 +1260,7 @@ function renderInvoices(faturas, plan = {}) {
         }
 
         let valorHtml = `<div class="p-3 truncate text-green-400">${valorFatura}</div>`;
-
+        
         if (f.status !== 'pago') {
             valorHtml = `
             <div class="p-3 truncate text-green-400 cursor-pointer hover:text-white transition group flex items-center gap-1" onclick="editInvoiceValue('${f.id}', ${f.valor})" title="Clique para editar valor">
@@ -1704,6 +1772,71 @@ window.editInvoiceValue = async (faturaId, valorAtual) => {
 // =================================================================
 
 window.createManualPlan = async () => {
+    // 1. Verifica se é um cliente que já existe no banco
+    if (!currentDocId) {
+        return alert("⚠️ O Cliente ainda não existe no banco de dados.\nPor favor, feche este aviso e clique no botão verde 'SALVAR DADOS' lá embaixo primeiro.");
+    }
+
+    const inputDue = document.getElementById('plan-next-due').value;
+    const inputVal = document.getElementById('plan-value').value;
+    const inputPeriod = document.getElementById('plan-period').value;
+
+    if (!inputDue || !inputVal) {
+        return alert("⚠️ Preencha a data em 'Próximo Vencimento' e o 'Valor (R$)' do plano antes de gerar a fatura.");
+    }
+
+    const valorParsed = parseCurrencyVal(inputVal);
+    const btn = document.getElementById('btn-criar-plano');
+
+    btn.innerText = "Gerando...";
+    btn.disabled = true;
+
+    try {
+        console.log("Iniciando criação de plano manual para:", currentDocId);
+
+        // 2. Atualiza as configs do plano no documento do cliente
+        await updateDoc(doc(db, "sites", currentDocId), {
+            "plan.nextDue": inputDue,
+            "plan.value": valorParsed,
+            "plan.period": inputPeriod
+        });
+
+        // 3. ✨ CORREÇÃO: Atualiza a memória local (Evita precisar de F5)
+        const index = allClients.findIndex(c => c.docId === currentDocId);
+        if (index !== -1) {
+            if (!allClients[index].plan) allClients[index].plan = {};
+            allClients[index].plan.nextDue = inputDue;
+            allClients[index].plan.value = valorParsed;
+            allClients[index].plan.period = inputPeriod;
+        }
+
+        // 4. Gera a fatura física na subcoleção
+        const novaFaturaRef = doc(collection(db, `sites/${currentDocId}/faturas`));
+        await setDoc(novaFaturaRef, {
+            vencimento: inputDue,
+            valor: valorParsed,
+            status: 'pendente',
+            createdAt: new Date().toISOString()
+        });
+
+        showToast("Plano ativado e Fatura gerada!");
+
+        // 5. Recarrega a tabela de faturas para a linha aparecer
+        await loadInvoices(currentDocId);
+
+        // Esconde o botão, já que agora o plano existe
+        btn.classList.add('hidden');
+
+    } catch (e) {
+        console.error("Erro ao criar plano:", e);
+        alert("Falha ao criar o plano. Verifique o console.");
+    } finally {
+        btn.innerText = "Criar Plano";
+        btn.disabled = false;
+    }
+};
+
+window.createManualPlan = async () => {
     const inputDue = document.getElementById('plan-next-due').value;
     const inputVal = document.getElementById('plan-value').value;
     const inputPeriod = document.getElementById('plan-period').value;
@@ -1719,7 +1852,7 @@ window.createManualPlan = async () => {
         const tbody = document.getElementById('invoice-list-body');
         const dataVenc = inputDue.split('-').reverse().join('/');
         const valorFatura = formatMoney(valorParsed);
-
+        
         // Desenha a fatura provisória na tabela
         tbody.innerHTML = `
             <div class="grid grid-cols-5 w-full bg-[#161821] relative z-10 transition-transform duration-200 ease-out items-center min-h-[60px] border-b border-gray-800/50">
@@ -1730,16 +1863,16 @@ window.createManualPlan = async () => {
                 <div class="p-3 flex justify-center"><span class="text-gray-500 text-[9px] uppercase font-bold text-center">Salvar para<br>confirmar</span></div>
             </div>
         `;
-
+        
         const planBadge = document.getElementById('plan-status-badge');
         if (planBadge) {
             planBadge.className = "w-full bg-yellow-500 text-black font-bold uppercase text-xs rounded p-3 text-center shadow-sm transition-colors";
             planBadge.innerText = "EM DIA / A VENCER";
         }
-
+        
         document.getElementById('btn-criar-plano').classList.add('hidden');
         window.planGeneratedInUI = true; // 🔓 Libera a trava de salvamento!
-
+        
         showToast("Fatura pronta! Vá para o final e clique em 'Salvar Dados' para confirmar o cadastro.");
         return;
     }
@@ -1773,10 +1906,10 @@ window.createManualPlan = async () => {
         });
 
         showToast("Plano ativado e Fatura gerada!");
-        await loadInvoices(currentDocId);
+        await loadInvoices(currentDocId); 
         btn.classList.add('hidden');
 
-    } catch (e) {
+    } catch(e) {
         console.error("Erro ao criar plano:", e);
         alert("Falha ao criar o plano.");
     } finally {
