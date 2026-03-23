@@ -104,12 +104,14 @@
 
             const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
+            // ============================================================
             // BYPASS LOCALHOST (MODO DESENVOLVEDOR)
+            // Se estiver no VS Code e não tiver ID na URL, força um ID de teste
+            // ============================================================
             if (isLocalhost && !siteId) {
                 console.warn("🛠️ MODO DEV DETECTADO: Usando loja de teste padrão.");
-                
-                // Mude 'veste-manto' para o slug de uma loja que REALMENTE existe no seu painel
-                siteId = 'vestemanto'; 
+                // Troque 'veste-manto' pelo ID real de uma loja que você usa para testes no seu Firebase
+                siteId = 'projetista-oficial'; 
             }
 
             if (!siteId) {

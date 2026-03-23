@@ -118,11 +118,6 @@ function renderClients(clients) {
 
         const isChecked = selectedClients.has(client.docId) ? 'checked' : '';
         const bgClass = selectedClients.has(client.docId) ? 'bg-blue-900/20 border-blue-900/50' : 'bg-[#161821] border-gray-800 hover:bg-[#1e2029]';
-
-        // --- GERADOR DAS DUAS URLs ---
-        const linkVitrine = `${PRODUCTION_DOMAIN}?site=${client.docId}`;
-        const linkAdmin = `${PRODUCTION_DOMAIN}?site=${client.docId}&admin=true`;
-
         const fullLink = `${PRODUCTION_DOMAIN}/${client.docId}`;
         const docText = (client.ownerData && client.ownerData.doc) ? client.ownerData.doc : (client.cpf || client.cnpj || 'Sem Documento');
 
@@ -135,14 +130,12 @@ function renderClients(clients) {
                     toggleClientSelection(client.docId);
                 }
             } else {
-                if (!e.target.closest('a') && !e.target.closest('button')) {
-                    openClientModal(client.docId);
-                }
+                if (!e.target.closest('a') && !e.target.closest('button')) openClientModal(client.docId);
             }
         };
 
-        const firstCol = isClientSelectionMode
-            ? `<div class="col-span-1 flex justify-start pl-1"><input type="checkbox" class="w-4 h-4 cursor-pointer pointer-events-none rounded border-gray-600 text-blue-500" ${isChecked}></div>`
+        const firstCol = isClientSelectionMode 
+            ? `<div class="col-span-1 flex justify-start pl-1"><input type="checkbox" class="w-4 h-4 cursor-pointer pointer-events-none rounded border-gray-600 text-blue-500" ${isChecked}></div>` 
             : `<div class="col-span-1 text-center text-gray-500 font-bold text-xs">${client.code || '#'}</div>`;
 
         row.innerHTML = `
@@ -328,9 +321,9 @@ async function openClientModal(docId = null) {
 async function saveClientData() {
     // 1. CAPTURA DOS CAMPOS
     const slug = document.getElementById('inp-site-slug').value.trim();
-    const name = document.getElementById('inp-name').value.trim();
-    const docInput = document.getElementById('inp-doc').value.trim();
-    const telInput = document.getElementById('inp-tel').value.trim();
+    const name = document.getElementById('inp-name').value.trim(); 
+    const docInput = document.getElementById('inp-doc').value.trim(); 
+    const telInput = document.getElementById('inp-tel').value.trim(); 
     const passAdmin = document.getElementById('inp-pass-admin').value.trim();
     const passDev = document.getElementById('inp-pass-dev').value.trim();
 
@@ -345,7 +338,7 @@ async function saveClientData() {
     // ✨ TRAVA: OBRIGA A CRIAR O PLANO ANTES DE SALVAR (Somente para clientes novos)
     if (!currentDocId && !window.planGeneratedInUI) {
         alert("⚠️ Informe o Plano do Cliente (Vá na aba Assinatura e clique em Criar Plano).");
-        return;
+        return; 
     }
 
     const docId = currentDocId || slug;

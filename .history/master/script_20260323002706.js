@@ -118,11 +118,6 @@ function renderClients(clients) {
 
         const isChecked = selectedClients.has(client.docId) ? 'checked' : '';
         const bgClass = selectedClients.has(client.docId) ? 'bg-blue-900/20 border-blue-900/50' : 'bg-[#161821] border-gray-800 hover:bg-[#1e2029]';
-
-        // --- GERADOR DAS DUAS URLs ---
-        const linkVitrine = `${PRODUCTION_DOMAIN}?site=${client.docId}`;
-        const linkAdmin = `${PRODUCTION_DOMAIN}?site=${client.docId}&admin=true`;
-
         const fullLink = `${PRODUCTION_DOMAIN}/${client.docId}`;
         const docText = (client.ownerData && client.ownerData.doc) ? client.ownerData.doc : (client.cpf || client.cnpj || 'Sem Documento');
 
@@ -135,36 +130,26 @@ function renderClients(clients) {
                     toggleClientSelection(client.docId);
                 }
             } else {
-                if (!e.target.closest('a') && !e.target.closest('button')) {
-                    openClientModal(client.docId);
-                }
+                if (!e.target.closest('a') && !e.target.closest('button')) openClientModal(client.docId);
             }
         };
 
+        const displayCode = currentCodeDisplay === 'code' ? (client.code || '#') : (client.altCode || '#');
+
         const firstCol = isClientSelectionMode
-            ? `<div class="col-span-1 flex justify-start pl-1"><input type="checkbox" class="w-4 h-4 cursor-pointer pointer-events-none rounded border-gray-600 text-blue-500" ${isChecked}></div>`
-            : `<div class="col-span-1 text-center text-gray-500 font-bold text-xs">${client.code || '#'}</div>`;
+            ? `<div class="col-span-1 flex justify-start pl-1"><input type="checkbox" class="w-5 h-5 cursor-pointer pointer-events-none rounded border-gray-600 text-blue-500" ${isChecked}></div>`
+            : `<div class="col-span-1 text-center text-blue-400 font-bold text-sm bg-[#0f1014] rounded border border-gray-700 mx-2 py-0.5">${displayCode}</div>`;
 
         row.innerHTML = `
             ${firstCol}
-            <div class="col-span-4 font-bold text-white truncate text-sm">${client.name || 'Sem Nome'}</div>
-            
-            <div class="col-span-3 text-center flex items-center justify-between gap-1 bg-[#0f1014] border border-gray-700 rounded px-2 py-1">
-                 
-                 <div class="flex items-center gap-1 w-1/2 justify-center border-r border-gray-700 pr-1" title="Link da Vitrine (Público)">
-                     <a href="${linkVitrine}" target="_blank" onclick="event.stopPropagation()" class="text-blue-400 text-[10px] truncate hover:underline flex-1"><i class="fas fa-store"></i> Loja</a>
-                     <button onclick="event.stopPropagation(); copyToClipboard('${linkVitrine}')" class="text-gray-500 hover:text-blue-400 transition px-1"><i class="far fa-copy text-xs"></i></button>
-                 </div>
-
-                 <div class="flex items-center gap-1 w-1/2 justify-center pl-1" title="Link do Painel (Lojista / Dev)">
-                     <a href="${linkAdmin}" target="_blank" onclick="event.stopPropagation()" class="text-yellow-500 text-[10px] truncate hover:underline flex-1"><i class="fas fa-lock"></i> Admin</a>
-                     <button onclick="event.stopPropagation(); copyToClipboard('${linkAdmin}')" class="text-gray-500 hover:text-yellow-500 transition px-1"><i class="far fa-copy text-xs"></i></button>
-                 </div>
-
+            <div class="col-span-3 font-bold text-white truncate text-base" title="${client.name || ''}">${client.name || 'Sem Nome'}</div>
+            <div class="col-span-2 text-center text-gray-300 text-sm font-mono truncate" title="${docText}">${docText}</div>
+            <div class="col-span-2 text-center flex items-center justify-center gap-2 bg-[#0f1014] border border-gray-700 rounded px-3 py-1.5">
+                 <a href="${fullLink}" target="_blank" onclick="event.stopPropagation()" class="text-blue-400 text-xs truncate w-full hover:underline">.../${client.docId}</a>
+                 <button onclick="event.stopPropagation(); copyToClipboard('${fullLink}')" class="text-gray-400 hover:text-white transition" title="Copiar"><i class="far fa-copy text-sm"></i></button>
             </div>
-
-            <div class="col-span-2 text-center text-gray-400 text-[10px]">${client.plan?.name || '30 dias (Mensal)'}</div>
-            <div class="col-span-2 text-center"><span class="${badgeColor} border px-2 py-1 rounded text-[10px] font-bold uppercase block w-24 mx-auto">${statusText}</span></div>
+            <div class="col-span-2 text-center text-gray-300 text-sm truncate">${client.plan?.name || '30 dias (Mensal)'}</div>
+            <div class="col-span-2 text-center"><span class="${badgeColor} border px-2 py-1.5 rounded text-xs font-bold uppercase block w-full max-w-[100px] mx-auto truncate">${statusText}</span></div>
         `;
         listContainer.appendChild(row);
     });
@@ -328,9 +313,9 @@ async function openClientModal(docId = null) {
 async function saveClientData() {
     // 1. CAPTURA DOS CAMPOS
     const slug = document.getElementById('inp-site-slug').value.trim();
-    const name = document.getElementById('inp-name').value.trim();
-    const docInput = document.getElementById('inp-doc').value.trim();
-    const telInput = document.getElementById('inp-tel').value.trim();
+    const name = document.getElementById('inp-name').value.trim(); 
+    const docInput = document.getElementById('inp-doc').value.trim(); 
+    const telInput = document.getElementById('inp-tel').value.trim(); 
     const passAdmin = document.getElementById('inp-pass-admin').value.trim();
     const passDev = document.getElementById('inp-pass-dev').value.trim();
 
@@ -345,7 +330,7 @@ async function saveClientData() {
     // ✨ TRAVA: OBRIGA A CRIAR O PLANO ANTES DE SALVAR (Somente para clientes novos)
     if (!currentDocId && !window.planGeneratedInUI) {
         alert("⚠️ Informe o Plano do Cliente (Vá na aba Assinatura e clique em Criar Plano).");
-        return;
+        return; 
     }
 
     const docId = currentDocId || slug;
