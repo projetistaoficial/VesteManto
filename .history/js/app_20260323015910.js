@@ -630,8 +630,8 @@ async function initApp() {
         // B. SITE PAUSADO (NOVO)
         if (data.status === 'pausado') {
             exibirTelaMorte(
-                "Site Indisponível Temporariamente",
-                "Estamos realizando manutenções ou atualizações na loja. Volte em breve!",
+                "Site Indisponível Temporariamente", 
+                "Estamos realizando manutenções ou atualizações na loja. Volte em breve!", 
                 "pausado"
             );
             return false; // Bloqueia o carregamento do resto do site
@@ -669,7 +669,7 @@ async function initApp() {
                 const check = await getDocFromServer(docRef);
                 // Atualizado para recarregar se for pausado também
                 if (!check.exists() || check.data().status === 'bloqueado' || check.data().status === 'pausado') {
-                    window.location.reload();
+                     window.location.reload();
                 }
             } catch (e) { }
         }, 15000);
@@ -684,7 +684,7 @@ async function initApp() {
             if (!state.user || state.user.uid !== 'store-admin') {
                 state.user = user;
             }
-
+            
             const btnText = state.user ? 'Painel' : 'Área Admin';
 
             if (els.menuBtnAdmin) {
@@ -2938,7 +2938,7 @@ function setupEventListeners() {
     const btnLoginCancel = getEl('btn-login-cancel');
     if (btnLoginCancel) btnLoginCancel.onclick = () => getEl('login-modal').close();
 
-    const btnLoginSubmit = document.getElementById('btn-login-submit');
+   const btnLoginSubmit = document.getElementById('btn-login-submit');
     if (btnLoginSubmit) {
         btnLoginSubmit.onclick = async () => {
             const passInput = document.getElementById('admin-pass');
@@ -2966,7 +2966,7 @@ function setupEventListeners() {
                 // ============================================================
                 const docRef = doc(db, "sites", state.siteId);
                 const snap = await getDocFromServer(docRef); // Ignora cache
-
+                
                 if (snap.exists()) {
                     const data = snap.data();
                     const savedAccess = data.access || {};
@@ -2986,10 +2986,10 @@ function setupEventListeners() {
                     // B. Verifica Senha ADMIN (Lojista) exclusiva desta Loja
                     if (clientAdminPass && pass === clientAdminPass) {
                         console.log("🔓 Acesso liberado via Senha da Loja");
-
+                        
                         // Simula um usuário logado
                         state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
-
+                        
                         modal.close();
                         passInput.value = '';
 
@@ -3729,41 +3729,30 @@ function showView(viewName) {
 
     // 2. Lógica do TOPO (Cabeçalho)
     if (viewName === 'admin' || viewName === 'support') {
+        // Se for Admin/Suporte -> ESCONDE o topo
         if (header) header.classList.add('hidden');
         if (searchBar) searchBar.classList.add('hidden');
         if (floatCapsule) floatCapsule.classList.add('hidden');
-        document.body.classList.remove('pt-6'); 
+        document.body.classList.remove('pt-6'); // Remove espaçamento extra se houver
     } else {
+        // Se for Loja -> MOSTRA o topo
         if (header) header.classList.remove('hidden');
         if (searchBar) searchBar.classList.remove('hidden');
         if (floatCapsule) floatCapsule.classList.remove('hidden');
     }
 
-    // =========================================================
-    // 3. MOSTRA A TELA ESPECÍFICA E MUDA O TÍTULO DA ABA
-    // =========================================================
-    const storeName = state.storeProfile?.name || 'Loja';
-
+    // 3. Mostra a tela específica
     if (viewName === 'admin') {
         if (viewAdmin) viewAdmin.classList.remove('hidden');
         if (typeof loadAdminSales === 'function') loadAdminSales();
-        
-        // Título do Painel Admin
-        document.title = `${storeName} - Painel Admin`;
     }
     else if (viewName === 'support') {
         if (viewSupport) viewSupport.classList.remove('hidden');
-        
-        // Título do Suporte
-        document.title = `Suporte - ${storeName}`;
     }
     else {
         // Padrão: Catálogo
         if (viewCatalog) viewCatalog.classList.remove('hidden');
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        
-        // Título da Vitrine
-        document.title = `${storeName} - Catálogo`;
     }
 
     if (typeof window.checkFooter === 'function') window.checkFooter();
@@ -5654,7 +5643,7 @@ window.openCheckoutModal = () => {
 
     // Força o bloqueio visual e adiciona a classe de trava
     if (paySection) {
-        paySection.classList.add('opacity-50', 'locked-section');
+        paySection.classList.add('opacity-50', 'locked-section'); 
         paySection.classList.remove('pointer-events-none'); // Importante para o Toast funcionar
     }
 
@@ -5803,8 +5792,8 @@ window.handleCheckoutCep = async () => {
         if (!storeCep) {
             // Se a loja não configurou o próprio CEP no painel, não tem como calcular a distância
             if (elDistDisplay) {
-                elDistDisplay.innerText = "⚠️ CEP da loja não configurado.";
-                elDistDisplay.className = "text-orange-500 font-bold text-xs mt-1 block";
+                 elDistDisplay.innerText = "⚠️ CEP da loja não configurado.";
+                 elDistDisplay.className = "text-orange-500 font-bold text-xs mt-1 block";
             }
             if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = true; // Libera a venda
         } else {
@@ -5862,7 +5851,7 @@ window.handleCheckoutCep = async () => {
     } catch (err) {
         console.error("Erro Processo CEP:", err);
         if (typeof checkoutState !== 'undefined') checkoutState.isValidDelivery = false;
-
+        
         if (elErrorMsg) elErrorMsg.innerText = err.message;
         if (elErrorDiv) elErrorDiv.classList.remove('hidden');
         if (elDistDisplay && elDistDisplay.innerText === "Calculando frete...") {
@@ -8362,7 +8351,7 @@ function validateCheckoutForm() {
         if (paymentSection) {
             paymentSection.classList.add('opacity-50', 'locked-section');
             // Mantém os eventos de clique funcionando para exibir o alerta caso a pessoa clique
-            paymentSection.classList.remove('pointer-events-none');
+            paymentSection.classList.remove('pointer-events-none'); 
         }
         if (btnFinish) {
             btnFinish.disabled = true;

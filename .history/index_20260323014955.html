@@ -98,16 +98,24 @@
             throw new Error("SISTEMA_BLOQUEADO");
         }
 
-        // --- LÓGICA DE VALIDAÇÃO ---
+       // --- LÓGICA DE VALIDAÇÃO ---
         async function validar() {
             console.log("🔍 Verificando ID:", siteId);
+
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+            // BYPASS LOCALHOST (MODO DESENVOLVEDOR)
+            if (isLocalhost && !siteId) {
+                console.warn("🛠️ MODO DEV DETECTADO: Usando loja de teste padrão.");
+                
+                // Mude 'veste-manto' para o slug de uma loja que REALMENTE existe no seu painel
+                siteId = 'vestema'; 
+            }
 
             if (!siteId) {
                 destruirTudo("Erro", "ID da loja não encontrado na URL.");
                 return;
             }
-
-            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
             try {
                 const docRef = doc(db, "sites", siteId);
@@ -119,8 +127,13 @@
                 }
 
                 const data = snap.data();
-                if (data.status === 'pausado') { destruirTudo("Indisponível Temporariamente", "Estamos realizando manutenções na loja.", "pausado"); return; }
-                if (data.status === 'bloqueado' || data.active === false) { destruirTudo("Acesso Suspenso", "A conta desta loja está suspensa."); return; }
+                
+                // No localhost, a gente ignora o bloqueio de loja pausada/bloqueada
+                // para você conseguir trabalhar mesmo se a loja estiver suspensa
+                if (!isLocalhost) {
+                    if (data.status === 'pausado') { destruirTudo("Indisponível Temporariamente", "Estamos realizando manutenções na loja.", "pausado"); return; }
+                    if (data.status === 'bloqueado' || data.active === false) { destruirTudo("Acesso Suspenso", "A conta desta loja está suspensa."); return; }
+                }
 
                 // ✅ TUDO OK: Define o ID global
                 window.SITE_ID = siteId;
@@ -132,7 +145,7 @@
                 await import(`./js/app.js?v=${Date.now()}`);
                 document.body.classList.add('acesso-liberado');
 
-                // ✨ Limpa a URL se tiver o ?site=
+                // ✨ Limpa a URL se tiver o ?site= (Só em produção)
                 if (!isLocalhost && window.location.search.includes('site=')) {
                     window.history.replaceState(null, '', '/' + siteId);
                 }
@@ -346,7 +359,7 @@
             </button>
 
             <button id="menu-btn-admin"
-                class="w-full bg-black hover:bg-yellow-500 hover:text-black text-white py-3 rounded font-bold uppercase text-sm tracking-wide transition border border-gray-800">
+                class="w-full bg-black hover:bg-yellow-500 hover:text-black text-white py-3 rounded font-bold uppercase text-sm tracking-wide transition border border-gray-800 hidden">
             </button>
         </div>
     </aside>

@@ -130,7 +130,7 @@ function renderClients(clients) {
                     toggleClientSelection(client.docId);
                 }
             } else {
-                if (!e.target.closest('a') && !e.target.closest('button')) openClientModal(client.docId);
+                if (!e.target.closest('a') && z!e.target.closest('button')) openClientModal(client.docId);
             }
         };
 
