@@ -1305,8 +1305,6 @@ function renderCatalog(productsToRender) {
 
         const isSoldOutA = a.stock <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
         const isSoldOutB = b.stock <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
-        
-        // Coloca os esgotados sempre no final
         if (isSoldOutA && !isSoldOutB) return 1;
         if (!isSoldOutA && isSoldOutB) return -1;
 
@@ -1336,13 +1334,8 @@ function renderCatalog(productsToRender) {
     const globalInst = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3 };
 
     filtered.forEach(p => {
-        // ✨ AQUI ESTÁ A LÓGICA DA TRAVA DE ESTOQUE ✨
-        // Permite negativo se a loja inteira permitir, ou se este produto específico permitir
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-        
-        // Só está esgotado se o estoque for menor/igual a zero E não permitir negativo
         const isOut = p.stock <= 0 && !allowNegative;
-        
         const currentPrice = parseFloat(p.promoPrice || p.price);
 
         // --- LÓGICA DE EXIBIÇÃO DO PIX (CORRIGIDA) ---
@@ -1361,6 +1354,7 @@ function renderCatalog(productsToRender) {
 
                 if (pixGlobal.mode === 'total') {
                     // MODO TOTAL: Exibe apenas a etiqueta informativa (sem calcular preço unitário)
+                    // CORREÇÃO: Usa labelOff para mostrar "R$ 10,00 OFF" em vez de "10% OFF" se for fixo
                     pixHtml = `<p class="text-green-500 text-[10px] font-bold mt-1"><i class="fas fa-tag mr-1"></i>${labelOff} no Pix (Total)</p>`;
                 } else {
                     // MODO PRODUTO: Calcula o preço unitário

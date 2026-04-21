@@ -52,35 +52,6 @@
         // 1. TODOS OS IMPORTS DEVEM FICAR NO TOPO
         import { db, doc, getDocFromServer, collection, getDocs, updateDoc } from './js/firebase-config.js';
 
-        // 2. CAPTURA DO ID DA URL
-        const urlParams = new URLSearchParams(window.location.search);
-        let siteId = urlParams.get('site');
-
-        if (!siteId) {
-            const pathParts = window.location.pathname.split('/').filter(Boolean);
-            if (pathParts.length > 0 && !['master', 'index.html', 'VesteManto'].includes(pathParts[0])) {
-                siteId = pathParts[0];
-            }
-        }
-
-        // ============================================================
-        // 3. BYPASS LOCALHOST (MODO DESENVOLVEDOR SUPER BLINDADO)
-        // ============================================================
-        const hostname = window.location.hostname;
-        // Identifica localhost, 127.0.0.1 e IPs de Wi-Fi local (192.168...)
-        const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.');
-        
-        if (isLocalhost && !siteId) {
-            console.warn("🛠️ MODO DEV DETECTADO: Usando loja de teste padrão.");
-            
-            // ATENÇÃO: Substitua 'vestemanto' pelo slug de uma loja que realmente existe!
-            siteId = 'vestemanto'; 
-
-            // ✨ O TRUQUE DE MESTRE: Injeta o ID na URL silenciosamente 
-            // para "enganar" a verificação do app.js!
-            window.history.replaceState(null, '', '?site=' + siteId);
-        }
-
         // --- MANTENDO SEU DESIGN DE TELAS DE ERRO ---
         function destruirTudo(titulo, motivo, tipo = 'erro') {
             console.error("⛔ ACESSO NEGADO: " + motivo);
@@ -118,7 +89,34 @@
 
         // --- LÓGICA DE VALIDAÇÃO ---
         async function validar() {
-            console.log("🔍 Verificando ID:", siteId);
+            // CAPTURA DO ID DA URL
+            const urlParams = new URLSearchParams(window.location.search);
+            let siteId = urlParams.get('site');
+
+            // Ignora o nome da pasta do seu computador no VS Code
+            if (!siteId) {
+                const pathParts = window.location.pathname.split('/').filter(Boolean);
+                // Não deixa ele confundir a palavra "master", "index.html" ou o nome da sua pasta com o ID do cliente
+                if (pathParts.length > 0 && !['master', 'index.html', 'VesteManto'].includes(pathParts[0])) {
+                    siteId = pathParts[0];
+                }
+            }
+
+            // ============================================================
+            // BYPASS LOCALHOST SUPER BLINDADO
+            // Identifica localhost, 127.0.0.1 e IPs de Wi-Fi local (192.168...)
+            // ============================================================
+            const hostname = window.location.hostname;
+            const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.');
+            
+            if (isLocalhost && !siteId) {
+                console.warn(`🛠️ MODO DEV DETECTADO (${hostname}): Usando loja de teste padrão.`);
+                
+                // ATENÇÃO: Se 'vestemanto' não for o slug que você tem no painel, troque aqui!
+                siteId = 'vestemanto'; 
+            }
+
+            console.log("🔍 Verificando ID Final:", siteId);
 
             if (!siteId) {
                 destruirTudo("Erro", "ID da loja não encontrado na URL.");
@@ -136,7 +134,7 @@
 
                 const data = snap.data();
                 
-                // No modo dev (VS Code), ignora o bloqueio para você conseguir trabalhar!
+                // No modo dev, a gente pula o bloqueio de loja pausada
                 if (!isLocalhost) {
                     if (data.status === 'pausado') { destruirTudo("Indisponível Temporariamente", "Estamos realizando manutenções na loja.", "pausado"); return; }
                     if (data.status === 'bloqueado' || data.active === false) { destruirTudo("Acesso Suspenso", "A conta desta loja está suspensa."); return; }
@@ -152,7 +150,7 @@
                 await import(`./js/app.js?v=${Date.now()}`);
                 document.body.classList.add('acesso-liberado');
 
-                // ✨ Limpa a URL se tiver o ?site= (Só limpa em Produção, para não estragar o bypass)
+                // ✨ Limpa a URL (Apenas em Produção, para não atrapalhar no modo Dev)
                 if (!isLocalhost && window.location.search.includes('site=')) {
                     window.history.replaceState(null, '', '/' + siteId);
                 }

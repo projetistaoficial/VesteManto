@@ -58,27 +58,21 @@
 
         if (!siteId) {
             const pathParts = window.location.pathname.split('/').filter(Boolean);
-            if (pathParts.length > 0 && !['master', 'index.html', 'VesteManto'].includes(pathParts[0])) {
+            if (pathParts.length > 0 && pathParts[0] !== 'master' && pathParts[0] !== 'index.html') {
                 siteId = pathParts[0];
             }
         }
 
         // ============================================================
-        // 3. BYPASS LOCALHOST (MODO DESENVOLVEDOR SUPER BLINDADO)
+        // 2. BYPASS LOCALHOST (MODO DESENVOLVEDOR)
         // ============================================================
-        const hostname = window.location.hostname;
-        // Identifica localhost, 127.0.0.1 e IPs de Wi-Fi local (192.168...)
-        const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.');
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         
         if (isLocalhost && !siteId) {
             console.warn("🛠️ MODO DEV DETECTADO: Usando loja de teste padrão.");
             
-            // ATENÇÃO: Substitua 'vestemanto' pelo slug de uma loja que realmente existe!
+            // ATENÇÃO: Substitua 'vestemanto' pelo slug de uma loja que realmente existe no seu painel!
             siteId = 'vestemanto'; 
-
-            // ✨ O TRUQUE DE MESTRE: Injeta o ID na URL silenciosamente 
-            // para "enganar" a verificação do app.js!
-            window.history.replaceState(null, '', '?site=' + siteId);
         }
 
         // --- MANTENDO SEU DESIGN DE TELAS DE ERRO ---
@@ -125,6 +119,8 @@
                 return;
             }
 
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
             try {
                 const docRef = doc(db, "sites", siteId);
                 const snap = await getDocFromServer(docRef);
@@ -135,12 +131,8 @@
                 }
 
                 const data = snap.data();
-                
-                // No modo dev (VS Code), ignora o bloqueio para você conseguir trabalhar!
-                if (!isLocalhost) {
-                    if (data.status === 'pausado') { destruirTudo("Indisponível Temporariamente", "Estamos realizando manutenções na loja.", "pausado"); return; }
-                    if (data.status === 'bloqueado' || data.active === false) { destruirTudo("Acesso Suspenso", "A conta desta loja está suspensa."); return; }
-                }
+                if (data.status === 'pausado') { destruirTudo("Indisponível Temporariamente", "Estamos realizando manutenções na loja.", "pausado"); return; }
+                if (data.status === 'bloqueado' || data.active === false) { destruirTudo("Acesso Suspenso", "A conta desta loja está suspensa."); return; }
 
                 // ✅ TUDO OK: Define o ID global
                 window.SITE_ID = siteId;
@@ -152,7 +144,7 @@
                 await import(`./js/app.js?v=${Date.now()}`);
                 document.body.classList.add('acesso-liberado');
 
-                // ✨ Limpa a URL se tiver o ?site= (Só limpa em Produção, para não estragar o bypass)
+                // ✨ Limpa a URL se tiver o ?site=
                 if (!isLocalhost && window.location.search.includes('site=')) {
                     window.history.replaceState(null, '', '/' + siteId);
                 }
