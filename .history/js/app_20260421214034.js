@@ -1305,7 +1305,7 @@ function renderCatalog(productsToRender) {
 
         const isSoldOutA = a.stock <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
         const isSoldOutB = b.stock <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
-
+        
         // Coloca os esgotados sempre no final
         if (isSoldOutA && !isSoldOutB) return 1;
         if (!isSoldOutA && isSoldOutB) return -1;
@@ -1339,10 +1339,10 @@ function renderCatalog(productsToRender) {
         // ✨ AQUI ESTÁ A LÓGICA DA TRAVA DE ESTOQUE ✨
         // Permite negativo se a loja inteira permitir, ou se este produto específico permitir
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-
+        
         // Só está esgotado se o estoque for menor/igual a zero E não permitir negativo
         const isOut = p.stock <= 0 && !allowNegative;
-
+        
         const currentPrice = parseFloat(p.promoPrice || p.price);
 
         // --- LÓGICA DE EXIBIÇÃO DO PIX (CORRIGIDA) ---
@@ -3738,7 +3738,7 @@ function showView(viewName) {
         if (header) header.classList.add('hidden');
         if (searchBar) searchBar.classList.add('hidden');
         if (floatCapsule) floatCapsule.classList.add('hidden');
-        document.body.classList.remove('pt-6');
+        document.body.classList.remove('pt-6'); 
     } else {
         if (header) header.classList.remove('hidden');
         if (searchBar) searchBar.classList.remove('hidden');
@@ -3753,13 +3753,13 @@ function showView(viewName) {
     if (viewName === 'admin') {
         if (viewAdmin) viewAdmin.classList.remove('hidden');
         if (typeof loadAdminSales === 'function') loadAdminSales();
-
+        
         // Título do Painel Admin
         document.title = `${storeName} - Painel Admin`;
     }
     else if (viewName === 'support') {
         if (viewSupport) viewSupport.classList.remove('hidden');
-
+        
         // Título do Suporte
         document.title = `Suporte - ${storeName}`;
     }
@@ -3767,7 +3767,7 @@ function showView(viewName) {
         // Padrão: Catálogo
         if (viewCatalog) viewCatalog.classList.remove('hidden');
         window.scrollTo({ top: 0, behavior: 'smooth' });
-
+        
         // Título da Vitrine
         document.title = `${storeName} - Catálogo`;
     }
@@ -5130,7 +5130,7 @@ function renderStoreProfile() {
         }
     }
 
-    // --- 2. ATUALIZA HEADER (LOGO E NOME) ---
+   // --- 2. ATUALIZA HEADER (LOGO E NOME) ---
     const navLogo = document.getElementById('navbar-store-logo');
     const navText = document.getElementById('navbar-store-text');
 
@@ -5152,7 +5152,7 @@ function renderStoreProfile() {
             // Remove o href="index.html" que estava quebrando o site
             logoLink.removeAttribute('href');
             logoLink.style.cursor = 'pointer';
-
+            
             // Faz o clique apenas voltar para a vitrine inicial da loja atual
             logoLink.onclick = (e) => {
                 e.preventDefault(); // Impede o navegador de tentar mudar a URL
@@ -5423,7 +5423,7 @@ async function saveStoreProfile() {
 
         // CORREÇÃO DO PARCELAMENTO: Criando o objeto installments corretamente
         installments: {
-            active: getCheck(els.confCardActive),
+            active: getCheck(els.confCardActive), 
             max: parseInt(getVal(els.confCardMax)) || 12,
             freeUntil: parseInt(getVal(els.confCardFree)) || 3,
             rate: parseFloat(getVal(els.confCardRate).replace(',', '.')) || 0
