@@ -565,7 +565,7 @@ const els = {
 
 };
 
-// Função global para limpar e fechar o modal corretamente
+// Função global para limpar o modal travado na tela
 window.fecharModalLogin = () => {
     const modal = document.getElementById('login-modal');
     if (modal) {
@@ -718,7 +718,7 @@ async function initApp() {
         // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);
 
-      // --- 4. AUTH LISTENER (LÓGICA DE PROTEÇÃO DE VIEW) ---
+       // --- 4. AUTH LISTENER (LÓGICA DE PROTEÇÃO DE VIEW) ---
         onAuthStateChanged(auth, (user) => {
             if (!state.user || state.user.uid !== 'store-admin') {
                 state.user = user;
@@ -746,8 +746,7 @@ async function initApp() {
             // --- DECISÃO DE TELA ---
             if (state.user) {
                 sessionStorage.removeItem('wantsAdmin'); // Já logou, não precisa mais do aviso
-                if (typeof fecharModalLogin === 'function') fecharModalLogin();
-                
+                fecharModalLogin();
                 if (typeof showView === 'function') showView('admin');
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
                 if (typeof loadAdminSales === 'function') loadAdminSales();
@@ -756,16 +755,16 @@ async function initApp() {
                 
                 // ✨ LÊ A MEMÓRIA PARA ABRIR O MODAL ✨
                 if (sessionStorage.getItem('wantsAdmin') === 'true') {
-                    sessionStorage.removeItem('wantsAdmin'); // Apaga a memória
+                    sessionStorage.removeItem('wantsAdmin'); // Apaga a memória para não abrir sozinho ao dar F5
                     
                     setTimeout(() => {
                         const loginModal = document.getElementById('login-modal');
                         if (loginModal) {
                             loginModal.classList.remove('hidden');
-                            loginModal.style.display = ''; // Mantém o layout original do Tailwind
-                            loginModal.style.zIndex = '999999';
+                            loginModal.style.setProperty('display', 'flex', 'important');
+                            loginModal.style.setProperty('z-index', '999999', 'important');
                             try { 
-                                if(!loginModal.open) loginModal.showModal(); 
+                                if(!loginModal.hasAttribute('open')) loginModal.showModal(); 
                             } catch(e) { 
                                 loginModal.setAttribute('open', 'true'); 
                             }
@@ -2774,14 +2773,14 @@ function setupEventListeners() {
     setupAccordion('btn-acc-cat', 'content-acc-cat', 'arrow-acc-cat');
     setupAccordion('btn-acc-coupon', 'content-acc-coupon', 'arrow-acc-coupon');
 
-   // 1. Botão Sair (Logout) - Mantém a URL intacta
+   // 1. Botão Sair (Logout) - SEM PERDER O ID
     const btnLogout = document.getElementById('btn-logout');
     if (btnLogout) {
         btnLogout.onclick = () => {
             if (typeof signOut === 'function' && typeof auth !== 'undefined') {
                 signOut(auth).then(() => {
-                    // Apenas recarrega a página. A URL já está certinha graças ao Passo 1!
-                    window.location.reload(); 
+                    // Recarrega forçando o ID da loja para não ficar inacessível
+                    window.location.href = window.location.pathname + '?site=' + state.siteId;
                 });
             }
         };
@@ -2789,26 +2788,13 @@ function setupEventListeners() {
 
     // 2. Cancelar e Fechar o Login
     const btnLoginCancel = getEl('btn-login-cancel');
-    if (btnLoginCancel) btnLoginCancel.onclick = () => {
-        if (typeof fecharModalLogin === 'function') fecharModalLogin();
-    };
+    if (btnLoginCancel) btnLoginCancel.onclick = () => fecharModalLogin();
 
     const btnLoginSubmit = document.getElementById('btn-login-submit');
-    const passInput = document.getElementById('admin-pass');
-
-    // ✨ 3. PERMITIR TECLA ENTER NO CAMPO DE SENHA ✨
-    if (passInput) {
-        passInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (btnLoginSubmit) btnLoginSubmit.click(); // Clica no botão invisivelmente
-            }
-        });
-    }
-
     if (btnLoginSubmit) {
         btnLoginSubmit.onclick = async () => {
-            const pass = passInput ? passInput.value.trim() : '';
+            const passInput = document.getElementById('admin-pass');
+            const pass = passInput.value.trim();
             const btnOriginalText = btnLoginSubmit.innerText;
 
             btnLoginSubmit.innerText = "Verificando...";
@@ -2816,8 +2802,8 @@ function setupEventListeners() {
 
             try {
                 if (checkAndActivateSupport(pass)) {
-                    if (typeof fecharModalLogin === 'function') fecharModalLogin();
-                    if(passInput) passInput.value = '';
+                    fecharModalLogin(); // FECHA O MODAL AQUI
+                    passInput.value = '';
                     showView('admin');
                     showView('support');
                     return;
@@ -2831,8 +2817,8 @@ function setupEventListeners() {
                     const savedAccess = data.access || {};
                     
                     if (savedAccess.dev && pass === savedAccess.dev) {
-                        if (typeof fecharModalLogin === 'function') fecharModalLogin();
-                        if(passInput) passInput.value = '';
+                        fecharModalLogin(); // FECHA O MODAL AQUI
+                        passInput.value = '';
                         showView('admin');
                         showView('support');
                         return;
@@ -2840,11 +2826,11 @@ function setupEventListeners() {
 
                     if (savedAccess.admin && pass === savedAccess.admin) {
                         state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
-                        if (typeof fecharModalLogin === 'function') fecharModalLogin();
-                        if(passInput) passInput.value = '';
+                        fecharModalLogin(); // FECHA O MODAL AQUI
+                        passInput.value = '';
 
                         if (els.menuBtnAdmin) {
-                            els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white"></i> <span class="ml-2 font-bold uppercase text-sm tracking-wide">Painel Admin</span>`;
+                            els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield"></i> <span class="ml-2">Painel Admin</span>`;
                         }
 
                         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
@@ -2857,8 +2843,8 @@ function setupEventListeners() {
 
                 await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
                 sessionStorage.removeItem('support_mode');
-                if (typeof fecharModalLogin === 'function') fecharModalLogin();
-                if(passInput) passInput.value = '';
+                fecharModalLogin(); // FECHA O MODAL AQUI
+                passInput.value = '';
                 showView('admin');
 
             } catch (error) {

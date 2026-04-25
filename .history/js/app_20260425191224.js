@@ -2774,14 +2774,14 @@ function setupEventListeners() {
     setupAccordion('btn-acc-cat', 'content-acc-cat', 'arrow-acc-cat');
     setupAccordion('btn-acc-coupon', 'content-acc-coupon', 'arrow-acc-coupon');
 
-   // 1. Botão Sair (Logout) - Mantém a URL intacta
+   // 1. Botão Sair (Logout) - SEM PERDER O ID
     const btnLogout = document.getElementById('btn-logout');
     if (btnLogout) {
         btnLogout.onclick = () => {
             if (typeof signOut === 'function' && typeof auth !== 'undefined') {
                 signOut(auth).then(() => {
-                    // Apenas recarrega a página. A URL já está certinha graças ao Passo 1!
-                    window.location.reload(); 
+                    // Recarrega forçando o ID da loja para não ficar inacessível
+                    window.location.href = window.location.pathname + '?site=' + state.siteId;
                 });
             }
         };
@@ -2789,26 +2789,13 @@ function setupEventListeners() {
 
     // 2. Cancelar e Fechar o Login
     const btnLoginCancel = getEl('btn-login-cancel');
-    if (btnLoginCancel) btnLoginCancel.onclick = () => {
-        if (typeof fecharModalLogin === 'function') fecharModalLogin();
-    };
+    if (btnLoginCancel) btnLoginCancel.onclick = () => fecharModalLogin();
 
     const btnLoginSubmit = document.getElementById('btn-login-submit');
-    const passInput = document.getElementById('admin-pass');
-
-    // ✨ 3. PERMITIR TECLA ENTER NO CAMPO DE SENHA ✨
-    if (passInput) {
-        passInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (btnLoginSubmit) btnLoginSubmit.click(); // Clica no botão invisivelmente
-            }
-        });
-    }
-
     if (btnLoginSubmit) {
         btnLoginSubmit.onclick = async () => {
-            const pass = passInput ? passInput.value.trim() : '';
+            const passInput = document.getElementById('admin-pass');
+            const pass = passInput.value.trim();
             const btnOriginalText = btnLoginSubmit.innerText;
 
             btnLoginSubmit.innerText = "Verificando...";
@@ -2816,8 +2803,8 @@ function setupEventListeners() {
 
             try {
                 if (checkAndActivateSupport(pass)) {
-                    if (typeof fecharModalLogin === 'function') fecharModalLogin();
-                    if(passInput) passInput.value = '';
+                    fecharModalLogin(); // FECHA O MODAL AQUI
+                    passInput.value = '';
                     showView('admin');
                     showView('support');
                     return;
@@ -2831,8 +2818,8 @@ function setupEventListeners() {
                     const savedAccess = data.access || {};
                     
                     if (savedAccess.dev && pass === savedAccess.dev) {
-                        if (typeof fecharModalLogin === 'function') fecharModalLogin();
-                        if(passInput) passInput.value = '';
+                        fecharModalLogin(); // FECHA O MODAL AQUI
+                        passInput.value = '';
                         showView('admin');
                         showView('support');
                         return;
@@ -2840,11 +2827,11 @@ function setupEventListeners() {
 
                     if (savedAccess.admin && pass === savedAccess.admin) {
                         state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
-                        if (typeof fecharModalLogin === 'function') fecharModalLogin();
-                        if(passInput) passInput.value = '';
+                        fecharModalLogin(); // FECHA O MODAL AQUI
+                        passInput.value = '';
 
                         if (els.menuBtnAdmin) {
-                            els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white"></i> <span class="ml-2 font-bold uppercase text-sm tracking-wide">Painel Admin</span>`;
+                            els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield"></i> <span class="ml-2">Painel Admin</span>`;
                         }
 
                         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
@@ -2857,8 +2844,8 @@ function setupEventListeners() {
 
                 await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
                 sessionStorage.removeItem('support_mode');
-                if (typeof fecharModalLogin === 'function') fecharModalLogin();
-                if(passInput) passInput.value = '';
+                fecharModalLogin(); // FECHA O MODAL AQUI
+                passInput.value = '';
                 showView('admin');
 
             } catch (error) {
