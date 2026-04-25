@@ -154,24 +154,16 @@ function renderClients(clients) {
             <div class="col-span-3 font-bold text-white truncate text-base" title="${client.name || ''}">${client.name || 'Sem Nome'}</div>
             <div class="col-span-2 text-center text-gray-300 text-sm font-mono truncate" title="${docText}">${docText}</div>
             
-            <div class="col-span-3 flex flex-col gap-1.5 justify-center pr-2">
+            <div class="col-span-3 text-center flex items-center justify-between gap-1 bg-[#0f1014] border border-gray-700 rounded px-2 py-1.5">
                  
-                 <div class="flex items-center justify-between bg-blue-900/10 px-2 py-1 rounded border border-blue-900/40 hover:border-blue-500/50 transition">
-                     <a href="${linkVitrine}" target="_blank" onclick="event.stopPropagation()" class="text-[10px] text-blue-400 font-bold hover:underline flex-1 truncate tracking-wide" title="Abrir Loja">
-                         <i class="fas fa-store mr-1"></i> LOJA
-                     </a>
-                     <button onclick="event.stopPropagation(); copyToClipboard('${linkVitrine}')" class="text-gray-500 hover:text-blue-400 transition ml-2" title="Copiar Link da Loja">
-                         <i class="far fa-copy text-xs"></i>
-                     </button>
+                 <div class="flex items-center gap-1 w-1/2 justify-center border-r border-gray-700 pr-1" title="Link Público da Loja">
+                     <a href="${linkVitrine}" target="_blank" onclick="event.stopPropagation()" class="text-blue-400 text-xs truncate hover:underline flex-1"><i class="fas fa-store"></i> Loja</a>
+                     <button onclick="event.stopPropagation(); copyToClipboard('${linkVitrine}')" class="text-gray-400 hover:text-white transition" title="Copiar"><i class="far fa-copy text-sm"></i></button>
                  </div>
 
-                 <div class="flex items-center justify-between bg-yellow-900/10 px-2 py-1 rounded border border-yellow-900/40 hover:border-yellow-500/50 transition">
-                     <a href="${linkAdmin}" target="_blank" onclick="event.stopPropagation()" class="text-[10px] text-yellow-500 font-bold hover:underline flex-1 truncate tracking-wide" title="Acesso do Vendedor">
-                         <i class="fas fa-lock mr-1"></i> ADMIN
-                     </a>
-                     <button onclick="event.stopPropagation(); copyToClipboard('${linkAdmin}')" class="text-gray-500 hover:text-yellow-500 transition ml-2" title="Copiar Link do Admin">
-                         <i class="far fa-copy text-xs"></i>
-                     </button>
+                 <div class="flex items-center gap-1 w-1/2 justify-center pl-1" title="Acesso do Vendedor">
+                     <a href="${linkAdmin}" target="_blank" onclick="event.stopPropagation()" class="text-yellow-500 text-xs truncate hover:underline flex-1"><i class="fas fa-lock"></i> Admin</a>
+                     <button onclick="event.stopPropagation(); copyToClipboard('${linkAdmin}')" class="text-gray-400 hover:text-yellow-500 transition" title="Copiar"><i class="far fa-copy text-sm"></i></button>
                  </div>
 
             </div>

@@ -664,18 +664,18 @@ async function initApp() {
         loadTheme();
 
         // Verifica se o vendedor está tentando acessar o painel via URL mágica
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('admin') === 'true') {
-            // Pequeno atraso para garantir que o DOM carregou
-            setTimeout(() => {
-                const loginModal = document.getElementById('login-modal');
-                if (loginModal) {
-                    loginModal.showModal();
-                    // Opcional: Limpar o parâmetro da URL para ficar limpo
-                    window.history.replaceState(null, '', window.location.pathname + '?site=' + state.siteId);
-                }
-            }, 500);
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('admin') === 'true') {
+    // Pequeno atraso para garantir que o DOM carregou
+    setTimeout(() => {
+        const loginModal = document.getElementById('login-modal');
+        if (loginModal) {
+            loginModal.showModal();
+            // Opcional: Limpar o parâmetro da URL para ficar limpo
+            window.history.replaceState(null, '', window.location.pathname + '?site=' + state.siteId);
         }
+    }, 500);
+}
 
         // Monitoramento de segurança em tempo real (15s)
         setInterval(async () => {
@@ -692,36 +692,24 @@ async function initApp() {
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);
 
         // --- 4. AUTH LISTENER (AGORA COM SUPORTE À SENHA DO CLIENTE) ---
+        // A lógica do botão está no setupEventListeners, aqui só definimos a view baseada na sessão
         onAuthStateChanged(auth, (user) => {
             // Só sobrescreve se o usuário não for o 'store-admin' simulado que criamos no botão de login
             if (!state.user || state.user.uid !== 'store-admin') {
                 state.user = user;
             }
 
-            // ✨ A MÁGICA ESTÁ AQUI: Controle de visibilidade do botão ✨
+            const btnText = state.user ? 'Painel' : 'Área Admin';
+
             if (els.menuBtnAdmin) {
-                if (state.user) {
-                    // Se estiver logado, MOSTRA o botão como "Painel Admin"
-                    els.menuBtnAdmin.classList.remove('hidden');
-                    els.menuBtnAdmin.innerHTML = `
-                        <i class="fas fa-user-shield text-white group-hover:text-white transition"></i>
-                        <span class="font-bold uppercase text-sm tracking-wide">Painel Admin</span>
-                    `;
-                } else {
-                    // Se NÃO estiver logado, ESCONDE o botão da vitrine
-                    els.menuBtnAdmin.classList.add('hidden');
-                }
+                els.menuBtnAdmin.innerHTML = `
+                    <i class="fas fa-user-shield text-white group-hover:text-white transition"></i>
+                    <span class="font-bold uppercase text-sm tracking-wide">${btnText}</span>
+                `;
             }
 
             const btnLoginNav = getEl('btn-admin-login');
-            if (btnLoginNav) {
-                if (state.user) {
-                    btnLoginNav.classList.remove('hidden');
-                    btnLoginNav.innerText = 'Painel Admin';
-                } else {
-                    btnLoginNav.classList.add('hidden');
-                }
-            }
+            if (btnLoginNav) btnLoginNav.innerText = btnText;
 
             if (state.user) {
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
