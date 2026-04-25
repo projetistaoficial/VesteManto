@@ -670,50 +670,7 @@ async function initApp() {
         loadTheme();
 
         // Verifica se o vendedor está tentando acessar o painel via URL mágica
-        // ============================================================
-        // PORTA SECRETA DO LOJISTA (Gatilho da URL)
-        // ============================================================
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('admin') === 'true') {
-            console.log("🔑 URL Admin detectada. Forçando abertura do painel...");
-            
-            // 1. Limpa a URL imediatamente (respeitando nuvem ou localhost)
-            const isCloud = !window.location.search.includes('site=');
-            const cleanUrl = window.location.pathname + (isCloud ? '' : '?site=' + state.siteId);
-            window.history.replaceState(null, '', cleanUrl);
-
-            // 2. Um "Trator" que tenta abrir a tela de senha até conseguir
-            const forceModal = setInterval(() => {
-                const loginModal = document.getElementById('login-modal');
-                
-                if (loginModal) {
-                    // Se achou o modal, para de repetir o trator
-                    clearInterval(forceModal); 
-
-                    // Se por acaso o navegador já lembrar do lojista (sessão salva), abre o painel direto
-                    if (auth.currentUser || state.user) {
-                        if (typeof showView === 'function') showView('admin');
-                        return;
-                    }
-
-                    // 3. Força Bruta Visual (Ignora qualquer bloqueio do Tailwind/CSS)
-                    loginModal.classList.remove('hidden');
-                    loginModal.style.setProperty('display', 'flex', 'important');
-                    loginModal.style.setProperty('visibility', 'visible', 'important');
-                    loginModal.style.setProperty('opacity', '1', 'important');
-                    loginModal.style.setProperty('z-index', '999999', 'important');
-
-                    try {
-                        // Comando oficial do HTML5 para abrir modais
-                        if (!loginModal.open && typeof loginModal.showModal === 'function') {
-                            loginModal.showModal();
-                        }
-                    } catch (e) {
-                        loginModal.setAttribute('open', 'true');
-                    }
-                }
-            }, 400); // Tenta a cada 400 milissegundos
-        }
+      https://projetistaoficial.com/diadema?admin=true
 
         // Monitoramento de segurança em tempo real (15s)
         setInterval(async () => {
