@@ -125,7 +125,7 @@ function renderClients(clients) {
         // Link Vitrine
         const linkVitrine = `${baseUrl}/${client.docId}`;
         // Link Admin (Gerando exatamente o que funcionou)
-        const linkAdmin = `${baseUrl}/${client.docId}&admin=true`;
+        const linkAdmin = `${baseUrl}/${client.docId}?admin=true`;
         
         const docText = (client.ownerData && client.ownerData.doc) ? client.ownerData.doc : (client.cpf || client.cnpj || 'Sem Documento');
 

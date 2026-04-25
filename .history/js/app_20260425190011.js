@@ -744,6 +744,7 @@ async function initApp() {
             // --- DECISÃO DE TELA ---
             if (state.user) {
                 sessionStorage.removeItem('wantsAdmin'); // Já logou, não precisa mais do aviso
+
                 fecharModalLogin();
                 if (typeof showView === 'function') showView('admin');
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();

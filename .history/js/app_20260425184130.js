@@ -744,7 +744,6 @@ async function initApp() {
             // --- DECISÃO DE TELA ---
             if (state.user) {
                 sessionStorage.removeItem('wantsAdmin'); // Já logou, não precisa mais do aviso
-                fecharModalLogin();
                 if (typeof showView === 'function') showView('admin');
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
                 if (typeof loadAdminSales === 'function') loadAdminSales();
@@ -2771,85 +2770,17 @@ function setupEventListeners() {
     setupAccordion('btn-acc-cat', 'content-acc-cat', 'arrow-acc-cat');
     setupAccordion('btn-acc-coupon', 'content-acc-coupon', 'arrow-acc-coupon');
 
-   // 1. Botão Sair (Logout) - SEM PERDER O ID
+    // 1. Botão Sair (Logout)
     const btnLogout = document.getElementById('btn-logout');
     if (btnLogout) {
         btnLogout.onclick = () => {
+            // Verifica se a função signOut existe (importada do firebase)
             if (typeof signOut === 'function' && typeof auth !== 'undefined') {
                 signOut(auth).then(() => {
-                    // Recarrega forçando o ID da loja para não ficar inacessível
-                    window.location.href = window.location.pathname + '?site=' + state.siteId;
+                    window.location.reload(); // Recarrega para limpar o estado
                 });
-            }
-        };
-    }
-
-    // 2. Cancelar e Fechar o Login
-    const btnLoginCancel = getEl('btn-login-cancel');
-    if (btnLoginCancel) btnLoginCancel.onclick = () => fecharModalLogin();
-
-    const btnLoginSubmit = document.getElementById('btn-login-submit');
-    if (btnLoginSubmit) {
-        btnLoginSubmit.onclick = async () => {
-            const passInput = document.getElementById('admin-pass');
-            const pass = passInput.value.trim();
-            const btnOriginalText = btnLoginSubmit.innerText;
-
-            btnLoginSubmit.innerText = "Verificando...";
-            btnLoginSubmit.disabled = true;
-
-            try {
-                if (checkAndActivateSupport(pass)) {
-                    fecharModalLogin(); // FECHA O MODAL AQUI
-                    passInput.value = '';
-                    showView('admin');
-                    showView('support');
-                    return;
-                }
-
-                const docRef = doc(db, "sites", state.siteId);
-                const snap = await getDocFromServer(docRef);
-
-                if (snap.exists()) {
-                    const data = snap.data();
-                    const savedAccess = data.access || {};
-                    
-                    if (savedAccess.dev && pass === savedAccess.dev) {
-                        fecharModalLogin(); // FECHA O MODAL AQUI
-                        passInput.value = '';
-                        showView('admin');
-                        showView('support');
-                        return;
-                    }
-
-                    if (savedAccess.admin && pass === savedAccess.admin) {
-                        state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
-                        fecharModalLogin(); // FECHA O MODAL AQUI
-                        passInput.value = '';
-
-                        if (els.menuBtnAdmin) {
-                            els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield"></i> <span class="ml-2">Painel Admin</span>`;
-                        }
-
-                        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-                        if (typeof loadAdminSales === 'function') loadAdminSales();
-
-                        showView('admin');
-                        return;
-                    }
-                }
-
-                await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
-                sessionStorage.removeItem('support_mode');
-                fecharModalLogin(); // FECHA O MODAL AQUI
-                passInput.value = '';
-                showView('admin');
-
-            } catch (error) {
-                alert("Senha incorreta.");
-            } finally {
-                btnLoginSubmit.innerText = btnOriginalText;
-                btnLoginSubmit.disabled = false;
+            } else {
+                console.error("Erro: signOut não encontrado.");
             }
         };
     }
@@ -3073,6 +3004,96 @@ function setupEventListeners() {
     if (btnAdminLogin) {
         btnAdminLogin.onclick = () => {
             if (state.user) { showView('admin'); } else { getEl('login-modal').showModal(); }
+        };
+    }
+    const btnLoginCancel = getEl('btn-login-cancel');
+    if (btnLoginCancel) btnLoginCancel.onclick = () => getEl('login-modal').close();
+
+    const btnLoginSubmit = document.getElementById('btn-login-submit');
+    if (btnLoginSubmit) {
+        btnLoginSubmit.onclick = async () => {
+            const passInput = document.getElementById('admin-pass');
+            const pass = passInput.value.trim();
+            const modal = document.getElementById('login-modal');
+            const btnOriginalText = btnLoginSubmit.innerText;
+
+            // Efeito visual de carregamento
+            btnLoginSubmit.innerText = "Verificando...";
+            btnLoginSubmit.disabled = true;
+
+            try {
+                // 1. Verifica Modo Suporte (Senha Mestre Fixa: projetista47@)
+                if (checkAndActivateSupport(pass)) {
+                    modal.close();
+                    passInput.value = '';
+                    showView('admin');
+                    showView('support');
+                    return;
+                }
+
+                // ============================================================
+                // 2. BUSCA A SENHA FRESQUINHA DIRETO DO BANCO DE DADOS
+                // Garante que pega a senha real que acabou de ser criada
+                // ============================================================
+                const docRef = doc(db, "sites", state.siteId);
+                const snap = await getDocFromServer(docRef); // Ignora cache
+
+                if (snap.exists()) {
+                    const data = snap.data();
+                    const savedAccess = data.access || {};
+                    const clientAdminPass = savedAccess.admin;
+                    const clientDevPass = savedAccess.dev;
+
+                    // A. Verifica Senha DEV exclusiva desta Loja
+                    if (clientDevPass && pass === clientDevPass) {
+                        console.log("🛠️ Acesso Liberado: Modo Desenvolvedor da Loja");
+                        modal.close();
+                        passInput.value = '';
+                        showView('admin');
+                        showView('support');
+                        return;
+                    }
+
+                    // B. Verifica Senha ADMIN (Lojista) exclusiva desta Loja
+                    if (clientAdminPass && pass === clientAdminPass) {
+                        console.log("🔓 Acesso liberado via Senha da Loja");
+
+                        // Simula um usuário logado
+                        state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
+
+                        modal.close();
+                        passInput.value = '';
+
+                        if (els.menuBtnAdmin) {
+                            els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield"></i> <span class="ml-2">Painel Admin</span>`;
+                        }
+
+                        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+                        if (typeof loadAdminSales === 'function') loadAdminSales();
+
+                        showView('admin');
+                        return;
+                    }
+                }
+
+                // ============================================================
+                // 3. FALLBACK: LOGIN FIREBASE AUTH (admin123 Mestre)
+                // ============================================================
+                await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
+                sessionStorage.removeItem('support_mode');
+                modal.close();
+                passInput.value = '';
+                showView('admin');
+
+            } catch (error) {
+                // Se chegou aqui, nenhuma das 4 senhas funcionou
+                alert("Senha incorreta.");
+                console.error("Tentativa de login falhou:", error);
+            } finally {
+                // Restaura o botão
+                btnLoginSubmit.innerText = btnOriginalText;
+                btnLoginSubmit.disabled = false;
+            }
         };
     }
 
