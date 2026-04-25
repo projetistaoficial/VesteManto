@@ -689,19 +689,19 @@ async function initApp() {
 
         // Verifica se o vendedor está tentando acessar o painel via URL mágica
        // ============================================================
-        // PORTA SECRETA DO LOJISTA (Gatilho da URL c/ Hash)
+        // PORTA SECRETA DO LOJISTA (Gatilho da URL)
         // ============================================================
-        // Agora verificamos o HASH (#admin) em vez da Search (?)
-        if (window.location.hash === '#admin' || window.location.search.includes('admin=true')) {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('admin') === 'true') {
             console.log("🔑 URL Admin detectada. Agendando abertura do painel...");
             
-            // 1. Deixa o aviso na memória para o startApplication ler depois
+            // 1. Deixa um "Post-it" para a função startApplication ler depois
             window.WANTS_ADMIN_LOGIN = true;
 
-            // 2. Limpa o "#admin" da barra de endereços instantaneamente para ninguém ver
-            setTimeout(() => {
-                window.history.replaceState(null, '', window.location.pathname + window.location.search);
-            }, 100);
+            // 2. Limpa a URL imediatamente (respeitando nuvem ou localhost)
+            const isCloud = !window.location.search.includes('site=');
+            const cleanUrl = window.location.pathname + (isCloud ? '' : '?site=' + state.siteId);
+            window.history.replaceState(null, '', cleanUrl);
         }
 
         // Monitoramento de segurança em tempo real (15s)
