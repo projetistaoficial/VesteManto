@@ -122,9 +122,11 @@ function renderClients(clients) {
         // --- GERADOR DAS DUAS URLs (À PROVA DE SERVIDOR) ---
         const baseUrl = PRODUCTION_DOMAIN.endsWith('/') ? PRODUCTION_DOMAIN.slice(0, -1) : PRODUCTION_DOMAIN;
         
-        // ✨ A SOLUÇÃO AQUI: Barra "/" no final antes da interrogação! ✨
-        const linkVitrine = `${baseUrl}/${client.docId}/`;
-        const linkAdmin = `${baseUrl}/${client.docId}/?admin=true`;
+        // Link Vitrine: Limpo e público
+        const linkVitrine = `${baseUrl}/${client.docId}`;
+        
+        // Link Admin: Usando a cerquilha (#) que o servidor não consegue apagar!
+        const linkAdmin = `${baseUrl}/${client.docId}#admin`;
         
         const docText = (client.ownerData && client.ownerData.doc) ? client.ownerData.doc : (client.cpf || client.cnpj || 'Sem Documento');
 

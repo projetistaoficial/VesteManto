@@ -119,8 +119,7 @@ function renderClients(clients) {
         const isChecked = selectedClients.has(client.docId) ? 'checked' : '';
         const bgClass = selectedClients.has(client.docId) ? 'bg-blue-900/20 border-blue-900/50' : 'bg-[#161821] border-gray-800 hover:bg-[#1e2029]';
         
-        // --- GERADOR DAS DUAS URLs (À PROVA DE SERVIDOR) ---
-        const baseUrl = PRODUCTION_DOMAIN.endsWith('/') ? PRODUCTION_DOMAIN.slice(0, -1) : PRODUCTION_DOMAIN;
+       const baseUrl = PRODUCTION_DOMAIN.endsWith('/') ? PRODUCTION_DOMAIN.slice(0, -1) : PRODUCTION_DOMAIN;
         
         // ✨ A SOLUÇÃO AQUI: Barra "/" no final antes da interrogação! ✨
         const linkVitrine = `${baseUrl}/${client.docId}/`;
