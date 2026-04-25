@@ -702,6 +702,7 @@ async function initApp() {
         // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);
 
+        // --- 4. AUTH LISTENER (AGORA COM SUPORTE À SENHA DO CLIENTE) ---
         // --- 4. AUTH LISTENER (LOGICA DE PROTEÇÃO DE VIEW) ---
         onAuthStateChanged(auth, (user) => {
             if (!state.user || state.user.uid !== 'store-admin') {

@@ -702,46 +702,46 @@ async function initApp() {
         // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);
 
-        // --- 4. AUTH LISTENER (LOGICA DE PROTEÇÃO DE VIEW) ---
+        // --- 4. AUTH LISTENER (AGORA COM SUPORTE À SENHA DO CLIENTE) ---
         onAuthStateChanged(auth, (user) => {
+            // Só sobrescreve se o usuário não for o 'store-admin' simulado que criamos no botão de login
             if (!state.user || state.user.uid !== 'store-admin') {
                 state.user = user;
             }
 
-            // Controle do botão na Navbar
+            // ✨ A MÁGICA ESTÁ AQUI: Controle de visibilidade do botão ✨
             if (els.menuBtnAdmin) {
                 if (state.user) {
+                    // Se estiver logado, MOSTRA o botão como "Painel Admin"
                     els.menuBtnAdmin.classList.remove('hidden');
-                    els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white"></i> <span class="ml-2">Painel Admin</span>`;
+                    els.menuBtnAdmin.innerHTML = `
+                        <i class="fas fa-user-shield text-white group-hover:text-white transition"></i>
+                        <span class="font-bold uppercase text-sm tracking-wide">Painel Admin</span>
+                    `;
                 } else {
+                    // Se NÃO estiver logado, ESCONDE o botão da vitrine
                     els.menuBtnAdmin.classList.add('hidden');
                 }
             }
 
-            if (state.user) {
-                // Se está logado, vai para o Admin
-                showView('admin');
-                if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-                if (typeof loadAdminSales === 'function') loadAdminSales();
-            } else {
-                // ✨ AQUI ESTÁ O SEGREDO ✨
-                if (window.FORCE_ADMIN_LOGIN) {
-                    // Se o link era ?admin=true, abre o modal em vez da vitrine
-                    window.FORCE_ADMIN_LOGIN = false; // Reseta para não repetir no F5
-                    showView('catalog'); // Garante o fundo
-                    
-                    const loginModal = document.getElementById('login-modal');
-                    if (loginModal) {
-                        loginModal.classList.remove('hidden');
-                        loginModal.style.display = 'flex';
-                        try { loginModal.showModal(); } catch(e) { loginModal.setAttribute('open', 'true'); }
-                    }
+            const btnLoginNav = getEl('btn-admin-login');
+            if (btnLoginNav) {
+                if (state.user) {
+                    btnLoginNav.classList.remove('hidden');
+                    btnLoginNav.innerText = 'Painel Admin';
                 } else {
-                    // Comportamento normal para clientes: mostra a vitrine
-                    if (typeof showView === 'function') showView('catalog');
+                    btnLoginNav.classList.add('hidden');
                 }
             }
-            setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
+
+            if (state.user) {
+                if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+                if (typeof loadAdminSales === 'function') loadAdminSales();
+                setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
+            } else {
+                if (typeof showView === 'function') showView('catalog');
+                setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
+            }
         });
 
         // --- 5. TIMERS E EXTRAS (DO SEU CÓDIGO ANTIGO) ---
