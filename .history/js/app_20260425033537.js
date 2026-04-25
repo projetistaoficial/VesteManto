@@ -703,16 +703,21 @@ async function initApp() {
         // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);
 
-       // --- 4. AUTH LISTENER (LÓGICA DE PROTEÇÃO DE VIEW) ---
+       // --- 4. AUTH LISTENER (LOGICA DE PROTEÇÃO DE VIEW) ---
         onAuthStateChanged(auth, (user) => {
+            // Só sobrescreve se o usuário não for o 'store-admin' simulado
             if (!state.user || state.user.uid !== 'store-admin') {
                 state.user = user;
             }
 
+            // Controle do botão na Navbar
             if (els.menuBtnAdmin) {
                 if (state.user) {
                     els.menuBtnAdmin.classList.remove('hidden');
-                    els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white group-hover:text-white transition"></i> <span class="font-bold uppercase text-sm tracking-wide">Painel Admin</span>`;
+                    els.menuBtnAdmin.innerHTML = `
+                        <i class="fas fa-user-shield text-white group-hover:text-white transition"></i>
+                        <span class="font-bold uppercase text-sm tracking-wide">Painel Admin</span>
+                    `;
                 } else {
                     els.menuBtnAdmin.classList.add('hidden');
                 }
@@ -730,30 +735,36 @@ async function initApp() {
 
             // --- DECISÃO DE TELA ---
             if (state.user) {
-                sessionStorage.removeItem('wantsAdmin'); // Já logou, não precisa mais do aviso
+                // Logado: Vai para o painel
                 if (typeof showView === 'function') showView('admin');
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
                 if (typeof loadAdminSales === 'function') loadAdminSales();
             } else {
+                // Não logado: Vai para a vitrine
                 if (typeof showView === 'function') showView('catalog');
                 
-                // ✨ LÊ A MEMÓRIA PARA ABRIR O MODAL ✨
-                if (sessionStorage.getItem('wantsAdmin') === 'true') {
-                    sessionStorage.removeItem('wantsAdmin'); // Apaga a memória para não abrir sozinho ao dar F5
+                // ✨ O GATILHO INFALÍVEL DO MODAL ✨
+                const url = window.location.href;
+                if (url.includes('admin=true') || url.includes('#admin')) {
                     
+                    // Limpa a URL visualmente para o cliente não ver
+                    window.history.replaceState(null, '', window.location.pathname);
+
+                    // Força a abertura do Modal com prioridade máxima
                     setTimeout(() => {
                         const loginModal = document.getElementById('login-modal');
                         if (loginModal) {
                             loginModal.classList.remove('hidden');
                             loginModal.style.setProperty('display', 'flex', 'important');
                             loginModal.style.setProperty('z-index', '999999', 'important');
+                            
                             try { 
                                 if(!loginModal.hasAttribute('open')) loginModal.showModal(); 
                             } catch(e) { 
                                 loginModal.setAttribute('open', 'true'); 
                             }
                         }
-                    }, 500); // 500ms de segurança
+                    }, 500); // 500ms é perfeito para garantir que a vitrine já está pronta
                 }
             }
             setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
