@@ -670,31 +670,17 @@ async function initApp() {
         loadTheme();
 
         // Verifica se o vendedor está tentando acessar o painel via URL mágica
-        // ============================================================
-        // PORTA SECRETA DO LOJISTA (Gatilho da URL)
-        // ============================================================
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('admin') === 'true') {
-            console.log("🔑 URL Admin detectada. Abrindo modal de senha...");
-            
+            // Pequeno atraso para garantir que o DOM carregou
             setTimeout(() => {
                 const loginModal = document.getElementById('login-modal');
                 if (loginModal) {
-                    loginModal.classList.remove('hidden');
-                    
-                    if (typeof loginModal.showModal === 'function') {
-                        loginModal.showModal();
-                    } else {
-                        loginModal.style.display = 'flex'; 
-                    }
-
-                    // Limpa a URL de forma inteligente (respeita se é nuvem ou localhost)
-                    const isCloud = !window.location.search.includes('site=');
-                    const cleanUrl = window.location.pathname + (isCloud ? '' : '?site=' + state.siteId);
-                    
-                    window.history.replaceState(null, '', cleanUrl);
+                    loginModal.showModal();
+                    // Opcional: Limpar o parâmetro da URL para ficar limpo
+                    window.history.replaceState(null, '', window.location.pathname + '?site=' + state.siteId);
                 }
-            }, 800);
+            }, 500);
         }
 
         // Monitoramento de segurança em tempo real (15s)
