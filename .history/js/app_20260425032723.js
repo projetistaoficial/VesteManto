@@ -694,9 +694,8 @@ async function initApp() {
         // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);
 
-       // --- 4. AUTH LISTENER (LOGICA DE PROTEÇÃO DE VIEW) ---
+        // --- 4. AUTH LISTENER (LOGICA DE PROTEÇÃO DE VIEW) ---
         onAuthStateChanged(auth, (user) => {
-            // Só sobrescreve se o usuário não for o 'store-admin' simulado
             if (!state.user || state.user.uid !== 'store-admin') {
                 state.user = user;
             }
@@ -705,57 +704,33 @@ async function initApp() {
             if (els.menuBtnAdmin) {
                 if (state.user) {
                     els.menuBtnAdmin.classList.remove('hidden');
-                    els.menuBtnAdmin.innerHTML = `
-                        <i class="fas fa-user-shield text-white group-hover:text-white transition"></i>
-                        <span class="font-bold uppercase text-sm tracking-wide">Painel Admin</span>
-                    `;
+                    els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white"></i> <span class="ml-2">Painel Admin</span>`;
                 } else {
                     els.menuBtnAdmin.classList.add('hidden');
                 }
             }
 
-            const btnLoginNav = getEl('btn-admin-login');
-            if (btnLoginNav) {
-                if (state.user) {
-                    btnLoginNav.classList.remove('hidden');
-                    btnLoginNav.innerText = 'Painel Admin';
-                } else {
-                    btnLoginNav.classList.add('hidden');
-                }
-            }
-
-            // --- DECISÃO DE TELA ---
             if (state.user) {
-                // Logado: Vai para o painel
-                if (typeof showView === 'function') showView('admin');
+                // Se está logado, vai para o Admin
+                showView('admin');
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
                 if (typeof loadAdminSales === 'function') loadAdminSales();
             } else {
-                // Não logado: Vai para a vitrine
-                if (typeof showView === 'function') showView('catalog');
-                
-                // ✨ O GATILHO INFALÍVEL DO MODAL ✨
-                const url = window.location.href;
-                if (url.includes('admin=true') || url.includes('#admin')) {
+                // ✨ AQUI ESTÁ O SEGREDO ✨
+                if (window.FORCE_ADMIN_LOGIN) {
+                    // Se o link era ?admin=true, abre o modal em vez da vitrine
+                    window.FORCE_ADMIN_LOGIN = false; // Reseta para não repetir no F5
+                    showView('catalog'); // Garante o fundo
                     
-                    // Limpa a URL visualmente para o cliente não ver
-                    window.history.replaceState(null, '', window.location.pathname);
-
-                    // Força a abertura do Modal com prioridade máxima
-                    setTimeout(() => {
-                        const loginModal = document.getElementById('login-modal');
-                        if (loginModal) {
-                            loginModal.classList.remove('hidden');
-                            loginModal.style.setProperty('display', 'flex', 'important');
-                            loginModal.style.setProperty('z-index', '999999', 'important');
-                            
-                            try { 
-                                if(!loginModal.hasAttribute('open')) loginModal.showModal(); 
-                            } catch(e) { 
-                                loginModal.setAttribute('open', 'true'); 
-                            }
-                        }
-                    }, 500); // 500ms é perfeito para garantir que a vitrine já está pronta
+                    const loginModal = document.getElementById('login-modal');
+                    if (loginModal) {
+                        loginModal.classList.remove('hidden');
+                        loginModal.style.display = 'flex';
+                        try { loginModal.showModal(); } catch(e) { loginModal.setAttribute('open', 'true'); }
+                    }
+                } else {
+                    // Comportamento normal para clientes: mostra a vitrine
+                    if (typeof showView === 'function') showView('catalog');
                 }
             }
             setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
