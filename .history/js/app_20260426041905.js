@@ -8538,72 +8538,70 @@ if (state.user && typeof loadAdminSales === 'function') {
 // =================================================================
 window.activeAvisosListener = null;
 
-// Destruímos a função antiga caso o cache insista em usá-la
-window.processarAvisos = () => { console.log("Processador antigo ignorado."); };
-
+// Só quem chama essa função é o "Abrir Painel Admin"
 window.loadAvisos = () => {
-    // 1. TRAVA NUCLEAR: Só roda se a tela preta do Admin estiver presente e visível
-    const viewAdmin = document.getElementById('view-admin');
+    // 1. Trava inicial
+    if (!state.siteId || state.siteId === 'demo' || !state.user) return;
     
-    if (!viewAdmin || viewAdmin.classList.contains('hidden')) {
-        console.log("🛑 Radar abortado: A tela de Admin não está visível.");
-        if (window.activeAvisosListener) {
-            window.activeAvisosListener();
-            window.activeAvisosListener = null;
-        }
-        return; 
-    }
-
-    if (!state.siteId || state.siteId === 'demo') return;
-    
-    // Evita ouvintes duplicados
+    // 2. Não cria o listener duas vezes
     if (window.activeAvisosListener) return;
 
-    console.log("📡 Ligando Radar de Avisos (Modo Admin Garantido)");
+    console.log("📡 Ligando Radar de Avisos (Apenas Admin)...");
 
     const avisosRef = collection(db, `sites/${state.siteId}/avisos`);
     const q = query(avisosRef, where("lido", "==", false));
 
     window.activeAvisosListener = onSnapshot(q, (snapshot) => {
-        // TRAVA 2: Dentro do retorno da mensagem (Caso o usuário clique pra voltar pra vitrine enquanto a msg chega)
-        const checkAdmin = document.getElementById('view-admin');
-        if (!checkAdmin || checkAdmin.classList.contains('hidden')) return;
+        state.unreadAvisos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (typeof window.processarAvisos === 'function') {
+            window.processarAvisos();
+        }
+    });
+};
 
-        const unreadCount = snapshot.docs.length;
-        
-        // Acende o ícone do sino apenas no painel
+window.processarAvisos = () => {
+    // Segurança máxima: Se for um visitante comum, ou o painel estiver oculto, desliga a UI e morre.
+    const viewAdmin = document.getElementById('view-admin');
+    const isPainelAberto = viewAdmin && !viewAdmin.classList.contains('hidden');
+
+    if (!state.user || !isPainelAberto) {
         try {
             const alertIcon = document.getElementById('icone-avisos');
-            if (alertIcon) {
-                if (unreadCount > 0) {
-                    alertIcon.classList.remove('hidden');
-                    alertIcon.innerHTML = `<i class="fas fa-bell"></i> <span class="ml-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">${unreadCount}</span>`;
-                } else {
-                    alertIcon.classList.add('hidden');
-                }
+            if (alertIcon) alertIcon.classList.add('hidden');
+        } catch(e) {}
+        return; 
+    }
+
+    const unreadCount = state.unreadAvisos ? state.unreadAvisos.length : 0;
+
+    // Atualiza o Ícone (Sino) apenas no Painel
+    try {
+        const alertIcon = document.getElementById('icone-avisos');
+        if (alertIcon) {
+            if (unreadCount > 0) {
+                alertIcon.classList.remove('hidden');
+                alertIcon.innerHTML = `<i class="fas fa-bell"></i> <span class="ml-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">${unreadCount}</span>`;
+            } else {
+                alertIcon.classList.add('hidden');
             }
-        } catch (e) {}
+        }
+    } catch (e) { console.warn("Ícone de avisos não encontrado.", e); }
 
-        // Dispara a mensagem
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                const aviso = change.doc.data();
-                const avisoId = change.doc.id;
+    if (unreadCount === 0) return;
 
-                if (!sessionStorage.getItem(`aviso_visto_${avisoId}`)) {
-                    sessionStorage.setItem(`aviso_visto_${avisoId}`, 'true');
+    // Mostra o Modal de Alerta
+    state.unreadAvisos.forEach((aviso) => {
+        if (!sessionStorage.getItem(`aviso_visto_${aviso.id}`)) {
+            sessionStorage.setItem(`aviso_visto_${aviso.id}`, 'true');
 
-                    if (typeof showSystemModal === 'function') {
-                        showSystemModal(`🔔 COMUNICADO:\n\n${aviso.mensagem}`, 'warning');
-                    } else {
-                        alert(`🔔 COMUNICADO:\n\n${aviso.mensagem}`);
-                    }
-
-                    // Tenta marcar como lido
-                    updateDoc(doc(db, `sites/${state.siteId}/avisos`, avisoId), { lido: true })
-                        .catch(e => console.log("Erro ao marcar aviso", e));
-                }
+            if (typeof showSystemModal === 'function') {
+                showSystemModal(`🔔 COMUNICADO:\n\n${aviso.mensagem}`, 'warning');
+            } else {
+                alert(`🔔 COMUNICADO:\n\n${aviso.mensagem}`);
             }
-        });
+
+            updateDoc(doc(db, `sites/${state.siteId}/avisos`, aviso.id), { lido: true })
+                .catch(e => console.log("Erro ao marcar aviso", e));
+        }
     });
 };

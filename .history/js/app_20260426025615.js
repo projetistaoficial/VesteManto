@@ -740,28 +740,39 @@ async function initApp() {
                 }
             }
 
-           // --- DECISÃO DE TELA E RADAR ---
+            // --- DECISÃO DE TELA E RADAR ---
             if (state.user) {
-                // Já logou, não precisa mais do aviso de URL
+                // 1. Já logou, não precisa mais do aviso de URL
                 sessionStorage.removeItem('wantsAdmin');
                 if (typeof fecharModalLogin === 'function') fecharModalLogin();
 
+                // 2. Carrega as funções do Admin
                 if (typeof showView === 'function') showView('admin');
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+                if (typeof loadAdminSales === 'function') loadAdminSales();
+
+                // ✨ 3. LIGA O RADAR AQUI! O cara está confirmado como Admin ✨
+                // startAlertsListener();
 
             } else {
-                // É um cliente ou visitante deslogado, vai para a vitrine
+                // 1. É um cliente (ou vendedor deslogado), vai para a vitrine
                 if (typeof showView === 'function') showView('catalog');
 
-                // Abertura do Modal de Senha (Gatilho da URL)
+                // ✨ 2. DESLIGA O RADAR AQUI! Garante que o cliente não veja nada ✨
+                if (typeof activeAlertsListener === 'function') {
+                    activeAlertsListener(); // Desliga a escuta do Firebase
+                    activeAlertsListener = null;
+                }
+
+                // 3. Abertura do Modal de Senha (Gatilho da URL)
                 if (sessionStorage.getItem('wantsAdmin') === 'true') {
-                    sessionStorage.removeItem('wantsAdmin');
+                    sessionStorage.removeItem('wantsAdmin'); // Apaga a memória
 
                     setTimeout(() => {
                         const loginModal = document.getElementById('login-modal');
                         if (loginModal) {
                             loginModal.classList.remove('hidden');
-                            loginModal.style.display = '';
+                            loginModal.style.display = ''; // Mantém layout original
                             loginModal.style.zIndex = '999999';
                             try {
                                 if (!loginModal.open) loginModal.showModal();
@@ -769,7 +780,7 @@ async function initApp() {
                                 loginModal.setAttribute('open', 'true');
                             }
                         }
-                    }, 500); 
+                    }, 500); // 500ms de segurança
                 }
             }
             setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
@@ -1014,15 +1025,16 @@ function loadAdminSales() {
             filterAndRenderProducts();
         }
 
+        // Atualiza Estatísticas Gerais (Financeiro, Gráficos)
         if (typeof updateStatsData === 'function') {
             updateStatsData(state.orders, state.products, state.dailyStats);
         }
-    }); // Fim do onSnapshot das vendas
 
-    // ✨ GATILHO RESTRITO: Só liga o radar se houver um usuário admin confirmado ✨
-    if (state.user && typeof loadAvisos === 'function') {
-        loadAvisos();
-    }
+        // ✨ O GATILHO PERFEITO: Chama o radar de avisos sempre que o Admin logar! ✨
+        if (typeof loadAvisos === 'function') {
+            loadAvisos();
+        }
+    });
 }
 
 
@@ -1411,11 +1423,11 @@ function renderCatalog(productsToRender) {
 
     filtered.forEach(p => {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-
+        
         // ✨ APLICA A ARMADURA AQUI TAMBÉM ✨
         const currentStock = getSafeStock(p.stock);
         const isOut = currentStock <= 0 && !allowNegative;
-
+        
         const currentPrice = parseFloat(p.promoPrice || p.price);
 
         let pixHtml = '';
@@ -3799,7 +3811,7 @@ function showView(viewName) {
         if (floatCapsule) floatCapsule.classList.remove('hidden');
     }
 
-   // =========================================================
+    // =========================================================
     // 3. MOSTRA A TELA ESPECÍFICA E MUDA O TÍTULO DA ABA
     // =========================================================
     const storeName = state.storeProfile?.name || 'Loja';
@@ -3808,33 +3820,22 @@ function showView(viewName) {
         if (viewAdmin) viewAdmin.classList.remove('hidden');
         if (typeof loadAdminSales === 'function') loadAdminSales();
 
+        // Título do Painel Admin
         document.title = `${storeName} - Painel Admin`;
-
-        // ✨ O ÚNICO GATILHO PARA LIGAR O RADAR: Só liga quando a tela do Admin está aberta e renderizada.
-        if (typeof window.loadAvisos === 'function') window.loadAvisos();
     }
     else if (viewName === 'support') {
         if (viewSupport) viewSupport.classList.remove('hidden');
+
+        // Título do Suporte
         document.title = `Suporte - ${storeName}`;
     }
     else {
-        // Padrão: Catálogo (Vitrine)
+        // Padrão: Catálogo
         if (viewCatalog) viewCatalog.classList.remove('hidden');
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
+        // Título da Vitrine
         document.title = `${storeName} - Catálogo`;
-
-        // ✨ O GATILHO PARA DESLIGAR O RADAR NA VITRINE ✨
-        if (window.activeAvisosListener) {
-            window.activeAvisosListener(); // Desconecta imediatamente do banco
-            window.activeAvisosListener = null;
-        }
-        
-        // Esconde o ícone de sino forçadamente se ele estiver visível
-        try {
-            const alertIcon = document.getElementById('icone-avisos');
-            if (alertIcon) alertIcon.classList.add('hidden');
-        } catch (e) {}
     }
 
     if (typeof window.checkFooter === 'function') window.checkFooter();
@@ -4241,10 +4242,10 @@ function openProductModal(productId) {
     const btnAdd = getEl('modal-add-cart');
     if (btnAdd) {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-
+        
         // ✨ ARMADURA NO MODAL: Força o valor para número e protege contra NaN ✨
         const safeStockModal = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
-
+        
         const isOut = safeStockModal <= 0 && !allowNegative;
 
         if (isOut) {
@@ -4683,7 +4684,6 @@ window.shareStoreLink = () => {
 
 function addToCart(product, size) {
     const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
-
     // 1. Verifica status da loja
     const status = getStoreStatus();
 
@@ -4697,23 +4697,20 @@ function addToCart(product, size) {
         }
     }
 
-    // ✨ ARMADURA NO CARRINHO: Filtra o estoque corrompido ✨
-    const safeStock = isNaN(parseInt(product.stock, 10)) ? 0 : parseInt(product.stock, 10);
-
-    // 2. Calcula o TOTAL deste produto no carrinho (somando todos os tamanhos)
+    // 1. Calcula o TOTAL deste produto no carrinho (somando todos os tamanhos: P + M + G...)
     const currentTotalQty = state.cart.reduce((total, item) => {
         return item.id === product.id ? total + item.qty : total;
     }, 0);
 
-    // 3. Valida Estoque Geral (Usando a variável blindada)
-    if (!allowNegative && safeStock <= 0) {
+    // 2. Valida Estoque Geral
+    if (!allowNegative && product.stock <= 0) {
         alert('Este produto está esgotado.');
         return;
     }
 
-    // 4. Valida se adicionar +1 vai estourar o estoque total
-    if (!allowNegative && (currentTotalQty + 1 > safeStock)) {
-        alert(`Limite de estoque atingido! Você já tem ${currentTotalQty} unidades e o estoque total é ${safeStock}.`);
+    // 3. Valida se adicionar +1 vai estourar o estoque total
+    if (!allowNegative && (currentTotalQty + 1 > product.stock)) {
+        alert(`Limite de estoque atingido! Você já tem ${currentTotalQty} unidades deste produto (soma de tamanhos) e o estoque total é ${product.stock}.`);
         return;
     }
 
@@ -8536,72 +8533,52 @@ if (state.user && typeof loadAdminSales === 'function') {
 // =================================================================
 // 📢 RADAR DE AVISOS EM TEMPO REAL (PROJETISTA -> LOJA)
 // =================================================================
-window.activeAvisosListener = null;
-
-// Destruímos a função antiga caso o cache insista em usá-la
-window.processarAvisos = () => { console.log("Processador antigo ignorado."); };
-
 window.loadAvisos = () => {
-    // 1. TRAVA NUCLEAR: Só roda se a tela preta do Admin estiver presente e visível
-    const viewAdmin = document.getElementById('view-admin');
-    
-    if (!viewAdmin || viewAdmin.classList.contains('hidden')) {
-        console.log("🛑 Radar abortado: A tela de Admin não está visível.");
-        if (window.activeAvisosListener) {
-            window.activeAvisosListener();
-            window.activeAvisosListener = null;
-        }
-        return; 
-    }
-
     if (!state.siteId || state.siteId === 'demo') return;
-    
-    // Evita ouvintes duplicados
-    if (window.activeAvisosListener) return;
-
-    console.log("📡 Ligando Radar de Avisos (Modo Admin Garantido)");
 
     const avisosRef = collection(db, `sites/${state.siteId}/avisos`);
+    // Ouve apenas os avisos que ainda não foram lidos
     const q = query(avisosRef, where("lido", "==", false));
 
-    window.activeAvisosListener = onSnapshot(q, (snapshot) => {
-        // TRAVA 2: Dentro do retorno da mensagem (Caso o usuário clique pra voltar pra vitrine enquanto a msg chega)
-        const checkAdmin = document.getElementById('view-admin');
-        if (!checkAdmin || checkAdmin.classList.contains('hidden')) return;
+    console.log("📡 Radar de Avisos Ativado com Sucesso!");
 
-        const unreadCount = snapshot.docs.length;
-        
-        // Acende o ícone do sino apenas no painel
+    onSnapshot(q, (snapshot) => {
         try {
+            const unreadCount = snapshot.docs.length;
+
+            // 1. Atualiza o Ícone Indicador (com try/catch para não quebrar se faltar no HTML)
             const alertIcon = document.getElementById('icone-avisos');
             if (alertIcon) {
                 if (unreadCount > 0) {
                     alertIcon.classList.remove('hidden');
                     alertIcon.innerHTML = `<i class="fas fa-bell"></i> <span class="ml-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">${unreadCount}</span>`;
                 } else {
-                    alertIcon.classList.add('hidden');
+                    alertIcon.classList.add('hidden'); // Oculta a bolinha/ícone se não houver avisos
                 }
             }
-        } catch (e) {}
+        } catch (e) {
+            console.warn("Elemento de ícone de aviso não encontrado no HTML.", e);
+        }
 
-        // Dispara a mensagem
+        // 2. Dispara a mensagem na tela em tempo real
         snapshot.docChanges().forEach((change) => {
             if (change.type === "added") {
                 const aviso = change.doc.data();
                 const avisoId = change.doc.id;
 
+                // Proteção para a mesma mensagem não pular duas vezes na mesma sessão
                 if (!sessionStorage.getItem(`aviso_visto_${avisoId}`)) {
                     sessionStorage.setItem(`aviso_visto_${avisoId}`, 'true');
 
                     if (typeof showSystemModal === 'function') {
-                        showSystemModal(`🔔 COMUNICADO:\n\n${aviso.mensagem}`, 'warning');
+                        showSystemModal(`🔔 AVISO DA ADMINISTRAÇÃO:\n\n${aviso.mensagem}`, 'warning');
                     } else {
-                        alert(`🔔 COMUNICADO:\n\n${aviso.mensagem}`);
+                        alert(`🔔 AVISO DA ADMINISTRAÇÃO:\n\n${aviso.mensagem}`);
                     }
 
-                    // Tenta marcar como lido
+                    // Tenta marcar como lido no banco imediatamente
                     updateDoc(doc(db, `sites/${state.siteId}/avisos`, avisoId), { lido: true })
-                        .catch(e => console.log("Erro ao marcar aviso", e));
+                        .catch(e => console.log("Erro ao marcar aviso como lido no banco.", e));
                 }
             }
         });

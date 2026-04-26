@@ -740,28 +740,37 @@ async function initApp() {
                 }
             }
 
-           // --- DECISÃO DE TELA E RADAR ---
+            // --- DECISÃO DE TELA E RADAR ---
             if (state.user) {
-                // Já logou, não precisa mais do aviso de URL
+                // 1. Já logou, não precisa mais do aviso de URL
                 sessionStorage.removeItem('wantsAdmin');
                 if (typeof fecharModalLogin === 'function') fecharModalLogin();
 
+                // 2. Carrega as funções do Admin
                 if (typeof showView === 'function') showView('admin');
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+                if (typeof loadAdminSales === 'function') loadAdminSales();
 
             } else {
-                // É um cliente ou visitante deslogado, vai para a vitrine
+                // 1. É um cliente (ou vendedor deslogado), vai para a vitrine
                 if (typeof showView === 'function') showView('catalog');
 
-                // Abertura do Modal de Senha (Gatilho da URL)
+                // ✨ 2. DESLIGA O RADAR AQUI! Garante que o cliente não veja nada ✨
+                if (window.activeAvisosListener) {
+                    window.activeAvisosListener(); // Desliga o ouvinte do Firebase
+                    window.activeAvisosListener = null;
+                }
+                state.unreadAvisos = []; // Limpa avisos da memória para garantir
+
+                // 3. Abertura do Modal de Senha (Gatilho da URL)
                 if (sessionStorage.getItem('wantsAdmin') === 'true') {
-                    sessionStorage.removeItem('wantsAdmin');
+                    sessionStorage.removeItem('wantsAdmin'); // Apaga a memória
 
                     setTimeout(() => {
                         const loginModal = document.getElementById('login-modal');
                         if (loginModal) {
                             loginModal.classList.remove('hidden');
-                            loginModal.style.display = '';
+                            loginModal.style.display = ''; // Mantém layout original
                             loginModal.style.zIndex = '999999';
                             try {
                                 if (!loginModal.open) loginModal.showModal();
@@ -769,7 +778,7 @@ async function initApp() {
                                 loginModal.setAttribute('open', 'true');
                             }
                         }
-                    }, 500); 
+                    }, 500); // 500ms de segurança
                 }
             }
             setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
@@ -3799,7 +3808,7 @@ function showView(viewName) {
         if (floatCapsule) floatCapsule.classList.remove('hidden');
     }
 
-   // =========================================================
+    // =========================================================
     // 3. MOSTRA A TELA ESPECÍFICA E MUDA O TÍTULO DA ABA
     // =========================================================
     const storeName = state.storeProfile?.name || 'Loja';
@@ -3808,33 +3817,25 @@ function showView(viewName) {
         if (viewAdmin) viewAdmin.classList.remove('hidden');
         if (typeof loadAdminSales === 'function') loadAdminSales();
 
+        // Título do Painel Admin
         document.title = `${storeName} - Painel Admin`;
 
-        // ✨ O ÚNICO GATILHO PARA LIGAR O RADAR: Só liga quando a tela do Admin está aberta e renderizada.
-        if (typeof window.loadAvisos === 'function') window.loadAvisos();
+        // ✨ GATILHO: Dispara mensagens pendentes assim que a tela abre ✨
+        if (typeof window.processarAvisos === 'function') window.processarAvisos();
     }
     else if (viewName === 'support') {
         if (viewSupport) viewSupport.classList.remove('hidden');
+
+        // Título do Suporte
         document.title = `Suporte - ${storeName}`;
     }
     else {
-        // Padrão: Catálogo (Vitrine)
+        // Padrão: Catálogo
         if (viewCatalog) viewCatalog.classList.remove('hidden');
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
+        // Título da Vitrine
         document.title = `${storeName} - Catálogo`;
-
-        // ✨ O GATILHO PARA DESLIGAR O RADAR NA VITRINE ✨
-        if (window.activeAvisosListener) {
-            window.activeAvisosListener(); // Desconecta imediatamente do banco
-            window.activeAvisosListener = null;
-        }
-        
-        // Esconde o ícone de sino forçadamente se ele estiver visível
-        try {
-            const alertIcon = document.getElementById('icone-avisos');
-            if (alertIcon) alertIcon.classList.add('hidden');
-        } catch (e) {}
     }
 
     if (typeof window.checkFooter === 'function') window.checkFooter();
@@ -8538,72 +8539,75 @@ if (state.user && typeof loadAdminSales === 'function') {
 // =================================================================
 window.activeAvisosListener = null;
 
-// Destruímos a função antiga caso o cache insista em usá-la
-window.processarAvisos = () => { console.log("Processador antigo ignorado."); };
-
 window.loadAvisos = () => {
-    // 1. TRAVA NUCLEAR: Só roda se a tela preta do Admin estiver presente e visível
-    const viewAdmin = document.getElementById('view-admin');
-    
-    if (!viewAdmin || viewAdmin.classList.contains('hidden')) {
-        console.log("🛑 Radar abortado: A tela de Admin não está visível.");
-        if (window.activeAvisosListener) {
-            window.activeAvisosListener();
-            window.activeAvisosListener = null;
-        }
-        return; 
-    }
-
-    if (!state.siteId || state.siteId === 'demo') return;
-    
-    // Evita ouvintes duplicados
     if (window.activeAvisosListener) return;
-
-    console.log("📡 Ligando Radar de Avisos (Modo Admin Garantido)");
+    if (!state.siteId || state.siteId === 'demo') return;
 
     const avisosRef = collection(db, `sites/${state.siteId}/avisos`);
     const q = query(avisosRef, where("lido", "==", false));
 
-    window.activeAvisosListener = onSnapshot(q, (snapshot) => {
-        // TRAVA 2: Dentro do retorno da mensagem (Caso o usuário clique pra voltar pra vitrine enquanto a msg chega)
-        const checkAdmin = document.getElementById('view-admin');
-        if (!checkAdmin || checkAdmin.classList.contains('hidden')) return;
+    console.log("📡 Radar de Avisos Ativado com Sucesso!");
 
-        const unreadCount = snapshot.docs.length;
-        
-        // Acende o ícone do sino apenas no painel
+    window.activeAvisosListener = onSnapshot(q, (snapshot) => {
+        state.unreadAvisos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (typeof window.processarAvisos === 'function') {
+            window.processarAvisos();
+        }
+    });
+};
+
+window.processarAvisos = () => {
+    // 1. TRAVA ABSOLUTA: Se não for o dono logado, morre aqui e não faz nada.
+    if (!state.user) return;
+    
+    // 2. TRAVA DE TELA: Verifica se o painel do Admin está ABERTO no HTML
+    const viewAdmin = document.getElementById('view-admin');
+    const isPainelAberto = viewAdmin && !viewAdmin.classList.contains('hidden');
+
+    // ✨ A MÁGICA: Se o painel estiver FECHADO (Lojista olhando a vitrine), ABORTA TUDO!
+    // Ele esconde o ícone de sino e não deixa o pop-up pular.
+    if (!isPainelAberto) {
         try {
             const alertIcon = document.getElementById('icone-avisos');
-            if (alertIcon) {
-                if (unreadCount > 0) {
-                    alertIcon.classList.remove('hidden');
-                    alertIcon.innerHTML = `<i class="fas fa-bell"></i> <span class="ml-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">${unreadCount}</span>`;
-                } else {
-                    alertIcon.classList.add('hidden');
-                }
+            if (alertIcon) alertIcon.classList.add('hidden');
+        } catch(e) {}
+        return; 
+    }
+
+    // =================================================================
+    // 3. SE CHEGOU ATÉ AQUI, É PORQUE A TELA DO ADMIN ESTÁ ABERTA!
+    // =================================================================
+    const unreadCount = state.unreadAvisos ? state.unreadAvisos.length : 0;
+
+    // Acende o ícone do sino na tela do admin
+    try {
+        const alertIcon = document.getElementById('icone-avisos');
+        if (alertIcon) {
+            if (unreadCount > 0) {
+                alertIcon.classList.remove('hidden');
+                alertIcon.innerHTML = `<i class="fas fa-bell"></i> <span class="ml-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">${unreadCount}</span>`;
+            } else {
+                alertIcon.classList.add('hidden');
             }
-        } catch (e) {}
+        }
+    } catch (e) { console.warn("Ícone de avisos não encontrado.", e); }
 
-        // Dispara a mensagem
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                const aviso = change.doc.data();
-                const avisoId = change.doc.id;
+    if (unreadCount === 0) return;
 
-                if (!sessionStorage.getItem(`aviso_visto_${avisoId}`)) {
-                    sessionStorage.setItem(`aviso_visto_${avisoId}`, 'true');
+    // Dispara a mensagem na tela do Painel
+    state.unreadAvisos.forEach((aviso) => {
+        if (!sessionStorage.getItem(`aviso_visto_${aviso.id}`)) {
+            sessionStorage.setItem(`aviso_visto_${aviso.id}`, 'true');
 
-                    if (typeof showSystemModal === 'function') {
-                        showSystemModal(`🔔 COMUNICADO:\n\n${aviso.mensagem}`, 'warning');
-                    } else {
-                        alert(`🔔 COMUNICADO:\n\n${aviso.mensagem}`);
-                    }
-
-                    // Tenta marcar como lido
-                    updateDoc(doc(db, `sites/${state.siteId}/avisos`, avisoId), { lido: true })
-                        .catch(e => console.log("Erro ao marcar aviso", e));
-                }
+            if (typeof showSystemModal === 'function') {
+                showSystemModal(`🔔 COMUNICADO:\n\n${aviso.mensagem}`, 'warning');
+            } else {
+                alert(`🔔 COMUNICADO:\n\n${aviso.mensagem}`);
             }
-        });
+
+            // Marca como lido no banco
+            updateDoc(doc(db, `sites/${state.siteId}/avisos`, aviso.id), { lido: true })
+                .catch(e => console.log("Erro ao marcar aviso", e));
+        }
     });
 };

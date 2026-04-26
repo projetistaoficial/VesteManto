@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-import { getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, updateDoc, query, where, addDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, updateDoc, query, where, add } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
 // === CONFIGURAÇÃO FIREBASE ===
 const firebaseConfig = {

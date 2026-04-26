@@ -740,28 +740,39 @@ async function initApp() {
                 }
             }
 
-           // --- DECISÃO DE TELA E RADAR ---
+            // --- DECISÃO DE TELA E RADAR ---
             if (state.user) {
-                // Já logou, não precisa mais do aviso de URL
+                // 1. Já logou, não precisa mais do aviso de URL
                 sessionStorage.removeItem('wantsAdmin');
                 if (typeof fecharModalLogin === 'function') fecharModalLogin();
 
+                // 2. Carrega as funções do Admin
                 if (typeof showView === 'function') showView('admin');
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+                if (typeof loadAdminSales === 'function') loadAdminSales();
+
+                // ✨ 3. LIGA O RADAR AQUI! O cara está confirmado como Admin ✨
+                // startAlertsListener();
 
             } else {
-                // É um cliente ou visitante deslogado, vai para a vitrine
+                // 1. É um cliente (ou vendedor deslogado), vai para a vitrine
                 if (typeof showView === 'function') showView('catalog');
 
-                // Abertura do Modal de Senha (Gatilho da URL)
+                // ✨ 2. DESLIGA O RADAR AQUI! Garante que o cliente não veja nada ✨
+                if (typeof activeAlertsListener === 'function') {
+                    activeAlertsListener(); // Desliga a escuta do Firebase
+                    activeAlertsListener = null;
+                }
+
+                // 3. Abertura do Modal de Senha (Gatilho da URL)
                 if (sessionStorage.getItem('wantsAdmin') === 'true') {
-                    sessionStorage.removeItem('wantsAdmin');
+                    sessionStorage.removeItem('wantsAdmin'); // Apaga a memória
 
                     setTimeout(() => {
                         const loginModal = document.getElementById('login-modal');
                         if (loginModal) {
                             loginModal.classList.remove('hidden');
-                            loginModal.style.display = '';
+                            loginModal.style.display = ''; // Mantém layout original
                             loginModal.style.zIndex = '999999';
                             try {
                                 if (!loginModal.open) loginModal.showModal();
@@ -769,7 +780,7 @@ async function initApp() {
                                 loginModal.setAttribute('open', 'true');
                             }
                         }
-                    }, 500); 
+                    }, 500); // 500ms de segurança
                 }
             }
             setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
@@ -1014,15 +1025,16 @@ function loadAdminSales() {
             filterAndRenderProducts();
         }
 
+        // Atualiza Estatísticas Gerais (Financeiro, Gráficos)
         if (typeof updateStatsData === 'function') {
             updateStatsData(state.orders, state.products, state.dailyStats);
         }
-    }); // Fim do onSnapshot das vendas
 
-    // ✨ GATILHO RESTRITO: Só liga o radar se houver um usuário admin confirmado ✨
-    if (state.user && typeof loadAvisos === 'function') {
-        loadAvisos();
-    }
+        // ✨ O GATILHO PERFEITO: Chama o radar de avisos sempre que o Admin logar! ✨
+        if (typeof loadAvisos === 'function') {
+            loadAvisos();
+        }
+    });
 }
 
 
@@ -1352,6 +1364,7 @@ function renderCatalog(productsToRender) {
     if (!els.grid) return;
     els.grid.innerHTML = '';
 
+    // 1. FILTRAGEM
     let filtered = [...productsToRender];
     const searchTerm = document.getElementById('search-input')?.value.toLowerCase();
     const catTerm = document.getElementById('category-filter')?.value;
@@ -1365,10 +1378,8 @@ function renderCatalog(productsToRender) {
         }
     }
 
+    // 2. ORDENAÇÃO
     const sortMode = document.getElementById('sort-filter')?.value || 'vitrine';
-
-    // ✨ ARMADURA: FORÇA O ESTOQUE PARA NÚMERO (Se for vazio ou NaN, vira 0) ✨
-    const getSafeStock = (val) => isNaN(parseInt(val)) ? 0 : parseInt(val);
 
     filtered.sort((a, b) => {
         const priceA = parseFloat(a.promoPrice || a.price) || 0;
@@ -1376,12 +1387,10 @@ function renderCatalog(productsToRender) {
         const codeA = parseInt(a.code) || 0;
         const codeB = parseInt(b.code) || 0;
 
-        const stockA = getSafeStock(a.stock);
-        const stockB = getSafeStock(b.stock);
+        const isSoldOutA = a.stock <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
+        const isSoldOutB = b.stock <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
 
-        const isSoldOutA = stockA <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
-        const isSoldOutB = stockB <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
-
+        // Coloca os esgotados sempre no final
         if (isSoldOutA && !isSoldOutB) return 1;
         if (!isSoldOutA && isSoldOutB) return -1;
 
@@ -1406,40 +1415,70 @@ function renderCatalog(productsToRender) {
         return;
     }
 
+    // Configurações
     const pixGlobal = state.storeProfile.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
     const globalInst = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3 };
 
     filtered.forEach(p => {
+        // ✨ AQUI ESTÁ A LÓGICA DA TRAVA DE ESTOQUE ✨
+        // Permite negativo se a loja inteira permitir, ou se este produto específico permitir
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
 
-        // ✨ APLICA A ARMADURA AQUI TAMBÉM ✨
-        const currentStock = getSafeStock(p.stock);
-        const isOut = currentStock <= 0 && !allowNegative;
+        // Só está esgotado se o estoque for menor/igual a zero E não permitir negativo
+        const isOut = p.stock <= 0 && !allowNegative;
 
         const currentPrice = parseFloat(p.promoPrice || p.price);
 
+        // --- LÓGICA DE EXIBIÇÃO DO PIX (CORRIGIDA) ---
         let pixHtml = '';
+
         if (!pixGlobal.disableAll) {
+
+            // A) Regra Global Ativa
             if (pixGlobal.active && pixGlobal.value > 0) {
+
+                // Determina o texto correto da etiqueta (R$ ou %)
                 const isFixed = (pixGlobal.type === 'fixed');
-                const labelOff = isFixed ? `R$ ${formatCurrency(pixGlobal.value)} OFF` : `${pixGlobal.value}% OFF`;
+                const labelOff = isFixed
+                    ? `${formatCurrency(pixGlobal.value)} OFF`
+                    : `${pixGlobal.value}% OFF`;
 
                 if (pixGlobal.mode === 'total') {
+                    // MODO TOTAL: Exibe apenas a etiqueta informativa (sem calcular preço unitário)
                     pixHtml = `<p class="text-green-500 text-[10px] font-bold mt-1"><i class="fas fa-tag mr-1"></i>${labelOff} no Pix (Total)</p>`;
                 } else {
-                    let valDesconto = isFixed ? pixGlobal.value : currentPrice * (pixGlobal.value / 100);
+                    // MODO PRODUTO: Calcula o preço unitário
+                    let valDesconto = 0;
+                    if (isFixed) {
+                        valDesconto = pixGlobal.value;
+                    } else {
+                        valDesconto = currentPrice * (pixGlobal.value / 100);
+                    }
+
                     const finalPix = Math.max(0, currentPrice - valDesconto);
+
+                    // Exibe o preço calculado
                     pixHtml = `<p class="text-green-500 text-[10px] font-bold mt-1"><i class="fas fa-bolt mr-1"></i>${formatCurrency(finalPix)} no Pix</p>`;
                 }
-            } else if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
+
+            }
+
+            // B) Regra Individual (Fallback)
+            else if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
                 const pix = p.paymentOptions.pix;
                 let finalPix = currentPrice;
-                if (pix.type === 'percent') finalPix = currentPrice * (1 - (pix.val / 100));
-                else finalPix = Math.max(0, currentPrice - pix.val);
+
+                if (pix.type === 'percent') {
+                    finalPix = currentPrice * (1 - (pix.val / 100));
+                } else {
+                    finalPix = Math.max(0, currentPrice - pix.val);
+                }
+
                 pixHtml = `<p class="text-green-500 text-[10px] font-bold mt-1"><i class="fas fa-bolt mr-1"></i>${formatCurrency(finalPix)} no Pix</p>`;
             }
         }
 
+        // Parcelamento
         let installmentHtml = '';
         if (globalInst.active) {
             if (globalInst.freeUntil > 1) {
@@ -1461,6 +1500,7 @@ function renderCatalog(productsToRender) {
 
         const imgOpacity = isOut ? 'opacity-50 grayscale' : '';
 
+        // Badges
         let badgesHtml = '';
         if (p.highlight || p.promoPrice) {
             badgesHtml = `<div class="absolute top-2 left-2 flex flex-col gap-1 z-20 pointer-events-none">`;
@@ -2092,7 +2132,6 @@ function renderProductsList(products, preCalcMetrics = null) {
         const bgClass = isChecked ? 'bg-blue-900/10 border-blue-500/30' : 'bg-[#151720] border-gray-800 hover:bg-[#1c1f2b]';
         const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://placehold.co/100?text=Sem+Foto';
         const codeStr = p.code ? p.code : '-';
-        const safeStockDisplay = isNaN(parseInt(p.stock)) ? 0 : parseInt(p.stock);
 
         // Esconde o fundo vermelho se estiver selecionando
         const deleteBgClass = state.isSelectionMode ? 'hidden' : 'absolute inset-y-0 right-0 w-24 bg-red-600 flex items-center justify-center cursor-pointer z-0';
@@ -2134,7 +2173,7 @@ function renderProductsList(products, preCalcMetrics = null) {
 
                     <div class="md:hidden flex flex-col items-end min-w-[80px]">
                         ${priceHtml}
-                        ${safeStockDisplay <= 0 ? '<span class="text-red-500 text-[10px] font-bold">Esgotado</span>' : `<span class="text-gray-500 text-[10px]">Est.: ${safeStockDisplay}</span>`}
+                        ${p.stock <= 0 ? '<span class="text-red-500 text-[10px] font-bold">Esgotado</span>' : `<span class="text-gray-500 text-[10px]">Est.: ${p.stock}</span>`}
                     </div>
                 </div>
 
@@ -2143,7 +2182,7 @@ function renderProductsList(products, preCalcMetrics = null) {
                     ${metrics.qtd > 0 ? `<span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-bold">${metrics.qtd}</span>` : '-'}
                 </div>
                 <div class="hidden md:block col-span-1 text-center">
-                        ${safeStockDisplay <= 0 ? '<span class="text-red-500 text-xs font-bold">0</span>' : `<span class="text-gray-400 text-xs font-bold">${safeStockDisplay}</span>`}
+                    ${p.stock <= 0 ? '<span class="text-red-500 text-xs font-bold">0</span>' : `<span class="text-gray-400 text-xs font-bold">${p.stock}</span>`}
                 </div>
                 <div class="hidden md:block col-span-1 text-right pr-4">${priceHtml}</div>
                 
@@ -3799,7 +3838,7 @@ function showView(viewName) {
         if (floatCapsule) floatCapsule.classList.remove('hidden');
     }
 
-   // =========================================================
+    // =========================================================
     // 3. MOSTRA A TELA ESPECÍFICA E MUDA O TÍTULO DA ABA
     // =========================================================
     const storeName = state.storeProfile?.name || 'Loja';
@@ -3808,33 +3847,22 @@ function showView(viewName) {
         if (viewAdmin) viewAdmin.classList.remove('hidden');
         if (typeof loadAdminSales === 'function') loadAdminSales();
 
+        // Título do Painel Admin
         document.title = `${storeName} - Painel Admin`;
-
-        // ✨ O ÚNICO GATILHO PARA LIGAR O RADAR: Só liga quando a tela do Admin está aberta e renderizada.
-        if (typeof window.loadAvisos === 'function') window.loadAvisos();
     }
     else if (viewName === 'support') {
         if (viewSupport) viewSupport.classList.remove('hidden');
+
+        // Título do Suporte
         document.title = `Suporte - ${storeName}`;
     }
     else {
-        // Padrão: Catálogo (Vitrine)
+        // Padrão: Catálogo
         if (viewCatalog) viewCatalog.classList.remove('hidden');
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
+        // Título da Vitrine
         document.title = `${storeName} - Catálogo`;
-
-        // ✨ O GATILHO PARA DESLIGAR O RADAR NA VITRINE ✨
-        if (window.activeAvisosListener) {
-            window.activeAvisosListener(); // Desconecta imediatamente do banco
-            window.activeAvisosListener = null;
-        }
-        
-        // Esconde o ícone de sino forçadamente se ele estiver visível
-        try {
-            const alertIcon = document.getElementById('icone-avisos');
-            if (alertIcon) alertIcon.classList.add('hidden');
-        } catch (e) {}
     }
 
     if (typeof window.checkFooter === 'function') window.checkFooter();
@@ -4241,11 +4269,7 @@ function openProductModal(productId) {
     const btnAdd = getEl('modal-add-cart');
     if (btnAdd) {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-
-        // ✨ ARMADURA NO MODAL: Força o valor para número e protege contra NaN ✨
-        const safeStockModal = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
-
-        const isOut = safeStockModal <= 0 && !allowNegative;
+        const isOut = p.stock <= 0 && !allowNegative;
 
         if (isOut) {
             btnAdd.disabled = true;
@@ -4464,51 +4488,70 @@ window.saveProduct = async (e) => {
     try {
         if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
 
-        // --- CORREÇÃO DE LEITURA DO CHECKBOX ---
-        // 1. Tenta pegar pelo ID direto
+        // --- LEITURA DO CHECKBOX ---
         let elHighlight = document.getElementById('prod-highlight');
         let elNoStock = document.getElementById('prod-allow-no-stock');
 
-        // 2. Se falhar, tenta pegar dentro do form (caso haja duplicidade externa)
         const form = document.getElementById('form-product');
         if (form) {
             if (!elHighlight) elHighlight = form.querySelector('#prod-highlight');
             if (!elNoStock) elNoStock = form.querySelector('#prod-allow-no-stock');
         }
 
-        // 3. Converte para Booleano (true/false)
         const isHighlight = elHighlight ? elHighlight.checked : false;
         const allowNoStock = elNoStock ? elNoStock.checked : false;
 
-        // DEBUG: Veja isso no console ao salvar
-        console.log("--> SALVANDO. Destaque marcado?", isHighlight);
+        // ✨ ESCUDOS ANTI-NaN ✨
+        // Funções internas que garantem que o valor será um número válido ou o fallback escolhido
+        const getSafeFloat = (id, fallback) => {
+            const el = document.getElementById(id);
+            if (!el || el.value.trim() === '') return fallback;
+            const num = parseFloat(el.value.replace(/\./g, '').replace(',', '.'));
+            return isNaN(num) ? fallback : num;
+        };
 
-        // 4. Monta o Objeto
+        const getSafeInt = (id, fallback) => {
+            const el = document.getElementById(id);
+            if (!el || el.value.trim() === '') return fallback;
+            const num = parseInt(el.value, 10);
+            return isNaN(num) ? fallback : num;
+        };
+
+        // --- LEITURA DO PIX ---
+        const pixActiveEl = document.getElementById('prod-pix-active');
+        const pixTypeEl = document.getElementById('prod-pix-type');
+        const pixActive = pixActiveEl ? pixActiveEl.checked : false;
+        const pixType = pixTypeEl ? pixTypeEl.value : 'percent';
+
+        // 4. Monta o Objeto Blindado
         const productData = {
-            name: document.getElementById('prod-name').value,
-            category: document.getElementById('prod-cat-select').value,
-            description: document.getElementById('prod-desc').value,
-            price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
-            promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
-            stock: parseInt(document.getElementById('prod-stock').value) || 0,
-            cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
-            sizes: document.getElementById('prod-sizes').value.split(',').map(s => s.trim()).filter(s => s),
+            name: document.getElementById('prod-name')?.value || 'Sem Nome',
+            category: document.getElementById('prod-cat-select')?.value || "Geral",
+            description: document.getElementById('prod-desc')?.value || '',
+            
+            // Passa pelos escudos: Se falhar ou estiver vazio, vira 0 (ou null)
+            price: getSafeFloat('prod-price', 0),
+            promoPrice: getSafeFloat('prod-promo', null),
+            stock: getSafeInt('prod-stock', 0),
+            cost: getSafeFloat('prod-cost', null),
+            
+            sizes: document.getElementById('prod-sizes') ? document.getElementById('prod-sizes').value.split(',').map(s => s.trim()).filter(s => s !== '') : [],
             images: state.tempImages || [],
 
-            // GRAVA OS VALORES CAPTURADOS
             allowNoStock: allowNoStock,
             highlight: isHighlight,
 
             paymentOptions: {
                 pix: {
-                    active: document.getElementById('prod-pix-active').checked,
-                    val: parseFloat(document.getElementById('prod-pix-val').value.replace(/\./g, '').replace(',', '.')) || 0,
-                    type: document.getElementById('prod-pix-type').value
+                    active: pixActive,
+                    val: getSafeFloat('prod-pix-val', 0),
+                    type: pixType
                 }
             }
         };
 
-        const id = document.getElementById('edit-prod-id').value;
+        const idEl = document.getElementById('edit-prod-id');
+        const id = idEl ? idEl.value : '';
 
         // 5. Envia
         if (!id) {
@@ -4523,8 +4566,9 @@ window.saveProduct = async (e) => {
         }
 
         // 6. Limpa e Fecha
-        document.getElementById('product-form-modal').classList.add('hidden');
-        document.getElementById('form-product').reset();
+        const modal = document.getElementById('product-form-modal');
+        if (modal) modal.classList.add('hidden');
+        if (form) form.reset();
         state.tempImages = [];
         if (typeof renderImagePreviews === 'function') renderImagePreviews();
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
@@ -4683,7 +4727,6 @@ window.shareStoreLink = () => {
 
 function addToCart(product, size) {
     const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
-
     // 1. Verifica status da loja
     const status = getStoreStatus();
 
@@ -4697,23 +4740,20 @@ function addToCart(product, size) {
         }
     }
 
-    // ✨ ARMADURA NO CARRINHO: Filtra o estoque corrompido ✨
-    const safeStock = isNaN(parseInt(product.stock, 10)) ? 0 : parseInt(product.stock, 10);
-
-    // 2. Calcula o TOTAL deste produto no carrinho (somando todos os tamanhos)
+    // 1. Calcula o TOTAL deste produto no carrinho (somando todos os tamanhos: P + M + G...)
     const currentTotalQty = state.cart.reduce((total, item) => {
         return item.id === product.id ? total + item.qty : total;
     }, 0);
 
-    // 3. Valida Estoque Geral (Usando a variável blindada)
-    if (!allowNegative && safeStock <= 0) {
+    // 2. Valida Estoque Geral
+    if (!allowNegative && product.stock <= 0) {
         alert('Este produto está esgotado.');
         return;
     }
 
-    // 4. Valida se adicionar +1 vai estourar o estoque total
-    if (!allowNegative && (currentTotalQty + 1 > safeStock)) {
-        alert(`Limite de estoque atingido! Você já tem ${currentTotalQty} unidades e o estoque total é ${safeStock}.`);
+    // 3. Valida se adicionar +1 vai estourar o estoque total
+    if (!allowNegative && (currentTotalQty + 1 > product.stock)) {
+        alert(`Limite de estoque atingido! Você já tem ${currentTotalQty} unidades deste produto (soma de tamanhos) e o estoque total é ${product.stock}.`);
         return;
     }
 
@@ -8536,72 +8576,49 @@ if (state.user && typeof loadAdminSales === 'function') {
 // =================================================================
 // 📢 RADAR DE AVISOS EM TEMPO REAL (PROJETISTA -> LOJA)
 // =================================================================
-window.activeAvisosListener = null;
-
-// Destruímos a função antiga caso o cache insista em usá-la
-window.processarAvisos = () => { console.log("Processador antigo ignorado."); };
-
 window.loadAvisos = () => {
-    // 1. TRAVA NUCLEAR: Só roda se a tela preta do Admin estiver presente e visível
-    const viewAdmin = document.getElementById('view-admin');
-    
-    if (!viewAdmin || viewAdmin.classList.contains('hidden')) {
-        console.log("🛑 Radar abortado: A tela de Admin não está visível.");
-        if (window.activeAvisosListener) {
-            window.activeAvisosListener();
-            window.activeAvisosListener = null;
-        }
-        return; 
-    }
-
     if (!state.siteId || state.siteId === 'demo') return;
-    
-    // Evita ouvintes duplicados
-    if (window.activeAvisosListener) return;
-
-    console.log("📡 Ligando Radar de Avisos (Modo Admin Garantido)");
 
     const avisosRef = collection(db, `sites/${state.siteId}/avisos`);
+    // Ouve apenas os avisos que ainda não foram lidos
     const q = query(avisosRef, where("lido", "==", false));
 
-    window.activeAvisosListener = onSnapshot(q, (snapshot) => {
-        // TRAVA 2: Dentro do retorno da mensagem (Caso o usuário clique pra voltar pra vitrine enquanto a msg chega)
-        const checkAdmin = document.getElementById('view-admin');
-        if (!checkAdmin || checkAdmin.classList.contains('hidden')) return;
+    console.log("📡 Radar de Avisos Ativado com Sucesso!");
 
+    onSnapshot(q, (snapshot) => {
         const unreadCount = snapshot.docs.length;
-        
-        // Acende o ícone do sino apenas no painel
-        try {
-            const alertIcon = document.getElementById('icone-avisos');
-            if (alertIcon) {
-                if (unreadCount > 0) {
-                    alertIcon.classList.remove('hidden');
-                    alertIcon.innerHTML = `<i class="fas fa-bell"></i> <span class="ml-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">${unreadCount}</span>`;
-                } else {
-                    alertIcon.classList.add('hidden');
-                }
-            }
-        } catch (e) {}
 
-        // Dispara a mensagem
+        // 1. Atualiza o Ícone Indicador
+        // NOTA: Certifique-se de que o seu ícone no HTML tenha o id="icone-avisos"
+        const alertIcon = document.getElementById('icone-avisos');
+        if (alertIcon) {
+            if (unreadCount > 0) {
+                alertIcon.classList.remove('hidden');
+                alertIcon.innerHTML = `<i class="fas fa-bell"></i> <span class="ml-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">${unreadCount}</span>`;
+            } else {
+                alertIcon.classList.add('hidden'); // Oculta a bolinha/ícone se não houver avisos
+            }
+        }
+
+        // 2. Dispara a mensagem na tela em tempo real
         snapshot.docChanges().forEach((change) => {
             if (change.type === "added") {
                 const aviso = change.doc.data();
                 const avisoId = change.doc.id;
 
+                // Proteção para a mesma mensagem não pular duas vezes na mesma sessão
                 if (!sessionStorage.getItem(`aviso_visto_${avisoId}`)) {
                     sessionStorage.setItem(`aviso_visto_${avisoId}`, 'true');
 
                     if (typeof showSystemModal === 'function') {
-                        showSystemModal(`🔔 COMUNICADO:\n\n${aviso.mensagem}`, 'warning');
+                        showSystemModal(`🔔 AVISO DA ADMINISTRAÇÃO:\n\n${aviso.mensagem}`, 'warning');
                     } else {
-                        alert(`🔔 COMUNICADO:\n\n${aviso.mensagem}`);
+                        alert(`🔔 AVISO DA ADMINISTRAÇÃO:\n\n${aviso.mensagem}`);
                     }
 
-                    // Tenta marcar como lido
+                    // Tenta marcar como lido no banco imediatamente
                     updateDoc(doc(db, `sites/${state.siteId}/avisos`, avisoId), { lido: true })
-                        .catch(e => console.log("Erro ao marcar aviso", e));
+                        .catch(e => console.log("Erro ao marcar aviso como lido no banco.", e));
                 }
             }
         });
