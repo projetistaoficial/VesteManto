@@ -687,6 +687,7 @@ async function initApp() {
         initStatsModule();
         loadTheme();
 
+        // Verifica se o vendedor está tentando acessar o painel via URL mágica
 
         // Monitoramento de segurança em tempo real (15s)
         setInterval(async () => {

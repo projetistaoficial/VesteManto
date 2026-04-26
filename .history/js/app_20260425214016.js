@@ -687,6 +687,22 @@ async function initApp() {
         initStatsModule();
         loadTheme();
 
+        // Verifica se o vendedor está tentando acessar o painel via URL mágica
+        // ============================================================
+        // PORTA SECRETA DO LOJISTA (Gatilho da URL c/ Hash)
+        // ============================================================
+        // Agora verificamos o HASH (#admin) em vez da Search (?)
+        if (window.location.hash === '#admin' || window.location.search.includes('admin=true')) {
+            console.log("🔑 URL Admin detectada. Agendando abertura do painel...");
+
+            // 1. Deixa o aviso na memória para o startApplication ler depois
+            window.WANTS_ADMIN_LOGIN = true;
+
+            // 2. Limpa o "#admin" da barra de endereços instantaneamente para ninguém ver
+            setTimeout(() => {
+                window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            }, 100);
+        }
 
         // Monitoramento de segurança em tempo real (15s)
         setInterval(async () => {
@@ -702,34 +718,29 @@ async function initApp() {
         // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);
 
-        // --- 4. AUTH LISTENER (LOGICA DE PROTEÇÃO DE VIEW) ---
+        // --- 4. AUTH LISTENER (LÓGICA DE PROTEÇÃO DE VIEW) ---
         onAuthStateChanged(auth, (user) => {
-            // ✨ PASSO 1: Verifica se existe o "Crachá de Vendedor" na memória
+            // ✨ LÊ A MEMÓRIA DO VENDEDOR ✨
             const isStoreAdmin = sessionStorage.getItem('isStoreAdmin') === 'true';
 
-            // Define o usuário no estado (Seja login Mestre ou login de Vendedor)
+            // Define quem é o usuário atual
             if (user) {
-                state.user = user;
+                state.user = user; // Login real (Senha Mestra)
             } else if (isStoreAdmin) {
-                state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
+                state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' }; // Login simulado (Vendedor)
             } else {
-                state.user = null;
+                state.user = null; // Ninguém logado
             }
 
-            // ✨ PASSO 2: Controle de visibilidade do botão na Sidebar
             if (els.menuBtnAdmin) {
                 if (state.user) {
                     els.menuBtnAdmin.classList.remove('hidden');
-                    els.menuBtnAdmin.innerHTML = `
-                        <i class="fas fa-user-shield text-white group-hover:text-white transition"></i>
-                        <span class="font-bold uppercase text-sm tracking-wide">Painel Admin</span>
-                    `;
+                    els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white group-hover:text-white transition"></i> <span class="font-bold uppercase text-sm tracking-wide">Painel Admin</span>`;
                 } else {
                     els.menuBtnAdmin.classList.add('hidden');
                 }
             }
 
-            // Controle do botão de login na Navbar (se existir)
             const btnLoginNav = getEl('btn-admin-login');
             if (btnLoginNav) {
                 if (state.user) {
@@ -742,26 +753,24 @@ async function initApp() {
 
             // --- DECISÃO DE TELA ---
             if (state.user) {
-                // Se já logou, limpa a intenção de abrir modal e fecha se estiver aberto
-                sessionStorage.removeItem('wantsAdmin');
+                sessionStorage.removeItem('wantsAdmin'); // Já logou, não precisa mais do aviso
                 if (typeof fecharModalLogin === 'function') fecharModalLogin();
                 
-                // Se estiver na tela de catálogo, não força a mudança (deixa o vendedor navegar)
-                // Mas garante que as funções de admin estejam carregadas
+                if (typeof showView === 'function') showView('admin');
                 if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
                 if (typeof loadAdminSales === 'function') loadAdminSales();
             } else {
-                // Se NÃO está logado, garante que está no catálogo
                 if (typeof showView === 'function') showView('catalog');
                 
-                // ✨ O GATILHO DO MODAL (Lê a memória, não a URL!) ✨
+                // ✨ ABERTURA DO MODAL ✨
                 if (sessionStorage.getItem('wantsAdmin') === 'true') {
-                    sessionStorage.removeItem('wantsAdmin'); // Limpa para não repetir
+                    sessionStorage.removeItem('wantsAdmin'); 
                     
                     setTimeout(() => {
                         const loginModal = document.getElementById('login-modal');
                         if (loginModal) {
                             loginModal.classList.remove('hidden');
+                            loginModal.style.display = ''; 
                             loginModal.style.zIndex = '999999';
                             try { 
                                 if(!loginModal.open) loginModal.showModal(); 
@@ -769,7 +778,7 @@ async function initApp() {
                                 loginModal.setAttribute('open', 'true'); 
                             }
                         }
-                    }, 500);
+                    }, 500); 
                 }
             }
             setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
@@ -2780,16 +2789,15 @@ function setupEventListeners() {
             sessionStorage.removeItem('isStoreAdmin');
             sessionStorage.removeItem('wantsAdmin');
             
-            // Monta a URL limpa baseada se está na nuvem ou localhost
-            const isLocal = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
-            const urlLimpa = isLocal ? window.location.pathname + '?site=' + state.siteId : window.location.pathname;
+            // Remove qualquer sujeira da URL para o redirecionamento
+            let cleanUrl = window.location.href.replace('&admin=true', '').replace('?admin=true', '').replace('#admin', '');
             
             if (typeof signOut === 'function' && typeof auth !== 'undefined') {
                 signOut(auth).then(() => {
-                    window.location.href = urlLimpa; // Força a ida para a URL limpa
+                    window.location.href = cleanUrl; // Força a ida para a URL limpa
                 });
             } else {
-                window.location.href = urlLimpa;
+                window.location.href = cleanUrl;
             }
         };
     }
@@ -2846,27 +2854,14 @@ function setupEventListeners() {
                     }
 
                     if (savedAccess.admin && pass === savedAccess.admin) {
-                        // ✨ AQUI GRAVA A MEMÓRIA DO VENDEDOR ✨
-                        sessionStorage.setItem('isStoreAdmin', 'true');
+                        // ✨ ENTREGA O CRACHÁ VIRTUAL AQUI ✨
+                        sessionStorage.setItem('isStoreAdmin', 'true'); 
                         
                         state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
                         if (typeof fecharModalLogin === 'function') fecharModalLogin();
-                        if(passInput) passInput.value = '';
-
-                        // ✨ CORREÇÃO: Faltava mandar os botões APARECEREM tirando o 'hidden'! ✨
-                        if (els.menuBtnAdmin) {
-                            els.menuBtnAdmin.classList.remove('hidden');
-                            els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white"></i> <span class="ml-2 font-bold uppercase text-sm tracking-wide">Painel Admin</span>`;
-                        }
-                        const btnLoginNav = document.getElementById('btn-admin-login');
-                        if (btnLoginNav) {
-                            btnLoginNav.classList.remove('hidden');
-                            btnLoginNav.innerText = 'Painel Admin';
-                        }
-
-                        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-                        if (typeof loadAdminSales === 'function') loadAdminSales();
-
+                        if (passInput) passInput.value = '';
+                        
+                        // ... resto do seu código de carregar vendas e produtos ...
                         showView('admin');
                         return;
                     }
@@ -8536,3 +8531,49 @@ if (state.user && typeof loadAdminSales === 'function') {
     loadAdminSales();
 };
 
+// ============================================================
+// 🚪 ABRIR PAINEL AUTOMATICAMENTE PELA URL (#admin ou ?admin)
+// ============================================================
+window.addEventListener('load', () => {
+    const currentUrl = window.location.href;
+
+    if (currentUrl.includes('#admin') || currentUrl.includes('admin=true')) {
+        console.log("🔑 [Porta Secreta] Link de Vendedor detectado!");
+
+        // 1. Limpar a URL para o cliente não ver (depois de meio segundo)
+        setTimeout(() => {
+            const cleanUrl = window.location.pathname + window.location.search.replace(/[\?&]admin=true/, '');
+            window.history.replaceState(null, '', cleanUrl);
+        }, 500);
+
+        // 2. Trator de Abertura (Tenta a cada meio segundo até conseguir)
+        const tratorLogin = setInterval(() => {
+
+            // Se o Firebase já avisou que o lojista está logado, joga pro painel!
+            if (typeof state !== 'undefined' && state.user) {
+                clearInterval(tratorLogin);
+                if (typeof showView === 'function') showView('admin');
+                return;
+            }
+
+            // Se não estiver logado, procura o modal de senha e abre na marra
+            const loginModal = document.getElementById('login-modal');
+            if (loginModal) {
+                clearInterval(tratorLogin);
+
+                try {
+                    // Tenta abrir do jeito nativo do HTML (dialog)
+                    if (!loginModal.open) loginModal.showModal();
+                } catch (e) {
+                    // Se o navegador bloquear, abre na força bruta do CSS
+                    loginModal.classList.remove('hidden');
+                    loginModal.style.setProperty('display', 'flex', 'important');
+                    loginModal.setAttribute('open', 'true');
+                }
+            }
+        }, 500); // Tenta a cada meio segundo
+
+        // Desliga o trator depois de 5 segundos para não pesar o navegador (se algo der errado)
+        setTimeout(() => clearInterval(tratorLogin), 5000);
+    }
+});
