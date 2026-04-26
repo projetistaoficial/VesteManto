@@ -2789,7 +2789,7 @@ function setupEventListeners() {
             btnLoginSubmit.disabled = true;
 
             try {
-                // 1. Verifica Modo Suporte (Xerife/Dev)
+                // 1. Verifica se é a Senha do Mestre (Dev)
                 if (checkAndActivateSupport(pass)) {
                     if (typeof fecharModalLogin === 'function') fecharModalLogin();
                     if (passInput) passInput.value = '';
@@ -2798,67 +2798,21 @@ function setupEventListeners() {
                     return;
                 }
 
+                // ✨ 2. LOGIN REAL NO FIREBASE ✨
+                // Montamos o email "fantasma" do lojista baseado no ID da loja
                 const emailDaLoja = `${state.siteId}@projetista.com`;
-                let loggedIn = false;
 
-                // 2. Tenta login como LOJISTA OFICIAL no Firebase Auth
-                try {
-                    await signInWithEmailAndPassword(auth, emailDaLoja, pass);
-                    loggedIn = true;
-                    console.log("Login feito via Firebase Auth (Lojista)");
-                } catch (err1) {
-                    
-                    // 3. Se falhou, tenta como ADMIN MASTER
-                    try {
-                        await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
-                        loggedIn = true;
-                        console.log("Login feito via Firebase Auth (Master)");
-                    } catch (err2) {
-                        
-                        // 4. Se falhou, tenta o MODO ANTIGO (Lojas antigas sem conta no Auth)
-                        const docRef = doc(db, "sites", state.siteId);
-                        const snap = await getDocFromServer(docRef);
-                        if (snap.exists()) {
-                            const data = snap.data();
-                            if (data.access && data.access.admin === pass) {
-                                // Cria o crachá temporário de retrocompatibilidade
-                                sessionStorage.setItem('isStoreAdmin', 'true');
-                                state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
-                                loggedIn = true;
-                                console.log("Login feito via Modo Antigo de Compatibilidade");
-                            }
-                        }
-                    }
-                }
-
-                // --- SUCESSO OU FALHA ---
-                if (loggedIn) {
-                    sessionStorage.removeItem('support_mode');
-                    if (typeof fecharModalLogin === 'function') fecharModalLogin();
-                    if (passInput) passInput.value = '';
-                    
-                    // Atualiza botões visuais
-                    if (els.menuBtnAdmin) {
-                        els.menuBtnAdmin.classList.remove('hidden');
-                        els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white group-hover:text-white transition"></i><span class="font-bold uppercase text-sm tracking-wide ml-2">Painel Admin</span>`;
-                    }
-                    const btnLoginNav = getEl('btn-admin-login');
-                    if (btnLoginNav) {
-                        btnLoginNav.classList.remove('hidden');
-                        btnLoginNav.innerText = 'Painel Admin';
-                    }
-
-                    // Entra na tela
-                    showView('admin');
-                    if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-                    if (typeof loadAdminSales === 'function') loadAdminSales();
-                } else {
-                    alert("Senha incorreta.");
-                }
+                // Tenta logar. Se a senha bater com o que está no Firebase Auth, ele entra!
+                await signInWithEmailAndPassword(auth, emailDaLoja, pass);
+                
+                // O onAuthStateChanged (lá em cima) vai detectar o sucesso e abrir a tela do Admin automaticamente!
+                sessionStorage.removeItem('support_mode');
+                if (passInput) passInput.value = '';
 
             } catch (error) {
-                console.error("Erro geral no login:", error);
-                alert("Erro ao tentar fazer login.");
+                console.error("Erro no login:", error);
+                // Erro 'auth/wrong-password' ou 'auth/user-not-found'
+                alert("Senha incorreta.");
             } finally {
                 btnLoginSubmit.innerText = btnOriginalText;
                 btnLoginSubmit.disabled = false;

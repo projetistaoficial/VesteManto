@@ -1,6 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
 import { getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, updateDoc, query, where, addDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
-import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
 // === CONFIGURAÇÃO FIREBASE ===
 const firebaseConfig = {
@@ -18,6 +17,9 @@ const db = getFirestore(app);
 // ✨ CRIA UM APP SECUNDÁRIO: Permite criar contas sem deslogar o Master!
 const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
 const secondaryAuth = getAuth(secondaryApp);
+
+// Adicione o /master no final do domínio de produção
+const PRODUCTION_DOMAIN = "https://projetistaoficial.com";
 
 // Adicione o /master no final do domínio de produção
 const PRODUCTION_DOMAIN = "https://projetistaoficial.com";
@@ -489,23 +491,6 @@ async function saveClientData() {
         await Promise.all(updatePromises);
 
         await shiftAltCodes(docId, oldAltCode, inputAltCode);
-
-        // ✨ MAGIA DA SEGURANÇA: Cria a conta de acesso real no Firebase Auth!
-        if (passAdmin) {
-            const emailDoLojista = `${docId}@projetista.com`;
-            try {
-                // Tenta criar a conta silenciosamente
-                await createUserWithEmailAndPassword(secondaryAuth, emailDoLojista, passAdmin);
-                console.log(`Conta de Firebase Auth criada para a loja: ${docId}`);
-                // Desloga o app secundário por segurança
-                await secondaryAuth.signOut(); 
-            } catch (authErr) {
-                // Se der 'auth/email-already-in-use', significa que a loja já existe. 
-                // Tudo bem, o Firebase atual SDK cliente não deixa trocar a senha diretamente aqui por segurança, 
-                // então ignoramos o erro (você pode trocar senhas de lojas antigas manualmente no painel do Firebase Console se precisar).
-                console.log("Aviso de Auth:", authErr.code);
-            }
-        }
 
         showToast("Dados salvos com sucesso!");
         closeClientModal();

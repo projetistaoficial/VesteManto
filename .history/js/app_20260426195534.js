@@ -2789,7 +2789,6 @@ function setupEventListeners() {
             btnLoginSubmit.disabled = true;
 
             try {
-                // 1. Verifica Modo Suporte (Xerife/Dev)
                 if (checkAndActivateSupport(pass)) {
                     if (typeof fecharModalLogin === 'function') fecharModalLogin();
                     if (passInput) passInput.value = '';
@@ -2798,67 +2797,56 @@ function setupEventListeners() {
                     return;
                 }
 
-                const emailDaLoja = `${state.siteId}@projetista.com`;
-                let loggedIn = false;
+                const docRef = doc(db, "sites", state.siteId);
+                const snap = await getDocFromServer(docRef);
 
-                // 2. Tenta login como LOJISTA OFICIAL no Firebase Auth
-                try {
-                    await signInWithEmailAndPassword(auth, emailDaLoja, pass);
-                    loggedIn = true;
-                    console.log("Login feito via Firebase Auth (Lojista)");
-                } catch (err1) {
-                    
-                    // 3. Se falhou, tenta como ADMIN MASTER
-                    try {
-                        await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
-                        loggedIn = true;
-                        console.log("Login feito via Firebase Auth (Master)");
-                    } catch (err2) {
-                        
-                        // 4. Se falhou, tenta o MODO ANTIGO (Lojas antigas sem conta no Auth)
-                        const docRef = doc(db, "sites", state.siteId);
-                        const snap = await getDocFromServer(docRef);
-                        if (snap.exists()) {
-                            const data = snap.data();
-                            if (data.access && data.access.admin === pass) {
-                                // Cria o crachá temporário de retrocompatibilidade
-                                sessionStorage.setItem('isStoreAdmin', 'true');
-                                state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
-                                loggedIn = true;
-                                console.log("Login feito via Modo Antigo de Compatibilidade");
-                            }
+                if (snap.exists()) {
+                    const data = snap.data();
+                    const savedAccess = data.access || {};
+
+                    if (savedAccess.dev && pass === savedAccess.dev) {
+                        if (typeof fecharModalLogin === 'function') fecharModalLogin();
+                        if (passInput) passInput.value = '';
+                        showView('admin');
+                        showView('support');
+                        return;
+                    }
+
+                    if (savedAccess.admin && pass === savedAccess.admin) {
+                        // ✨ AQUI GRAVA A MEMÓRIA DO VENDEDOR ✨
+                        sessionStorage.setItem('isStoreAdmin', 'true');
+
+                        state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
+                        if (typeof fecharModalLogin === 'function') fecharModalLogin();
+                        if (passInput) passInput.value = '';
+
+                        // ✨ CORREÇÃO: Faltava mandar os botões APARECEREM tirando o 'hidden'! ✨
+                        if (els.menuBtnAdmin) {
+                            els.menuBtnAdmin.classList.remove('hidden');
+                            els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white"></i> <span class="ml-2 font-bold uppercase text-sm tracking-wide">Painel Admin</span>`;
                         }
+                        const btnLoginNav = document.getElementById('btn-admin-login');
+                        if (btnLoginNav) {
+                            btnLoginNav.classList.remove('hidden');
+                            btnLoginNav.innerText = 'Painel Admin';
+                        }
+
+                        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+                        if (typeof loadAdminSales === 'function') loadAdminSales();
+
+                        showView('admin');
+                        return;
                     }
                 }
 
-                // --- SUCESSO OU FALHA ---
-                if (loggedIn) {
-                    sessionStorage.removeItem('support_mode');
-                    if (typeof fecharModalLogin === 'function') fecharModalLogin();
-                    if (passInput) passInput.value = '';
-                    
-                    // Atualiza botões visuais
-                    if (els.menuBtnAdmin) {
-                        els.menuBtnAdmin.classList.remove('hidden');
-                        els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white group-hover:text-white transition"></i><span class="font-bold uppercase text-sm tracking-wide ml-2">Painel Admin</span>`;
-                    }
-                    const btnLoginNav = getEl('btn-admin-login');
-                    if (btnLoginNav) {
-                        btnLoginNav.classList.remove('hidden');
-                        btnLoginNav.innerText = 'Painel Admin';
-                    }
-
-                    // Entra na tela
-                    showView('admin');
-                    if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-                    if (typeof loadAdminSales === 'function') loadAdminSales();
-                } else {
-                    alert("Senha incorreta.");
-                }
+                await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
+                sessionStorage.removeItem('support_mode');
+                if (typeof fecharModalLogin === 'function') fecharModalLogin();
+                if (passInput) passInput.value = '';
+                showView('admin');
 
             } catch (error) {
-                console.error("Erro geral no login:", error);
-                alert("Erro ao tentar fazer login.");
+                alert("Senha incorreta.");
             } finally {
                 btnLoginSubmit.innerText = btnOriginalText;
                 btnLoginSubmit.disabled = false;
