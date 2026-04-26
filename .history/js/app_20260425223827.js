@@ -8537,35 +8537,3 @@ if (state.user && typeof loadAdminSales === 'function') {
     loadAdminSales();
 };
 
-// =================================================================
-// 📢 RADAR DE AVISOS EM TEMPO REAL (PROJETISTA -> LOJA)
-// =================================================================
-function startAlertsListener() {
-    if (!state.siteId || state.siteId === 'demo') return;
-
-    const avisosRef = collection(db, `sites/${state.siteId}/avisos`);
-    const q = query(avisosRef, where("lido", "==", false));
-
-    onSnapshot(q, (snapshot) => {
-        snapshot.docChanges().forEach(async (change) => {
-            if (change.type === "added") {
-                const aviso = change.doc.data();
-                const avisoId = change.doc.id;
-
-                // Exibe a mensagem chique na tela
-                if (typeof showSystemModal === 'function') {
-                    showSystemModal(`🔔 MENSAGEM DA ADMINISTRAÇÃO:\n\n${aviso.mensagem}`, 'warning');
-                } else {
-                    alert(`🔔 MENSAGEM DA ADMINISTRAÇÃO:\n\n${aviso.mensagem}`);
-                }
-
-                // Marca como lido no banco para não ficar aparecendo a cada F5
-                try {
-                    await updateDoc(doc(db, `sites/${state.siteId}/avisos`, avisoId), { lido: true });
-                } catch(e) {
-                    console.error("Erro ao marcar aviso como lido", e);
-                }
-            }
-        });
-    });
-}
