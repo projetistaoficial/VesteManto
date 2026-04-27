@@ -8779,16 +8779,13 @@ window.printOrder = (orderId) => {
             </div>
 
             <script>
-                // Aguarda um instante para o CSS carregar perfeitamente antes de abrir a tela
+                // Executa a impressão e fecha a janela logo em seguida!
                 window.onload = () => {
-                    setTimeout(() => {
-                        window.print();
-                    }, 300);
-                };
-                
-                // Só fecha a janela DEPOIS que o usuário confirmar ou cancelar a impressão/salvamento
-                window.onafterprint = () => {
-                    window.close();
+                    window.print();
+                    // Chrome e Edge mais novos aceitam o evento onafterprint
+                    window.onafterprint = () => window.close();
+                    // Fallback para mobile
+                    setTimeout(() => window.close(), 1000); 
                 };
             </script>
         </body>

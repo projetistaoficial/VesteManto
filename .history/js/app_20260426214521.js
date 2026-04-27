@@ -3,7 +3,6 @@ console.log("!!! ARQUIVO NOVO CARREGADO COM SUCESSO !!!");
 import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction, getDocFromServer } from './firebase-config.js';
 import { initStatsModule, updateStatsData } from './stats.js';
 import { checkAndActivateSupport, initSupportModule } from './support.js';
-import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 // =================================================================
 // 1. HELPERS (FUNÇÕES AUXILIARES)
 // =================================================================
@@ -2609,49 +2608,34 @@ function renderSalesList(orders) {
         if (isOnline) typeBadge = `<span class="text-[10px] bg-green-900/40 text-green-400 border border-green-600/50 px-2 py-0.5 rounded uppercase font-bold tracking-wide mt-1 inline-block">Online</span>`;
         else if (isDelivery) typeBadge = `<span class="text-[10px] bg-orange-900/40 text-orange-400 border border-orange-600/50 px-2 py-0.5 rounded uppercase font-bold tracking-wide mt-1 inline-block">Na Entrega</span>`;
 
-        // ✨ BOTÃO IMPRIMIR UNIVERSAL (Aparece em todos os status)
-        const btnPrint = `<button onclick="printOrder('${o.id}')" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-3 py-2 rounded text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-print"></i> Imprimir</button>`;
-
         let controlsHtml = '';
         if (o.status.includes('Cancelado')) {
-            controlsHtml = `
-                <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700">
-                    ${btnPrint}
-                    <span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span>
-                </div>`;
+            controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span></div>`;
         } else if (o.status === 'Reembolsado') {
-            controlsHtml = `
-                <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700">
-                    ${btnPrint}
-                    <span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span>
-                </div>`;
+            controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span></div>`;
         } else if (o.status === 'Concluído') {
             controlsHtml = `
-                <div class="flex justify-between items-center gap-2 mt-4 pt-4 border-t border-gray-700 w-full">
-                    ${btnPrint}
-                    <div class="flex items-center gap-2">
-                        <span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs">FINALIZADO</span>
-                        <button onclick="adminRefundOrder('${o.id}')" class="border border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-2 rounded text-xs transition font-bold">
-                            <i class="fas fa-undo mr-1"></i> Reembolsar
-                        </button>
-                    </div>
+                <div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700">
+                    <span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs">FINALIZADO</span>
+                    <button onclick="adminRefundOrder('${o.id}')" class="border border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-2 rounded text-xs transition font-bold">
+                        <i class="fas fa-undo mr-1"></i> Reembolsar
+                    </button>
                 </div>`;
         } else {
             controlsHtml = `
-                <div class="flex flex-col md:flex-row gap-4 justify-between items-center mt-4 border-t border-gray-700 pt-4">
-                    <div class="w-full md:w-auto">
-                        ${btnPrint}
-                    </div>
-                    <div class="flex items-center justify-end gap-2 w-full md:w-auto">
-                        <label class="text-gray-500 text-xs uppercase font-bold hidden md:inline">Status:</label>
-                        <select onchange="handleStatusChange(this, '${o.id}')" class="bg-gray-900 text-white text-xs border border-gray-600 rounded p-2 focus:border-yellow-500 outline-none flex-1 md:flex-none">
+                <div class="flex flex-col md:flex-row gap-4 justify-end items-center mt-4 border-t border-gray-700 pt-4">
+                    <div class="flex items-center gap-2">
+                        <label class="text-gray-500 text-xs uppercase font-bold">Status:</label>
+                        <select onchange="handleStatusChange(this, '${o.id}')" class="bg-gray-900 text-white text-xs border border-gray-600 rounded p-2 focus:border-yellow-500 outline-none">
                             <option value="Aguardando aprovação" ${o.status === 'Aguardando aprovação' ? 'selected' : ''}>Aguardando aprovação</option>
                             <option value="Aprovado" ${o.status === 'Aprovado' ? 'selected' : ''}>Aprovado</option>
                             <option value="Preparando pedido" ${o.status === 'Preparando pedido' ? 'selected' : ''}>Preparando</option>
                             <option value="Saiu para entrega" ${o.status === 'Saiu para entrega' ? 'selected' : ''}>Saiu para entrega</option>
                             <option value="Entregue" ${o.status === 'Entregue' ? 'selected' : ''}>Entregue</option>
                         </select>
-                        <button onclick="adminCancelOrder('${o.id}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-xs font-bold transition hidden sm:block">Cancelar</button>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="adminCancelOrder('${o.id}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-xs font-bold transition">Cancelar</button>
                         <button onclick="adminFinalizeOrder('${o.id}')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-xs font-bold transition">Finalizar</button>
                     </div>
                 </div>
@@ -2818,7 +2802,7 @@ function setupEventListeners() {
                 }
 
                 let loggedIn = false;
-                // Força minúsculo para evitar erro de letras (Case Sensitivity)
+                // Força minúsculo para evitar o erro de Case Sensitivity
                 const emailDaLoja = `${state.siteId}@projetista.com`.toLowerCase(); 
 
                 // ✨ TENTATIVA 1: Lojista Oficial (Nova Segurança)
@@ -2828,34 +2812,25 @@ function setupEventListeners() {
                     console.log("✅ Login: Lojista Oficial");
                 } catch (e1) {
                     
-                    // ✨ TENTATIVA 2: Mestre Oficial
+                    // ✨ TENTATIVA 2: Mestre (admin123)
                     try {
                         await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
                         loggedIn = true;
                         console.log("✅ Login: Administrador Mestre");
                     } catch (e2) {
                         
-                        // ✨ TENTATIVA 3: AUTO-MIGRAÇÃO (A MÁGICA ACONTECE AQUI)
-                        const docRef = doc(db, "sites", state.siteId);
-                        const snap = await getDocFromServer(docRef);
-                        
-                        if (snap.exists() && snap.data().access?.admin === pass) {
-                            // A senha confere no banco antigo! Vamos criar o crachá oficial agora.
-                            if (pass.length >= 6) {
-                                try {
-                                    // Cria a conta oficial no Firebase Auth e já loga na mesma hora!
-                                    await createUserWithEmailAndPassword(auth, emailDaLoja, pass);
-                                    loggedIn = true;
-                                    console.log("✅ Conta migrada e logada com sucesso!");
-                                } catch (migErr) {
-                                    console.error("Erro ao migrar:", migErr);
-                                    alert("Erro de segurança ao migrar conta. Salve a loja novamente no Painel Master.");
-                                    return;
-                                }
-                            } else {
-                                alert("⚠️ Sua senha tem menos de 6 caracteres.\nO novo sistema de segurança do Firebase exige 6 ou mais caracteres.\nPeça ao Administrador para aumentar sua senha no Painel.");
-                                return;
+                        // ✨ TENTATIVA 3: Modo Legado (Lojas antigas ainda sem conta Auth)
+                        try {
+                            const docRef = doc(db, "sites", state.siteId);
+                            const snap = await getDocFromServer(docRef);
+                            if (snap.exists() && snap.data().access?.admin === pass) {
+                                sessionStorage.setItem('isStoreAdmin', 'true');
+                                state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
+                                loggedIn = true;
+                                console.log("✅ Login: Modo de Compatibilidade");
                             }
+                        } catch (e3) {
+                            console.log("🔒 Leitura bloqueada (Esperado se senha errada).");
                         }
                     }
                 }
@@ -8634,173 +8609,6 @@ window.loadAvisos = () => {
                 }
             }
         });
-
-        if (typeof window.processarAvisos === 'function') {
-            window.processarAvisos();
-        }
-    }, (error) => {
-        console.log("🔒 Coleção de Avisos trancada aguardando senha.");
+        
     });
-};
-
-
-
-
-// =================================================================
-// 🖨️ MÓDULO DE IMPRESSÃO TÉRMICA (58mm / 80mm)
-// =================================================================
-window.printOrder = (orderId) => {
-    // 1. Busca os dados do pedido na memória
-    const order = state.orders.find(o => o.id === orderId);
-    if (!order) return alert("Pedido não encontrado.");
-
-    const storeName = state.storeProfile?.name || "Minha Loja";
-    const dataObj = new Date(order.date);
-    const dataHoraFormatada = `${dataObj.toLocaleDateString('pt-BR')} às ${dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-    
-    // 2. Processa os totais e descontos
-    const subtotal = order.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
-    const frete = order.shippingFee || 0;
-    let descontos = (subtotal + frete) - order.total;
-    if (descontos < 0) descontos = 0; // Evita mostrar valor negativo se houver juros do cartão
-
-    const rawMethod = order.paymentMethod || '';
-    const cleanMethodName = rawMethod.split('[')[0].trim();
-
-    // 3. Monta a lista de itens em HTML
-    let itemsHtml = order.items.map(i => {
-        const itemTotal = formatCurrency(i.price * i.qty);
-        const sizeInfo = i.size !== 'U' ? ` (${i.size})` : '';
-        return `
-            <div class="item-row">
-                <span class="item-name">${i.qty}x ${i.name}${sizeInfo}</span>
-                <span class="item-price">${itemTotal}</span>
-            </div>
-        `;
-    }).join('');
-
-    // 4. Criação do HTML com CSS específico para Impressoras Térmicas
-    const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Cupom_Pedido_${order.code}</title>
-            <style>
-                @page { margin: 0; size: 80mm auto; } /* Formato bobina 80mm (adapta para 58mm) */
-                body { 
-                    font-family: 'Courier New', Courier, monospace; /* Fonte monoespaçada de impressora */
-                    width: 300px; /* Largura de segurança */
-                    margin: 0 auto; 
-                    padding: 15px 10px; 
-                    color: #000; 
-                    background: #FFF; 
-                    font-size: 12px; 
-                }
-                h2 { font-size: 18px; margin-bottom: 2px; text-transform: uppercase; }
-                .center { text-align: center; }
-                .line { border-top: 1px dashed #000; margin: 10px 0; }
-                .item-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
-                .item-name { flex: 1; padding-right: 10px; word-break: break-word; }
-                .item-price { text-align: right; white-space: nowrap; }
-                .bold { font-weight: bold; }
-                .mt { margin-top: 10px; }
-                .mb { margin-bottom: 5px; }
-                .text-sm { font-size: 10px; }
-                .text-lg { font-size: 16px; }
-            </style>
-        </head>
-        <body>
-            <div class="center">
-                <h2>${storeName}</h2>
-                <p class="bold mt">PEDIDO #${order.code || 'S/N'}</p>
-                <p class="text-sm">${dataHoraFormatada}</p>
-            </div>
-            
-            <div class="line"></div>
-            
-            <p class="bold mb">CLIENTE:</p>
-            <p>${order.customer.name}</p>
-            <p>${order.customer.phone}</p>
-            
-            <div class="mt">
-                <p class="bold mb">ENDEREÇO:</p>
-                <p>${order.customer.street}, ${order.customer.addressNum} ${order.customer.comp ? '- ' + order.customer.comp : ''}</p>
-                <p>${order.customer.district}</p>
-                <p>CEP: ${order.customer.cep}</p>
-            </div>
-
-            <div class="line"></div>
-            
-            <p class="bold mb">ITENS DO PEDIDO:</p>
-            ${itemsHtml}
-
-            <div class="line"></div>
-
-            <div class="item-row">
-                <span>Subtotal:</span>
-                <span>${formatCurrency(subtotal)}</span>
-            </div>
-            ${frete > 0 ? `
-            <div class="item-row">
-                <span>Frete:</span>
-                <span>+ ${formatCurrency(frete)}</span>
-            </div>` : ''}
-            ${descontos > 0.05 ? `
-            <div class="item-row">
-                <span>Descontos:</span>
-                <span>- ${formatCurrency(descontos)}</span>
-            </div>` : ''}
-            
-            <div class="line"></div>
-            
-            <div class="item-row bold text-lg">
-                <span>TOTAL:</span>
-                <span>${formatCurrency(order.total)}</span>
-            </div>
-
-            <div class="line"></div>
-            
-            <p class="bold mb">PAGAMENTO:</p>
-            <p>${cleanMethodName}</p>
-
-            ${order.securityCode ? `
-            <div class="line"></div>
-            <div class="center mt">
-                <p class="text-sm">CÓD. SEGURANÇA:</p>
-                <h2 style="font-size: 22px;">${order.securityCode}</h2>
-            </div>` : ''}
-
-            <div class="line"></div>
-            
-            <div class="center mt">
-                <p class="bold">*** ${order.status.toUpperCase()} ***</p>
-                <p class="text-sm mt">Obrigado pela preferência!</p>
-                <p class="text-sm mt" style="opacity:0.5;">- Gerado por Projetista -</p>
-            </div>
-
-            <script>
-                // Aguarda um instante para o CSS carregar perfeitamente antes de abrir a tela
-                window.onload = () => {
-                    setTimeout(() => {
-                        window.print();
-                    }, 300);
-                };
-                
-                // Só fecha a janela DEPOIS que o usuário confirmar ou cancelar a impressão/salvamento
-                window.onafterprint = () => {
-                    window.close();
-                };
-            </script>
-        </body>
-        </html>
-    `;
-
-    // 5. Abre a janela e injeta o documento para disparo instantâneo
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (printWindow) {
-        printWindow.document.write(html);
-        printWindow.document.close();
-    } else {
-        alert("O navegador bloqueou a janela de impressão. Permita pop-ups para este site.");
-    }
 };

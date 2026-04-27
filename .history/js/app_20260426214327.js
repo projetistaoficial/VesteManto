@@ -2609,49 +2609,34 @@ function renderSalesList(orders) {
         if (isOnline) typeBadge = `<span class="text-[10px] bg-green-900/40 text-green-400 border border-green-600/50 px-2 py-0.5 rounded uppercase font-bold tracking-wide mt-1 inline-block">Online</span>`;
         else if (isDelivery) typeBadge = `<span class="text-[10px] bg-orange-900/40 text-orange-400 border border-orange-600/50 px-2 py-0.5 rounded uppercase font-bold tracking-wide mt-1 inline-block">Na Entrega</span>`;
 
-        // ✨ BOTÃO IMPRIMIR UNIVERSAL (Aparece em todos os status)
-        const btnPrint = `<button onclick="printOrder('${o.id}')" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-3 py-2 rounded text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-print"></i> Imprimir</button>`;
-
         let controlsHtml = '';
         if (o.status.includes('Cancelado')) {
-            controlsHtml = `
-                <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700">
-                    ${btnPrint}
-                    <span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span>
-                </div>`;
+            controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span></div>`;
         } else if (o.status === 'Reembolsado') {
-            controlsHtml = `
-                <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700">
-                    ${btnPrint}
-                    <span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span>
-                </div>`;
+            controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span></div>`;
         } else if (o.status === 'Concluído') {
             controlsHtml = `
-                <div class="flex justify-between items-center gap-2 mt-4 pt-4 border-t border-gray-700 w-full">
-                    ${btnPrint}
-                    <div class="flex items-center gap-2">
-                        <span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs">FINALIZADO</span>
-                        <button onclick="adminRefundOrder('${o.id}')" class="border border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-2 rounded text-xs transition font-bold">
-                            <i class="fas fa-undo mr-1"></i> Reembolsar
-                        </button>
-                    </div>
+                <div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700">
+                    <span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs">FINALIZADO</span>
+                    <button onclick="adminRefundOrder('${o.id}')" class="border border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-2 rounded text-xs transition font-bold">
+                        <i class="fas fa-undo mr-1"></i> Reembolsar
+                    </button>
                 </div>`;
         } else {
             controlsHtml = `
-                <div class="flex flex-col md:flex-row gap-4 justify-between items-center mt-4 border-t border-gray-700 pt-4">
-                    <div class="w-full md:w-auto">
-                        ${btnPrint}
-                    </div>
-                    <div class="flex items-center justify-end gap-2 w-full md:w-auto">
-                        <label class="text-gray-500 text-xs uppercase font-bold hidden md:inline">Status:</label>
-                        <select onchange="handleStatusChange(this, '${o.id}')" class="bg-gray-900 text-white text-xs border border-gray-600 rounded p-2 focus:border-yellow-500 outline-none flex-1 md:flex-none">
+                <div class="flex flex-col md:flex-row gap-4 justify-end items-center mt-4 border-t border-gray-700 pt-4">
+                    <div class="flex items-center gap-2">
+                        <label class="text-gray-500 text-xs uppercase font-bold">Status:</label>
+                        <select onchange="handleStatusChange(this, '${o.id}')" class="bg-gray-900 text-white text-xs border border-gray-600 rounded p-2 focus:border-yellow-500 outline-none">
                             <option value="Aguardando aprovação" ${o.status === 'Aguardando aprovação' ? 'selected' : ''}>Aguardando aprovação</option>
                             <option value="Aprovado" ${o.status === 'Aprovado' ? 'selected' : ''}>Aprovado</option>
                             <option value="Preparando pedido" ${o.status === 'Preparando pedido' ? 'selected' : ''}>Preparando</option>
                             <option value="Saiu para entrega" ${o.status === 'Saiu para entrega' ? 'selected' : ''}>Saiu para entrega</option>
                             <option value="Entregue" ${o.status === 'Entregue' ? 'selected' : ''}>Entregue</option>
                         </select>
-                        <button onclick="adminCancelOrder('${o.id}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-xs font-bold transition hidden sm:block">Cancelar</button>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="adminCancelOrder('${o.id}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-xs font-bold transition">Cancelar</button>
                         <button onclick="adminFinalizeOrder('${o.id}')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-xs font-bold transition">Finalizar</button>
                     </div>
                 </div>
@@ -8684,7 +8669,7 @@ window.printOrder = (orderId) => {
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Cupom_Pedido_${order.code}</title>
+            <title>Cupom #${order.code}</title>
             <style>
                 @page { margin: 0; size: 80mm auto; } /* Formato bobina 80mm (adapta para 58mm) */
                 body { 
@@ -8779,16 +8764,13 @@ window.printOrder = (orderId) => {
             </div>
 
             <script>
-                // Aguarda um instante para o CSS carregar perfeitamente antes de abrir a tela
+                // Executa a impressão e fecha a janela logo em seguida!
                 window.onload = () => {
-                    setTimeout(() => {
-                        window.print();
-                    }, 300);
-                };
-                
-                // Só fecha a janela DEPOIS que o usuário confirmar ou cancelar a impressão/salvamento
-                window.onafterprint = () => {
-                    window.close();
+                    window.print();
+                    // Chrome e Edge mais novos aceitam o evento onafterprint
+                    window.onafterprint = () => window.close();
+                    // Fallback para mobile
+                    setTimeout(() => window.close(), 1000); 
                 };
             </script>
         </body>

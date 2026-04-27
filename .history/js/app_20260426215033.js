@@ -8530,6 +8530,7 @@ window.calcCheckoutTotal = calcCheckoutTotal;
 window.validateCheckoutForm = validateCheckoutForm;
 
 // 4. Admin e Configurações
+window.printOrder = printOrder;
 window.saveProduct = saveProduct;
 window.editProduct = editProduct;
 window.confirmDeleteProduct = confirmDeleteProduct;
@@ -8684,7 +8685,7 @@ window.printOrder = (orderId) => {
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Cupom_Pedido_${order.code}</title>
+            <title>Cupom #${order.code}</title>
             <style>
                 @page { margin: 0; size: 80mm auto; } /* Formato bobina 80mm (adapta para 58mm) */
                 body { 
@@ -8779,16 +8780,13 @@ window.printOrder = (orderId) => {
             </div>
 
             <script>
-                // Aguarda um instante para o CSS carregar perfeitamente antes de abrir a tela
+                // Executa a impressão e fecha a janela logo em seguida!
                 window.onload = () => {
-                    setTimeout(() => {
-                        window.print();
-                    }, 300);
-                };
-                
-                // Só fecha a janela DEPOIS que o usuário confirmar ou cancelar a impressão/salvamento
-                window.onafterprint = () => {
-                    window.close();
+                    window.print();
+                    // Chrome e Edge mais novos aceitam o evento onafterprint
+                    window.onafterprint = () => window.close();
+                    // Fallback para mobile
+                    setTimeout(() => window.close(), 1000); 
                 };
             </script>
         </body>
