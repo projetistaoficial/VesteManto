@@ -3,7 +3,6 @@ console.log("!!! ARQUIVO NOVO CARREGADO COM SUCESSO !!!");
 import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction, getDocFromServer } from './firebase-config.js';
 import { initStatsModule, updateStatsData } from './stats.js';
 import { checkAndActivateSupport, initSupportModule } from './support.js';
-import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 // =================================================================
 // 1. HELPERS (FUNÇÕES AUXILIARES)
 // =================================================================
@@ -1008,10 +1007,7 @@ function loadAdminSales() {
         if (typeof updateStatsData === 'function') {
             updateStatsData(state.orders, state.products, state.dailyStats);
         }
-    }, (error) => {
-        // Trata o bloqueio silenciosamente
-        console.log("🔒 Coleção de Vendas trancada aguardando senha.");
-    }); // Fim do onSnapshot das vendas // Fim do onSnapshot das vendas
+    }); // Fim do onSnapshot das vendas
 
     // ✨ GATILHO RESTRITO: Só liga o radar se houver um usuário admin confirmado ✨
     if (state.user && typeof loadAvisos === 'function') {
@@ -2793,7 +2789,7 @@ function setupEventListeners() {
             btnLoginSubmit.disabled = true;
 
             try {
-                // 1. Suporte / Desenvolvedor
+                // 1. Verifica Modo Suporte (Xerife/Dev)
                 if (checkAndActivateSupport(pass)) {
                     if (typeof fecharModalLogin === 'function') fecharModalLogin();
                     if (passInput) passInput.value = '';
@@ -2802,55 +2798,48 @@ function setupEventListeners() {
                     return;
                 }
 
+                const emailDaLoja = `${state.siteId}@projetista.com`;
                 let loggedIn = false;
-                // Força minúsculo para evitar erro de letras (Case Sensitivity)
-                const emailDaLoja = `${state.siteId}@projetista.com`.toLowerCase(); 
 
-                // ✨ TENTATIVA 1: Lojista Oficial (Nova Segurança)
+                await signInWithEmailAndPassword(auth, emailDaLoja, pass);
+
+                // 2. Tenta login como LOJISTA OFICIAL no Firebase Auth
                 try {
                     await signInWithEmailAndPassword(auth, emailDaLoja, pass);
                     loggedIn = true;
-                    console.log("✅ Login: Lojista Oficial");
-                } catch (e1) {
+                    console.log("Login feito via Firebase Auth (Lojista)");
+                } catch (err1) {
                     
-                    // ✨ TENTATIVA 2: Mestre Oficial
+                    // 3. Se falhou, tenta como ADMIN MASTER
                     try {
                         await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
                         loggedIn = true;
-                        console.log("✅ Login: Administrador Mestre");
-                    } catch (e2) {
+                        console.log("Login feito via Firebase Auth (Master)");
+                    } catch (err2) {
                         
-                        // ✨ TENTATIVA 3: AUTO-MIGRAÇÃO (A MÁGICA ACONTECE AQUI)
+                        // 4. Se falhou, tenta o MODO ANTIGO (Lojas antigas sem conta no Auth)
                         const docRef = doc(db, "sites", state.siteId);
                         const snap = await getDocFromServer(docRef);
-                        
-                        if (snap.exists() && snap.data().access?.admin === pass) {
-                            // A senha confere no banco antigo! Vamos criar o crachá oficial agora.
-                            if (pass.length >= 6) {
-                                try {
-                                    // Cria a conta oficial no Firebase Auth e já loga na mesma hora!
-                                    await createUserWithEmailAndPassword(auth, emailDaLoja, pass);
-                                    loggedIn = true;
-                                    console.log("✅ Conta migrada e logada com sucesso!");
-                                } catch (migErr) {
-                                    console.error("Erro ao migrar:", migErr);
-                                    alert("Erro de segurança ao migrar conta. Salve a loja novamente no Painel Master.");
-                                    return;
-                                }
-                            } else {
-                                alert("⚠️ Sua senha tem menos de 6 caracteres.\nO novo sistema de segurança do Firebase exige 6 ou mais caracteres.\nPeça ao Administrador para aumentar sua senha no Painel.");
-                                return;
+                        if (snap.exists()) {
+                            const data = snap.data();
+                            if (data.access && data.access.admin === pass) {
+                                // Cria o crachá temporário de retrocompatibilidade
+                                sessionStorage.setItem('isStoreAdmin', 'true');
+                                state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
+                                loggedIn = true;
+                                console.log("Login feito via Modo Antigo de Compatibilidade");
                             }
                         }
                     }
                 }
 
-                // --- SUCESSO OU FALHA FINAL ---
+                // --- SUCESSO OU FALHA ---
                 if (loggedIn) {
                     sessionStorage.removeItem('support_mode');
                     if (typeof fecharModalLogin === 'function') fecharModalLogin();
                     if (passInput) passInput.value = '';
                     
+                    // Atualiza botões visuais
                     if (els.menuBtnAdmin) {
                         els.menuBtnAdmin.classList.remove('hidden');
                         els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white group-hover:text-white transition"></i><span class="font-bold uppercase text-sm tracking-wide ml-2">Painel Admin</span>`;
@@ -2861,6 +2850,7 @@ function setupEventListeners() {
                         btnLoginNav.innerText = 'Painel Admin';
                     }
 
+                    // Entra na tela
                     showView('admin');
                     if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
                     if (typeof loadAdminSales === 'function') loadAdminSales();
@@ -2869,8 +2859,8 @@ function setupEventListeners() {
                 }
 
             } catch (error) {
-                console.error("Erro crítico no botão de login:", error);
-                alert("Erro inesperado. Tente novamente.");
+                console.error("Erro geral no login:", error);
+                alert("Erro ao tentar fazer login.");
             } finally {
                 btnLoginSubmit.innerText = btnOriginalText;
                 btnLoginSubmit.disabled = false;
@@ -8619,11 +8609,5 @@ window.loadAvisos = () => {
                 }
             }
         });
-
-        if (typeof window.processarAvisos === 'function') {
-            window.processarAvisos();
-        }
-    }, (error) => {
-        console.log("🔒 Coleção de Avisos trancada aguardando senha.");
     });
 };

@@ -3,7 +3,6 @@ console.log("!!! ARQUIVO NOVO CARREGADO COM SUCESSO !!!");
 import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction, getDocFromServer } from './firebase-config.js';
 import { initStatsModule, updateStatsData } from './stats.js';
 import { checkAndActivateSupport, initSupportModule } from './support.js';
-import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 // =================================================================
 // 1. HELPERS (FUNÇÕES AUXILIARES)
 // =================================================================
@@ -2803,7 +2802,7 @@ function setupEventListeners() {
                 }
 
                 let loggedIn = false;
-                // Força minúsculo para evitar erro de letras (Case Sensitivity)
+                // Força minúsculo para evitar o erro de Case Sensitivity
                 const emailDaLoja = `${state.siteId}@projetista.com`.toLowerCase(); 
 
                 // ✨ TENTATIVA 1: Lojista Oficial (Nova Segurança)
@@ -2813,34 +2812,25 @@ function setupEventListeners() {
                     console.log("✅ Login: Lojista Oficial");
                 } catch (e1) {
                     
-                    // ✨ TENTATIVA 2: Mestre Oficial
+                    // ✨ TENTATIVA 2: Mestre (admin123)
                     try {
                         await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
                         loggedIn = true;
                         console.log("✅ Login: Administrador Mestre");
                     } catch (e2) {
                         
-                        // ✨ TENTATIVA 3: AUTO-MIGRAÇÃO (A MÁGICA ACONTECE AQUI)
-                        const docRef = doc(db, "sites", state.siteId);
-                        const snap = await getDocFromServer(docRef);
-                        
-                        if (snap.exists() && snap.data().access?.admin === pass) {
-                            // A senha confere no banco antigo! Vamos criar o crachá oficial agora.
-                            if (pass.length >= 6) {
-                                try {
-                                    // Cria a conta oficial no Firebase Auth e já loga na mesma hora!
-                                    await createUserWithEmailAndPassword(auth, emailDaLoja, pass);
-                                    loggedIn = true;
-                                    console.log("✅ Conta migrada e logada com sucesso!");
-                                } catch (migErr) {
-                                    console.error("Erro ao migrar:", migErr);
-                                    alert("Erro de segurança ao migrar conta. Salve a loja novamente no Painel Master.");
-                                    return;
-                                }
-                            } else {
-                                alert("⚠️ Sua senha tem menos de 6 caracteres.\nO novo sistema de segurança do Firebase exige 6 ou mais caracteres.\nPeça ao Administrador para aumentar sua senha no Painel.");
-                                return;
+                        // ✨ TENTATIVA 3: Modo Legado (Lojas antigas ainda sem conta Auth)
+                        try {
+                            const docRef = doc(db, "sites", state.siteId);
+                            const snap = await getDocFromServer(docRef);
+                            if (snap.exists() && snap.data().access?.admin === pass) {
+                                sessionStorage.setItem('isStoreAdmin', 'true');
+                                state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
+                                loggedIn = true;
+                                console.log("✅ Login: Modo de Compatibilidade");
                             }
+                        } catch (e3) {
+                            console.log("🔒 Leitura bloqueada (Esperado se senha errada).");
                         }
                     }
                 }
@@ -8619,7 +8609,7 @@ window.loadAvisos = () => {
                 }
             }
         });
-
+        
         if (typeof window.processarAvisos === 'function') {
             window.processarAvisos();
         }
