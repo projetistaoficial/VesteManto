@@ -8647,7 +8647,7 @@ window.loadAvisos = () => {
 
 
 // =================================================================
-// 🖨️ MÓDULO DE IMPRESSÃO TÉRMICA - NA MESMA PÁGINA (ESTÁVEL)
+// 🖨️ MÓDULO DE IMPRESSÃO TÉRMICA - VERSÃO DEFINITIVA (IN-PAGE + AFTERPRINT)
 // =================================================================
 window.printOrder = (orderId) => {
     const order = state.orders.find(o => o.id === orderId);
@@ -8656,7 +8656,7 @@ window.printOrder = (orderId) => {
     const storeName = state.storeProfile?.name || "Loja";
     const orderNumber = order.code || order.id.slice(0,6);
     
-    // NOME CONFIGURADO PARA A IMPRESSÃO
+    // NOME PERFEITO PARA O PDF
     const fileName = `Pedido_${orderNumber}`;
 
     const dataObj = new Date(order.date);
@@ -8677,26 +8677,30 @@ window.printOrder = (orderId) => {
         </div>
     `).join('');
 
-    // 1. Limpa resíduos de impressões anteriores
-    const oldContainer = document.getElementById('print-thermal-container');
+    // 1. Limpa qualquer tentativa anterior que tenha ficado presa
+    let oldContainer = document.getElementById('print-thermal-container');
     if (oldContainer) oldContainer.remove();
 
-    const oldStyle = document.getElementById('print-thermal-style');
-    if (oldStyle) oldStyle.remove();
+    // 2. Guarda o título original do site
+    const oldTitle = document.title;
 
-    // 2. Cria o CSS que esconde o site e mostra só o cupom na hora de imprimir
-    const style = document.createElement('style');
-    style.id = 'print-thermal-style';
-    style.innerHTML = `
-        @media screen {
-            #print-thermal-container { display: none !important; }
-        }
-        @media print {
-            @page { margin: 0; size: 80mm auto; } 
-            body > *:not(#print-thermal-container) { display: none !important; }
-            body { background: #fff !important; margin: 0; padding: 0; }
-            #print-thermal-container { 
-                display: block !important; 
+    // 3. Cria a div exclusiva do cupom
+    const printContainer = document.createElement('div');
+    printContainer.id = 'print-thermal-container';
+    
+    // 4. CSS mágico que só funciona na hora que a impressora é chamada
+    printContainer.innerHTML = `
+        <style>
+            @media screen {
+                #print-thermal-container { display: none !important; }
+            }
+            @media print {
+                @page { margin: 0; size: 80mm auto; } 
+                body > *:not(#print-thermal-container) { display: none !important; }
+                body { background: #fff !important; margin: 0; padding: 0; }
+                #print-thermal-container { display: block !important; }
+            }
+            #print-thermal-container {
                 font-family: 'Courier New', monospace;
                 width: 280px;
                 font-size: 12px;
@@ -8705,17 +8709,11 @@ window.printOrder = (orderId) => {
                 padding: 15px 10px;
                 background: #fff;
             }
-        }
-        .p-center { text-align: center; }
-        .p-bold { font-weight: bold; }
-        .p-line { border-top: 1px dashed #000; margin: 8px 0; }
-    `;
-    document.head.appendChild(style);
-
-    // 3. Monta o Cupom invisível na página
-    const printContainer = document.createElement('div');
-    printContainer.id = 'print-thermal-container';
-    printContainer.innerHTML = `
+            .p-center { text-align: center; }
+            .p-bold { font-weight: bold; }
+            .p-line { border-top: 1px dashed #000; margin: 8px 0; }
+        </style>
+        
         <div class="p-center">
             <h2 style="margin:0; text-transform: uppercase;">${storeName}</h2>
             <p class="p-bold" style="margin: 5px 0;">PEDIDO: ${orderNumber}</p>
@@ -8738,15 +8736,22 @@ window.printOrder = (orderId) => {
             <p style="font-size: 10px; margin-top: 5px;">Obrigado pela preferência!</p>
         </div>
     `;
+
     document.body.appendChild(printContainer);
 
-    // 4. Salva o título do site e muda para o nome do pedido
-    const originalTitle = document.title;
+    // 5. Troca o nome do site para o nome do PDF desejado
     document.title = fileName;
 
-    // 5. Chama a impressão e restaura o título assim que a janela fechar
+    // 6. Ouve o evento OFICIAL de fechamento da janela de impressão
+    const cleanup = () => {
+        document.title = oldTitle;
+        if (printContainer) printContainer.remove();
+        window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+
+    // 7. Chama a impressão
     setTimeout(() => {
         window.print();
-        document.title = originalTitle;
     }, 300);
 };

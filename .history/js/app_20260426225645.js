@@ -8646,107 +8646,108 @@ window.loadAvisos = () => {
 
 
 
-// =================================================================
-// 🖨️ MÓDULO DE IMPRESSÃO TÉRMICA - NA MESMA PÁGINA (ESTÁVEL)
-// =================================================================
 window.printOrder = (orderId) => {
     const order = state.orders.find(o => o.id === orderId);
     if (!order) return alert("Pedido não encontrado.");
 
     const storeName = state.storeProfile?.name || "Loja";
     const orderNumber = order.code || order.id.slice(0,6);
-    
-    // NOME CONFIGURADO PARA A IMPRESSÃO
-    const fileName = `Pedido_${orderNumber}`;
+
+    // 🔒 Nome seguro
+    const safeOrderNumber = orderNumber.toString().replace(/[\\/:*?"<>|]/g, '');
+    const fileName = `Pedido_${safeOrderNumber}`;
 
     const dataObj = new Date(order.date);
     const dataHoraFormatada = `${dataObj.toLocaleDateString('pt-BR')} às ${dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-    
-    const subtotal = order.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
-    const frete = order.shippingFee || 0;
-    let descontos = (subtotal + frete) - order.total;
-    if (descontos < 0) descontos = 0;
-
-    const rawMethod = order.paymentMethod || '';
-    const cleanMethodName = rawMethod.split('[')[0].trim();
 
     let itemsHtml = order.items.map(i => `
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="flex: 1; padding-right: 10px;">${i.qty}x ${i.name}${i.size !== 'U' ? ' ('+i.size+')' : ''}</span>
-            <span style="white-space: nowrap;">${formatCurrency(i.price * i.qty)}</span>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span style="flex:1;">${i.qty}x ${i.name}</span>
+            <span>${formatCurrency(i.price * i.qty)}</span>
         </div>
     `).join('');
 
-    // 1. Limpa resíduos de impressões anteriores
-    const oldContainer = document.getElementById('print-thermal-container');
-    if (oldContainer) oldContainer.remove();
+    // limpar antigo
+    document.getElementById('print-thermal-container')?.remove();
+    document.getElementById('print-thermal-style')?.remove();
 
-    const oldStyle = document.getElementById('print-thermal-style');
-    if (oldStyle) oldStyle.remove();
-
-    // 2. Cria o CSS que esconde o site e mostra só o cupom na hora de imprimir
     const style = document.createElement('style');
     style.id = 'print-thermal-style';
     style.innerHTML = `
         @media screen {
-            #print-thermal-container { display: none !important; }
+            #print-thermal-container { display:none !important; }
         }
         @media print {
-            @page { margin: 0; size: 80mm auto; } 
-            body > *:not(#print-thermal-container) { display: none !important; }
-            body { background: #fff !important; margin: 0; padding: 0; }
-            #print-thermal-container { 
-                display: block !important; 
-                font-family: 'Courier New', monospace;
-                width: 280px;
-                font-size: 12px;
-                color: #000;
-                margin: 0 auto;
-                padding: 15px 10px;
-                background: #fff;
+            @page { size: 80mm; margin: 0; }
+            html, body { width: 80mm; margin:0; padding:0; }
+            body > *:not(#print-thermal-container) { display:none !important; }
+
+            #print-thermal-container {
+                display:block !important;
+                font-family: monospace;
+                width: 80mm;
+                font-size:12px;
+                padding:10px;
+                box-sizing:border-box;
             }
         }
-        .p-center { text-align: center; }
-        .p-bold { font-weight: bold; }
-        .p-line { border-top: 1px dashed #000; margin: 8px 0; }
     `;
     document.head.appendChild(style);
 
-    // 3. Monta o Cupom invisível na página
-    const printContainer = document.createElement('div');
-    printContainer.id = 'print-thermal-container';
-    printContainer.innerHTML = `
-        <div class="p-center">
-            <h2 style="margin:0; text-transform: uppercase;">${storeName}</h2>
-            <p class="p-bold" style="margin: 5px 0;">PEDIDO: ${orderNumber}</p>
-            <p style="font-size: 10px; margin: 0;">${dataHoraFormatada}</p>
+    const container = document.createElement('div');
+    container.id = 'print-thermal-container';
+    container.innerHTML = `
+        <div style="text-align:center">
+            <h3>${storeName}</h3>
+            <p><b>Pedido:</b> ${orderNumber}</p>
+            <p>${dataHoraFormatada}</p>
         </div>
-        <div class="p-line"></div>
-        <p class="p-bold" style="margin: 0 0 5px 0;">CLIENTE:</p>
-        <p style="margin: 0;">${order.customer.name}</p>
-        <p style="margin: 0;">${order.customer.phone}</p>
-        <div class="p-line"></div>
+        <hr>
         ${itemsHtml}
-        <div class="p-line"></div>
-        <div style="display: flex; justify-content: space-between;"><span>TOTAL:</span><span class="p-bold">${formatCurrency(order.total)}</span></div>
-        <div class="p-line"></div>
-        <p style="margin: 0;">PGTO: ${cleanMethodName}</p>
-        ${order.securityCode ? `<div class="p-center"><p style="font-size: 10px; margin-top:10px;">SEGURANÇA:</p><h1 style="margin:0;">${order.securityCode}</h1></div>` : ''}
-        <div class="p-line"></div>
-        <div class="p-center" style="margin-top: 10px;">
-            <p class="p-bold">*** ${order.status.toUpperCase()} ***</p>
-            <p style="font-size: 10px; margin-top: 5px;">Obrigado pela preferência!</p>
-        </div>
+        <hr>
+        <p><b>Total:</b> ${formatCurrency(order.total)}</p>
+        <p>Pagamento: ${order.paymentMethod}</p>
     `;
-    document.body.appendChild(printContainer);
 
-    // 4. Salva o título do site e muda para o nome do pedido
+    document.body.appendChild(container);
+
     const originalTitle = document.title;
     document.title = fileName;
 
-    // 5. Chama a impressão e restaura o título assim que a janela fechar
     setTimeout(() => {
         window.print();
         document.title = originalTitle;
     }, 300);
+};
+
+window.downloadOrderPDF = (orderId) => {
+    const order = state.orders.find(o => o.id === orderId);
+    if (!order) return alert("Pedido não encontrado.");
+
+    const orderNumber = order.code || order.id.slice(0,6);
+    const safeOrderNumber = orderNumber.toString().replace(/[\\/:*?"<>|]/g, '');
+
+    const container = document.createElement('div');
+
+    container.innerHTML = `
+        <div style="font-family: monospace; width: 300px;">
+            <h3>${state.storeProfile?.name || "Loja"}</h3>
+            <p><b>Pedido:</b> ${orderNumber}</p>
+            <hr>
+            ${order.items.map(i => `
+                <p>${i.qty}x ${i.name} - ${formatCurrency(i.price * i.qty)}</p>
+            `).join('')}
+            <hr>
+            <p><b>Total:</b> ${formatCurrency(order.total)}</p>
+        </div>
+    `;
+
+    html2pdf()
+        .from(container)
+        .set({
+            filename: `Pedido_${safeOrderNumber}.pdf`,
+            margin: 5,
+            jsPDF: { unit: 'mm', format: [80, 200] }
+        })
+        .save();
 };

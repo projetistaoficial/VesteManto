@@ -8647,21 +8647,18 @@ window.loadAvisos = () => {
 
 
 // =================================================================
-// 🖨️ MÓDULO DE IMPRESSÃO TÉRMICA - NA MESMA PÁGINA (ESTÁVEL)
+// 🖨️ MÓDULO DE IMPRESSÃO TÉRMICA (58mm / 80mm) - VERSÃO IFRAME
 // =================================================================
 window.printOrder = (orderId) => {
+    // 1. Busca os dados do pedido na memória
     const order = state.orders.find(o => o.id === orderId);
     if (!order) return alert("Pedido não encontrado.");
 
-    const storeName = state.storeProfile?.name || "Loja";
-    const orderNumber = order.code || order.id.slice(0,6);
-    
-    // NOME CONFIGURADO PARA A IMPRESSÃO
-    const fileName = `Pedido_${orderNumber}`;
-
+    const storeName = state.storeProfile?.name || "Minha Loja";
     const dataObj = new Date(order.date);
     const dataHoraFormatada = `${dataObj.toLocaleDateString('pt-BR')} às ${dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
     
+    // 2. Processa os totais e descontos
     const subtotal = order.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
     const frete = order.shippingFee || 0;
     let descontos = (subtotal + frete) - order.total;
@@ -8670,83 +8667,144 @@ window.printOrder = (orderId) => {
     const rawMethod = order.paymentMethod || '';
     const cleanMethodName = rawMethod.split('[')[0].trim();
 
-    let itemsHtml = order.items.map(i => `
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="flex: 1; padding-right: 10px;">${i.qty}x ${i.name}${i.size !== 'U' ? ' ('+i.size+')' : ''}</span>
-            <span style="white-space: nowrap;">${formatCurrency(i.price * i.qty)}</span>
-        </div>
-    `).join('');
+    // 3. Monta a lista de itens em HTML
+    let itemsHtml = order.items.map(i => {
+        const itemTotal = formatCurrency(i.price * i.qty);
+        const sizeInfo = i.size !== 'U' ? ` (${i.size})` : '';
+        return `
+            <div class="item-row">
+                <span class="item-name">${i.qty}x ${i.name}${sizeInfo}</span>
+                <span class="item-price">${itemTotal}</span>
+            </div>
+        `;
+    }).join('');
 
-    // 1. Limpa resíduos de impressões anteriores
-    const oldContainer = document.getElementById('print-thermal-container');
-    if (oldContainer) oldContainer.remove();
+    // 4. Criação do HTML sem as tags de script (pois não precisamos mais fechar janela)
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Cupom_Pedido_${order.code}</title>
+            <style>
+                @page { margin: 0; size: 80mm auto; } 
+                body { 
+                    font-family: 'Courier New', Courier, monospace; 
+                    width: 300px; 
+                    margin: 0 auto; 
+                    padding: 15px 10px; 
+                    color: #000; 
+                    background: #FFF; 
+                    font-size: 12px; 
+                }
+                h2 { font-size: 18px; margin-bottom: 2px; text-transform: uppercase; }
+                .center { text-align: center; }
+                .line { border-top: 1px dashed #000; margin: 10px 0; }
+                .item-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+                .item-name { flex: 1; padding-right: 10px; word-break: break-word; }
+                .item-price { text-align: right; white-space: nowrap; }
+                .bold { font-weight: bold; }
+                .mt { margin-top: 10px; }
+                .mb { margin-bottom: 5px; }
+                .text-sm { font-size: 10px; }
+                .text-lg { font-size: 16px; }
+            </style>
+        </head>
+        <body>
+            <div class="center">
+                <h2>${storeName}</h2>
+                <p class="bold mt">PEDIDO #${order.code || 'S/N'}</p>
+                <p class="text-sm">${dataHoraFormatada}</p>
+            </div>
+            
+            <div class="line"></div>
+            
+            <p class="bold mb">CLIENTE:</p>
+            <p>${order.customer.name}</p>
+            <p>${order.customer.phone}</p>
+            
+            <div class="mt">
+                <p class="bold mb">ENDEREÇO:</p>
+                <p>${order.customer.street}, ${order.customer.addressNum} ${order.customer.comp ? '- ' + order.customer.comp : ''}</p>
+                <p>${order.customer.district}</p>
+                <p>CEP: ${order.customer.cep}</p>
+            </div>
 
-    const oldStyle = document.getElementById('print-thermal-style');
-    if (oldStyle) oldStyle.remove();
+            <div class="line"></div>
+            
+            <p class="bold mb">ITENS DO PEDIDO:</p>
+            ${itemsHtml}
 
-    // 2. Cria o CSS que esconde o site e mostra só o cupom na hora de imprimir
-    const style = document.createElement('style');
-    style.id = 'print-thermal-style';
-    style.innerHTML = `
-        @media screen {
-            #print-thermal-container { display: none !important; }
-        }
-        @media print {
-            @page { margin: 0; size: 80mm auto; } 
-            body > *:not(#print-thermal-container) { display: none !important; }
-            body { background: #fff !important; margin: 0; padding: 0; }
-            #print-thermal-container { 
-                display: block !important; 
-                font-family: 'Courier New', monospace;
-                width: 280px;
-                font-size: 12px;
-                color: #000;
-                margin: 0 auto;
-                padding: 15px 10px;
-                background: #fff;
-            }
-        }
-        .p-center { text-align: center; }
-        .p-bold { font-weight: bold; }
-        .p-line { border-top: 1px dashed #000; margin: 8px 0; }
+            <div class="line"></div>
+
+            <div class="item-row">
+                <span>Subtotal:</span>
+                <span>${formatCurrency(subtotal)}</span>
+            </div>
+            ${frete > 0 ? `
+            <div class="item-row">
+                <span>Frete:</span>
+                <span>+ ${formatCurrency(frete)}</span>
+            </div>` : ''}
+            ${descontos > 0.05 ? `
+            <div class="item-row">
+                <span>Descontos:</span>
+                <span>- ${formatCurrency(descontos)}</span>
+            </div>` : ''}
+            
+            <div class="line"></div>
+            
+            <div class="item-row bold text-lg">
+                <span>TOTAL:</span>
+                <span>${formatCurrency(order.total)}</span>
+            </div>
+
+            <div class="line"></div>
+            
+            <p class="bold mb">PAGAMENTO:</p>
+            <p>${cleanMethodName}</p>
+
+            ${order.securityCode ? `
+            <div class="line"></div>
+            <div class="center mt">
+                <p class="text-sm">CÓD. SEGURANÇA:</p>
+                <h2 style="font-size: 22px;">${order.securityCode}</h2>
+            </div>` : ''}
+
+            <div class="line"></div>
+            
+            <div class="center mt">
+                <p class="bold">*** ${order.status.toUpperCase()} ***</p>
+                <p class="text-sm mt">Obrigado pela preferência!</p>
+                <p class="text-sm mt" style="opacity:0.5;">- Gerado por Projetista -</p>
+            </div>
+        </body>
+        </html>
     `;
-    document.head.appendChild(style);
 
-    // 3. Monta o Cupom invisível na página
-    const printContainer = document.createElement('div');
-    printContainer.id = 'print-thermal-container';
-    printContainer.innerHTML = `
-        <div class="p-center">
-            <h2 style="margin:0; text-transform: uppercase;">${storeName}</h2>
-            <p class="p-bold" style="margin: 5px 0;">PEDIDO: ${orderNumber}</p>
-            <p style="font-size: 10px; margin: 0;">${dataHoraFormatada}</p>
-        </div>
-        <div class="p-line"></div>
-        <p class="p-bold" style="margin: 0 0 5px 0;">CLIENTE:</p>
-        <p style="margin: 0;">${order.customer.name}</p>
-        <p style="margin: 0;">${order.customer.phone}</p>
-        <div class="p-line"></div>
-        ${itemsHtml}
-        <div class="p-line"></div>
-        <div style="display: flex; justify-content: space-between;"><span>TOTAL:</span><span class="p-bold">${formatCurrency(order.total)}</span></div>
-        <div class="p-line"></div>
-        <p style="margin: 0;">PGTO: ${cleanMethodName}</p>
-        ${order.securityCode ? `<div class="p-center"><p style="font-size: 10px; margin-top:10px;">SEGURANÇA:</p><h1 style="margin:0;">${order.securityCode}</h1></div>` : ''}
-        <div class="p-line"></div>
-        <div class="p-center" style="margin-top: 10px;">
-            <p class="p-bold">*** ${order.status.toUpperCase()} ***</p>
-            <p style="font-size: 10px; margin-top: 5px;">Obrigado pela preferência!</p>
-        </div>
-    `;
-    document.body.appendChild(printContainer);
+    // 5. ✨ A MÁGICA: Criando a "Impressora Fantasma" (Iframe)
+    let printIframe = document.getElementById('print-iframe');
+    
+    // Se não existir, cria na hora, totalmente escondido do usuário
+    if (!printIframe) {
+        printIframe = document.createElement('iframe');
+        printIframe.id = 'print-iframe';
+        printIframe.style.position = 'fixed';
+        printIframe.style.right = '0';
+        printIframe.style.bottom = '0';
+        printIframe.style.width = '0';
+        printIframe.style.height = '0';
+        printIframe.style.border = 'none';
+        document.body.appendChild(printIframe);
+    }
 
-    // 4. Salva o título do site e muda para o nome do pedido
-    const originalTitle = document.title;
-    document.title = fileName;
+    // Injeta o HTML no Iframe
+    printIframe.contentWindow.document.open();
+    printIframe.contentWindow.document.write(html);
+    printIframe.contentWindow.document.close();
 
-    // 5. Chama a impressão e restaura o título assim que a janela fechar
+    // Dá foco e manda imprimir!
     setTimeout(() => {
-        window.print();
-        document.title = originalTitle;
-    }, 300);
+        printIframe.contentWindow.focus();
+        printIframe.contentWindow.print();
+    }, 500);
 };

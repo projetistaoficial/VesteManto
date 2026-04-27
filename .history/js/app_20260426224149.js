@@ -8647,7 +8647,7 @@ window.loadAvisos = () => {
 
 
 // =================================================================
-// 🖨️ MÓDULO DE IMPRESSÃO TÉRMICA - NA MESMA PÁGINA (ESTÁVEL)
+// 🖨️ MÓDULO DE IMPRESSÃO TÉRMICA - SOLUÇÃO FINAL ESTÁVEL
 // =================================================================
 window.printOrder = (orderId) => {
     const order = state.orders.find(o => o.id === orderId);
@@ -8655,9 +8655,6 @@ window.printOrder = (orderId) => {
 
     const storeName = state.storeProfile?.name || "Loja";
     const orderNumber = order.code || order.id.slice(0,6);
-    
-    // NOME CONFIGURADO PARA A IMPRESSÃO
-    const fileName = `Pedido_${orderNumber}`;
 
     const dataObj = new Date(order.date);
     const dataHoraFormatada = `${dataObj.toLocaleDateString('pt-BR')} às ${dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
@@ -8677,26 +8674,24 @@ window.printOrder = (orderId) => {
         </div>
     `).join('');
 
-    // 1. Limpa resíduos de impressões anteriores
-    const oldContainer = document.getElementById('print-thermal-container');
-    if (oldContainer) oldContainer.remove();
-
-    const oldStyle = document.getElementById('print-thermal-style');
-    if (oldStyle) oldStyle.remove();
-
-    // 2. Cria o CSS que esconde o site e mostra só o cupom na hora de imprimir
-    const style = document.createElement('style');
-    style.id = 'print-thermal-style';
-    style.innerHTML = `
-        @media screen {
-            #print-thermal-container { display: none !important; }
-        }
-        @media print {
-            @page { margin: 0; size: 80mm auto; } 
-            body > *:not(#print-thermal-container) { display: none !important; }
-            body { background: #fff !important; margin: 0; padding: 0; }
-            #print-thermal-container { 
-                display: block !important; 
+    // 1. INJETA O ESTILO DE IMPRESSÃO UMA ÚNICA VEZ
+    if (!document.getElementById('print-thermal-style')) {
+        const style = document.createElement('style');
+        style.id = 'print-thermal-style';
+        style.innerHTML = `
+            /* Esconde o cupom na tela normal do computador */
+            @media screen {
+                #print-thermal-container { display: none !important; }
+            }
+            /* Na hora da impressão, esconde todo o painel e mostra SÓ o cupom */
+            @media print {
+                @page { margin: 0; size: 80mm auto; } 
+                body > *:not(#print-thermal-container) { display: none !important; }
+                body { background: #fff !important; margin: 0; padding: 0; }
+                #print-thermal-container { display: block !important; }
+            }
+            /* Layout da Bobina Térmica */
+            #print-thermal-container {
                 font-family: 'Courier New', monospace;
                 width: 280px;
                 font-size: 12px;
@@ -8705,16 +8700,22 @@ window.printOrder = (orderId) => {
                 padding: 15px 10px;
                 background: #fff;
             }
-        }
-        .p-center { text-align: center; }
-        .p-bold { font-weight: bold; }
-        .p-line { border-top: 1px dashed #000; margin: 8px 0; }
-    `;
-    document.head.appendChild(style);
+            .p-center { text-align: center; }
+            .p-bold { font-weight: bold; }
+            .p-line { border-top: 1px dashed #000; margin: 8px 0; }
+        `;
+        document.head.appendChild(style);
+    }
 
-    // 3. Monta o Cupom invisível na página
-    const printContainer = document.createElement('div');
-    printContainer.id = 'print-thermal-container';
+    // 2. CRIA OU ATUALIZA O CUPOM NA TELA (Invisível no monitor)
+    let printContainer = document.getElementById('print-thermal-container');
+    if (!printContainer) {
+        printContainer = document.createElement('div');
+        printContainer.id = 'print-thermal-container';
+        document.body.appendChild(printContainer);
+    }
+
+    // Preenche o HTML do cupom
     printContainer.innerHTML = `
         <div class="p-center">
             <h2 style="margin:0; text-transform: uppercase;">${storeName}</h2>
@@ -8738,15 +8739,9 @@ window.printOrder = (orderId) => {
             <p style="font-size: 10px; margin-top: 5px;">Obrigado pela preferência!</p>
         </div>
     `;
-    document.body.appendChild(printContainer);
 
-    // 4. Salva o título do site e muda para o nome do pedido
-    const originalTitle = document.title;
-    document.title = fileName;
-
-    // 5. Chama a impressão e restaura o título assim que a janela fechar
+    // 3. CHAMA A IMPRESSÃO E DEIXA O WINDOWS TRABALHAR EM PAZ
     setTimeout(() => {
         window.print();
-        document.title = originalTitle;
     }, 300);
 };

@@ -8647,7 +8647,7 @@ window.loadAvisos = () => {
 
 
 // =================================================================
-// 🖨️ MÓDULO DE IMPRESSÃO TÉRMICA - NA MESMA PÁGINA (ESTÁVEL)
+// 🖨️ MÓDULO DE IMPRESSÃO TÉRMICA - VERSÃO BLOB (A DEFINITIVA)
 // =================================================================
 window.printOrder = (orderId) => {
     const order = state.orders.find(o => o.id === orderId);
@@ -8656,7 +8656,7 @@ window.printOrder = (orderId) => {
     const storeName = state.storeProfile?.name || "Loja";
     const orderNumber = order.code || order.id.slice(0,6);
     
-    // NOME CONFIGURADO PARA A IMPRESSÃO
+    // NOME PERFEITO PARA O PDF (Sempre aqui na Tag Title)
     const fileName = `Pedido_${orderNumber}`;
 
     const dataObj = new Date(order.date);
@@ -8677,76 +8677,58 @@ window.printOrder = (orderId) => {
         </div>
     `).join('');
 
-    // 1. Limpa resíduos de impressões anteriores
-    const oldContainer = document.getElementById('print-thermal-container');
-    if (oldContainer) oldContainer.remove();
-
-    const oldStyle = document.getElementById('print-thermal-style');
-    if (oldStyle) oldStyle.remove();
-
-    // 2. Cria o CSS que esconde o site e mostra só o cupom na hora de imprimir
-    const style = document.createElement('style');
-    style.id = 'print-thermal-style';
-    style.innerHTML = `
-        @media screen {
-            #print-thermal-container { display: none !important; }
-        }
-        @media print {
-            @page { margin: 0; size: 80mm auto; } 
-            body > *:not(#print-thermal-container) { display: none !important; }
-            body { background: #fff !important; margin: 0; padding: 0; }
-            #print-thermal-container { 
-                display: block !important; 
-                font-family: 'Courier New', monospace;
-                width: 280px;
-                font-size: 12px;
-                color: #000;
-                margin: 0 auto;
-                padding: 15px 10px;
-                background: #fff;
-            }
-        }
-        .p-center { text-align: center; }
-        .p-bold { font-weight: bold; }
-        .p-line { border-top: 1px dashed #000; margin: 8px 0; }
+    // 1. Criamos o HTML completo como um texto
+    const html = `<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>${fileName}</title>
+            <style>
+                @page { margin: 0; size: 80mm auto; } 
+                body { font-family: 'Courier New', monospace; width: 280px; font-size: 12px; color: #000; margin: 0 auto; padding: 10px; }
+                .center { text-align: center; }
+                .bold { font-weight: bold; }
+                .line { border-top: 1px dashed #000; margin: 8px 0; }
+            </style>
+        </head>
+        <body>
+            <div class="center">
+                <h2 style="margin:0; text-transform: uppercase;">${storeName}</h2>
+                <p class="bold" style="margin: 5px 0;">PEDIDO: ${orderNumber}</p>
+                <p style="font-size: 10px; margin: 0;">${dataHoraFormatada}</p>
+            </div>
+            <div class="line"></div>
+            <p class="bold" style="margin: 0 0 5px 0;">CLIENTE:</p>
+            <p style="margin: 0;">${order.customer.name}</p>
+            <p style="margin: 0;">${order.customer.phone}</p>
+            <div class="line"></div>
+            ${itemsHtml}
+            <div class="line"></div>
+            <div style="display: flex; justify-content: space-between;"><span>TOTAL:</span><span class="bold">${formatCurrency(order.total)}</span></div>
+            <div class="line"></div>
+            <p style="margin: 0;">PGTO: ${cleanMethodName}</p>
+            ${order.securityCode ? `<div class="center"><p style="font-size: 10px; margin-top:10px;">SEGURANÇA:</p><h1 style="margin:0;">${order.securityCode}</h1></div>` : ''}
+            
+            <script>
+                // Dispara a impressão na nova aba de forma segura
+                window.onload = () => {
+                    setTimeout(() => { window.print(); }, 500);
+                };
+            </script>
+        </body>
+        </html>
     `;
-    document.head.appendChild(style);
 
-    // 3. Monta o Cupom invisível na página
-    const printContainer = document.createElement('div');
-    printContainer.id = 'print-thermal-container';
-    printContainer.innerHTML = `
-        <div class="p-center">
-            <h2 style="margin:0; text-transform: uppercase;">${storeName}</h2>
-            <p class="p-bold" style="margin: 5px 0;">PEDIDO: ${orderNumber}</p>
-            <p style="font-size: 10px; margin: 0;">${dataHoraFormatada}</p>
-        </div>
-        <div class="p-line"></div>
-        <p class="p-bold" style="margin: 0 0 5px 0;">CLIENTE:</p>
-        <p style="margin: 0;">${order.customer.name}</p>
-        <p style="margin: 0;">${order.customer.phone}</p>
-        <div class="p-line"></div>
-        ${itemsHtml}
-        <div class="p-line"></div>
-        <div style="display: flex; justify-content: space-between;"><span>TOTAL:</span><span class="p-bold">${formatCurrency(order.total)}</span></div>
-        <div class="p-line"></div>
-        <p style="margin: 0;">PGTO: ${cleanMethodName}</p>
-        ${order.securityCode ? `<div class="p-center"><p style="font-size: 10px; margin-top:10px;">SEGURANÇA:</p><h1 style="margin:0;">${order.securityCode}</h1></div>` : ''}
-        <div class="p-line"></div>
-        <div class="p-center" style="margin-top: 10px;">
-            <p class="p-bold">*** ${order.status.toUpperCase()} ***</p>
-            <p style="font-size: 10px; margin-top: 5px;">Obrigado pela preferência!</p>
-        </div>
-    `;
-    document.body.appendChild(printContainer);
-
-    // 4. Salva o título do site e muda para o nome do pedido
-    const originalTitle = document.title;
-    document.title = fileName;
-
-    // 5. Chama a impressão e restaura o título assim que a janela fechar
-    setTimeout(() => {
-        window.print();
-        document.title = originalTitle;
-    }, 300);
+    // 2. ✨ A MÁGICA DO BLOB: Cria um arquivo físico na memória do navegador
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    
+    // 3. Abre a aba nova apontando para esse arquivo real
+    const printWindow = window.open(url, '_blank');
+    if (!printWindow) {
+        alert("O navegador bloqueou a abertura da aba. Permita pop-ups para este site.");
+    }
+    
+    // 4. Limpeza de memória (Apaga o arquivo da memória após 5 minutos)
+    setTimeout(() => URL.revokeObjectURL(url), 300000);
 };
