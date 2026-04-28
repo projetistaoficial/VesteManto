@@ -3368,16 +3368,7 @@ function setupEventListeners() {
         btnAddProd.onclick = () => {
             getEl('form-product').reset();
             getEl('edit-prod-id').value = '';
-            
-            // LIMPA AS IMAGENS E OS TAMANHOS
             state.tempImages = [];
-            state.tempVariations = [];
-            renderVariationBadges();
-            
-            // Volta para a visualização "Estoque Geral" padrão
-            document.getElementById('div-general-stock').classList.remove('hidden');
-            document.getElementById('div-variations-stock').classList.add('hidden');
-
             renderImagePreviews();
             const checkNoStock = getEl('prod-allow-no-stock');
             if (checkNoStock) checkNoStock.checked = false;
