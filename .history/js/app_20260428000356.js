@@ -3238,18 +3238,22 @@ function setupEventListeners() {
 
     // Forms
     if (els.btnAddCat) {
-        els.btnAddCat.onclick = async () => {
-            const nameInput = els.newCatName.value.trim();
-            if (!nameInput) return alert("Digite o nome");
-            let finalName = nameInput;
-            if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
-            try {
-                await addDoc(collection(db, `sites/${state.siteId}/categories`), { name: finalName });
-                els.newCatName.value = '';
-                state.selectedCategoryParent = null;
-                renderAdminCategoryList();
-            } catch (error) { alert("Erro: " + error.message); }
-        };
+    els.btnAddCat.onclick = async () => {
+        const nameInput = els.newCatName.value.trim();
+        if (!nameInput) return alert("Digite o nome");
+        let finalName = nameInput;
+        if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
+        try {
+            // ✨ Adiciona Date.now() no order para garantir que ela caia sempre no fim da lista
+            await addDoc(collection(db, `sites/${state.siteId}/categories`), { 
+                name: finalName, 
+                order: Date.now() 
+            });
+            els.newCatName.value = '';
+            state.selectedCategoryParent = null;
+            renderAdminCategoryList();
+        } catch (error) { alert("Erro: " + error.message); }
+    };
 
         setupAccordion('btn-acc-profile', 'content-acc-profile', 'arrow-acc-profile');
         const btnProfile = getEl('btn-acc-profile');
@@ -4425,6 +4429,42 @@ function openProductModal(productId) {
     }, 10);
 };
 
+// Controle de visibilidade do Checkbox
+document.addEventListener('DOMContentLoaded', () => {
+    const chkVar = document.getElementById('prod-has-variations');
+    if (chkVar) {
+        chkVar.addEventListener('change', (e) => {
+            const divGen = document.getElementById('div-general-stock');
+            const divVar = document.getElementById('div-variations-stock');
+            if (e.target.checked) {
+                divGen.classList.add('hidden');
+                divVar.classList.remove('hidden');
+                // Se ligar e estiver vazio, adiciona uma linha inicial
+                if (document.getElementById('variations-container').children.length === 0) {
+                    addVariationRow();
+                }
+            } else {
+                divGen.classList.remove('hidden');
+                divVar.classList.add('hidden');
+            }
+        });
+    }
+});
+
+window.addVariationRow = (name = '', stock = '') => {
+    const container = document.getElementById('variations-container');
+    const div = document.createElement('div');
+    div.className = "flex items-center gap-2 variation-row animate-fade-in";
+    div.innerHTML = `
+        <input type="text" placeholder="Tamanho (Ex: M)" value="${name}" class="var-name w-1/2 bg-black text-white text-xs border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500">
+        <input type="number" placeholder="Qtd (Ex: 5)" value="${stock}" class="var-stock w-1/3 bg-black text-white text-xs border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500">
+        <button type="button" onclick="this.parentElement.remove()" class="w-10 h-10 shrink-0 rounded-lg bg-red-900/20 text-red-500 hover:bg-red-600 hover:text-white flex items-center justify-center transition border border-red-900/30">
+            <i class="fas fa-trash-alt text-xs"></i>
+        </button>
+    `;
+    container.appendChild(div);
+};
+
 function closeProductModal() {
     const modal = getEl('product-modal');
     const backdrop = getEl('modal-backdrop');
@@ -4621,23 +4661,49 @@ window.saveProduct = async (e) => {
         if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
 
         // --- CORREÇÃO DE LEITURA DO CHECKBOX ---
-        // 1. Tenta pegar pelo ID direto
         let elHighlight = document.getElementById('prod-highlight');
         let elNoStock = document.getElementById('prod-allow-no-stock');
 
-        // 2. Se falhar, tenta pegar dentro do form (caso haja duplicidade externa)
         const form = document.getElementById('form-product');
         if (form) {
             if (!elHighlight) elHighlight = form.querySelector('#prod-highlight');
             if (!elNoStock) elNoStock = form.querySelector('#prod-allow-no-stock');
         }
 
-        // 3. Converte para Booleano (true/false)
         const isHighlight = elHighlight ? elHighlight.checked : false;
         const allowNoStock = elNoStock ? elNoStock.checked : false;
 
-        // DEBUG: Veja isso no console ao salvar
-        console.log("--> SALVANDO. Destaque marcado?", isHighlight);
+        // =================================================================
+        // ✨ LÓGICA DO ESTOQUE HÍBRIDO (GRADE VS GERAL)
+        // =================================================================
+        const checkVariations = document.getElementById('prod-has-variations');
+        const hasVariations = checkVariations ? checkVariations.checked : false;
+        
+        let finalSizes = [];
+        let finalStock = 0;
+
+        if (hasVariations) {
+            // LÊ A TABELA DE TAMANHOS EXATOS
+            const rows = document.querySelectorAll('.variation-row');
+            rows.forEach(row => {
+                const n = row.querySelector('.var-name').value.trim();
+                const s = parseInt(row.querySelector('.var-stock').value) || 0;
+                if (n) {
+                    finalSizes.push({ name: n, stock: s });
+                    finalStock += s; // A soma de todas as variações vira o estoque geral
+                }
+            });
+        } else {
+            // LÊ O FORMATO SIMPLES (ANTIGO)
+            const elSizesSimple = document.getElementById('prod-sizes-simple');
+            const sizesRaw = elSizesSimple ? elSizesSimple.value : "";
+            finalSizes = sizesRaw.split(',').map(s => s.trim()).filter(s => s);
+            
+            const elStock = document.getElementById('prod-stock');
+            finalStock = elStock ? parseInt(elStock.value) : 0;
+            if (isNaN(finalStock)) finalStock = 0;
+        }
+        // =================================================================
 
         // 4. Monta o Objeto
         const productData = {
@@ -4646,10 +4712,13 @@ window.saveProduct = async (e) => {
             description: document.getElementById('prod-desc').value,
             price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
             promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
-            stock: parseInt(document.getElementById('prod-stock').value) || 0,
             cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
-            sizes: document.getElementById('prod-sizes').value.split(',').map(s => s.trim()).filter(s => s),
             images: state.tempImages || [],
+
+            // ✨ NOVOS CAMPOS DO ESTOQUE HÍBRIDO
+            hasVariations: hasVariations,
+            stock: finalStock,
+            sizes: finalSizes,
 
             // GRAVA OS VALORES CAPTURADOS
             allowNoStock: allowNoStock,
@@ -4682,6 +4751,11 @@ window.saveProduct = async (e) => {
         document.getElementById('product-form-modal').classList.add('hidden');
         document.getElementById('form-product').reset();
         state.tempImages = [];
+        
+        // ✨ Limpa as linhas de variação para o próximo cadastro
+        const varContainer = document.getElementById('variations-container');
+        if (varContainer) varContainer.innerHTML = '';
+
         if (typeof renderImagePreviews === 'function') renderImagePreviews();
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
 
@@ -4700,16 +4774,54 @@ window.editProduct = (id) => {
     console.log(`Abrindo edição: ${p.name}`);
     console.log(`Valor de 'highlight' no banco:`, p.highlight); // Deve mostrar true, false ou undefined
 
-    // Inputs de texto
+    // Inputs de texto básicos
     document.getElementById('edit-prod-id').value = p.id;
     document.getElementById('prod-name').value = p.name;
     document.getElementById('prod-cat-select').value = p.category || "";
     document.getElementById('prod-desc').value = p.description || "";
     document.getElementById('prod-price').value = formatMoneyForInput(p.price);
     document.getElementById('prod-promo').value = formatMoneyForInput(p.promoPrice);
-    document.getElementById('prod-stock').value = p.stock;
     document.getElementById('prod-cost').value = formatMoneyForInput(p.cost);
-    document.getElementById('prod-sizes').value = p.sizes ? p.sizes.join(', ') : '';
+
+    // =================================================================
+    // ✨ LÓGICA DO ESTOQUE HÍBRIDO NA EDIÇÃO
+    // =================================================================
+    const chkVar = document.getElementById('prod-has-variations');
+    const container = document.getElementById('variations-container');
+    const divGen = document.getElementById('div-general-stock');
+    const divVar = document.getElementById('div-variations-stock');
+
+    if (container) container.innerHTML = ''; // Limpa as linhas anteriores
+
+    if (p.hasVariations && Array.isArray(p.sizes) && p.sizes.length > 0 && typeof p.sizes[0] === 'object') {
+        // É o modelo NOVO (Estoque por Grade)
+        if (chkVar) chkVar.checked = true;
+        
+        p.sizes.forEach(v => {
+            if (typeof addVariationRow === 'function') addVariationRow(v.name, v.stock);
+        });
+        
+        if (divGen) divGen.classList.add('hidden');
+        if (divVar) divVar.classList.remove('hidden');
+    } else {
+        // É o modelo ANTIGO (Estoque Geral)
+        if (chkVar) chkVar.checked = false;
+        
+        const elStock = document.getElementById('prod-stock');
+        if (elStock) elStock.value = p.stock || 0;
+        
+        // Converte o array antigo em texto separado por vírgula
+        const sizeStr = Array.isArray(p.sizes) 
+            ? p.sizes.map(s => typeof s === 'object' ? s.name : s).join(', ') 
+            : '';
+        
+        const elSizesSimple = document.getElementById('prod-sizes-simple');
+        if (elSizesSimple) elSizesSimple.value = sizeStr;
+        
+        if (divGen) divGen.classList.remove('hidden');
+        if (divVar) divVar.classList.add('hidden');
+    }
+    // =================================================================
 
     // --- CHECKBOXES (LEITURA) ---
     const elHighlight = document.getElementById('prod-highlight');
@@ -4724,9 +4836,13 @@ window.editProduct = (id) => {
     if (typeof renderImagePreviews === 'function') renderImagePreviews();
 
     const pixData = p.paymentOptions?.pix || { active: false, val: 0, type: 'percent' };
-    document.getElementById('prod-pix-active').checked = pixData.active;
-    document.getElementById('prod-pix-val').value = pixData.type === 'percent' ? pixData.val : formatMoneyForInput(pixData.val);
-    document.getElementById('prod-pix-type').value = pixData.type;
+    const elPixActive = document.getElementById('prod-pix-active');
+    const elPixVal = document.getElementById('prod-pix-val');
+    const elPixType = document.getElementById('prod-pix-type');
+
+    if (elPixActive) elPixActive.checked = pixData.active;
+    if (elPixVal) elPixVal.value = pixData.type === 'percent' ? pixData.val : formatMoneyForInput(pixData.val);
+    if (elPixType) elPixType.value = pixData.type;
 
     const settingsPix = document.getElementById('pix-settings');
     if (settingsPix) {
@@ -4734,7 +4850,8 @@ window.editProduct = (id) => {
         settingsPix.classList.toggle('pointer-events-none', !pixData.active);
     }
 
-    document.getElementById('product-form-modal').classList.remove('hidden');
+    const modal = document.getElementById('product-form-modal');
+    if (modal) modal.classList.remove('hidden');
 };
 
 window.deleteCoupon = async (id) => {

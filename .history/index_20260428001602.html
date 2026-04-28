@@ -69,12 +69,12 @@
         const hostname = window.location.hostname;
         // Identifica localhost, 127.0.0.1 e IPs de Wi-Fi local (192.168...)
         const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.');
-
+        
         if (isLocalhost && !siteId) {
             console.warn("🛠️ MODO DEV DETECTADO: Usando loja de teste padrão.");
-
+            
             // ATENÇÃO: Substitua 'vestemanto' pelo slug de uma loja que realmente existe!
-            siteId = 'vestemanto';
+            siteId = 'vestemanto'; 
 
             // ✨ O TRUQUE DE MESTRE: Injeta o ID na URL silenciosamente 
             // para "enganar" a verificação do app.js!
@@ -135,7 +135,7 @@
                 }
 
                 const data = snap.data();
-
+                
                 // No modo dev (VS Code), ignora o bloqueio para você conseguir trabalhar!
                 if (!isLocalhost) {
                     if (data.status === 'pausado') { destruirTudo("Indisponível Temporariamente", "Estamos realizando manutenções na loja.", "pausado"); return; }
@@ -2229,72 +2229,55 @@
                     </div>
 
                     <div class="col-span-full mb-4 bg-gray-900 border border-gray-700 p-4 rounded-xl">
-                        <label class="flex items-center gap-3 cursor-pointer text-gray-300 font-bold text-sm mb-4">
-                            <input type="checkbox" id="prod-has-variations"
-                                class="w-5 h-5 rounded bg-black border-gray-600 text-yellow-500 focus:ring-0 transition">
-                            Produto com mais de um tamanho? (Controle por Grade)
-                        </label>
+    <label class="flex items-center gap-3 cursor-pointer text-gray-300 font-bold text-sm mb-4">
+        <input type="checkbox" id="prod-has-variations" class="w-5 h-5 rounded bg-black border-gray-600 text-yellow-500 focus:ring-0 transition">
+        Produto com mais de um tamanho? (Controle por Grade)
+    </label>
 
-                        <div id="div-general-stock" class="flex flex-col gap-3">
-                            <div class="flex flex-col">
-                                <label class="text-gray-500 text-[10px] uppercase font-bold mb-1">Estoque Geral</label>
-                                <input type="number" id="prod-stock"
-                                    class="bg-black text-white text-sm border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500 transition"
-                                    placeholder="Ex: 100">
-                            </div>
-                            <div class="flex flex-col">
-                                <label class="text-gray-500 text-[10px] uppercase font-bold mb-1">Tamanhos (Separados
-                                    por vírgula)</label>
-                                <input type="text" id="prod-sizes-simple"
-                                    class="bg-black text-white text-sm border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500 transition"
-                                    placeholder="Ex: P, M, G (Opcional)">
-                            </div>
-                        </div>
+    <div id="div-general-stock" class="flex flex-col gap-3">
+        <div class="flex flex-col">
+            <label class="text-gray-500 text-[10px] uppercase font-bold mb-1">Estoque Geral</label>
+            <input type="number" id="prod-stock" class="bg-black text-white text-sm border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500 transition" placeholder="Ex: 100">
+        </div>
+        <div class="flex flex-col">
+            <label class="text-gray-500 text-[10px] uppercase font-bold mb-1">Tamanhos (Separados por vírgula)</label>
+            <input type="text" id="prod-sizes-simple" class="bg-black text-white text-sm border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500 transition" placeholder="Ex: P, M, G (Opcional)">
+        </div>
+    </div>
 
-                        <div id="div-variations-stock" class="hidden flex-col gap-3">
-                            <div class="flex items-center gap-3">
-                                <button type="button" onclick="openVariationModal()"
-                                    class="w-10 h-10 rounded-lg bg-yellow-500 hover:bg-yellow-400 text-black flex items-center justify-center font-bold shadow-lg transition transform hover:scale-105">
-                                    <i class="fas fa-plus"></i>
-                                </button>
-                                <span class="text-gray-400 text-xs font-bold uppercase tracking-wider">Adicionar
-                                    Tamanho</span>
-                            </div>
+    <div id="div-variations-stock" class="hidden flex-col gap-3">
+        <div class="flex items-center gap-3">
+            <button type="button" onclick="openVariationModal()" class="w-10 h-10 rounded-lg bg-yellow-500 hover:bg-yellow-400 text-black flex items-center justify-center font-bold shadow-lg transition transform hover:scale-105">
+                <i class="fas fa-plus"></i>
+            </button>
+            <span class="text-gray-400 text-xs font-bold uppercase tracking-wider">Adicionar Tamanho</span>
+        </div>
+        
+        <div id="variations-badges-container" class="flex flex-wrap gap-2 mt-2"></div>
+    </div>
+</div>
 
-                            <div id="variations-badges-container" class="flex flex-wrap gap-2 mt-2"></div>
-                        </div>
-                    </div>
+<div id="variation-input-modal" class="hidden fixed inset-0 bg-black/80 z-[99999] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-[#151720] border border-gray-700 p-6 rounded-2xl w-full max-w-xs shadow-2xl transform transition-all">
+        <h4 class="text-yellow-500 font-bold mb-4 text-sm uppercase tracking-widest text-center"><i class="fas fa-tags mr-1"></i> Informar Estoque</h4>
+        
+        <div class="flex flex-col gap-3 mb-6">
+            <div class="flex flex-col">
+                <label class="text-gray-500 text-[10px] uppercase font-bold mb-1">Tamanho da Peça</label>
+                <input type="text" id="var-modal-name" placeholder="Ex: M, 38, Único" class="bg-black text-white text-sm border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500 uppercase">
+            </div>
+            <div class="flex flex-col">
+                <label class="text-gray-500 text-[10px] uppercase font-bold mb-1">Quantidade em Estoque</label>
+                <input type="number" id="var-modal-stock" placeholder="Ex: 5" class="bg-black text-white text-sm border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500">
+            </div>
+        </div>
 
-                    <div id="variation-input-modal"
-                        class="hidden fixed inset-0 bg-black/80 z-[99999] flex items-center justify-center p-4 backdrop-blur-sm">
-                        <div
-                            class="bg-[#151720] border border-gray-700 p-6 rounded-2xl w-full max-w-xs shadow-2xl transform transition-all">
-                            <h4 class="text-yellow-500 font-bold mb-4 text-sm uppercase tracking-widest text-center"><i
-                                    class="fas fa-tags mr-1"></i> Informar Estoque</h4>
-
-                            <div class="flex flex-col gap-3 mb-6">
-                                <div class="flex flex-col">
-                                    <label class="text-gray-500 text-[10px] uppercase font-bold mb-1">Tamanho da
-                                        Peça</label>
-                                    <input type="text" id="var-modal-name" placeholder="Ex: M, 38, Único"
-                                        class="bg-black text-white text-sm border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500 uppercase">
-                                </div>
-                                <div class="flex flex-col">
-                                    <label class="text-gray-500 text-[10px] uppercase font-bold mb-1">Quantidade em
-                                        Estoque</label>
-                                    <input type="number" id="var-modal-stock" placeholder="Ex: 5"
-                                        class="bg-black text-white text-sm border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500">
-                                </div>
-                            </div>
-
-                            <div class="flex gap-2">
-                                <button type="button" onclick="closeVariationModal()"
-                                    class="flex-1 bg-gray-800 text-gray-400 py-3 rounded-xl text-xs font-bold hover:bg-gray-700 transition">Cancelar</button>
-                                <button type="button" onclick="saveVariationFromModal()"
-                                    class="flex-1 bg-green-600 text-white py-3 rounded-xl text-xs font-bold hover:bg-green-500 transition shadow-lg shadow-green-900/50">Salvar</button>
-                            </div>
-                        </div>
-                    </div>
+        <div class="flex gap-2">
+            <button type="button" onclick="closeVariationModal()" class="flex-1 bg-gray-800 text-gray-400 py-3 rounded-xl text-xs font-bold hover:bg-gray-700 transition">Cancelar</button>
+            <button type="button" onclick="saveVariationFromModal()" class="flex-1 bg-green-600 text-white py-3 rounded-xl text-xs font-bold hover:bg-green-500 transition shadow-lg shadow-green-900/50">Salvar</button>
+        </div>
+    </div>
+</div>
 
                 </div>
                 <div class="md:col-span-2 bg-gray-900 p-4 rounded border border-gray-700 mt-2">

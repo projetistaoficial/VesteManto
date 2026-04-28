@@ -3238,18 +3238,22 @@ function setupEventListeners() {
 
     // Forms
     if (els.btnAddCat) {
-        els.btnAddCat.onclick = async () => {
-            const nameInput = els.newCatName.value.trim();
-            if (!nameInput) return alert("Digite o nome");
-            let finalName = nameInput;
-            if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
-            try {
-                await addDoc(collection(db, `sites/${state.siteId}/categories`), { name: finalName });
-                els.newCatName.value = '';
-                state.selectedCategoryParent = null;
-                renderAdminCategoryList();
-            } catch (error) { alert("Erro: " + error.message); }
-        };
+    els.btnAddCat.onclick = async () => {
+        const nameInput = els.newCatName.value.trim();
+        if (!nameInput) return alert("Digite o nome");
+        let finalName = nameInput;
+        if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
+        try {
+            // ✨ Adiciona Date.now() no order para garantir que ela caia sempre no fim da lista
+            await addDoc(collection(db, `sites/${state.siteId}/categories`), { 
+                name: finalName, 
+                order: Date.now() 
+            });
+            els.newCatName.value = '';
+            state.selectedCategoryParent = null;
+            renderAdminCategoryList();
+        } catch (error) { alert("Erro: " + error.message); }
+    };
 
         setupAccordion('btn-acc-profile', 'content-acc-profile', 'arrow-acc-profile');
         const btnProfile = getEl('btn-acc-profile');
@@ -4425,6 +4429,42 @@ function openProductModal(productId) {
     }, 10);
 };
 
+// Controle de visibilidade do Checkbox
+document.addEventListener('DOMContentLoaded', () => {
+    const chkVar = document.getElementById('prod-has-variations');
+    if (chkVar) {
+        chkVar.addEventListener('change', (e) => {
+            const divGen = document.getElementById('div-general-stock');
+            const divVar = document.getElementById('div-variations-stock');
+            if (e.target.checked) {
+                divGen.classList.add('hidden');
+                divVar.classList.remove('hidden');
+                // Se ligar e estiver vazio, adiciona uma linha inicial
+                if (document.getElementById('variations-container').children.length === 0) {
+                    addVariationRow();
+                }
+            } else {
+                divGen.classList.remove('hidden');
+                divVar.classList.add('hidden');
+            }
+        });
+    }
+});
+
+window.addVariationRow = (name = '', stock = '') => {
+    const container = document.getElementById('variations-container');
+    const div = document.createElement('div');
+    div.className = "flex items-center gap-2 variation-row animate-fade-in";
+    div.innerHTML = `
+        <input type="text" placeholder="Tamanho (Ex: M)" value="${name}" class="var-name w-1/2 bg-black text-white text-xs border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500">
+        <input type="number" placeholder="Qtd (Ex: 5)" value="${stock}" class="var-stock w-1/3 bg-black text-white text-xs border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500">
+        <button type="button" onclick="this.parentElement.remove()" class="w-10 h-10 shrink-0 rounded-lg bg-red-900/20 text-red-500 hover:bg-red-600 hover:text-white flex items-center justify-center transition border border-red-900/30">
+            <i class="fas fa-trash-alt text-xs"></i>
+        </button>
+    `;
+    container.appendChild(div);
+};
+
 function closeProductModal() {
     const modal = getEl('product-modal');
     const backdrop = getEl('modal-backdrop');
@@ -4644,8 +4684,25 @@ window.saveProduct = async (e) => {
             name: document.getElementById('prod-name').value,
             category: document.getElementById('prod-cat-select').value,
             description: document.getElementById('prod-desc').value,
-            price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
-            promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
+const hasVariations = document.getElementById('prod-has-variations').checked;
+let finalSizes = [];
+let finalStock = 0;
+
+if (hasVariations) {
+    const rows = document.querySelectorAll('.variation-row');
+    rows.forEach(row => {
+        const n = row.querySelector('.var-name').value.trim();
+        const s = parseInt(row.querySelector('.var-stock').value) || 0;
+        if (n) {
+            finalSizes.push({ name: n, stock: s });
+            finalStock += s; // A soma de todas as variações vira o estoque geral
+        }
+    });
+} else {
+    const sizesRaw = document.getElementById('prod-sizes-simple').value || "";
+    finalSizes = sizesRaw.split(',').map(s => s.trim()).filter(s => s);
+    finalStock = parseInt(document.getElementById('prod-stock').value) || 0;
+}
             stock: parseInt(document.getElementById('prod-stock').value) || 0,
             cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
             sizes: document.getElementById('prod-sizes').value.split(',').map(s => s.trim()).filter(s => s),

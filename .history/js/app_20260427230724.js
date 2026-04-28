@@ -946,64 +946,13 @@ function loadProducts() {
 }
 
 function loadCategories() {
-    // Carrega sem forçar ordem alfabética no banco
-    const q = query(collection(db, `sites/${state.siteId}/categories`));
-    
+    const q = query(collection(db, `sites/${state.siteId}/categories`), orderBy('name'));
     onSnapshot(q, (snapshot) => {
-        let cats = snapshot.docs.map(d => ({ id: d.id, order: 999, ...d.data() }));
-        
-        // Ordena primeiro pela numeração 'order', se empatar, vai por ordem alfabética
-        cats.sort((a, b) => {
-            if (a.order !== b.order) return a.order - b.order;
-            return a.name.localeCompare(b.name);
-        });
-
-        state.categories = cats;
+        state.categories = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         renderCategories();
         renderAdminCategoryList();
     });
 }
-
-// ✨ NOVA FUNÇÃO: Move a categoria para cima ou para baixo
-window.moveCategory = async (id, fullPath, direction) => {
-    // 1. Descobre quem é o "Pai" desta categoria para mexer só nas irmãs dela
-    const parts = fullPath.split(' - ');
-    parts.pop(); // Remove o nome dela, sobra só o caminho do pai
-    const parentPath = parts.length > 0 ? parts.join(' - ') : null;
-
-    // 2. Filtra as categorias que estão no mesmo nível (mesmo pai)
-    const siblings = state.categories.filter(c => {
-        const cParts = c.name.split(' - ');
-        cParts.pop();
-        const cParentPath = cParts.length > 0 ? cParts.join(' - ') : null;
-        return cParentPath === parentPath;
-    });
-
-    // 3. Acha a posição atual
-    const currentIndex = siblings.findIndex(s => s.id === id);
-    if (currentIndex === -1) return;
-
-    // 4. Calcula a nova posição
-    const targetIndex = currentIndex + direction;
-    if (targetIndex < 0 || targetIndex >= siblings.length) return; // Bateu no teto ou chão
-
-    // 5. Troca as duas de lugar na lista temporária
-    const temp = siblings[currentIndex];
-    siblings[currentIndex] = siblings[targetIndex];
-    siblings[targetIndex] = temp;
-
-    // 6. Salva a nova ordem de todo o grupo no Firebase
-    try {
-        const promises = siblings.map((sib, index) => {
-            // Multiplica por 10 para dar espaço a inserções futuras se necessário
-            return updateDoc(doc(db, `sites/${state.siteId}/categories`, sib.id), { order: index * 10 });
-        });
-        await Promise.all(promises);
-    } catch (e) {
-        console.error("Erro ao reordenar:", e);
-        showToast("Erro ao reordenar categoria.", "error");
-    }
-};
 
 function loadCoupons() {
     const q = query(collection(db, `sites/${state.siteId}/coupons`));
@@ -1542,35 +1491,50 @@ function renderCatalog(productsToRender) {
 //LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
 // =================================================================
 function renderCategories() {
-    // 1. Função de Preenchimento dos Selects (Mantida igual, já vem ordenada do state)
+    // 1. Definição da Função de Preenchimento (Interna e Segura)
     const populateSelect = (elementId) => {
-        const selectEl = document.getElementById(elementId);
+        const selectEl = document.getElementById(elementId); // Pega direto do HTML para garantir
         if (!selectEl) return;
+
         const currentVal = selectEl.value;
+
+        // LÓGICA DE TEXTO:
+        // Aumentei para 768px para pegar tablets e celulares grandes também
         const isMobile = window.innerWidth < 768;
+
+        // Texto bem curto para mobile
         const defaultLabel = isMobile ? "Todas categorias" : "Todas as Categorias";
 
+        // Aplica o HTML
+        // A classe text-xs ou text-[8px] do HTML vai controlar o tamanho da fonte.
+        // Aqui controlamos apenas o QUE está escrito.
         selectEl.innerHTML = `<option value="" class="text-gray-500">${defaultLabel}</option>`;
+
+        // Adiciona as categorias
         state.categories.forEach(c => {
             selectEl.innerHTML += `<option value="${c.name}">${c.name}</option>`;
         });
+
+        // Restaura a seleção
         if (currentVal) selectEl.value = currentVal;
     };
 
-    populateSelect('category-filter');
-    populateSelect('admin-filter-cat');
-    populateSelect('bulk-category-select');
-    populateSelect('prod-cat-select');
-    populateSelect('bulk-category-select-dynamic');
+    // 2. Chama a função para todos os selects de categoria do site
+    populateSelect('category-filter');       // Filtro da Vitrine
+    populateSelect('admin-filter-cat');      // Filtro do Admin
+    populateSelect('bulk-category-select');  // Ações em massa
+    populateSelect('prod-cat-select');       // Formulário de produto
+    populateSelect('bulk-category-select-dynamic'); // Barra dinâmica
 
-    // 2. Renderiza a Sidebar (Menu Lateral)
+    // 3. Renderiza a Sidebar (Menu Lateral)
     const sidebarContainer = document.getElementById('sidebar-categories');
     if (sidebarContainer) {
+        const catNames = state.categories.map(c => c.name);
+
+        // Monta a Árvore de Categorias
         const tree = {};
-        
-        // Monta a Árvore
-        state.categories.forEach(c => {
-            const parts = c.name.split(' - ');
+        catNames.forEach(name => {
+            const parts = name.split(' - ');
             let currentLevel = tree;
             parts.forEach((part, index) => {
                 if (!currentLevel[part]) {
@@ -1581,22 +1545,10 @@ function renderCategories() {
             });
         });
 
-        // Helper para descobrir a ordem na hora de desenhar
-        const getOrder = (path) => {
-            const cat = state.categories.find(c => c.name === path);
-            return cat && cat.order !== undefined ? cat.order : 999;
-        };
-
-        // Função Recursiva HTML
+        // Função Recursiva HTML para Sidebar
         const buildHtml = (node, level = 0) => {
             let html = '';
-            // ✨ MÁGICA: Ordena os filhos pela propriedade 'order' em vez de ordem alfabética
-            const keys = Object.keys(node).sort((a, b) => {
-                const orderA = getOrder(node[a]._path);
-                const orderB = getOrder(node[b]._path);
-                if (orderA !== orderB) return orderA - orderB;
-                return a.localeCompare(b);
-            });
+            const keys = Object.keys(node).sort();
 
             keys.forEach(key => {
                 const item = node[key];
@@ -1652,15 +1604,18 @@ window.selectParentCategory = (id, name, event) => {
 function renderAdminCategoryList() {
     if (!els.catListAdmin) return;
 
+    // 1. PERSISTÊNCIA (Mantém aberto o que já estava aberto)
     const openDetailsIds = new Set();
     els.catListAdmin.querySelectorAll('details[open]').forEach(el => {
         if (el.dataset.catId) openDetailsIds.add(el.dataset.catId);
     });
 
     els.catListAdmin.innerHTML = '';
+
     const catMap = {};
     state.categories.forEach(c => catMap[c.name] = c.id);
 
+    // Helper de Contagem
     const getProductCount = (catName) => {
         if (!state.products) return 0;
         return state.products.filter(p => {
@@ -1669,9 +1624,11 @@ function renderAdminCategoryList() {
         }).length;
     };
 
+    // Monta a Árvore
     const tree = {};
-    // Pega a lista do state que já está ordenada por 'order'
-    state.categories.forEach(c => {
+    const sortedCats = [...state.categories].sort((a, b) => a.name.localeCompare(b.name));
+
+    sortedCats.forEach(c => {
         const parts = c.name.split(' - ');
         let currentLevel = tree;
         parts.forEach((part, index) => {
@@ -1683,50 +1640,46 @@ function renderAdminCategoryList() {
         });
     });
 
-    const getOrder = (path) => {
-        const cat = state.categories.find(c => c.name === path);
-        return cat && cat.order !== undefined ? cat.order : 999;
-    };
-
+    // Renderização
     const buildHtml = (node, level = 0) => {
         let html = '';
-        // ✨ Ordena também na renderização do Admin
-        const keys = Object.keys(node).sort((a, b) => {
-            const orderA = getOrder(node[a]._path);
-            const orderB = getOrder(node[b]._path);
-            if (orderA !== orderB) return orderA - orderB;
-            return a.localeCompare(b);
-        });
+        const keys = Object.keys(node).sort();
 
-        keys.forEach((key, index) => {
+        keys.forEach(key => {
             const item = node[key];
             const childrenKeys = Object.keys(item._children);
             const hasChildren = childrenKeys.length > 0;
             const fullPath = item._path;
             const id = catMap[fullPath];
 
+            // --- CONTAGENS ---
             const prodCount = getProductCount(fullPath);
             const subCatCount = childrenKeys.length;
 
             let statsText = `${prodCount} produto(s)`;
-            if (subCatCount > 0) statsText += ` • ${subCatCount} subcategoria(s)`;
+            if (subCatCount > 0) {
+                statsText += ` • ${subCatCount} subcategoria(s)`;
+            }
 
             const isMain = level === 0;
             const isSelected = state.selectedCategoryParent === fullPath;
             const selectBorder = isSelected ? 'border-yellow-500' : 'border-gray-700';
             const isOpenAttr = openDetailsIds.has(id) ? 'open' : '';
-            const bgClass = isMain ? 'bg-[#1f2937] mb-2' : 'bg-black/30 mt-1 ml-4 border-l-2 border-gray-700';
 
-            // Verifica se é o primeiro ou último para ocultar as setas desnecessárias
-            const isFirst = index === 0;
-            const isLast = index === keys.length - 1;
+            const bgClass = isMain
+                ? 'bg-[#1f2937] mb-2'
+                : 'bg-black/30 mt-1 ml-4 border-l-2 border-gray-700';
 
             const rowContent = `
                 <div class="flex items-center justify-between p-3 rounded hover:bg-white/5 transition cursor-pointer group min-h-[60px]">
-                    <div class="flex flex-col justify-center flex-1" onclick="selectParentCategory('${id}', '${fullPath}', event)">
+                    
+                    <div class="flex flex-col justify-center flex-1" 
+                         onclick="selectParentCategory('${id}', '${fullPath}', event)">
+                        
                         <span class="${isMain ? 'text-white font-bold text-sm' : 'text-gray-300 text-sm'} ${isSelected ? 'text-yellow-500' : ''}">
                             ${key}
                         </span>
+                        
                         <span class="text-xs text-gray-400 font-bold mt-1 flex items-center gap-1">
                             ${statsText}
                         </span>
@@ -1734,30 +1687,23 @@ function renderAdminCategoryList() {
 
                     <div class="flex items-center gap-3">
                         ${hasChildren ?
-                            `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
+                    `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
                                 <span class="text-gray-300 text-sm group-open:text-yellow-500">▲</span>
-                             </div>` : ''}
+                             </div>`
+                    : ''}
 
-                        <div class="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity pl-2 border-l border-gray-700">
-                            
-                            <button type="button" onclick="event.stopPropagation(); moveCategory('${id}', '${fullPath}', -1)" 
-                                    class="w-6 h-8 rounded bg-gray-800 text-gray-400 hover:bg-gray-600 hover:text-white flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed" 
-                                    title="Mover para Cima" ${isFirst ? 'disabled' : ''}>
-                                <i class="fas fa-arrow-up text-[10px]"></i>
-                            </button>
-                            <button type="button" onclick="event.stopPropagation(); moveCategory('${id}', '${fullPath}', 1)" 
-                                    class="w-6 h-8 rounded bg-gray-800 text-gray-400 hover:bg-gray-600 hover:text-white flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed mr-1" 
-                                    title="Mover para Baixo" ${isLast ? 'disabled' : ''}>
-                                <i class="fas fa-arrow-down text-[10px]"></i>
-                            </button>
-
-                            <button type="button" onclick="event.stopPropagation(); renameCategory('${id}', '${fullPath}')" 
-                                    class="w-8 h-8 rounded-full bg-blue-900/30 text-blue-400 hover:bg-blue-600 hover:text-white flex items-center justify-center transition" title="Editar Nome">
+                        <div class="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity pl-2 border-l border-gray-700">
+                            <button type="button" 
+                                    onclick="event.stopPropagation(); renameCategory('${id}', '${fullPath}')" 
+                                    class="w-8 h-8 rounded-full bg-blue-900/30 text-blue-400 hover:bg-blue-600 hover:text-white flex items-center justify-center transition"
+                                    title="Editar Nome">
                                 <i class="fas fa-pen text-xs"></i>
                             </button>
 
-                            <button type="button" onclick="event.stopPropagation(); deleteCategory('${id}', '${fullPath}')" 
-                                    class="w-8 h-8 rounded-full bg-red-900/30 text-red-400 hover:bg-red-600 hover:text-white flex items-center justify-center transition" title="Excluir Categoria">
+                            <button type="button" 
+                                    onclick="event.stopPropagation(); deleteCategory('${id}', '${fullPath}')" 
+                                    class="w-8 h-8 rounded-full bg-red-900/30 text-red-400 hover:bg-red-600 hover:text-white flex items-center justify-center transition"
+                                    title="Excluir Categoria">
                                 <i class="fas fa-trash-alt text-xs"></i>
                             </button>
                         </div>
@@ -1768,12 +1714,20 @@ function renderAdminCategoryList() {
             if (hasChildren) {
                 html += `
                     <details class="rounded border ${selectBorder} ${bgClass} overflow-hidden group transition-all duration-300" ${isOpenAttr} data-cat-id="${id}">
-                        <summary class="list-none select-none outline-none">${rowContent}</summary>
-                        <div class="pb-2 pr-2 border-t border-gray-700/50 animate-fade-in">${buildHtml(item._children, level + 1)}</div>
+                        <summary class="list-none select-none outline-none">
+                            ${rowContent}
+                        </summary>
+                        <div class="pb-2 pr-2 border-t border-gray-700/50 animate-fade-in">
+                            ${buildHtml(item._children, level + 1)}
+                        </div>
                     </details>
                 `;
             } else {
-                html += `<div class="rounded border ${selectBorder} ${bgClass}">${rowContent}</div>`;
+                html += `
+                    <div class="rounded border ${selectBorder} ${bgClass}">
+                        ${rowContent}
+                    </div>
+                `;
             }
         });
         return html;

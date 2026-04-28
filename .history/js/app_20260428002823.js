@@ -3238,18 +3238,22 @@ function setupEventListeners() {
 
     // Forms
     if (els.btnAddCat) {
-        els.btnAddCat.onclick = async () => {
-            const nameInput = els.newCatName.value.trim();
-            if (!nameInput) return alert("Digite o nome");
-            let finalName = nameInput;
-            if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
-            try {
-                await addDoc(collection(db, `sites/${state.siteId}/categories`), { name: finalName });
-                els.newCatName.value = '';
-                state.selectedCategoryParent = null;
-                renderAdminCategoryList();
-            } catch (error) { alert("Erro: " + error.message); }
-        };
+    els.btnAddCat.onclick = async () => {
+        const nameInput = els.newCatName.value.trim();
+        if (!nameInput) return alert("Digite o nome");
+        let finalName = nameInput;
+        if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
+        try {
+            // ✨ Adiciona Date.now() no order para garantir que ela caia sempre no fim da lista
+            await addDoc(collection(db, `sites/${state.siteId}/categories`), { 
+                name: finalName, 
+                order: Date.now() 
+            });
+            els.newCatName.value = '';
+            state.selectedCategoryParent = null;
+            renderAdminCategoryList();
+        } catch (error) { alert("Erro: " + error.message); }
+    };
 
         setupAccordion('btn-acc-profile', 'content-acc-profile', 'arrow-acc-profile');
         const btnProfile = getEl('btn-acc-profile');

@@ -760,7 +760,7 @@ async function initApp() {
                                 loginModal.setAttribute('open', 'true');
                             }
                         }
-                    }, 500); 
+                    }, 500);
                 }
             }
             setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
@@ -948,10 +948,10 @@ function loadProducts() {
 function loadCategories() {
     // Carrega sem forçar ordem alfabética no banco
     const q = query(collection(db, `sites/${state.siteId}/categories`));
-    
+
     onSnapshot(q, (snapshot) => {
         let cats = snapshot.docs.map(d => ({ id: d.id, order: 999, ...d.data() }));
-        
+
         // Ordena primeiro pela numeração 'order', se empatar, vai por ordem alfabética
         cats.sort((a, b) => {
             if (a.order !== b.order) return a.order - b.order;
@@ -1567,7 +1567,7 @@ function renderCategories() {
     const sidebarContainer = document.getElementById('sidebar-categories');
     if (sidebarContainer) {
         const tree = {};
-        
+
         // Monta a Árvore
         state.categories.forEach(c => {
             const parts = c.name.split(' - ');
@@ -1734,7 +1734,7 @@ function renderAdminCategoryList() {
 
                     <div class="flex items-center gap-3">
                         ${hasChildren ?
-                            `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
+                    `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
                                 <span class="text-gray-300 text-sm group-open:text-yellow-500">▲</span>
                              </div>` : ''}
 
@@ -2640,7 +2640,7 @@ function renderSalesList(orders) {
         // =========================================================
         const btnPrint = `<button type="button" onclick="event.stopPropagation(); printOrder('${o.id}')" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-3 py-2 rounded text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-print"></i> Imprimir</button>`;
         const btnFinance = `<button type="button" onclick="event.stopPropagation(); document.getElementById('admin-finance-panel-${o.id}').classList.toggle('hidden');" class="bg-blue-900/20 hover:bg-blue-900/40 border border-blue-900/50 text-blue-400 px-3 py-2 rounded text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-hand-holding-usd"></i> Lucro</button>`;
-        
+
         const actionButtonsLeft = `<div class="flex items-center gap-2 w-full md:w-auto">${btnPrint}${btnFinance}</div>`;
 
         let controlsHtml = '';
@@ -2692,12 +2692,12 @@ function renderSalesList(orders) {
         // =========================================================
         let totalCost = 0;
         const financeDetailsHtml = (o.items || []).map(i => {
-             const c = parseFloat(i.cost) || 0;
-             const rev = parseFloat(i.price) * parseInt(i.qty);
-             const prof = rev - (c * parseInt(i.qty));
-             totalCost += c * parseInt(i.qty);
-             
-             return `
+            const c = parseFloat(i.cost) || 0;
+            const rev = parseFloat(i.price) * parseInt(i.qty);
+            const prof = rev - (c * parseInt(i.qty));
+            totalCost += c * parseInt(i.qty);
+
+            return `
                 <div class="flex justify-between items-center text-[11px] border-b border-gray-800/50 pb-2 mb-2 last:border-0 last:pb-0 last:mb-0">
                     <span class="font-bold text-gray-300 truncate pr-2 flex-1">${i.qty}x ${i.name}</span>
                     <div class="flex flex-col items-end text-right">
@@ -2907,7 +2907,7 @@ function setupEventListeners() {
 
                 let loggedIn = false;
                 // Força minúsculo para evitar erro de letras (Case Sensitivity)
-                const emailDaLoja = `${state.siteId}@projetista.com`.toLowerCase(); 
+                const emailDaLoja = `${state.siteId}@projetista.com`.toLowerCase();
 
                 // ✨ TENTATIVA 1: Lojista Oficial (Nova Segurança)
                 try {
@@ -2915,18 +2915,18 @@ function setupEventListeners() {
                     loggedIn = true;
                     console.log("✅ Login: Lojista Oficial");
                 } catch (e1) {
-                    
+
                     // ✨ TENTATIVA 2: Mestre Oficial
                     try {
                         await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
                         loggedIn = true;
                         console.log("✅ Login: Administrador Mestre");
                     } catch (e2) {
-                        
+
                         // ✨ TENTATIVA 3: AUTO-MIGRAÇÃO (A MÁGICA ACONTECE AQUI)
                         const docRef = doc(db, "sites", state.siteId);
                         const snap = await getDocFromServer(docRef);
-                        
+
                         if (snap.exists() && snap.data().access?.admin === pass) {
                             // A senha confere no banco antigo! Vamos criar o crachá oficial agora.
                             if (pass.length >= 6) {
@@ -2953,7 +2953,7 @@ function setupEventListeners() {
                     sessionStorage.removeItem('support_mode');
                     if (typeof fecharModalLogin === 'function') fecharModalLogin();
                     if (passInput) passInput.value = '';
-                    
+
                     if (els.menuBtnAdmin) {
                         els.menuBtnAdmin.classList.remove('hidden');
                         els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white group-hover:text-white transition"></i><span class="font-bold uppercase text-sm tracking-wide ml-2">Painel Admin</span>`;
@@ -3244,7 +3244,11 @@ function setupEventListeners() {
             let finalName = nameInput;
             if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
             try {
-                await addDoc(collection(db, `sites/${state.siteId}/categories`), { name: finalName });
+                // ✨ Adiciona Date.now() no order para garantir que ela caia sempre no fim da lista
+                await addDoc(collection(db, `sites/${state.siteId}/categories`), {
+                    name: finalName,
+                    order: Date.now()
+                });
                 els.newCatName.value = '';
                 state.selectedCategoryParent = null;
                 renderAdminCategoryList();
@@ -3364,7 +3368,16 @@ function setupEventListeners() {
         btnAddProd.onclick = () => {
             getEl('form-product').reset();
             getEl('edit-prod-id').value = '';
+            
+            // LIMPA AS IMAGENS E OS TAMANHOS
             state.tempImages = [];
+            state.tempVariations = [];
+            renderVariationBadges();
+            
+            // Volta para a visualização "Estoque Geral" padrão
+            document.getElementById('div-general-stock').classList.remove('hidden');
+            document.getElementById('div-variations-stock').classList.add('hidden');
+
             renderImagePreviews();
             const checkNoStock = getEl('prod-allow-no-stock');
             if (checkNoStock) checkNoStock.checked = false;
@@ -3916,7 +3929,7 @@ function showView(viewName) {
         if (floatCapsule) floatCapsule.classList.remove('hidden');
     }
 
-   // =========================================================
+    // =========================================================
     // 3. MOSTRA A TELA ESPECÍFICA E MUDA O TÍTULO DA ABA
     // =========================================================
     const storeName = state.storeProfile?.name || 'Loja';
@@ -3946,12 +3959,12 @@ function showView(viewName) {
             window.activeAvisosListener(); // Desconecta imediatamente do banco
             window.activeAvisosListener = null;
         }
-        
+
         // Esconde o ícone de sino forçadamente se ele estiver visível
         try {
             const alertIcon = document.getElementById('icone-avisos');
             if (alertIcon) alertIcon.classList.add('hidden');
-        } catch (e) {}
+        } catch (e) { }
     }
 
     if (typeof window.checkFooter === 'function') window.checkFooter();
@@ -4176,254 +4189,31 @@ window.updateStatus = async (orderId, newStatus, oldStatus) => {
     }
 };
 
-function openProductModal(productId) {
-    const p = state.products.find(x => x.id === productId);
-    if (!p) return;
 
-    state.focusedProductId = productId;
-    state.currentImgIndex = 0;
 
-    const modal = getEl('product-modal');
-    const backdrop = getEl('modal-backdrop');
-    const card = getEl('modal-card');
-
-    if (!modal || !card) return;
-
-    // Config Visual (Scrollbar fina para a descrição)
-    if (!document.getElementById('style-hide-scroll')) {
-        const style = document.createElement('style');
-        style.id = 'style-hide-scroll';
-        style.innerHTML = `
-            .hide-scroll::-webkit-scrollbar { display: none; } 
-            .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-            .thin-scroll::-webkit-scrollbar { width: 4px; }
-            .thin-scroll::-webkit-scrollbar-track { background: transparent; }
-            .thin-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
-        `;
-        document.head.appendChild(style);
-    }
-
-    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0";
-
-    // Imagens
-    let images = p.images || [];
-    if (images.length === 0) images = ['https://placehold.co/600'];
-    updateCarouselUI(images);
-
-    // Configurações
-    const instProfile = state.storeProfile.installments || { active: false, max: 12, freeUntil: 1 };
-    const pixGlobal = state.storeProfile.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
-
-    const maxInstNoInterest = parseInt(instProfile.freeUntil) || 1;
-    const maxInstTotal = parseInt(instProfile.max) || 12;
-
-    const priceOriginal = parseFloat(p.price || 0);
-    const priceFinal = parseFloat(p.promoPrice || p.price || 0);
-    const hasPromo = p.promoPrice && p.promoPrice < p.price;
-
-    // --- LÓGICA DE EXIBIÇÃO PIX (MODAL) ---
-    let pixHtml = '';
-
-    if (!pixGlobal.disableAll) {
-        if (pixGlobal.active && pixGlobal.value > 0) {
-            const isFixed = (pixGlobal.type === 'fixed');
-            const badgeText = isFixed ? `R$ ${formatCurrency(pixGlobal.value)} OFF` : `${pixGlobal.value}% OFF`;
-            const valueText = isFixed ? `${formatCurrency(pixGlobal.value)}` : `${pixGlobal.value}%`;
-
-            if (pixGlobal.mode === 'total') {
-                pixHtml = `
-                <div class="flex flex-col gap-1 mt-1">
-                    <div class="flex items-center gap-2 text-sm text-gray-300">
-                        <i class="fab fa-pix text-green-400 text-lg"></i>
-                        <span class="text-green-400 font-bold">${valueText} de Desconto</span>
-                    </div>
-                    <p class="text-[10px] text-gray-500 pl-6 italic">* Aplicado no valor total da venda.</p>
-                </div>`;
-            } else {
-                let valDesconto = isFixed ? pixGlobal.value : priceFinal * (pixGlobal.value / 100);
-                const finalPix = Math.max(0, priceFinal - valDesconto);
-
-                pixHtml = `
-                <div class="flex items-center gap-2 text-sm text-gray-300 mt-1">
-                    <i class="fab fa-pix text-green-400 text-lg"></i>
-                    <span><b>${formatCurrency(finalPix)}</b> no Pix <span class="text-green-400 text-[10px] font-bold bg-green-900/30 px-1.5 py-0.5 rounded ml-1">${badgeText}</span></span>
-                </div>`;
-            }
-        } else if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
-            const pixConfig = p.paymentOptions.pix;
-            let pricePix = priceFinal;
-            let badgeText = '';
-
-            if (pixConfig.type === 'percent') {
-                pricePix = priceFinal * (1 - (pixConfig.val / 100));
-                badgeText = `${pixConfig.val}% OFF`;
-            } else {
-                pricePix = Math.max(0, priceFinal - pixConfig.val);
-                badgeText = `-${formatCurrency(pixConfig.val)}`;
-            }
-
-            pixHtml = `
-                <div class="flex items-center gap-2 text-sm text-gray-300 mt-1">
-                    <i class="fab fa-pix text-green-400 text-lg"></i>
-                    <span><b>${formatCurrency(pricePix)}</b> no Pix <span class="text-green-400 text-[10px] font-bold bg-green-900/30 px-1.5 py-0.5 rounded ml-1">${badgeText}</span></span>
-                </div>`;
-        }
-    }
-
-    // Parcelamento
-    let displayInst = (maxInstNoInterest > 1) ? maxInstNoInterest : maxInstTotal;
-    let interestLabel = (maxInstNoInterest > 1) ? '<span class="text-green-400 font-bold text-xs ml-1">sem juros</span>' : '';
-    const priceInstallment = priceFinal / displayInst;
-
-    // =================================================================
-    // ✨ PREENCHIMENTO DE TEXTOS E LÓGICA DO "VER MAIS" (CORRIGIDO)
-    // =================================================================
-    if (getEl('modal-title')) getEl('modal-title').innerText = p.name;
-    
-    const elDesc = getEl('modal-desc');
-    if (elDesc) {
-        const fullText = p.description || "Sem descrição detalhada.";
-        elDesc.innerText = fullText;
-        
-        // Remove botão antigo se existir
-        const oldBtn = document.getElementById('btn-read-more');
-        if (oldBtn) oldBtn.remove();
-
-        // Reset inicial para evitar resíduos de produtos anteriores
-        elDesc.style.maxHeight = 'unset';
-        elDesc.style.overflowY = 'hidden';
-        elDesc.classList.remove('thin-scroll');
-
-        // Se o texto for muito grande (mais de 150 caracteres ou mais de 2 Enter's)
-        if (fullText.length > 150 || (fullText.match(/\n/g) || []).length > 2) {
-            
-            // Aplica o corte de 3 linhas inicial
-            elDesc.style.display = '-webkit-box';
-            elDesc.style.webkitLineClamp = '3'; 
-            elDesc.style.webkitBoxOrient = 'vertical';
-            elDesc.style.overflow = 'hidden';
-
-            // Cria o botão "Ver mais"
-            const btnMore = document.createElement('button');
-            btnMore.id = 'btn-read-more';
-            btnMore.className = 'text-yellow-500 font-bold text-xs mt-2 hover:underline focus:outline-none transition';
-            btnMore.innerText = 'Ver mais';
-            
-            // Lógica de Expandir/Recolher
-            btnMore.onclick = () => {
-                if (elDesc.style.webkitLineClamp === '3') {
-                    // EXPANDIR: Tira o limite de linhas, mas põe limite de altura e scroll
-                    elDesc.style.webkitLineClamp = 'unset';
-                    elDesc.style.maxHeight = '200px'; 
-                    elDesc.style.overflowY = 'auto'; 
-                    elDesc.classList.add('thin-scroll'); 
-                    btnMore.innerText = 'Ver menos';
-                } else {
-                    // RECOLHER: Volta o limite de linhas, tira scroll
-                    elDesc.style.webkitLineClamp = '3';
-                    elDesc.style.maxHeight = 'unset';
-                    elDesc.style.overflowY = 'hidden';
-                    elDesc.classList.remove('thin-scroll');
-                    btnMore.innerText = 'Ver mais';
-                    
-                    // Joga o scroll do texto pro topo ao fechar
-                    elDesc.scrollTop = 0; 
+// Controle de visibilidade do Checkbox
+document.addEventListener('DOMContentLoaded', () => {
+    const chkVar = document.getElementById('prod-has-variations');
+    if (chkVar) {
+        chkVar.addEventListener('change', (e) => {
+            const divGen = document.getElementById('div-general-stock');
+            const divVar = document.getElementById('div-variations-stock');
+            if (e.target.checked) {
+                divGen.classList.add('hidden');
+                divVar.classList.remove('hidden');
+                // Se ligar e estiver vazio, adiciona uma linha inicial
+                if (document.getElementById('variations-container').children.length === 0) {
+                    addVariationRow();
                 }
-            };
-            
-            elDesc.parentNode.insertBefore(btnMore, elDesc.nextSibling);
-        } else {
-            elDesc.style.webkitLineClamp = 'unset';
-        }
+            } else {
+                divGen.classList.remove('hidden');
+                divVar.classList.add('hidden');
+            }
+        });
     }
+});
 
-    const elPrice = getEl('modal-price');
-    if (elPrice) {
-        let htmlHtml = '';
-        if (hasPromo) htmlHtml += `<span class="text-gray-500 text-sm line-through block mb-1">De: ${formatCurrency(priceOriginal)}</span>`;
 
-        htmlHtml += `<div class="text-green-500 font-bold text-4xl tracking-tight">${formatCurrency(priceFinal)}</div>`;
-
-        htmlHtml += `
-            <div class="mt-3 pt-3 border-t border-gray-700 space-y-2">
-                ${pixHtml}
-                ${instProfile.active ? `
-                <div class="flex items-center gap-2 text-sm text-gray-300">
-                    <i class="fas fa-credit-card text-yellow-500 text-lg"></i>
-                    <span>Ou até <b>${displayInst}x</b> de <b>${formatCurrency(priceInstallment)}</b> ${interestLabel}</span>
-                </div>` : ''}
-            </div>
-        `;
-        elPrice.innerHTML = htmlHtml;
-    }
-
-    // =================================================================
-    // ✨ SCROLL (Ajustado com min-h-0 para consertar o bug do flexbox)
-    // =================================================================
-    const rightCol = card.children[2];
-    if (rightCol) {
-        // Adicionando 'min-h-0' aqui é o que resolve o bug do mouse não scrollar até o fim no computador
-        rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-y-auto relative hide-scroll min-h-0";
-        if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
-        if (rightCol.children[1]) rightCol.children[1].className = "px-6 md:px-8 py-6 space-y-6 flex-1 min-h-0";
-    }
-
-    // Tamanhos
-    const sizesDiv = getEl('modal-sizes');
-    const sizesWrapper = getEl('modal-sizes-wrapper');
-    let selectedSizeInModal = 'U';
-
-    if (sizesDiv) {
-        sizesDiv.innerHTML = '';
-        if (p.sizes && p.sizes.length > 0) {
-            if (sizesWrapper) sizesWrapper.classList.remove('hidden');
-            selectedSizeInModal = p.sizes[0];
-            p.sizes.forEach(s => {
-                const btn = document.createElement('button');
-                btn.className = `w-10 h-10 rounded border font-bold transition flex items-center justify-center text-sm ${s === selectedSizeInModal ? 'bg-yellow-500 text-black border-yellow-500' : 'border-gray-600 text-gray-300 hover:border-yellow-500 hover:text-yellow-500'}`;
-                btn.innerText = s;
-                btn.onclick = () => {
-                    selectedSizeInModal = s;
-                    Array.from(sizesDiv.children).forEach(b => {
-                        if (b.innerText === s) b.className = "w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm";
-                        else b.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
-                    });
-                };
-                sizesDiv.appendChild(btn);
-            });
-        } else {
-            if (sizesWrapper) sizesWrapper.classList.add('hidden');
-        }
-    }
-
-    // Botão Adicionar
-    const btnAdd = getEl('modal-add-cart');
-    if (btnAdd) {
-        const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-        const safeStockModal = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
-        const isOut = safeStockModal <= 0 && !allowNegative;
-
-        if (isOut) {
-            btnAdd.disabled = true;
-            btnAdd.innerHTML = "<span>ESGOTADO</span>";
-            btnAdd.className = "w-full bg-gray-700 text-gray-500 font-bold text-sm py-4 rounded-xl cursor-not-allowed uppercase tracking-wide flex items-center justify-center";
-        } else {
-            btnAdd.disabled = false;
-            btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i><span>ADICIONAR</span>`;
-            btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide";
-            btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
-        }
-    }
-
-    // Exibir
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    setTimeout(() => {
-        backdrop.classList.remove('opacity-0');
-        card.classList.remove('opacity-0', 'scale-95');
-        card.classList.add('opacity-100', 'scale-100');
-    }, 10);
-};
 
 function closeProductModal() {
     const modal = getEl('product-modal');
@@ -4612,129 +4402,79 @@ window.confirmDeleteProduct = async (id) => {
     }
 };
 
-window.saveProduct = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    const btnSave = document.querySelector('#form-product button[type="submit"]');
-    const originalText = btnSave ? btnSave.innerText : 'Salvar';
 
-    try {
-        if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
 
-        // --- CORREÇÃO DE LEITURA DO CHECKBOX ---
-        // 1. Tenta pegar pelo ID direto
-        let elHighlight = document.getElementById('prod-highlight');
-        let elNoStock = document.getElementById('prod-allow-no-stock');
 
-        // 2. Se falhar, tenta pegar dentro do form (caso haja duplicidade externa)
-        const form = document.getElementById('form-product');
-        if (form) {
-            if (!elHighlight) elHighlight = form.querySelector('#prod-highlight');
-            if (!elNoStock) elNoStock = form.querySelector('#prod-allow-no-stock');
-        }
+// Variável na memória para segurar a grade de tamanhos
+state.tempVariations = [];
 
-        // 3. Converte para Booleano (true/false)
-        const isHighlight = elHighlight ? elHighlight.checked : false;
-        const allowNoStock = elNoStock ? elNoStock.checked : false;
 
-        // DEBUG: Veja isso no console ao salvar
-        console.log("--> SALVANDO. Destaque marcado?", isHighlight);
 
-        // 4. Monta o Objeto
-        const productData = {
-            name: document.getElementById('prod-name').value,
-            category: document.getElementById('prod-cat-select').value,
-            description: document.getElementById('prod-desc').value,
-            price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
-            promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
-            stock: parseInt(document.getElementById('prod-stock').value) || 0,
-            cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
-            sizes: document.getElementById('prod-sizes').value.split(',').map(s => s.trim()).filter(s => s),
-            images: state.tempImages || [],
 
-            // GRAVA OS VALORES CAPTURADOS
-            allowNoStock: allowNoStock,
-            highlight: isHighlight,
 
-            paymentOptions: {
-                pix: {
-                    active: document.getElementById('prod-pix-active').checked,
-                    val: parseFloat(document.getElementById('prod-pix-val').value.replace(/\./g, '').replace(',', '.')) || 0,
-                    type: document.getElementById('prod-pix-type').value
-                }
-            }
-        };
-
-        const id = document.getElementById('edit-prod-id').value;
-
-        // 5. Envia
-        if (!id) {
-            const nextCode = await getNextProductCode(state.siteId);
-            productData.code = nextCode;
-            productData.createdAt = new Date().toISOString();
-            await addDoc(collection(db, `sites/${state.siteId}/products`), productData);
-            showToast(`Produto #${nextCode} criado!`);
-        } else {
-            await updateDoc(doc(db, `sites/${state.siteId}/products`, id), productData);
-            showToast('Produto atualizado!');
-        }
-
-        // 6. Limpa e Fecha
-        document.getElementById('product-form-modal').classList.add('hidden');
-        document.getElementById('form-product').reset();
-        state.tempImages = [];
-        if (typeof renderImagePreviews === 'function') renderImagePreviews();
-        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-
-    } catch (error) {
-        console.error(error);
-        alert('Erro ao salvar: ' + error.message);
-    } finally {
-        if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
-    }
+// Funções do Mini Modal
+window.openVariationModal = () => {
+    document.getElementById('var-modal-name').value = '';
+    document.getElementById('var-modal-stock').value = '';
+    document.getElementById('variation-input-modal').classList.remove('hidden');
+    document.getElementById('var-modal-name').focus();
 };
 
-window.editProduct = (id) => {
-    const p = state.products.find(x => x.id === id);
-    if (!p) return;
+window.closeVariationModal = () => {
+    document.getElementById('variation-input-modal').classList.add('hidden');
+};
 
-    console.log(`Abrindo edição: ${p.name}`);
-    console.log(`Valor de 'highlight' no banco:`, p.highlight); // Deve mostrar true, false ou undefined
+window.saveVariationFromModal = () => {
+    const name = document.getElementById('var-modal-name').value.trim().toUpperCase();
+    const stock = parseInt(document.getElementById('var-modal-stock').value);
 
-    // Inputs de texto
-    document.getElementById('edit-prod-id').value = p.id;
-    document.getElementById('prod-name').value = p.name;
-    document.getElementById('prod-cat-select').value = p.category || "";
-    document.getElementById('prod-desc').value = p.description || "";
-    document.getElementById('prod-price').value = formatMoneyForInput(p.price);
-    document.getElementById('prod-promo').value = formatMoneyForInput(p.promoPrice);
-    document.getElementById('prod-stock').value = p.stock;
-    document.getElementById('prod-cost').value = formatMoneyForInput(p.cost);
-    document.getElementById('prod-sizes').value = p.sizes ? p.sizes.join(', ') : '';
+    if (!name) return showToast("Informe o nome do tamanho!", "error");
+    if (isNaN(stock)) return showToast("Informe a quantidade!", "error");
 
-    // --- CHECKBOXES (LEITURA) ---
-    const elHighlight = document.getElementById('prod-highlight');
-    const elNoStock = document.getElementById('prod-allow-no-stock');
-
-    // Usa !!p.highlight para forçar que undefined vire false e true vire true
-    if (elHighlight) elHighlight.checked = !!p.highlight;
-    if (elNoStock) elNoStock.checked = !!p.allowNoStock;
-
-    // Imagens e Pix
-    state.tempImages = p.images ? [...p.images] : [];
-    if (typeof renderImagePreviews === 'function') renderImagePreviews();
-
-    const pixData = p.paymentOptions?.pix || { active: false, val: 0, type: 'percent' };
-    document.getElementById('prod-pix-active').checked = pixData.active;
-    document.getElementById('prod-pix-val').value = pixData.type === 'percent' ? pixData.val : formatMoneyForInput(pixData.val);
-    document.getElementById('prod-pix-type').value = pixData.type;
-
-    const settingsPix = document.getElementById('pix-settings');
-    if (settingsPix) {
-        settingsPix.classList.toggle('opacity-50', !pixData.active);
-        settingsPix.classList.toggle('pointer-events-none', !pixData.active);
+    // Verifica se já existe esse tamanho, se sim, atualiza o estoque dele
+    const existingIdx = state.tempVariations.findIndex(v => v.name === name);
+    if (existingIdx >= 0) {
+        state.tempVariations[existingIdx].stock = stock;
+    } else {
+        state.tempVariations.push({ name, stock });
     }
 
-    document.getElementById('product-form-modal').classList.remove('hidden');
+    renderVariationBadges();
+    closeVariationModal();
+};
+
+window.removeVariation = (name) => {
+    state.tempVariations = state.tempVariations.filter(v => v.name !== name);
+    renderVariationBadges();
+};
+
+// Renderiza as tags uma do lado da outra
+window.renderVariationBadges = () => {
+    const container = document.getElementById('variations-badges-container');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!state.tempVariations || state.tempVariations.length === 0) {
+        container.innerHTML = '<p class="text-xs text-gray-600 italic">Nenhum tamanho adicionado.</p>';
+        return;
+    }
+
+    state.tempVariations.forEach(v => {
+        // Se estiver zerado, pinta a tag de vermelho
+        const bgCor = v.stock <= 0 ? 'bg-red-900/30 border-red-500/50' : 'bg-gray-800 border-gray-600';
+        const txtCor = v.stock <= 0 ? 'text-red-400' : 'text-gray-300';
+
+        container.innerHTML += `
+            <div class="flex items-center gap-3 ${bgCor} border px-3 py-1.5 rounded-lg shadow-sm animate-fade-in">
+                <span class="text-white font-black text-sm">${v.name}</span>
+                <span class="${txtCor} text-[10px] uppercase font-bold tracking-wide border-l border-gray-600 pl-3">Estoque: ${v.stock}</span>
+                <button type="button" onclick="removeVariation('${v.name}')" class="text-gray-500 hover:text-red-500 ml-1 transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    });
 };
 
 window.deleteCoupon = async (id) => {
@@ -7155,69 +6895,73 @@ window.adminRevertStatus = async (orderId) => {
     }
 };
 
-// Função auxiliar para atualizar no Firebase com BAIXA DE ESTOQUE AUTOMÁTICA
+// Função auxiliar para atualizar no Firebase com BAIXA DE ESTOQUE AUTOMÁTICA HÍBRIDA
 async function updateOrderStatusDB(orderId, newStatus) {
     try {
         const orderRef = doc(db, `sites/${state.siteId}/sales`, orderId);
-
-        // 1. Busca o pedido ATUAL
         const docSnap = await getDoc(orderRef);
         if (!docSnap.exists()) return alert("Pedido não encontrado.");
 
         const currentOrder = docSnap.data();
         const oldStatus = currentOrder.status || 'Aguardando aprovação';
 
-        // 2. CONFIGURAÇÃO DAS REGRAS
-        const stockConsumingStatuses = [
-            'Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'
-        ];
-
+        const stockConsumingStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
         const wasConsuming = stockConsumingStatuses.includes(oldStatus);
         const isConsuming = stockConsumingStatuses.includes(newStatus);
         const items = currentOrder.items || [];
 
-        // --- CENÁRIO A: BAIXA DE ESTOQUE (Entrou em status válido) ---
-        if (!wasConsuming && isConsuming) {
+        // LÓGICA MESTRA: Aplica a baixa ou devolução
+        const processInventory = async (isReduction) => {
             for (const item of items) {
                 if (item.id) {
                     const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
                     const pSnap = await getDoc(prodRef);
                     if (pSnap.exists()) {
-                        const currentStock = parseInt(pSnap.data().stock) || 0;
+                        const pData = pSnap.data();
                         const qty = parseInt(item.qty) || 0;
-                        let newStock = currentStock - qty;
-                        if (newStock < 0) newStock = 0;
-                        await updateDoc(prodRef, { stock: newStock });
+                        const modifier = isReduction ? -qty : qty; // Se reduzir subtrai, se devolver soma
+
+                        let updatePayload = {};
+
+                        // 1. Atualiza o estoque geral (Sempre ocorre)
+                        let newGeneralStock = (parseInt(pData.stock) || 0) + modifier;
+                        if (newGeneralStock < 0) newGeneralStock = 0;
+                        updatePayload.stock = newGeneralStock;
+
+                        // 2. Se for produto de Variações, atualiza a variação ESPECÍFICA
+                        if (pData.hasVariations && Array.isArray(pData.sizes)) {
+                            updatePayload.sizes = pData.sizes.map(s => {
+                                // item.size aqui é o que foi salvo no carrinho ("P", "M", etc)
+                                if (s.name === item.size) {
+                                    let ns = parseInt(s.stock) + modifier;
+                                    if (ns < 0) ns = 0;
+                                    return { ...s, stock: ns };
+                                }
+                                return s;
+                            });
+                        }
+
+                        await updateDoc(prodRef, updatePayload);
                     }
                 }
             }
+        };
+
+        if (!wasConsuming && isConsuming) {
+            await processInventory(true); // Reduz Estoque
             showToast(`Estoque baixado!`, 'success');
         }
-
-        // --- CENÁRIO B: DEVOLUÇÃO DE ESTOQUE (Saiu de status válido) ---
         else if (wasConsuming && !isConsuming) {
-            for (const item of items) {
-                if (item.id) {
-                    const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
-                    const pSnap = await getDoc(prodRef);
-                    if (pSnap.exists()) {
-                        const currentStock = parseInt(pSnap.data().stock) || 0;
-                        const qty = parseInt(item.qty) || 0;
-                        await updateDoc(prodRef, { stock: currentStock + qty });
-                    }
-                }
-            }
+            await processInventory(false); // Devolve Estoque
             showToast(`Estoque devolvido.`, 'info');
         }
 
-        // 3. Atualiza o pedido
+        // Atualiza o pedido
         const updateData = { status: newStatus };
         if (newStatus === 'Concluído' && oldStatus !== 'Concluído') {
             updateData.completedAt = new Date().toISOString();
         }
-
         await updateDoc(orderRef, updateData);
-        // O onSnapshot do loadAdminSales cuidará de atualizar a tela automaticamente.
 
     } catch (error) {
         console.error("Erro ao atualizar status:", error);
@@ -8700,18 +8444,18 @@ window.processarAvisos = () => { console.log("Processador antigo ignorado."); };
 window.loadAvisos = () => {
     // 1. TRAVA NUCLEAR: Só roda se a tela preta do Admin estiver presente e visível
     const viewAdmin = document.getElementById('view-admin');
-    
+
     if (!viewAdmin || viewAdmin.classList.contains('hidden')) {
         console.log("🛑 Radar abortado: A tela de Admin não está visível.");
         if (window.activeAvisosListener) {
             window.activeAvisosListener();
             window.activeAvisosListener = null;
         }
-        return; 
+        return;
     }
 
     if (!state.siteId || state.siteId === 'demo') return;
-    
+
     // Evita ouvintes duplicados
     if (window.activeAvisosListener) return;
 
@@ -8726,7 +8470,7 @@ window.loadAvisos = () => {
         if (!checkAdmin || checkAdmin.classList.contains('hidden')) return;
 
         const unreadCount = snapshot.docs.length;
-        
+
         // Acende o ícone do sino apenas no painel
         try {
             const alertIcon = document.getElementById('icone-avisos');
@@ -8738,7 +8482,7 @@ window.loadAvisos = () => {
                     alertIcon.classList.add('hidden');
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
 
         // Dispara a mensagem
         snapshot.docChanges().forEach((change) => {
@@ -8782,14 +8526,14 @@ window.printOrder = (orderId) => {
 
     const storeProfile = state.storeProfile || {};
     const storeName = storeProfile.name || "Loja";
-    const orderNumber = order.code || order.id.slice(0,6);
-    
+    const orderNumber = order.code || order.id.slice(0, 6);
+
     // NOME CONFIGURADO PARA A IMPRESSÃO
     const fileName = `Pedido_${orderNumber}`;
 
     const dataObj = new Date(order.date);
     const dataHoraFormatada = `${dataObj.toLocaleDateString('pt-BR')} às ${dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-    
+
     const subtotal = order.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
     const frete = order.shippingFee || 0;
     let descontos = (subtotal + frete) - order.total;
@@ -8799,13 +8543,13 @@ window.printOrder = (orderId) => {
     const cleanMethodName = rawMethod.split('[')[0].trim();
 
     // 🔄 ALTERAÇÃO 1: Logo forçada a ficar no centro (display: block; margin: 0 auto)
-    const logoHtml = storeProfile.logo 
-        ? `<img src="${storeProfile.logo}" style="display: block; margin: 0 auto 8px auto; max-width: 140px; max-height: 100px; object-fit: contain; filter: grayscale(100%) contrast(1.2);">` 
+    const logoHtml = storeProfile.logo
+        ? `<img src="${storeProfile.logo}" style="display: block; margin: 0 auto 8px auto; max-width: 140px; max-height: 100px; object-fit: contain; filter: grayscale(100%) contrast(1.2);">`
         : '';
 
     let itemsHtml = order.items.map(i => `
         <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="flex: 1; padding-right: 10px;">${i.qty}x ${i.name}${i.size !== 'U' ? ' ('+i.size+')' : ''}</span>
+            <span style="flex: 1; padding-right: 10px;">${i.qty}x ${i.name}${i.size !== 'U' ? ' (' + i.size + ')' : ''}</span>
             <span style="white-space: nowrap;">${formatCurrency(i.price * i.qty)}</span>
         </div>
     `).join('');
@@ -8848,7 +8592,7 @@ window.printOrder = (orderId) => {
     // 3. Monta o Cupom invisível na página
     const printContainer = document.createElement('div');
     printContainer.id = 'print-thermal-container';
-    
+
     const addressText = order.customer.address || "Não informado (Retirada)";
 
     printContainer.innerHTML = `

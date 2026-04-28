@@ -946,64 +946,13 @@ function loadProducts() {
 }
 
 function loadCategories() {
-    // Carrega sem forçar ordem alfabética no banco
-    const q = query(collection(db, `sites/${state.siteId}/categories`));
-    
+    const q = query(collection(db, `sites/${state.siteId}/categories`), orderBy('name'));
     onSnapshot(q, (snapshot) => {
-        let cats = snapshot.docs.map(d => ({ id: d.id, order: 999, ...d.data() }));
-        
-        // Ordena primeiro pela numeração 'order', se empatar, vai por ordem alfabética
-        cats.sort((a, b) => {
-            if (a.order !== b.order) return a.order - b.order;
-            return a.name.localeCompare(b.name);
-        });
-
-        state.categories = cats;
+        state.categories = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         renderCategories();
         renderAdminCategoryList();
     });
 }
-
-// ✨ NOVA FUNÇÃO: Move a categoria para cima ou para baixo
-window.moveCategory = async (id, fullPath, direction) => {
-    // 1. Descobre quem é o "Pai" desta categoria para mexer só nas irmãs dela
-    const parts = fullPath.split(' - ');
-    parts.pop(); // Remove o nome dela, sobra só o caminho do pai
-    const parentPath = parts.length > 0 ? parts.join(' - ') : null;
-
-    // 2. Filtra as categorias que estão no mesmo nível (mesmo pai)
-    const siblings = state.categories.filter(c => {
-        const cParts = c.name.split(' - ');
-        cParts.pop();
-        const cParentPath = cParts.length > 0 ? cParts.join(' - ') : null;
-        return cParentPath === parentPath;
-    });
-
-    // 3. Acha a posição atual
-    const currentIndex = siblings.findIndex(s => s.id === id);
-    if (currentIndex === -1) return;
-
-    // 4. Calcula a nova posição
-    const targetIndex = currentIndex + direction;
-    if (targetIndex < 0 || targetIndex >= siblings.length) return; // Bateu no teto ou chão
-
-    // 5. Troca as duas de lugar na lista temporária
-    const temp = siblings[currentIndex];
-    siblings[currentIndex] = siblings[targetIndex];
-    siblings[targetIndex] = temp;
-
-    // 6. Salva a nova ordem de todo o grupo no Firebase
-    try {
-        const promises = siblings.map((sib, index) => {
-            // Multiplica por 10 para dar espaço a inserções futuras se necessário
-            return updateDoc(doc(db, `sites/${state.siteId}/categories`, sib.id), { order: index * 10 });
-        });
-        await Promise.all(promises);
-    } catch (e) {
-        console.error("Erro ao reordenar:", e);
-        showToast("Erro ao reordenar categoria.", "error");
-    }
-};
 
 function loadCoupons() {
     const q = query(collection(db, `sites/${state.siteId}/coupons`));
@@ -1542,35 +1491,50 @@ function renderCatalog(productsToRender) {
 //LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
 // =================================================================
 function renderCategories() {
-    // 1. Função de Preenchimento dos Selects (Mantida igual, já vem ordenada do state)
+    // 1. Definição da Função de Preenchimento (Interna e Segura)
     const populateSelect = (elementId) => {
-        const selectEl = document.getElementById(elementId);
+        const selectEl = document.getElementById(elementId); // Pega direto do HTML para garantir
         if (!selectEl) return;
+
         const currentVal = selectEl.value;
+
+        // LÓGICA DE TEXTO:
+        // Aumentei para 768px para pegar tablets e celulares grandes também
         const isMobile = window.innerWidth < 768;
+
+        // Texto bem curto para mobile
         const defaultLabel = isMobile ? "Todas categorias" : "Todas as Categorias";
 
+        // Aplica o HTML
+        // A classe text-xs ou text-[8px] do HTML vai controlar o tamanho da fonte.
+        // Aqui controlamos apenas o QUE está escrito.
         selectEl.innerHTML = `<option value="" class="text-gray-500">${defaultLabel}</option>`;
+
+        // Adiciona as categorias
         state.categories.forEach(c => {
             selectEl.innerHTML += `<option value="${c.name}">${c.name}</option>`;
         });
+
+        // Restaura a seleção
         if (currentVal) selectEl.value = currentVal;
     };
 
-    populateSelect('category-filter');
-    populateSelect('admin-filter-cat');
-    populateSelect('bulk-category-select');
-    populateSelect('prod-cat-select');
-    populateSelect('bulk-category-select-dynamic');
+    // 2. Chama a função para todos os selects de categoria do site
+    populateSelect('category-filter');       // Filtro da Vitrine
+    populateSelect('admin-filter-cat');      // Filtro do Admin
+    populateSelect('bulk-category-select');  // Ações em massa
+    populateSelect('prod-cat-select');       // Formulário de produto
+    populateSelect('bulk-category-select-dynamic'); // Barra dinâmica
 
-    // 2. Renderiza a Sidebar (Menu Lateral)
+    // 3. Renderiza a Sidebar (Menu Lateral)
     const sidebarContainer = document.getElementById('sidebar-categories');
     if (sidebarContainer) {
+        const catNames = state.categories.map(c => c.name);
+
+        // Monta a Árvore de Categorias
         const tree = {};
-        
-        // Monta a Árvore
-        state.categories.forEach(c => {
-            const parts = c.name.split(' - ');
+        catNames.forEach(name => {
+            const parts = name.split(' - ');
             let currentLevel = tree;
             parts.forEach((part, index) => {
                 if (!currentLevel[part]) {
@@ -1581,22 +1545,10 @@ function renderCategories() {
             });
         });
 
-        // Helper para descobrir a ordem na hora de desenhar
-        const getOrder = (path) => {
-            const cat = state.categories.find(c => c.name === path);
-            return cat && cat.order !== undefined ? cat.order : 999;
-        };
-
-        // Função Recursiva HTML
+        // Função Recursiva HTML para Sidebar
         const buildHtml = (node, level = 0) => {
             let html = '';
-            // ✨ MÁGICA: Ordena os filhos pela propriedade 'order' em vez de ordem alfabética
-            const keys = Object.keys(node).sort((a, b) => {
-                const orderA = getOrder(node[a]._path);
-                const orderB = getOrder(node[b]._path);
-                if (orderA !== orderB) return orderA - orderB;
-                return a.localeCompare(b);
-            });
+            const keys = Object.keys(node).sort();
 
             keys.forEach(key => {
                 const item = node[key];
@@ -1652,15 +1604,18 @@ window.selectParentCategory = (id, name, event) => {
 function renderAdminCategoryList() {
     if (!els.catListAdmin) return;
 
+    // 1. PERSISTÊNCIA (Mantém aberto o que já estava aberto)
     const openDetailsIds = new Set();
     els.catListAdmin.querySelectorAll('details[open]').forEach(el => {
         if (el.dataset.catId) openDetailsIds.add(el.dataset.catId);
     });
 
     els.catListAdmin.innerHTML = '';
+
     const catMap = {};
     state.categories.forEach(c => catMap[c.name] = c.id);
 
+    // Helper de Contagem
     const getProductCount = (catName) => {
         if (!state.products) return 0;
         return state.products.filter(p => {
@@ -1669,9 +1624,11 @@ function renderAdminCategoryList() {
         }).length;
     };
 
+    // Monta a Árvore
     const tree = {};
-    // Pega a lista do state que já está ordenada por 'order'
-    state.categories.forEach(c => {
+    const sortedCats = [...state.categories].sort((a, b) => a.name.localeCompare(b.name));
+
+    sortedCats.forEach(c => {
         const parts = c.name.split(' - ');
         let currentLevel = tree;
         parts.forEach((part, index) => {
@@ -1683,50 +1640,46 @@ function renderAdminCategoryList() {
         });
     });
 
-    const getOrder = (path) => {
-        const cat = state.categories.find(c => c.name === path);
-        return cat && cat.order !== undefined ? cat.order : 999;
-    };
-
+    // Renderização
     const buildHtml = (node, level = 0) => {
         let html = '';
-        // ✨ Ordena também na renderização do Admin
-        const keys = Object.keys(node).sort((a, b) => {
-            const orderA = getOrder(node[a]._path);
-            const orderB = getOrder(node[b]._path);
-            if (orderA !== orderB) return orderA - orderB;
-            return a.localeCompare(b);
-        });
+        const keys = Object.keys(node).sort();
 
-        keys.forEach((key, index) => {
+        keys.forEach(key => {
             const item = node[key];
             const childrenKeys = Object.keys(item._children);
             const hasChildren = childrenKeys.length > 0;
             const fullPath = item._path;
             const id = catMap[fullPath];
 
+            // --- CONTAGENS ---
             const prodCount = getProductCount(fullPath);
             const subCatCount = childrenKeys.length;
 
             let statsText = `${prodCount} produto(s)`;
-            if (subCatCount > 0) statsText += ` • ${subCatCount} subcategoria(s)`;
+            if (subCatCount > 0) {
+                statsText += ` • ${subCatCount} subcategoria(s)`;
+            }
 
             const isMain = level === 0;
             const isSelected = state.selectedCategoryParent === fullPath;
             const selectBorder = isSelected ? 'border-yellow-500' : 'border-gray-700';
             const isOpenAttr = openDetailsIds.has(id) ? 'open' : '';
-            const bgClass = isMain ? 'bg-[#1f2937] mb-2' : 'bg-black/30 mt-1 ml-4 border-l-2 border-gray-700';
 
-            // Verifica se é o primeiro ou último para ocultar as setas desnecessárias
-            const isFirst = index === 0;
-            const isLast = index === keys.length - 1;
+            const bgClass = isMain
+                ? 'bg-[#1f2937] mb-2'
+                : 'bg-black/30 mt-1 ml-4 border-l-2 border-gray-700';
 
             const rowContent = `
                 <div class="flex items-center justify-between p-3 rounded hover:bg-white/5 transition cursor-pointer group min-h-[60px]">
-                    <div class="flex flex-col justify-center flex-1" onclick="selectParentCategory('${id}', '${fullPath}', event)">
+                    
+                    <div class="flex flex-col justify-center flex-1" 
+                         onclick="selectParentCategory('${id}', '${fullPath}', event)">
+                        
                         <span class="${isMain ? 'text-white font-bold text-sm' : 'text-gray-300 text-sm'} ${isSelected ? 'text-yellow-500' : ''}">
                             ${key}
                         </span>
+                        
                         <span class="text-xs text-gray-400 font-bold mt-1 flex items-center gap-1">
                             ${statsText}
                         </span>
@@ -1734,30 +1687,23 @@ function renderAdminCategoryList() {
 
                     <div class="flex items-center gap-3">
                         ${hasChildren ?
-                            `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
+                    `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
                                 <span class="text-gray-300 text-sm group-open:text-yellow-500">▲</span>
-                             </div>` : ''}
+                             </div>`
+                    : ''}
 
-                        <div class="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity pl-2 border-l border-gray-700">
-                            
-                            <button type="button" onclick="event.stopPropagation(); moveCategory('${id}', '${fullPath}', -1)" 
-                                    class="w-6 h-8 rounded bg-gray-800 text-gray-400 hover:bg-gray-600 hover:text-white flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed" 
-                                    title="Mover para Cima" ${isFirst ? 'disabled' : ''}>
-                                <i class="fas fa-arrow-up text-[10px]"></i>
-                            </button>
-                            <button type="button" onclick="event.stopPropagation(); moveCategory('${id}', '${fullPath}', 1)" 
-                                    class="w-6 h-8 rounded bg-gray-800 text-gray-400 hover:bg-gray-600 hover:text-white flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed mr-1" 
-                                    title="Mover para Baixo" ${isLast ? 'disabled' : ''}>
-                                <i class="fas fa-arrow-down text-[10px]"></i>
-                            </button>
-
-                            <button type="button" onclick="event.stopPropagation(); renameCategory('${id}', '${fullPath}')" 
-                                    class="w-8 h-8 rounded-full bg-blue-900/30 text-blue-400 hover:bg-blue-600 hover:text-white flex items-center justify-center transition" title="Editar Nome">
+                        <div class="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity pl-2 border-l border-gray-700">
+                            <button type="button" 
+                                    onclick="event.stopPropagation(); renameCategory('${id}', '${fullPath}')" 
+                                    class="w-8 h-8 rounded-full bg-blue-900/30 text-blue-400 hover:bg-blue-600 hover:text-white flex items-center justify-center transition"
+                                    title="Editar Nome">
                                 <i class="fas fa-pen text-xs"></i>
                             </button>
 
-                            <button type="button" onclick="event.stopPropagation(); deleteCategory('${id}', '${fullPath}')" 
-                                    class="w-8 h-8 rounded-full bg-red-900/30 text-red-400 hover:bg-red-600 hover:text-white flex items-center justify-center transition" title="Excluir Categoria">
+                            <button type="button" 
+                                    onclick="event.stopPropagation(); deleteCategory('${id}', '${fullPath}')" 
+                                    class="w-8 h-8 rounded-full bg-red-900/30 text-red-400 hover:bg-red-600 hover:text-white flex items-center justify-center transition"
+                                    title="Excluir Categoria">
                                 <i class="fas fa-trash-alt text-xs"></i>
                             </button>
                         </div>
@@ -1768,12 +1714,20 @@ function renderAdminCategoryList() {
             if (hasChildren) {
                 html += `
                     <details class="rounded border ${selectBorder} ${bgClass} overflow-hidden group transition-all duration-300" ${isOpenAttr} data-cat-id="${id}">
-                        <summary class="list-none select-none outline-none">${rowContent}</summary>
-                        <div class="pb-2 pr-2 border-t border-gray-700/50 animate-fade-in">${buildHtml(item._children, level + 1)}</div>
+                        <summary class="list-none select-none outline-none">
+                            ${rowContent}
+                        </summary>
+                        <div class="pb-2 pr-2 border-t border-gray-700/50 animate-fade-in">
+                            ${buildHtml(item._children, level + 1)}
+                        </div>
                     </details>
                 `;
             } else {
-                html += `<div class="rounded border ${selectBorder} ${bgClass}">${rowContent}</div>`;
+                html += `
+                    <div class="rounded border ${selectBorder} ${bgClass}">
+                        ${rowContent}
+                    </div>
+                `;
             }
         });
         return html;
@@ -2571,32 +2525,48 @@ function renderSalesList(orders) {
             </div>
         `).join('');
 
-        // --- LÓGICA FINANCEIRA (CUPONS E DESCONTOS) ---
+        // --- LÓGICA FINANCEIRA DETALHADA ---
+        // --- LÓGICA FINANCEIRA DETALHADA (CORRIGIDA) ---
         const subTotalItens = o.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
         const valFrete = o.shippingFee || 0;
         const valTotalPago = o.total || 0;
 
+        // Cálculo matemático simples (pode ser zerado se tiver juros)
         const valDescontoTotal = Math.max(0, (subTotalItens + valFrete) - valTotalPago);
 
         let discountHtml = '';
+
+        // 1. Tenta descobrir dados do CUPOM (Agora fazemos isso FORA do if de valor)
         let valDescontoCupom = 0;
         let nomeCupom = null;
 
+        // Se temos os dados salvos do cupom (Checkout novo)
         if (o.couponData && o.couponData.value) {
             valDescontoCupom = o.couponData.value;
             nomeCupom = o.couponData.code;
-        } else if (o.cupom && o.cupom.trim().length > 0) {
+        }
+        // Fallback para pedidos antigos
+        else if (o.cupom && o.cupom.trim().length > 0) {
             nomeCupom = o.cupom;
             const isPix = (o.paymentMethod || '').toLowerCase().includes('pix');
+            // Se tem nome de cupom e não é Pix, assume que o desconto total é o cupom
             if (!isPix && valDescontoTotal > 0) valDescontoCupom = valDescontoTotal;
         }
 
+        // 2. CONDIÇÃO CORRIGIDA: Entra se tiver desconto matemático OU se tiver um cupom nomeado
+        // Isso garante que mesmo que os juros "comam" o valor do desconto, o nome do cupom aparece.
         if (valDescontoTotal > 0.05 || nomeCupom) {
+
+            // O que sobrar do desconto total é Pix (ou ajuste manual)
+            // (Total Esperado sem Pix = Subtotal + Frete - Cupom)
             const totalEsperadoSemPix = (subTotalItens + valFrete) - valDescontoCupom;
+
+            // Se o total pago for MAIOR que o esperado (juros), o desconto Pix é 0.
             const valDescontoPix = Math.max(0, totalEsperadoSemPix - valTotalPago);
 
             discountHtml += `<div class="mt-2 mb-2 border-y border-gray-700/50 py-2 space-y-1">`;
 
+            // Exibe Linha do Cupom (Sempre que tiver nome)
             if (nomeCupom) {
                 discountHtml += `
                     <div class="flex justify-between text-xs text-gray-300">
@@ -2606,6 +2576,7 @@ function renderSalesList(orders) {
                 `;
             }
 
+            // Exibe Linha do Pix (Se houver valor sobrando e for Pix)
             if (valDescontoPix > 0.05) {
                 discountHtml += `
                     <div class="flex justify-between text-xs text-gray-300">
@@ -2615,6 +2586,7 @@ function renderSalesList(orders) {
                 `;
             }
 
+            // Exibe Genérico (Caso tenha desconto matemático, mas sem cupom nem pix identificados)
             if (!nomeCupom && valDescontoPix <= 0.05 && valDescontoTotal > 0.05) {
                 discountHtml += `
                     <div class="flex justify-between text-xs text-gray-300">
@@ -2623,8 +2595,10 @@ function renderSalesList(orders) {
                     </div>
                 `;
             }
+
             discountHtml += `</div>`;
         }
+        // -----------------------------------
 
         const rawMethod = o.paymentMethod || '';
         const isOnline = rawMethod.includes('Online');
@@ -2635,31 +2609,26 @@ function renderSalesList(orders) {
         if (isOnline) typeBadge = `<span class="text-[10px] bg-green-900/40 text-green-400 border border-green-600/50 px-2 py-0.5 rounded uppercase font-bold tracking-wide mt-1 inline-block">Online</span>`;
         else if (isDelivery) typeBadge = `<span class="text-[10px] bg-orange-900/40 text-orange-400 border border-orange-600/50 px-2 py-0.5 rounded uppercase font-bold tracking-wide mt-1 inline-block">Na Entrega</span>`;
 
-        // =========================================================
-        // ✨ BOTÕES DE AÇÃO LADO A LADO
-        // =========================================================
-        const btnPrint = `<button type="button" onclick="event.stopPropagation(); printOrder('${o.id}')" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-3 py-2 rounded text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-print"></i> Imprimir</button>`;
-        const btnFinance = `<button type="button" onclick="event.stopPropagation(); document.getElementById('admin-finance-panel-${o.id}').classList.toggle('hidden');" class="bg-blue-900/20 hover:bg-blue-900/40 border border-blue-900/50 text-blue-400 px-3 py-2 rounded text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-hand-holding-usd"></i> Lucro</button>`;
-        
-        const actionButtonsLeft = `<div class="flex items-center gap-2 w-full md:w-auto">${btnPrint}${btnFinance}</div>`;
+        // ✨ BOTÃO IMPRIMIR UNIVERSAL (Aparece em todos os status)
+        const btnPrint = `<button onclick="printOrder('${o.id}')" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-3 py-2 rounded text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-print"></i> Imprimir</button>`;
 
         let controlsHtml = '';
         if (o.status.includes('Cancelado')) {
             controlsHtml = `
-                <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700 w-full">
-                    ${actionButtonsLeft}
+                <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700">
+                    ${btnPrint}
                     <span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span>
                 </div>`;
         } else if (o.status === 'Reembolsado') {
             controlsHtml = `
-                <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700 w-full">
-                    ${actionButtonsLeft}
+                <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700">
+                    ${btnPrint}
                     <span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span>
                 </div>`;
         } else if (o.status === 'Concluído') {
             controlsHtml = `
                 <div class="flex justify-between items-center gap-2 mt-4 pt-4 border-t border-gray-700 w-full">
-                    ${actionButtonsLeft}
+                    ${btnPrint}
                     <div class="flex items-center gap-2">
                         <span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs">FINALIZADO</span>
                         <button onclick="adminRefundOrder('${o.id}')" class="border border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-2 rounded text-xs transition font-bold">
@@ -2670,7 +2639,9 @@ function renderSalesList(orders) {
         } else {
             controlsHtml = `
                 <div class="flex flex-col md:flex-row gap-4 justify-between items-center mt-4 border-t border-gray-700 pt-4">
-                    ${actionButtonsLeft}
+                    <div class="w-full md:w-auto">
+                        ${btnPrint}
+                    </div>
                     <div class="flex items-center justify-end gap-2 w-full md:w-auto">
                         <label class="text-gray-500 text-xs uppercase font-bold hidden md:inline">Status:</label>
                         <select onchange="handleStatusChange(this, '${o.id}')" class="bg-gray-900 text-white text-xs border border-gray-600 rounded p-2 focus:border-yellow-500 outline-none flex-1 md:flex-none">
@@ -2686,65 +2657,6 @@ function renderSalesList(orders) {
                 </div>
             `;
         }
-
-        // =========================================================
-        // ✨ LÓGICA DO RESUMO FINANCEIRO (PAINEL ESCONDIDO)
-        // =========================================================
-        let totalCost = 0;
-        const financeDetailsHtml = (o.items || []).map(i => {
-             const c = parseFloat(i.cost) || 0;
-             const rev = parseFloat(i.price) * parseInt(i.qty);
-             const prof = rev - (c * parseInt(i.qty));
-             totalCost += c * parseInt(i.qty);
-             
-             return `
-                <div class="flex justify-between items-center text-[11px] border-b border-gray-800/50 pb-2 mb-2 last:border-0 last:pb-0 last:mb-0">
-                    <span class="font-bold text-gray-300 truncate pr-2 flex-1">${i.qty}x ${i.name}</span>
-                    <div class="flex flex-col items-end text-right">
-                        <span class="text-gray-400">Venda: <span class="text-green-400 font-bold">${formatCurrency(rev)}</span></span>
-                        <span class="text-gray-400 mt-0.5">Custo: <span class="text-red-400 font-bold">- ${formatCurrency(c * i.qty)}</span></span>
-                        <span class="text-blue-400 font-bold border-t border-gray-800 w-full text-right mt-0.5 pt-0.5">Lucro: ${formatCurrency(prof)}</span>
-                    </div>
-                </div>
-             `;
-        }).join('');
-
-        const liquidProfit = o.total - totalCost;
-        const profitMargin = o.total > 0 ? ((liquidProfit / o.total) * 100).toFixed(1) : 0;
-
-        const financePanelHTML = `
-            <div id="admin-finance-panel-${o.id}" onclick="event.stopPropagation()" class="hidden mt-4 mb-2 bg-[#0a0c13] p-4 rounded-xl border border-blue-900/30 shadow-inner cursor-default">
-                <div class="flex justify-between items-center mb-3 border-b border-blue-900/30 pb-2">
-                    <h4 class="text-blue-500 text-[10px] font-bold uppercase tracking-widest"><i class="fas fa-chart-pie mr-1"></i> Análise de Lucro</h4>
-                    <div class="flex gap-2">
-                        <button type="button" onclick="exportFinancePDF('${o.id}')" class="bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/30 px-2 py-1 rounded text-[9px] font-bold uppercase transition flex items-center gap-1"><i class="fas fa-file-pdf"></i> PDF</button>
-                        <button type="button" onclick="exportFinanceExcel('${o.id}')" class="bg-green-900/20 hover:bg-green-900/40 text-green-400 border border-green-900/30 px-2 py-1 rounded text-[9px] font-bold uppercase transition flex items-center gap-1"><i class="fas fa-file-excel"></i> Excel</button>
-                    </div>
-                </div>
-                
-                ${financeDetailsHtml}
-                
-                <div class="mt-3 pt-3 border-t border-blue-900/30 flex flex-col gap-1.5 text-xs">
-                     <div class="flex justify-between text-gray-400">
-                        <span class="text-[11px] text-green-400 font-bold">Receita (Pedido):</span>
-                        <span class="text-green-400 font-bold">${formatCurrency(o.total)}</span>
-                     </div>
-                     <div class="flex justify-between text-gray-400">
-                        <span class="text-[11px] text-red-400 font-bold">Custo (Produtos):</span>
-                        <span class="text-red-400 font-bold">- ${formatCurrency(totalCost)}</span>
-                     </div>
-                     
-                     <div class="flex justify-between items-end mt-2 pt-2 border-t border-gray-800/50">
-                         <span class="text-green-500 font-bold uppercase text-[13px] tracking-wider">Lucro Líquido:</span>
-                         <span class="text-blue-400 font-extrabold text-lg leading-none">${formatCurrency(liquidProfit)}</span>
-                     </div>
-                     
-                     <div class="text-right mt-1">
-                         <span class="text-[9px] bg-blue-900/20 text-blue-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-900/30">Margem: ${profitMargin}%</span>
-                     </div>
-                </div>
-            </div>
-        `;
 
         const cardWrapper = document.createElement('div');
         cardWrapper.className = "mb-4";
@@ -2794,7 +2706,7 @@ function renderSalesList(orders) {
                     </div>
                 </div>
 
-                <div class="bg-gray-900 p-3 rounded border border-gray-800 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mb-2">
+                <div class="bg-gray-900 p-3 rounded border border-gray-800 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mb-4">
                     <div class="flex flex-col">
                         <span class="text-gray-500 font-bold mb-1">Cliente:</span>
                         <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center truncate flex items-center justify-center h-full">${o.customer?.name || '-'}</span>
@@ -2803,6 +2715,7 @@ function renderSalesList(orders) {
                         <span class="text-gray-500 font-bold mb-1">Telefone:</span>
                         <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center flex items-center justify-center h-full">${o.customer?.phone || '-'}</span>
                     </div>
+                    
                     <div class="flex flex-col">
                         <span class="text-gray-500 font-bold mb-1">Pagamento:</span>
                         <div class="bg-gray-800 text-white px-2 py-2 rounded border border-gray-700 w-full text-center flex flex-col items-center justify-center h-full min-h-[50px]">
@@ -2815,8 +2728,7 @@ function renderSalesList(orders) {
                         </div>
                     </div>
                 </div>
-                
-                ${financePanelHTML}
+
                 ${controlsHtml}
             </div>
         `;
@@ -4189,17 +4101,11 @@ function openProductModal(productId) {
 
     if (!modal || !card) return;
 
-    // Config Visual (Scrollbar fina para a descrição)
+    // Config Visual (Scrollbar)
     if (!document.getElementById('style-hide-scroll')) {
         const style = document.createElement('style');
         style.id = 'style-hide-scroll';
-        style.innerHTML = `
-            .hide-scroll::-webkit-scrollbar { display: none; } 
-            .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-            .thin-scroll::-webkit-scrollbar { width: 4px; }
-            .thin-scroll::-webkit-scrollbar-track { background: transparent; }
-            .thin-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
-        `;
+        style.innerHTML = `.hide-scroll::-webkit-scrollbar { display: none; } .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }`;
         document.head.appendChild(style);
     }
 
@@ -4212,6 +4118,8 @@ function openProductModal(productId) {
 
     // Configurações
     const instProfile = state.storeProfile.installments || { active: false, max: 12, freeUntil: 1 };
+
+    // --- LÓGICA CRÍTICA: Carrega o TIPO (percent ou fixed) ---
     const pixGlobal = state.storeProfile.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
 
     const maxInstNoInterest = parseInt(instProfile.freeUntil) || 1;
@@ -4225,12 +4133,22 @@ function openProductModal(productId) {
     let pixHtml = '';
 
     if (!pixGlobal.disableAll) {
+
+        // A) Global Ativo
         if (pixGlobal.active && pixGlobal.value > 0) {
+
+            // 1. Determina se é Valor Fixo ou Porcentagem
             const isFixed = (pixGlobal.type === 'fixed');
+
+            // 2. Prepara os textos baseados no tipo
+            // Ex: "R$ 10,00 OFF" ou "10% OFF"
             const badgeText = isFixed ? `R$ ${formatCurrency(pixGlobal.value)} OFF` : `${pixGlobal.value}% OFF`;
+
+            // Ex: "R$ 10,00" ou "10%" (para o texto descritivo)
             const valueText = isFixed ? `${formatCurrency(pixGlobal.value)}` : `${pixGlobal.value}%`;
 
             if (pixGlobal.mode === 'total') {
+                // MODO TOTAL: Exibe apenas a informação do desconto, SEM CALCULAR no preço do produto
                 pixHtml = `
                 <div class="flex flex-col gap-1 mt-1">
                     <div class="flex items-center gap-2 text-sm text-gray-300">
@@ -4240,7 +4158,15 @@ function openProductModal(productId) {
                     <p class="text-[10px] text-gray-500 pl-6 italic">* Aplicado no valor total da venda.</p>
                 </div>`;
             } else {
-                let valDesconto = isFixed ? pixGlobal.value : priceFinal * (pixGlobal.value / 100);
+                // MODO PRODUTO: Calcula o valor final unitário
+                let valDesconto = 0;
+
+                if (isFixed) {
+                    valDesconto = pixGlobal.value;
+                } else {
+                    valDesconto = priceFinal * (pixGlobal.value / 100);
+                }
+
                 const finalPix = Math.max(0, priceFinal - valDesconto);
 
                 pixHtml = `
@@ -4249,7 +4175,11 @@ function openProductModal(productId) {
                     <span><b>${formatCurrency(finalPix)}</b> no Pix <span class="text-green-400 text-[10px] font-bold bg-green-900/30 px-1.5 py-0.5 rounded ml-1">${badgeText}</span></span>
                 </div>`;
             }
-        } else if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
+
+        }
+
+        // B) Individual (Fallback) - Se global inativo
+        else if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
             const pixConfig = p.paymentOptions.pix;
             let pricePix = priceFinal;
             let badgeText = '';
@@ -4269,73 +4199,16 @@ function openProductModal(productId) {
                 </div>`;
         }
     }
+    // ------------------------------------------
 
     // Parcelamento
     let displayInst = (maxInstNoInterest > 1) ? maxInstNoInterest : maxInstTotal;
     let interestLabel = (maxInstNoInterest > 1) ? '<span class="text-green-400 font-bold text-xs ml-1">sem juros</span>' : '';
     const priceInstallment = priceFinal / displayInst;
 
-    // =================================================================
-    // ✨ PREENCHIMENTO DE TEXTOS E LÓGICA DO "VER MAIS" (CORRIGIDO)
-    // =================================================================
+    // Preenchimento de Textos
     if (getEl('modal-title')) getEl('modal-title').innerText = p.name;
-    
-    const elDesc = getEl('modal-desc');
-    if (elDesc) {
-        const fullText = p.description || "Sem descrição detalhada.";
-        elDesc.innerText = fullText;
-        
-        // Remove botão antigo se existir
-        const oldBtn = document.getElementById('btn-read-more');
-        if (oldBtn) oldBtn.remove();
-
-        // Reset inicial para evitar resíduos de produtos anteriores
-        elDesc.style.maxHeight = 'unset';
-        elDesc.style.overflowY = 'hidden';
-        elDesc.classList.remove('thin-scroll');
-
-        // Se o texto for muito grande (mais de 150 caracteres ou mais de 2 Enter's)
-        if (fullText.length > 150 || (fullText.match(/\n/g) || []).length > 2) {
-            
-            // Aplica o corte de 3 linhas inicial
-            elDesc.style.display = '-webkit-box';
-            elDesc.style.webkitLineClamp = '3'; 
-            elDesc.style.webkitBoxOrient = 'vertical';
-            elDesc.style.overflow = 'hidden';
-
-            // Cria o botão "Ver mais"
-            const btnMore = document.createElement('button');
-            btnMore.id = 'btn-read-more';
-            btnMore.className = 'text-yellow-500 font-bold text-xs mt-2 hover:underline focus:outline-none transition';
-            btnMore.innerText = 'Ver mais';
-            
-            // Lógica de Expandir/Recolher
-            btnMore.onclick = () => {
-                if (elDesc.style.webkitLineClamp === '3') {
-                    // EXPANDIR: Tira o limite de linhas, mas põe limite de altura e scroll
-                    elDesc.style.webkitLineClamp = 'unset';
-                    elDesc.style.maxHeight = '200px'; 
-                    elDesc.style.overflowY = 'auto'; 
-                    elDesc.classList.add('thin-scroll'); 
-                    btnMore.innerText = 'Ver menos';
-                } else {
-                    // RECOLHER: Volta o limite de linhas, tira scroll
-                    elDesc.style.webkitLineClamp = '3';
-                    elDesc.style.maxHeight = 'unset';
-                    elDesc.style.overflowY = 'hidden';
-                    elDesc.classList.remove('thin-scroll');
-                    btnMore.innerText = 'Ver mais';
-                    
-                    // Joga o scroll do texto pro topo ao fechar
-                    elDesc.scrollTop = 0; 
-                }
-            };
-            
-            elDesc.parentNode.insertBefore(btnMore, elDesc.nextSibling);
-        } else {
-            elDesc.style.webkitLineClamp = 'unset';
-        }
-    }
+    if (getEl('modal-desc')) getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
 
     const elPrice = getEl('modal-price');
     if (elPrice) {
@@ -4357,15 +4230,12 @@ function openProductModal(productId) {
         elPrice.innerHTML = htmlHtml;
     }
 
-    // =================================================================
-    // ✨ SCROLL (Ajustado com min-h-0 para consertar o bug do flexbox)
-    // =================================================================
+    // Scroll
     const rightCol = card.children[2];
     if (rightCol) {
-        // Adicionando 'min-h-0' aqui é o que resolve o bug do mouse não scrollar até o fim no computador
-        rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-y-auto relative hide-scroll min-h-0";
+        rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-y-auto relative hide-scroll";
         if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
-        if (rightCol.children[1]) rightCol.children[1].className = "px-6 md:px-8 py-6 space-y-6 flex-1 min-h-0";
+        if (rightCol.children[1]) rightCol.children[1].className = "px-6 md:px-8 py-6 space-y-6 flex-1";
     }
 
     // Tamanhos
@@ -4400,7 +4270,10 @@ function openProductModal(productId) {
     const btnAdd = getEl('modal-add-cart');
     if (btnAdd) {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
+
+        // ✨ ARMADURA NO MODAL: Força o valor para número e protege contra NaN ✨
         const safeStockModal = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
+
         const isOut = safeStockModal <= 0 && !allowNegative;
 
         if (isOut) {
@@ -7423,6 +7296,7 @@ window.showOrderDetail = (orderId) => {
 
 
 // Variável global para controlar o timer e não criar múltiplos intervalos
+// Variável global para controlar o timer e não criar múltiplos intervalos
 window.cancelTimerInterval = null;
 
 window.updateStatusUI = (order) => {
@@ -7434,7 +7308,7 @@ window.updateStatusUI = (order) => {
     const s = order.status;
     const isCancelled = s.includes('Cancelado');
 
-    // 1. LÓGICA DA TIMELINE (Mantida igual)
+    // 1. LÓGICA DA TIMELINE
     let currentStep = 0;
     if (s === 'Aguardando aprovação') currentStep = 0;
     else if (s === 'Aprovado' || s === 'Preparando pedido') currentStep = 1;
@@ -7515,10 +7389,7 @@ window.updateStatusUI = (order) => {
     const valTotalPago = order.total || 0;
     const totalEsperado = subTotalItems + valFrete;
 
-    // 1. Calcula o total de "dinheiro que falta" (Desconto Total)
     const valDescontoTotal = Math.max(0, totalEsperado - valTotalPago);
-
-    // 2. Separa o valor do Cupom
     let valDescontoCupom = 0;
     let nomeCupom = null;
 
@@ -7526,15 +7397,11 @@ window.updateStatusUI = (order) => {
         valDescontoCupom = order.couponData.value;
         nomeCupom = order.couponData.code;
     } else if (order.cupom) {
-        // Fallback antigo
         nomeCupom = order.cupom;
     }
 
-    // 3. O que sobrar é Pix (Desconto Total - Desconto Cupom)
-    // Usamos Math.max(0, ...) para evitar negativos por arredondamento
     const valDescontoPix = Math.max(0, valDescontoTotal - valDescontoCupom);
 
-    // --- CONSTROI O HTML FINANCEIRO ---
     let financialHtml = `
         <div class="mt-3 pt-3 border-t border-gray-700 flex flex-col gap-1">
             <div class="flex justify-between text-xs text-gray-400">
@@ -7551,7 +7418,6 @@ window.updateStatusUI = (order) => {
             </div>`;
     }
 
-    // EXIBE CUPOM SEPARADO
     if (valDescontoCupom > 0.05) {
         financialHtml += `
             <div class="flex justify-between text-xs text-green-400 font-bold">
@@ -7560,7 +7426,6 @@ window.updateStatusUI = (order) => {
             </div>`;
     }
 
-    // EXIBE PIX SEPARADO
     if (valDescontoPix > 0.05) {
         financialHtml += `
             <div class="flex justify-between text-xs text-green-400 font-bold">
@@ -7569,7 +7434,6 @@ window.updateStatusUI = (order) => {
             </div>`;
     }
 
-    // Caso genérico (se tiver desconto mas não identificou a origem exata, ex: erro de arredondamento antigo)
     if (valDescontoTotal > 0.05 && valDescontoCupom < 0.01 && valDescontoPix < 0.01) {
         financialHtml += `
             <div class="flex justify-between text-xs text-green-400 font-bold">
@@ -7586,7 +7450,6 @@ window.updateStatusUI = (order) => {
         </div>
     `;
 
-    // Bloco de Forma de Pagamento
     const paymentBlock = `
         <div class="mt-3 bg-black/40 p-3 rounded border border-gray-700/50">
             <p class="text-[10px] text-gray-500 uppercase font-bold mb-1"><i class="far fa-credit-card mr-1"></i> Forma de Pagamento</p>
@@ -7607,7 +7470,6 @@ window.updateStatusUI = (order) => {
         </div>
     `;
 
-    // Botão Reenviar WhatsApp
     const isOnline = (order.paymentMethod || '').includes('Online');
     const allowedResendStatuses = ['Aguardando aprovação', 'Aprovado', 'Preparando pedido'];
     const canResend = isOnline && allowedResendStatuses.includes(order.status);
@@ -7621,6 +7483,70 @@ window.updateStatusUI = (order) => {
             <p class="text-[10px] text-gray-500 text-center mt-2">Caso não tenha sido redirecionado ao finalizar a compra.</p>
         </div>
     ` : '';
+
+    // =========================================================
+    // ✨ NOVO: LÓGICA DO RESUMO FINANCEIRO (LUCRO)
+    // =========================================================
+    let totalCost = 0;
+    const itemsFinancialHtml = order.items.map(i => {
+        const itemCost = i.cost || 0;
+        const totalItemCost = itemCost * i.qty;
+        const totalItemRev = i.price * i.qty;
+        const totalItemProfit = totalItemRev - totalItemCost;
+        totalCost += totalItemCost;
+
+        return `
+            <div class="flex justify-between items-center text-[11px] border-b border-gray-800/50 pb-2 mb-2 last:border-0 last:pb-0 last:mb-0">
+                <div class="flex flex-col max-w-[55%]">
+                    <span class="text-gray-300 font-bold truncate">${i.qty}x ${i.name}</span>
+                    <span class="text-gray-500 mt-0.5">Custo Un: ${formatCurrency(itemCost)}</span>
+                </div>
+                <div class="flex flex-col items-end text-right">
+                    <span class="text-gray-400">Venda: <span class="text-green-400 font-bold">${formatCurrency(totalItemRev)}</span></span>
+                    <span class="text-gray-400 mt-0.5">Custo: <span class="text-red-400">- ${formatCurrency(totalItemCost)}</span></span>
+                    <span class="text-blue-400 font-bold mt-1 pt-1 border-t border-gray-800/50 w-full text-right">Lucro: ${formatCurrency(totalItemProfit)}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    const liquidProfit = order.total - totalCost;
+    const profitMargin = order.total > 0 ? ((liquidProfit / order.total) * 100).toFixed(1) : 0;
+
+    const financePanelHTML = `
+        <div class="mt-4">
+            <button onclick="document.getElementById('finance-panel-${order.id}').classList.toggle('hidden')" 
+                    class="w-full bg-blue-900/10 hover:bg-blue-900/30 border border-blue-900/50 text-blue-400 font-bold py-3 rounded-lg transition flex justify-center items-center gap-2 text-xs uppercase tracking-wide">
+                <i class="fas fa-hand-holding-usd text-lg"></i> Ver Resumo Financeiro
+            </button>
+            
+            <div id="finance-panel-${order.id}" class="hidden bg-[#0a0c13] border border-blue-900/30 p-4 rounded-lg mt-2 shadow-inner transition-all">
+                <h4 class="text-blue-500 text-[10px] font-bold uppercase mb-3 text-center tracking-widest"><i class="fas fa-chart-pie mr-1"></i> Análise de Lucro</h4>
+                
+                ${itemsFinancialHtml}
+                
+                <div class="mt-3 pt-3 border-t border-blue-900/30 flex flex-col gap-1.5">
+                    <div class="flex justify-between text-xs text-gray-400">
+                        <span>Receita Total (Pedido)</span>
+                        <span class="text-green-400 font-bold">${formatCurrency(order.total)}</span>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-400">
+                        <span>Custo Total (Produtos)</span>
+                        <span class="text-red-400 font-bold">- ${formatCurrency(totalCost)}</span>
+                    </div>
+                    <div class="flex justify-between items-end text-sm text-gray-300 mt-2 pt-2 border-t border-gray-800/50">
+                        <span class="font-bold uppercase text-[10px] tracking-wider text-gray-500">Lucro Líquido</span>
+                        <div class="text-right">
+                            <span class="text-blue-400 font-extrabold text-lg leading-none">${formatCurrency(liquidProfit)}</span>
+                        </div>
+                    </div>
+                    <div class="text-right mt-1">
+                        <span class="text-[9px] bg-blue-900/20 text-blue-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-900/30">Margem: ${profitMargin}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
 
     // 3. RENDERIZAÇÃO FINAL
     detailsContainer.innerHTML = `
@@ -7654,6 +7580,7 @@ window.updateStatusUI = (order) => {
             ${financialHtml}
             ${paymentBlock}
             ${resendBtnHTML}
+            ${financePanelHTML}
         </div>
 
         ${addressBlock}
