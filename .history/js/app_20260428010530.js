@@ -4193,6 +4193,7 @@ window.openProductModal = (productId) => {
 
     if (!modal || !card) return;
 
+    // Adiciona o estilo do scroll fininho se não existir
     if (!document.getElementById('style-hide-scroll')) {
         const style = document.createElement('style');
         style.id = 'style-hide-scroll';
@@ -4206,27 +4207,30 @@ window.openProductModal = (productId) => {
         document.head.appendChild(style);
     }
 
-    // ✨ 1. MODAL PRINCIPAL: Não rola (overflow-hidden). Isso mantém a imagem travada.
-    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0 hide-scroll";
+    // ✨ CORREÇÃO 1: Modal todo rola no Mobile (overflow-y-auto), esconde a barra no PC (md:overflow-hidden)
+    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0 hide-scroll";
 
-    // Pegamos a coluna da imagem e a coluna do texto (pelos índices padrão do seu HTML)
-    const imgCol = card.children[1];
+    // Pega as colunas usando a numeração original do seu código para não dar erro
+    const imgCol = card.children[1]; 
     const rightCol = card.children[2];
 
-    // ✨ 2. IMAGEM FIXA: Ocupa 40% da tela no mobile (40vh) e fica travada.
+    // ✨ CORREÇÃO 2: A imagem fica fixa com altura definida no mobile (h-[40vh]), e inteira no PC
     if (imgCol) {
-        imgCol.className = "w-full md:w-1/2 h-[40vh] md:h-full shrink-0 relative";
+        imgCol.classList.remove('h-full');
+        imgCol.classList.add('h-[40vh]', 'md:h-full', 'shrink-0');
     }
 
-    // ✨ 3. TEXTO ROLÁVEL: A parte de baixo agora rola de forma independente!
+    // ✨ CORREÇÃO 3: A coluna de texto rola no PC (md:overflow-y-auto), mas fica fluída no Mobile
     if (rightCol) {
-        rightCol.className = "w-full md:w-1/2 flex flex-col flex-1 bg-gray-900 overflow-y-auto relative hide-scroll";
+        rightCol.className = "w-full md:w-1/2 flex flex-col flex-1 bg-gray-900 md:overflow-y-auto relative hide-scroll min-h-0 md:h-full";
         if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
-        if (rightCol.children[1]) rightCol.children[1].className = "px-6 md:px-8 py-6 space-y-6 flex-1"; // Removido min-h-0 que causava o vazamento
+        if (rightCol.children[1]) rightCol.children[1].className = "px-6 md:px-8 py-6 space-y-6 flex-1 min-h-0";
     }
 
     let images = p.images || [];
     if (images.length === 0) images = ['https://placehold.co/600'];
+    
+    // Proteção caso a função carousel não exista na memória
     if (typeof updateCarouselUI === 'function') updateCarouselUI(images);
 
     const instProfile = state.storeProfile.installments || { active: false, max: 12, freeUntil: 1 };
@@ -4294,7 +4298,6 @@ window.openProductModal = (productId) => {
     const elTitle = document.getElementById('modal-title');
     if (elTitle) elTitle.innerText = p.name;
 
-    // ✨ 4. DESCRIÇÃO: Ajuste final para o Mobile não sumir
     const elDesc = document.getElementById('modal-desc');
     if (elDesc) {
         const fullText = p.description || "Sem descrição detalhada.";
@@ -4312,7 +4315,7 @@ window.openProductModal = (productId) => {
             elDesc.style.webkitLineClamp = '3';
             elDesc.style.webkitBoxOrient = 'vertical';
             elDesc.style.overflow = 'hidden';
-            elDesc.style.whiteSpace = 'normal'; // Essencial para o mobile calcular altura
+            elDesc.style.whiteSpace = 'normal'; 
 
             const btnMore = document.createElement('button');
             btnMore.id = 'btn-read-more';
@@ -4321,19 +4324,17 @@ window.openProductModal = (productId) => {
 
             btnMore.onclick = () => {
                 if (elDesc.style.webkitLineClamp === '3') {
-                    // Expandir
                     elDesc.style.webkitLineClamp = 'unset';
                     elDesc.style.maxHeight = '200px';
                     elDesc.style.overflowY = 'auto';
-                    elDesc.style.whiteSpace = 'pre-line'; // Volta as quebras de texto originais
+                    elDesc.style.whiteSpace = 'pre-line'; 
                     elDesc.classList.add('thin-scroll');
                     btnMore.innerText = 'Ver menos';
                 } else {
-                    // Recolher
                     elDesc.style.webkitLineClamp = '3';
                     elDesc.style.maxHeight = 'unset';
                     elDesc.style.overflowY = 'hidden';
-                    elDesc.style.whiteSpace = 'normal';
+                    elDesc.style.whiteSpace = 'normal'; 
                     elDesc.classList.remove('thin-scroll');
                     btnMore.innerText = 'Ver mais';
                     elDesc.scrollTop = 0;
@@ -4342,7 +4343,7 @@ window.openProductModal = (productId) => {
             elDesc.parentNode.insertBefore(btnMore, elDesc.nextSibling);
         } else {
             elDesc.style.webkitLineClamp = 'unset';
-            elDesc.style.whiteSpace = 'pre-line';
+            elDesc.style.whiteSpace = 'pre-line'; 
         }
     }
 
@@ -4366,24 +4367,17 @@ window.openProductModal = (productId) => {
         elPrice.innerHTML = htmlHtml;
     }
 
-    // ✨ 5. REORDENAÇÃO FÍSICA DO BOTÃO E DOS TAMANHOS (Sem usar CSS Hack)
+    // ✨ CORREÇÃO 4: Lógica de tamanhos e ordem do botão Segura (Via CSS)
     const sizesWrapper = document.getElementById('modal-sizes-wrapper');
     const sizesDiv = document.getElementById('modal-sizes');
     const btnAdd = document.getElementById('modal-add-cart');
 
-    if (sizesWrapper && btnAdd && sizesWrapper.parentElement === btnAdd.parentElement) {
-        const parent = btnAdd.parentElement;
-        
-        // Removemos qualquer classe que possa ter bugado a ordem
-        parent.classList.remove('flex', 'flex-col');
-        sizesWrapper.style.order = '';
-        btnAdd.style.order = '';
-        
-        // Inserimos o tamanho e depois o botão, isso garante a ordem real no HTML
-        parent.appendChild(sizesWrapper);
-        parent.appendChild(btnAdd);
-        
-        btnAdd.style.marginTop = '16px'; // Dá um respiro entre o tamanho e o botão
+    if (btnAdd && sizesWrapper && btnAdd.parentElement) {
+        // Usa as regras de CSS para forçar visualmente a ordem (1 pro tamanho, 2 pro botão)
+        btnAdd.parentElement.classList.add('flex', 'flex-col');
+        sizesWrapper.style.order = '1';
+        btnAdd.style.order = '2';
+        btnAdd.style.marginTop = '15px';
     }
 
     let selectedSizeInModal = 'U';

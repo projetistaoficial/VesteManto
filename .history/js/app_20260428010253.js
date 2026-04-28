@@ -4206,28 +4206,12 @@ window.openProductModal = (productId) => {
         document.head.appendChild(style);
     }
 
-    // ✨ 1. MODAL PRINCIPAL: Não rola (overflow-hidden). Isso mantém a imagem travada.
-    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0 hide-scroll";
-
-    // Pegamos a coluna da imagem e a coluna do texto (pelos índices padrão do seu HTML)
-    const imgCol = card.children[1];
-    const rightCol = card.children[2];
-
-    // ✨ 2. IMAGEM FIXA: Ocupa 40% da tela no mobile (40vh) e fica travada.
-    if (imgCol) {
-        imgCol.className = "w-full md:w-1/2 h-[40vh] md:h-full shrink-0 relative";
-    }
-
-    // ✨ 3. TEXTO ROLÁVEL: A parte de baixo agora rola de forma independente!
-    if (rightCol) {
-        rightCol.className = "w-full md:w-1/2 flex flex-col flex-1 bg-gray-900 overflow-y-auto relative hide-scroll";
-        if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
-        if (rightCol.children[1]) rightCol.children[1].className = "px-6 md:px-8 py-6 space-y-6 flex-1"; // Removido min-h-0 que causava o vazamento
-    }
+    // ✨ CORREÇÃO 1: Modal todo rola no Mobile (overflow-y-auto), mas esconde a barra no PC (md:overflow-hidden)
+    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0 hide-scroll";
 
     let images = p.images || [];
     if (images.length === 0) images = ['https://placehold.co/600'];
-    if (typeof updateCarouselUI === 'function') updateCarouselUI(images);
+    updateCarouselUI(images);
 
     const instProfile = state.storeProfile.installments || { active: false, max: 12, freeUntil: 1 };
     const pixGlobal = state.storeProfile.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
@@ -4294,7 +4278,6 @@ window.openProductModal = (productId) => {
     const elTitle = document.getElementById('modal-title');
     if (elTitle) elTitle.innerText = p.name;
 
-    // ✨ 4. DESCRIÇÃO: Ajuste final para o Mobile não sumir
     const elDesc = document.getElementById('modal-desc');
     if (elDesc) {
         const fullText = p.description || "Sem descrição detalhada.";
@@ -4312,7 +4295,7 @@ window.openProductModal = (productId) => {
             elDesc.style.webkitLineClamp = '3';
             elDesc.style.webkitBoxOrient = 'vertical';
             elDesc.style.overflow = 'hidden';
-            elDesc.style.whiteSpace = 'normal'; // Essencial para o mobile calcular altura
+            elDesc.style.whiteSpace = 'normal'; 
 
             const btnMore = document.createElement('button');
             btnMore.id = 'btn-read-more';
@@ -4321,19 +4304,17 @@ window.openProductModal = (productId) => {
 
             btnMore.onclick = () => {
                 if (elDesc.style.webkitLineClamp === '3') {
-                    // Expandir
                     elDesc.style.webkitLineClamp = 'unset';
                     elDesc.style.maxHeight = '200px';
                     elDesc.style.overflowY = 'auto';
-                    elDesc.style.whiteSpace = 'pre-line'; // Volta as quebras de texto originais
+                    elDesc.style.whiteSpace = 'pre-line'; 
                     elDesc.classList.add('thin-scroll');
                     btnMore.innerText = 'Ver menos';
                 } else {
-                    // Recolher
                     elDesc.style.webkitLineClamp = '3';
                     elDesc.style.maxHeight = 'unset';
                     elDesc.style.overflowY = 'hidden';
-                    elDesc.style.whiteSpace = 'normal';
+                    elDesc.style.whiteSpace = 'normal'; 
                     elDesc.classList.remove('thin-scroll');
                     btnMore.innerText = 'Ver mais';
                     elDesc.scrollTop = 0;
@@ -4342,7 +4323,7 @@ window.openProductModal = (productId) => {
             elDesc.parentNode.insertBefore(btnMore, elDesc.nextSibling);
         } else {
             elDesc.style.webkitLineClamp = 'unset';
-            elDesc.style.whiteSpace = 'pre-line';
+            elDesc.style.whiteSpace = 'pre-line'; 
         }
     }
 
@@ -4366,26 +4347,24 @@ window.openProductModal = (productId) => {
         elPrice.innerHTML = htmlHtml;
     }
 
-    // ✨ 5. REORDENAÇÃO FÍSICA DO BOTÃO E DOS TAMANHOS (Sem usar CSS Hack)
-    const sizesWrapper = document.getElementById('modal-sizes-wrapper');
-    const sizesDiv = document.getElementById('modal-sizes');
-    const btnAdd = document.getElementById('modal-add-cart');
-
-    if (sizesWrapper && btnAdd && sizesWrapper.parentElement === btnAdd.parentElement) {
-        const parent = btnAdd.parentElement;
-        
-        // Removemos qualquer classe que possa ter bugado a ordem
-        parent.classList.remove('flex', 'flex-col');
-        sizesWrapper.style.order = '';
-        btnAdd.style.order = '';
-        
-        // Inserimos o tamanho e depois o botão, isso garante a ordem real no HTML
-        parent.appendChild(sizesWrapper);
-        parent.appendChild(btnAdd);
-        
-        btnAdd.style.marginTop = '16px'; // Dá um respiro entre o tamanho e o botão
+    // ✨ CORREÇÃO 2: Tira a trava de altura e scroll no Mobile, mantendo fixo no Desktop (md:h-full md:overflow-y-auto)
+    const rightCol = card.children[2];
+    if (rightCol) {
+        rightCol.className = "w-full md:w-1/2 flex flex-col md:h-full bg-gray-900 md:overflow-y-auto relative hide-scroll min-h-0";
+        if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
+        if (rightCol.children[1]) rightCol.children[1].className = "px-6 md:px-8 py-6 space-y-6 flex-1 min-h-0";
     }
 
+    const sizesWrapper = document.getElementById('modal-sizes-wrapper');
+    const btnAdd = document.getElementById('modal-add-cart');
+    if (btnAdd && sizesWrapper && btnAdd.parentElement) {
+        btnAdd.parentElement.classList.add('flex', 'flex-col');
+        sizesWrapper.style.order = '1';
+        btnAdd.style.order = '2';
+        btnAdd.style.marginTop = '15px'; 
+    }
+
+    const sizesDiv = document.getElementById('modal-sizes');
     let selectedSizeInModal = 'U';
 
     const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;

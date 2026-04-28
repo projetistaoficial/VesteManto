@@ -3238,22 +3238,18 @@ function setupEventListeners() {
 
     // Forms
     if (els.btnAddCat) {
-    els.btnAddCat.onclick = async () => {
-        const nameInput = els.newCatName.value.trim();
-        if (!nameInput) return alert("Digite o nome");
-        let finalName = nameInput;
-        if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
-        try {
-            // ✨ Adiciona Date.now() no order para garantir que ela caia sempre no fim da lista
-            await addDoc(collection(db, `sites/${state.siteId}/categories`), { 
-                name: finalName, 
-                order: Date.now() 
-            });
-            els.newCatName.value = '';
-            state.selectedCategoryParent = null;
-            renderAdminCategoryList();
-        } catch (error) { alert("Erro: " + error.message); }
-    };
+        els.btnAddCat.onclick = async () => {
+            const nameInput = els.newCatName.value.trim();
+            if (!nameInput) return alert("Digite o nome");
+            let finalName = nameInput;
+            if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
+            try {
+                await addDoc(collection(db, `sites/${state.siteId}/categories`), { name: finalName });
+                els.newCatName.value = '';
+                state.selectedCategoryParent = null;
+                renderAdminCategoryList();
+            } catch (error) { alert("Erro: " + error.message); }
+        };
 
         setupAccordion('btn-acc-profile', 'content-acc-profile', 'arrow-acc-profile');
         const btnProfile = getEl('btn-acc-profile');
@@ -4180,19 +4176,20 @@ window.updateStatus = async (orderId, newStatus, oldStatus) => {
     }
 };
 
-window.openProductModal = (productId) => {
+function openProductModal(productId) {
     const p = state.products.find(x => x.id === productId);
     if (!p) return;
 
     state.focusedProductId = productId;
     state.currentImgIndex = 0;
 
-    const modal = document.getElementById('product-modal');
-    const backdrop = document.getElementById('modal-backdrop');
-    const card = document.getElementById('modal-card');
+    const modal = getEl('product-modal');
+    const backdrop = getEl('modal-backdrop');
+    const card = getEl('modal-card');
 
     if (!modal || !card) return;
 
+    // Config Visual (Scrollbar fina para a descrição)
     if (!document.getElementById('style-hide-scroll')) {
         const style = document.createElement('style');
         style.id = 'style-hide-scroll';
@@ -4206,29 +4203,14 @@ window.openProductModal = (productId) => {
         document.head.appendChild(style);
     }
 
-    // ✨ 1. MODAL PRINCIPAL: Não rola (overflow-hidden). Isso mantém a imagem travada.
-    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0 hide-scroll";
+    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0";
 
-    // Pegamos a coluna da imagem e a coluna do texto (pelos índices padrão do seu HTML)
-    const imgCol = card.children[1];
-    const rightCol = card.children[2];
-
-    // ✨ 2. IMAGEM FIXA: Ocupa 40% da tela no mobile (40vh) e fica travada.
-    if (imgCol) {
-        imgCol.className = "w-full md:w-1/2 h-[40vh] md:h-full shrink-0 relative";
-    }
-
-    // ✨ 3. TEXTO ROLÁVEL: A parte de baixo agora rola de forma independente!
-    if (rightCol) {
-        rightCol.className = "w-full md:w-1/2 flex flex-col flex-1 bg-gray-900 overflow-y-auto relative hide-scroll";
-        if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
-        if (rightCol.children[1]) rightCol.children[1].className = "px-6 md:px-8 py-6 space-y-6 flex-1"; // Removido min-h-0 que causava o vazamento
-    }
-
+    // Imagens
     let images = p.images || [];
     if (images.length === 0) images = ['https://placehold.co/600'];
-    if (typeof updateCarouselUI === 'function') updateCarouselUI(images);
+    updateCarouselUI(images);
 
+    // Configurações
     const instProfile = state.storeProfile.installments || { active: false, max: 12, freeUntil: 1 };
     const pixGlobal = state.storeProfile.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
 
@@ -4239,6 +4221,7 @@ window.openProductModal = (productId) => {
     const priceFinal = parseFloat(p.promoPrice || p.price || 0);
     const hasPromo = p.promoPrice && p.promoPrice < p.price;
 
+    // --- LÓGICA DE EXIBIÇÃO PIX (MODAL) ---
     let pixHtml = '';
 
     if (!pixGlobal.disableAll) {
@@ -4287,66 +4270,74 @@ window.openProductModal = (productId) => {
         }
     }
 
+    // Parcelamento
     let displayInst = (maxInstNoInterest > 1) ? maxInstNoInterest : maxInstTotal;
     let interestLabel = (maxInstNoInterest > 1) ? '<span class="text-green-400 font-bold text-xs ml-1">sem juros</span>' : '';
     const priceInstallment = priceFinal / displayInst;
 
-    const elTitle = document.getElementById('modal-title');
-    if (elTitle) elTitle.innerText = p.name;
-
-    // ✨ 4. DESCRIÇÃO: Ajuste final para o Mobile não sumir
-    const elDesc = document.getElementById('modal-desc');
+    // =================================================================
+    // ✨ PREENCHIMENTO DE TEXTOS E LÓGICA DO "VER MAIS" (CORRIGIDO)
+    // =================================================================
+    if (getEl('modal-title')) getEl('modal-title').innerText = p.name;
+    
+    const elDesc = getEl('modal-desc');
     if (elDesc) {
         const fullText = p.description || "Sem descrição detalhada.";
         elDesc.innerText = fullText;
-
+        
+        // Remove botão antigo se existir
         const oldBtn = document.getElementById('btn-read-more');
         if (oldBtn) oldBtn.remove();
 
+        // Reset inicial para evitar resíduos de produtos anteriores
         elDesc.style.maxHeight = 'unset';
         elDesc.style.overflowY = 'hidden';
         elDesc.classList.remove('thin-scroll');
 
+        // Se o texto for muito grande (mais de 150 caracteres ou mais de 2 Enter's)
         if (fullText.length > 150 || (fullText.match(/\n/g) || []).length > 2) {
+            
+            // Aplica o corte de 3 linhas inicial
             elDesc.style.display = '-webkit-box';
-            elDesc.style.webkitLineClamp = '3';
+            elDesc.style.webkitLineClamp = '3'; 
             elDesc.style.webkitBoxOrient = 'vertical';
             elDesc.style.overflow = 'hidden';
-            elDesc.style.whiteSpace = 'normal'; // Essencial para o mobile calcular altura
 
+            // Cria o botão "Ver mais"
             const btnMore = document.createElement('button');
             btnMore.id = 'btn-read-more';
             btnMore.className = 'text-yellow-500 font-bold text-xs mt-2 hover:underline focus:outline-none transition';
             btnMore.innerText = 'Ver mais';
-
+            
+            // Lógica de Expandir/Recolher
             btnMore.onclick = () => {
                 if (elDesc.style.webkitLineClamp === '3') {
-                    // Expandir
+                    // EXPANDIR: Tira o limite de linhas, mas põe limite de altura e scroll
                     elDesc.style.webkitLineClamp = 'unset';
-                    elDesc.style.maxHeight = '200px';
-                    elDesc.style.overflowY = 'auto';
-                    elDesc.style.whiteSpace = 'pre-line'; // Volta as quebras de texto originais
-                    elDesc.classList.add('thin-scroll');
+                    elDesc.style.maxHeight = '200px'; 
+                    elDesc.style.overflowY = 'auto'; 
+                    elDesc.classList.add('thin-scroll'); 
                     btnMore.innerText = 'Ver menos';
                 } else {
-                    // Recolher
+                    // RECOLHER: Volta o limite de linhas, tira scroll
                     elDesc.style.webkitLineClamp = '3';
                     elDesc.style.maxHeight = 'unset';
                     elDesc.style.overflowY = 'hidden';
-                    elDesc.style.whiteSpace = 'normal';
                     elDesc.classList.remove('thin-scroll');
                     btnMore.innerText = 'Ver mais';
-                    elDesc.scrollTop = 0;
+                    
+                    // Joga o scroll do texto pro topo ao fechar
+                    elDesc.scrollTop = 0; 
                 }
             };
+            
             elDesc.parentNode.insertBefore(btnMore, elDesc.nextSibling);
         } else {
             elDesc.style.webkitLineClamp = 'unset';
-            elDesc.style.whiteSpace = 'pre-line';
         }
     }
 
-    const elPrice = document.getElementById('modal-price');
+    const elPrice = getEl('modal-price');
     if (elPrice) {
         let htmlHtml = '';
         if (hasPromo) htmlHtml += `<span class="text-gray-500 text-sm line-through block mb-1">De: ${formatCurrency(priceOriginal)}</span>`;
@@ -4366,73 +4357,37 @@ window.openProductModal = (productId) => {
         elPrice.innerHTML = htmlHtml;
     }
 
-    // ✨ 5. REORDENAÇÃO FÍSICA DO BOTÃO E DOS TAMANHOS (Sem usar CSS Hack)
-    const sizesWrapper = document.getElementById('modal-sizes-wrapper');
-    const sizesDiv = document.getElementById('modal-sizes');
-    const btnAdd = document.getElementById('modal-add-cart');
-
-    if (sizesWrapper && btnAdd && sizesWrapper.parentElement === btnAdd.parentElement) {
-        const parent = btnAdd.parentElement;
-        
-        // Removemos qualquer classe que possa ter bugado a ordem
-        parent.classList.remove('flex', 'flex-col');
-        sizesWrapper.style.order = '';
-        btnAdd.style.order = '';
-        
-        // Inserimos o tamanho e depois o botão, isso garante a ordem real no HTML
-        parent.appendChild(sizesWrapper);
-        parent.appendChild(btnAdd);
-        
-        btnAdd.style.marginTop = '16px'; // Dá um respiro entre o tamanho e o botão
+    // =================================================================
+    // ✨ SCROLL (Ajustado com min-h-0 para consertar o bug do flexbox)
+    // =================================================================
+    const rightCol = card.children[2];
+    if (rightCol) {
+        // Adicionando 'min-h-0' aqui é o que resolve o bug do mouse não scrollar até o fim no computador
+        rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-y-auto relative hide-scroll min-h-0";
+        if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
+        if (rightCol.children[1]) rightCol.children[1].className = "px-6 md:px-8 py-6 space-y-6 flex-1 min-h-0";
     }
 
+    // Tamanhos
+    const sizesDiv = getEl('modal-sizes');
+    const sizesWrapper = getEl('modal-sizes-wrapper');
     let selectedSizeInModal = 'U';
-
-    const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-    const isSizeOutOfStock = (sizeStock) => sizeStock <= 0 && !allowNegative;
 
     if (sizesDiv) {
         sizesDiv.innerHTML = '';
         if (p.sizes && p.sizes.length > 0) {
             if (sizesWrapper) sizesWrapper.classList.remove('hidden');
-
-            const formattedSizes = p.sizes.map(s => {
-                if (typeof s === 'object') return s;
-                return { name: s, stock: p.stock };
-            });
-
-            selectedSizeInModal = formattedSizes.find(s => !isSizeOutOfStock(s.stock)) || formattedSizes[0];
-
-            formattedSizes.forEach(s => {
+            selectedSizeInModal = p.sizes[0];
+            p.sizes.forEach(s => {
                 const btn = document.createElement('button');
-                const outOfStock = isSizeOutOfStock(s.stock);
-
-                if (outOfStock) {
-                    btn.className = `w-10 h-10 rounded border border-gray-700 bg-gray-800/50 text-gray-500 font-bold flex items-center justify-center text-sm cursor-not-allowed relative overflow-hidden`;
-                    btn.innerHTML = `<span class="opacity-50">${s.name}</span><div class="absolute inset-0 w-[140%] h-[1px] bg-red-500/70 transform origin-top-left rotate-45"></div>`;
-                } else if (s.name === selectedSizeInModal.name) {
-                    btn.className = `w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm`;
-                    btn.innerHTML = `<span>${s.name}</span>`;
-                } else {
-                    btn.className = `w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm`;
-                    btn.innerHTML = `<span>${s.name}</span>`;
-                }
-
+                btn.className = `w-10 h-10 rounded border font-bold transition flex items-center justify-center text-sm ${s === selectedSizeInModal ? 'bg-yellow-500 text-black border-yellow-500' : 'border-gray-600 text-gray-300 hover:border-yellow-500 hover:text-yellow-500'}`;
+                btn.innerText = s;
                 btn.onclick = () => {
-                    if (outOfStock) return;
                     selectedSizeInModal = s;
-
-                    Array.from(sizesDiv.children).forEach((b, idx) => {
-                        const curS = formattedSizes[idx];
-                        if (isSizeOutOfStock(curS.stock)) return;
-
-                        if (curS.name === s.name) {
-                            b.className = "w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm";
-                        } else {
-                            b.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
-                        }
+                    Array.from(sizesDiv.children).forEach(b => {
+                        if (b.innerText === s) b.className = "w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm";
+                        else b.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
                     });
-                    updateAddToCartBtn();
                 };
                 sizesDiv.appendChild(btn);
             });
@@ -4441,17 +4396,12 @@ window.openProductModal = (productId) => {
         }
     }
 
-    const updateAddToCartBtn = () => {
-        if (!btnAdd) return;
-
-        let currentStock = 0;
-        if (p.hasVariations && selectedSizeInModal) {
-            currentStock = selectedSizeInModal.stock;
-        } else {
-            currentStock = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
-        }
-
-        const isOut = currentStock <= 0 && !allowNegative;
+    // Botão Adicionar
+    const btnAdd = getEl('modal-add-cart');
+    if (btnAdd) {
+        const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
+        const safeStockModal = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
+        const isOut = safeStockModal <= 0 && !allowNegative;
 
         if (isOut) {
             btnAdd.disabled = true;
@@ -4461,14 +4411,11 @@ window.openProductModal = (productId) => {
             btnAdd.disabled = false;
             btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i><span>ADICIONAR</span>`;
             btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide";
-            
-            const sizeNamePass = selectedSizeInModal ? selectedSizeInModal.name : 'U';
-            btnAdd.onclick = () => { addToCart(p, sizeNamePass); closeProductModal(); };
+            btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
         }
-    };
+    }
 
-    updateAddToCartBtn();
-
+    // Exibir
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     setTimeout(() => {

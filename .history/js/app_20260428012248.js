@@ -4202,6 +4202,14 @@ window.openProductModal = (productId) => {
             .thin-scroll::-webkit-scrollbar { width: 4px; }
             .thin-scroll::-webkit-scrollbar-track { background: transparent; }
             .thin-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
+            
+            /* Injeção para centralizar imagem grande no PC sem distorcer e sem sobrar buraco */
+            .modal-img-contain {
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: contain !important;
+                background-color: #0a0c13 !important; /* Fundo escuro combinando com a loja */
+            }
         `;
         document.head.appendChild(style);
     }
@@ -4213,9 +4221,15 @@ window.openProductModal = (productId) => {
     const imgCol = card.children[1];
     const rightCol = card.children[2];
 
-    // ✨ 2. IMAGEM FIXA: Ocupa 40% da tela no mobile (40vh) e fica travada.
+    // ✨ 2. IMAGEM FIXA (ALTERADO): Ocupa 40% no mobile, preenche 100% da altura no PC com fundo.
     if (imgCol) {
-        imgCol.className = "w-full md:w-1/2 h-[40vh] md:h-full shrink-0 relative";
+        imgCol.className = "w-full md:w-1/2 h-[40vh] md:h-full shrink-0 relative bg-[#0a0c13] flex items-center justify-center overflow-hidden";
+        
+        // Aplica a classe que centraliza a foto dentro da div preta no PC
+        const imgInterna = document.getElementById('modal-img');
+        if (imgInterna) {
+            imgInterna.classList.add('modal-img-contain');
+        }
     }
 
     // ✨ 3. TEXTO ROLÁVEL: A parte de baixo agora rola de forma independente!
@@ -4294,7 +4308,6 @@ window.openProductModal = (productId) => {
     const elTitle = document.getElementById('modal-title');
     if (elTitle) elTitle.innerText = p.name;
 
-    // ✨ 4. DESCRIÇÃO: Ajuste final para o Mobile não sumir
     const elDesc = document.getElementById('modal-desc');
     if (elDesc) {
         const fullText = p.description || "Sem descrição detalhada.";
@@ -4312,7 +4325,6 @@ window.openProductModal = (productId) => {
             elDesc.style.webkitLineClamp = '3';
             elDesc.style.webkitBoxOrient = 'vertical';
             elDesc.style.overflow = 'hidden';
-            elDesc.style.whiteSpace = 'normal'; // Essencial para o mobile calcular altura
 
             const btnMore = document.createElement('button');
             btnMore.id = 'btn-read-more';
@@ -4321,19 +4333,15 @@ window.openProductModal = (productId) => {
 
             btnMore.onclick = () => {
                 if (elDesc.style.webkitLineClamp === '3') {
-                    // Expandir
                     elDesc.style.webkitLineClamp = 'unset';
                     elDesc.style.maxHeight = '200px';
                     elDesc.style.overflowY = 'auto';
-                    elDesc.style.whiteSpace = 'pre-line'; // Volta as quebras de texto originais
                     elDesc.classList.add('thin-scroll');
                     btnMore.innerText = 'Ver menos';
                 } else {
-                    // Recolher
                     elDesc.style.webkitLineClamp = '3';
                     elDesc.style.maxHeight = 'unset';
                     elDesc.style.overflowY = 'hidden';
-                    elDesc.style.whiteSpace = 'normal';
                     elDesc.classList.remove('thin-scroll');
                     btnMore.innerText = 'Ver mais';
                     elDesc.scrollTop = 0;
@@ -4342,7 +4350,6 @@ window.openProductModal = (productId) => {
             elDesc.parentNode.insertBefore(btnMore, elDesc.nextSibling);
         } else {
             elDesc.style.webkitLineClamp = 'unset';
-            elDesc.style.whiteSpace = 'pre-line';
         }
     }
 
@@ -4366,26 +4373,8 @@ window.openProductModal = (productId) => {
         elPrice.innerHTML = htmlHtml;
     }
 
-    // ✨ 5. REORDENAÇÃO FÍSICA DO BOTÃO E DOS TAMANHOS (Sem usar CSS Hack)
-    const sizesWrapper = document.getElementById('modal-sizes-wrapper');
     const sizesDiv = document.getElementById('modal-sizes');
-    const btnAdd = document.getElementById('modal-add-cart');
-
-    if (sizesWrapper && btnAdd && sizesWrapper.parentElement === btnAdd.parentElement) {
-        const parent = btnAdd.parentElement;
-        
-        // Removemos qualquer classe que possa ter bugado a ordem
-        parent.classList.remove('flex', 'flex-col');
-        sizesWrapper.style.order = '';
-        btnAdd.style.order = '';
-        
-        // Inserimos o tamanho e depois o botão, isso garante a ordem real no HTML
-        parent.appendChild(sizesWrapper);
-        parent.appendChild(btnAdd);
-        
-        btnAdd.style.marginTop = '16px'; // Dá um respiro entre o tamanho e o botão
-    }
-
+    const sizesWrapper = document.getElementById('modal-sizes-wrapper');
     let selectedSizeInModal = 'U';
 
     const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
@@ -4442,6 +4431,7 @@ window.openProductModal = (productId) => {
     }
 
     const updateAddToCartBtn = () => {
+        const btnAdd = document.getElementById('modal-add-cart');
         if (!btnAdd) return;
 
         let currentStock = 0;
