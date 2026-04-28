@@ -4429,6 +4429,42 @@ function openProductModal(productId) {
     }, 10);
 };
 
+// Controle de visibilidade do Checkbox
+document.addEventListener('DOMContentLoaded', () => {
+    const chkVar = document.getElementById('prod-has-variations');
+    if (chkVar) {
+        chkVar.addEventListener('change', (e) => {
+            const divGen = document.getElementById('div-general-stock');
+            const divVar = document.getElementById('div-variations-stock');
+            if (e.target.checked) {
+                divGen.classList.add('hidden');
+                divVar.classList.remove('hidden');
+                // Se ligar e estiver vazio, adiciona uma linha inicial
+                if (document.getElementById('variations-container').children.length === 0) {
+                    addVariationRow();
+                }
+            } else {
+                divGen.classList.remove('hidden');
+                divVar.classList.add('hidden');
+            }
+        });
+    }
+});
+
+window.addVariationRow = (name = '', stock = '') => {
+    const container = document.getElementById('variations-container');
+    const div = document.createElement('div');
+    div.className = "flex items-center gap-2 variation-row animate-fade-in";
+    div.innerHTML = `
+        <input type="text" placeholder="Tamanho (Ex: M)" value="${name}" class="var-name w-1/2 bg-black text-white text-xs border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500">
+        <input type="number" placeholder="Qtd (Ex: 5)" value="${stock}" class="var-stock w-1/3 bg-black text-white text-xs border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500">
+        <button type="button" onclick="this.parentElement.remove()" class="w-10 h-10 shrink-0 rounded-lg bg-red-900/20 text-red-500 hover:bg-red-600 hover:text-white flex items-center justify-center transition border border-red-900/30">
+            <i class="fas fa-trash-alt text-xs"></i>
+        </button>
+    `;
+    container.appendChild(div);
+};
+
 function closeProductModal() {
     const modal = getEl('product-modal');
     const backdrop = getEl('modal-backdrop');

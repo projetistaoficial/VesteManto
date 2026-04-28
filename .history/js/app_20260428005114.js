@@ -4429,6 +4429,42 @@ function openProductModal(productId) {
     }, 10);
 };
 
+// Controle de visibilidade do Checkbox
+document.addEventListener('DOMContentLoaded', () => {
+    const chkVar = document.getElementById('prod-has-variations');
+    if (chkVar) {
+        chkVar.addEventListener('change', (e) => {
+            const divGen = document.getElementById('div-general-stock');
+            const divVar = document.getElementById('div-variations-stock');
+            if (e.target.checked) {
+                divGen.classList.add('hidden');
+                divVar.classList.remove('hidden');
+                // Se ligar e estiver vazio, adiciona uma linha inicial
+                if (document.getElementById('variations-container').children.length === 0) {
+                    addVariationRow();
+                }
+            } else {
+                divGen.classList.remove('hidden');
+                divVar.classList.add('hidden');
+            }
+        });
+    }
+});
+
+window.addVariationRow = (name = '', stock = '') => {
+    const container = document.getElementById('variations-container');
+    const div = document.createElement('div');
+    div.className = "flex items-center gap-2 variation-row animate-fade-in";
+    div.innerHTML = `
+        <input type="text" placeholder="Tamanho (Ex: M)" value="${name}" class="var-name w-1/2 bg-black text-white text-xs border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500">
+        <input type="number" placeholder="Qtd (Ex: 5)" value="${stock}" class="var-stock w-1/3 bg-black text-white text-xs border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500">
+        <button type="button" onclick="this.parentElement.remove()" class="w-10 h-10 shrink-0 rounded-lg bg-red-900/20 text-red-500 hover:bg-red-600 hover:text-white flex items-center justify-center transition border border-red-900/30">
+            <i class="fas fa-trash-alt text-xs"></i>
+        </button>
+    `;
+    container.appendChild(div);
+};
+
 function closeProductModal() {
     const modal = getEl('product-modal');
     const backdrop = getEl('modal-backdrop');
@@ -4625,23 +4661,49 @@ window.saveProduct = async (e) => {
         if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
 
         // --- CORREÇÃO DE LEITURA DO CHECKBOX ---
-        // 1. Tenta pegar pelo ID direto
         let elHighlight = document.getElementById('prod-highlight');
         let elNoStock = document.getElementById('prod-allow-no-stock');
 
-        // 2. Se falhar, tenta pegar dentro do form (caso haja duplicidade externa)
         const form = document.getElementById('form-product');
         if (form) {
             if (!elHighlight) elHighlight = form.querySelector('#prod-highlight');
             if (!elNoStock) elNoStock = form.querySelector('#prod-allow-no-stock');
         }
 
-        // 3. Converte para Booleano (true/false)
         const isHighlight = elHighlight ? elHighlight.checked : false;
         const allowNoStock = elNoStock ? elNoStock.checked : false;
 
-        // DEBUG: Veja isso no console ao salvar
-        console.log("--> SALVANDO. Destaque marcado?", isHighlight);
+        // =================================================================
+        // ✨ LÓGICA DO ESTOQUE HÍBRIDO (GRADE VS GERAL)
+        // =================================================================
+        const checkVariations = document.getElementById('prod-has-variations');
+        const hasVariations = checkVariations ? checkVariations.checked : false;
+        
+        let finalSizes = [];
+        let finalStock = 0;
+
+        if (hasVariations) {
+            // LÊ A TABELA DE TAMANHOS EXATOS
+            const rows = document.querySelectorAll('.variation-row');
+            rows.forEach(row => {
+                const n = row.querySelector('.var-name').value.trim();
+                const s = parseInt(row.querySelector('.var-stock').value) || 0;
+                if (n) {
+                    finalSizes.push({ name: n, stock: s });
+                    finalStock += s; // A soma de todas as variações vira o estoque geral
+                }
+            });
+        } else {
+            // LÊ O FORMATO SIMPLES (ANTIGO)
+            const elSizesSimple = document.getElementById('prod-sizes-simple');
+            const sizesRaw = elSizesSimple ? elSizesSimple.value : "";
+            finalSizes = sizesRaw.split(',').map(s => s.trim()).filter(s => s);
+            
+            const elStock = document.getElementById('prod-stock');
+            finalStock = elStock ? parseInt(elStock.value) : 0;
+            if (isNaN(finalStock)) finalStock = 0;
+        }
+        // =================================================================
 
         // 4. Monta o Objeto
         const productData = {
@@ -4650,10 +4712,13 @@ window.saveProduct = async (e) => {
             description: document.getElementById('prod-desc').value,
             price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
             promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
-            stock: parseInt(document.getElementById('prod-stock').value) || 0,
             cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
-            sizes: document.getElementById('prod-sizes').value.split(',').map(s => s.trim()).filter(s => s),
             images: state.tempImages || [],
+
+            // ✨ NOVOS CAMPOS DO ESTOQUE HÍBRIDO
+            hasVariations: hasVariations,
+            stock: finalStock,
+            sizes: finalSizes,
 
             // GRAVA OS VALORES CAPTURADOS
             allowNoStock: allowNoStock,
@@ -4686,6 +4751,11 @@ window.saveProduct = async (e) => {
         document.getElementById('product-form-modal').classList.add('hidden');
         document.getElementById('form-product').reset();
         state.tempImages = [];
+        
+        // ✨ Limpa as linhas de variação para o próximo cadastro
+        const varContainer = document.getElementById('variations-container');
+        if (varContainer) varContainer.innerHTML = '';
+
         if (typeof renderImagePreviews === 'function') renderImagePreviews();
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
 

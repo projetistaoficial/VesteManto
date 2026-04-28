@@ -4375,23 +4375,59 @@ function openProductModal(productId) {
     // Tamanhos
     const sizesDiv = getEl('modal-sizes');
     const sizesWrapper = getEl('modal-sizes-wrapper');
-    let selectedSizeInModal = 'U';
+    let selectedSizeInModal = null; // Agora guarda o Objeto inteiro
+
+    // Helper para verificar se está esgotado
+    const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
+    const isSizeOutOfStock = (sizeStock) => sizeStock <= 0 && !allowNegative;
 
     if (sizesDiv) {
         sizesDiv.innerHTML = '';
         if (p.sizes && p.sizes.length > 0) {
             if (sizesWrapper) sizesWrapper.classList.remove('hidden');
-            selectedSizeInModal = p.sizes[0];
-            p.sizes.forEach(s => {
+            
+            // Padroniza a leitura (Seja modelo velho string ou modelo novo objeto)
+            const formattedSizes = p.sizes.map(s => {
+                if (typeof s === 'object') return s;
+                return { name: s, stock: p.stock }; // Modelo antigo usa estoque geral
+            });
+
+            // Tenta selecionar o primeiro tamanho que tenha estoque (Evita que inicie selecionando um esgotado)
+            selectedSizeInModal = formattedSizes.find(s => !isSizeOutOfStock(s.stock)) || formattedSizes[0];
+
+            formattedSizes.forEach(s => {
                 const btn = document.createElement('button');
-                btn.className = `w-10 h-10 rounded border font-bold transition flex items-center justify-center text-sm ${s === selectedSizeInModal ? 'bg-yellow-500 text-black border-yellow-500' : 'border-gray-600 text-gray-300 hover:border-yellow-500 hover:text-yellow-500'}`;
-                btn.innerText = s;
+                const outOfStock = isSizeOutOfStock(s.stock);
+                
+                // Estilo e Traço de Esgotado
+                if (outOfStock) {
+                    btn.className = `w-10 h-10 rounded border border-gray-700 bg-gray-800/50 text-gray-500 font-bold flex items-center justify-center text-sm cursor-not-allowed relative overflow-hidden`;
+                    btn.innerHTML = `<span class="opacity-50">${s.name}</span><div class="absolute inset-0 w-[140%] h-[1px] bg-red-500/70 transform origin-top-left rotate-45"></div>`;
+                } else if (s.name === selectedSizeInModal.name) {
+                    btn.className = `w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm`;
+                    btn.innerHTML = `<span>${s.name}</span>`;
+                } else {
+                    btn.className = `w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm`;
+                    btn.innerHTML = `<span>${s.name}</span>`;
+                }
+
                 btn.onclick = () => {
+                    if (outOfStock) return; // Ignora o clique se não tiver estoque
                     selectedSizeInModal = s;
-                    Array.from(sizesDiv.children).forEach(b => {
-                        if (b.innerText === s) b.className = "w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm";
-                        else b.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
+                    
+                    // Re-aplica os estilos visuais
+                    Array.from(sizesDiv.children).forEach((b, idx) => {
+                        const curS = formattedSizes[idx];
+                        if (isSizeOutOfStock(curS.stock)) return; // Pula os esgotados
+
+                        if (curS.name === s.name) {
+                            b.className = "w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm";
+                        } else {
+                            b.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
+                        }
                     });
+
+                    updateAddToCartBtn(); // Chama função de atualização
                 };
                 sizesDiv.appendChild(btn);
             });
@@ -4400,12 +4436,20 @@ function openProductModal(productId) {
         }
     }
 
-    // Botão Adicionar
-    const btnAdd = getEl('modal-add-cart');
-    if (btnAdd) {
-        const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-        const safeStockModal = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
-        const isOut = safeStockModal <= 0 && !allowNegative;
+    // Botão Adicionar (Isolado para poder ser atualizado ao clicar nos tamanhos)
+    const updateAddToCartBtn = () => {
+        const btnAdd = getEl('modal-add-cart');
+        if (!btnAdd) return;
+
+        // Identifica o estoque exato (Da variação específica ou o geral se não houver variação)
+        let currentStock = 0;
+        if (p.hasVariations && selectedSizeInModal) {
+            currentStock = selectedSizeInModal.stock;
+        } else {
+            currentStock = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
+        }
+
+        const isOut = currentStock <= 0 && !allowNegative;
 
         if (isOut) {
             btnAdd.disabled = true;
@@ -4415,9 +4459,14 @@ function openProductModal(productId) {
             btnAdd.disabled = false;
             btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i><span>ADICIONAR</span>`;
             btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide";
-            btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
+            
+            // Passamos apenas o Nome do tamanho (String) para manter compatibilidade com o Carrinho
+            const sizeNamePass = selectedSizeInModal ? selectedSizeInModal.name : 'U';
+            btnAdd.onclick = () => { addToCart(p, sizeNamePass); closeProductModal(); };
         }
-    }
+    };
+
+    updateAddToCartBtn();
 
     // Exibir
     modal.classList.remove('hidden');
@@ -4427,6 +4476,42 @@ function openProductModal(productId) {
         card.classList.remove('opacity-0', 'scale-95');
         card.classList.add('opacity-100', 'scale-100');
     }, 10);
+};
+
+// Controle de visibilidade do Checkbox
+document.addEventListener('DOMContentLoaded', () => {
+    const chkVar = document.getElementById('prod-has-variations');
+    if (chkVar) {
+        chkVar.addEventListener('change', (e) => {
+            const divGen = document.getElementById('div-general-stock');
+            const divVar = document.getElementById('div-variations-stock');
+            if (e.target.checked) {
+                divGen.classList.add('hidden');
+                divVar.classList.remove('hidden');
+                // Se ligar e estiver vazio, adiciona uma linha inicial
+                if (document.getElementById('variations-container').children.length === 0) {
+                    addVariationRow();
+                }
+            } else {
+                divGen.classList.remove('hidden');
+                divVar.classList.add('hidden');
+            }
+        });
+    }
+});
+
+window.addVariationRow = (name = '', stock = '') => {
+    const container = document.getElementById('variations-container');
+    const div = document.createElement('div');
+    div.className = "flex items-center gap-2 variation-row animate-fade-in";
+    div.innerHTML = `
+        <input type="text" placeholder="Tamanho (Ex: M)" value="${name}" class="var-name w-1/2 bg-black text-white text-xs border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500">
+        <input type="number" placeholder="Qtd (Ex: 5)" value="${stock}" class="var-stock w-1/3 bg-black text-white text-xs border border-gray-700 rounded-lg p-3 outline-none focus:border-yellow-500">
+        <button type="button" onclick="this.parentElement.remove()" class="w-10 h-10 shrink-0 rounded-lg bg-red-900/20 text-red-500 hover:bg-red-600 hover:text-white flex items-center justify-center transition border border-red-900/30">
+            <i class="fas fa-trash-alt text-xs"></i>
+        </button>
+    `;
+    container.appendChild(div);
 };
 
 function closeProductModal() {
@@ -4625,23 +4710,49 @@ window.saveProduct = async (e) => {
         if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
 
         // --- CORREÇÃO DE LEITURA DO CHECKBOX ---
-        // 1. Tenta pegar pelo ID direto
         let elHighlight = document.getElementById('prod-highlight');
         let elNoStock = document.getElementById('prod-allow-no-stock');
 
-        // 2. Se falhar, tenta pegar dentro do form (caso haja duplicidade externa)
         const form = document.getElementById('form-product');
         if (form) {
             if (!elHighlight) elHighlight = form.querySelector('#prod-highlight');
             if (!elNoStock) elNoStock = form.querySelector('#prod-allow-no-stock');
         }
 
-        // 3. Converte para Booleano (true/false)
         const isHighlight = elHighlight ? elHighlight.checked : false;
         const allowNoStock = elNoStock ? elNoStock.checked : false;
 
-        // DEBUG: Veja isso no console ao salvar
-        console.log("--> SALVANDO. Destaque marcado?", isHighlight);
+        // =================================================================
+        // ✨ LÓGICA DO ESTOQUE HÍBRIDO (GRADE VS GERAL)
+        // =================================================================
+        const checkVariations = document.getElementById('prod-has-variations');
+        const hasVariations = checkVariations ? checkVariations.checked : false;
+        
+        let finalSizes = [];
+        let finalStock = 0;
+
+        if (hasVariations) {
+            // LÊ A TABELA DE TAMANHOS EXATOS
+            const rows = document.querySelectorAll('.variation-row');
+            rows.forEach(row => {
+                const n = row.querySelector('.var-name').value.trim();
+                const s = parseInt(row.querySelector('.var-stock').value) || 0;
+                if (n) {
+                    finalSizes.push({ name: n, stock: s });
+                    finalStock += s; // A soma de todas as variações vira o estoque geral
+                }
+            });
+        } else {
+            // LÊ O FORMATO SIMPLES (ANTIGO)
+            const elSizesSimple = document.getElementById('prod-sizes-simple');
+            const sizesRaw = elSizesSimple ? elSizesSimple.value : "";
+            finalSizes = sizesRaw.split(',').map(s => s.trim()).filter(s => s);
+            
+            const elStock = document.getElementById('prod-stock');
+            finalStock = elStock ? parseInt(elStock.value) : 0;
+            if (isNaN(finalStock)) finalStock = 0;
+        }
+        // =================================================================
 
         // 4. Monta o Objeto
         const productData = {
@@ -4650,10 +4761,13 @@ window.saveProduct = async (e) => {
             description: document.getElementById('prod-desc').value,
             price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
             promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
-            stock: parseInt(document.getElementById('prod-stock').value) || 0,
             cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
-            sizes: document.getElementById('prod-sizes').value.split(',').map(s => s.trim()).filter(s => s),
             images: state.tempImages || [],
+
+            // ✨ NOVOS CAMPOS DO ESTOQUE HÍBRIDO
+            hasVariations: hasVariations,
+            stock: finalStock,
+            sizes: finalSizes,
 
             // GRAVA OS VALORES CAPTURADOS
             allowNoStock: allowNoStock,
@@ -4686,6 +4800,11 @@ window.saveProduct = async (e) => {
         document.getElementById('product-form-modal').classList.add('hidden');
         document.getElementById('form-product').reset();
         state.tempImages = [];
+        
+        // ✨ Limpa as linhas de variação para o próximo cadastro
+        const varContainer = document.getElementById('variations-container');
+        if (varContainer) varContainer.innerHTML = '';
+
         if (typeof renderImagePreviews === 'function') renderImagePreviews();
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
 
@@ -4704,16 +4823,54 @@ window.editProduct = (id) => {
     console.log(`Abrindo edição: ${p.name}`);
     console.log(`Valor de 'highlight' no banco:`, p.highlight); // Deve mostrar true, false ou undefined
 
-    // Inputs de texto
+    // Inputs de texto básicos
     document.getElementById('edit-prod-id').value = p.id;
     document.getElementById('prod-name').value = p.name;
     document.getElementById('prod-cat-select').value = p.category || "";
     document.getElementById('prod-desc').value = p.description || "";
     document.getElementById('prod-price').value = formatMoneyForInput(p.price);
     document.getElementById('prod-promo').value = formatMoneyForInput(p.promoPrice);
-    document.getElementById('prod-stock').value = p.stock;
     document.getElementById('prod-cost').value = formatMoneyForInput(p.cost);
-    document.getElementById('prod-sizes').value = p.sizes ? p.sizes.join(', ') : '';
+
+    // =================================================================
+    // ✨ LÓGICA DO ESTOQUE HÍBRIDO NA EDIÇÃO
+    // =================================================================
+    const chkVar = document.getElementById('prod-has-variations');
+    const container = document.getElementById('variations-container');
+    const divGen = document.getElementById('div-general-stock');
+    const divVar = document.getElementById('div-variations-stock');
+
+    if (container) container.innerHTML = ''; // Limpa as linhas anteriores
+
+    if (p.hasVariations && Array.isArray(p.sizes) && p.sizes.length > 0 && typeof p.sizes[0] === 'object') {
+        // É o modelo NOVO (Estoque por Grade)
+        if (chkVar) chkVar.checked = true;
+        
+        p.sizes.forEach(v => {
+            if (typeof addVariationRow === 'function') addVariationRow(v.name, v.stock);
+        });
+        
+        if (divGen) divGen.classList.add('hidden');
+        if (divVar) divVar.classList.remove('hidden');
+    } else {
+        // É o modelo ANTIGO (Estoque Geral)
+        if (chkVar) chkVar.checked = false;
+        
+        const elStock = document.getElementById('prod-stock');
+        if (elStock) elStock.value = p.stock || 0;
+        
+        // Converte o array antigo em texto separado por vírgula
+        const sizeStr = Array.isArray(p.sizes) 
+            ? p.sizes.map(s => typeof s === 'object' ? s.name : s).join(', ') 
+            : '';
+        
+        const elSizesSimple = document.getElementById('prod-sizes-simple');
+        if (elSizesSimple) elSizesSimple.value = sizeStr;
+        
+        if (divGen) divGen.classList.remove('hidden');
+        if (divVar) divVar.classList.add('hidden');
+    }
+    // =================================================================
 
     // --- CHECKBOXES (LEITURA) ---
     const elHighlight = document.getElementById('prod-highlight');
@@ -4728,9 +4885,13 @@ window.editProduct = (id) => {
     if (typeof renderImagePreviews === 'function') renderImagePreviews();
 
     const pixData = p.paymentOptions?.pix || { active: false, val: 0, type: 'percent' };
-    document.getElementById('prod-pix-active').checked = pixData.active;
-    document.getElementById('prod-pix-val').value = pixData.type === 'percent' ? pixData.val : formatMoneyForInput(pixData.val);
-    document.getElementById('prod-pix-type').value = pixData.type;
+    const elPixActive = document.getElementById('prod-pix-active');
+    const elPixVal = document.getElementById('prod-pix-val');
+    const elPixType = document.getElementById('prod-pix-type');
+
+    if (elPixActive) elPixActive.checked = pixData.active;
+    if (elPixVal) elPixVal.value = pixData.type === 'percent' ? pixData.val : formatMoneyForInput(pixData.val);
+    if (elPixType) elPixType.value = pixData.type;
 
     const settingsPix = document.getElementById('pix-settings');
     if (settingsPix) {
@@ -4738,7 +4899,8 @@ window.editProduct = (id) => {
         settingsPix.classList.toggle('pointer-events-none', !pixData.active);
     }
 
-    document.getElementById('product-form-modal').classList.remove('hidden');
+    const modal = document.getElementById('product-form-modal');
+    if (modal) modal.classList.remove('hidden');
 };
 
 window.deleteCoupon = async (id) => {
