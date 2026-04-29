@@ -1145,21 +1145,16 @@ window.openAdminOrderDetail = async (order) => {
 
 // Carrega Contadores de Visitas/Compartilhamentos
 function loadSiteStats() {
+    // Carrega a coleção de estatísticas diárias
     const q = query(collection(db, `sites/${state.siteId}/dailyStats`));
 
     onSnapshot(q, (snapshot) => {
         const dailyData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         state.dailyStats = dailyData; // Salva no estado global
 
-        // Atualiza o módulo de estatísticas externo (se existir)
-        if (typeof updateStatsData === 'function') {
-            updateStatsData(state.orders, state.products, state.dailyStats);
-        }
-        
-        // ✨ CORREÇÃO: Força a atualização da tela imediatamente quando o Firebase responde!
-        if (typeof calculateStatsMetrics === 'function') {
-            calculateStatsMetrics();
-        }
+        // Atualiza o módulo de estatísticas
+        // IMPORTANTE: O terceiro parâmetro agora é state.dailyStats (array), não mais state.siteStats (objeto)
+        updateStatsData(state.orders, state.products, state.dailyStats);
     });
 }
 

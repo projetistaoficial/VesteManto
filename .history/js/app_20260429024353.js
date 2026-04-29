@@ -1145,21 +1145,16 @@ window.openAdminOrderDetail = async (order) => {
 
 // Carrega Contadores de Visitas/Compartilhamentos
 function loadSiteStats() {
+    // Carrega a coleção de estatísticas diárias
     const q = query(collection(db, `sites/${state.siteId}/dailyStats`));
 
     onSnapshot(q, (snapshot) => {
         const dailyData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         state.dailyStats = dailyData; // Salva no estado global
 
-        // Atualiza o módulo de estatísticas externo (se existir)
-        if (typeof updateStatsData === 'function') {
-            updateStatsData(state.orders, state.products, state.dailyStats);
-        }
-        
-        // ✨ CORREÇÃO: Força a atualização da tela imediatamente quando o Firebase responde!
-        if (typeof calculateStatsMetrics === 'function') {
-            calculateStatsMetrics();
-        }
+        // Atualiza o módulo de estatísticas
+        // IMPORTANTE: O terceiro parâmetro agora é state.dailyStats (array), não mais state.siteStats (objeto)
+        updateStatsData(state.orders, state.products, state.dailyStats);
     });
 }
 
@@ -2827,22 +2822,24 @@ function renderSalesList(orders) {
         `;
         listEl.appendChild(cardWrapper);
     });
-}
-
-// =================================================================
+}// =================================================================
 // 📊 EXPORTAÇÃO FINANCEIRA (PDF E EXCEL)
 // =================================================================
 
-// 1. Exportar para Excel (Tabela Estilizada Nativa)
+// 1. Exportar para Excel (Gera um arquivo CSV compatível com acentos)
 window.exportFinanceExcel = (orderId) => {
     const order = state.orders.find(o => o.id === orderId);
     if (!order) return showToast("Pedido não encontrado.", "error");
 
+    // Prepara o cabeçalho do arquivo (o \uFEFF garante que o Excel leia os acentos/cedilha)
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    csvContent += "Item,Quantidade,Custo Unitario,Custo Total,Venda Total,Lucro\r\n";
+
     let totalCost = 0;
     let totalRevenue = 0;
+    let totalProfit = 0;
 
-    // Constrói as linhas dos produtos já com cores
-    let rowsHtml = '';
+    // Processa os itens
     (order.items || []).forEach(i => {
         const cost = parseFloat(i.cost) || 0;
         const revenue = parseFloat(i.price) * parseInt(i.qty);
@@ -2851,91 +2848,34 @@ window.exportFinanceExcel = (orderId) => {
 
         totalCost += costTotal;
         totalRevenue += revenue;
+        totalProfit += profit;
 
-        rowsHtml += `
-            <tr>
-                <td style="border: 1px solid #cbd5e1; padding: 8px; color: #334155;">${i.name}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; color: #334155;">${i.qty}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #64748b;">R$ ${cost.toFixed(2).replace('.', ',')}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #dc2626;">R$ ${costTotal.toFixed(2).replace('.', ',')}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #2563eb;">R$ ${revenue.toFixed(2).replace('.', ',')}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #16a34a; font-weight: bold;">R$ ${profit.toFixed(2).replace('.', ',')}</td>
-            </tr>
-        `;
+        // Limpa nomes que possam ter vírgulas para não quebrar a planilha
+        const safeName = `"${i.name.replace(/"/g, '""')}"`;
+        
+        // Formata os números para o padrão brasileiro de Excel (vírgula no decimal)
+        const fmtCost = cost.toFixed(2).replace('.', ',');
+        const fmtCostTotal = costTotal.toFixed(2).replace('.', ',');
+        const fmtRev = revenue.toFixed(2).replace('.', ',');
+        const fmtProf = profit.toFixed(2).replace('.', ',');
+
+        csvContent += `${safeName},${i.qty},R$ ${fmtCost},R$ ${fmtCostTotal},R$ ${fmtRev},R$ ${fmtProf}\r\n`;
     });
 
+    // Adiciona a linha de totais no final
     const finalRevenue = order.total || totalRevenue;
-    const liquidProfit = finalRevenue - totalCost;
-    const profitMargin = finalRevenue > 0 ? ((liquidProfit / finalRevenue) * 100).toFixed(1) : 0;
+    const finalProfit = finalRevenue - totalCost;
+    
+    csvContent += `\r\nTOTAL GERAL,,,,R$ ${finalRevenue.toFixed(2).replace('.', ',')},R$ ${finalProfit.toFixed(2).replace('.', ',')}\r\n`;
 
-    // Monta a estrutura da planilha (Excel lê HTML nativamente)
-    const tableHtml = `
-        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-        <head>
-            <meta charset="utf-8">
-            <style>
-                table { border-collapse: collapse; font-family: Arial, sans-serif; }
-                th { background-color: #1e3a8a; color: white; padding: 12px; font-weight: bold; border: 1px solid #1e3a8a; }
-                td { font-size: 14px; }
-                .totais td { font-weight: bold; font-size: 16px; background-color: #f8fafc; border: 1px solid #cbd5e1; }
-            </style>
-        </head>
-        <body>
-            <table>
-                <tr>
-                    <td colspan="6" style="text-align: center; font-size: 22px; font-weight: bold; background-color: #f1f5f9; padding: 15px; border: 1px solid #cbd5e1; color: #0f172a;">
-                        RELATÓRIO DE LUCRO - PEDIDO #${order.code || orderId}
-                    </td>
-                </tr>
-                <tr>
-                    <td colspan="3" style="border: 1px solid #cbd5e1; padding: 8px;"><strong>Cliente:</strong> ${order.customer?.name || '-'}</td>
-                    <td colspan="3" style="border: 1px solid #cbd5e1; padding: 8px; text-align: right;"><strong>Data:</strong> ${new Date(order.date).toLocaleDateString('pt-BR')}</td>
-                </tr>
-                <tr><td colspan="6" style="height: 15px;"></td></tr>
-                
-                <tr>
-                    <th>PRODUTO</th>
-                    <th>QTD</th>
-                    <th>CUSTO UN.</th>
-                    <th>CUSTO TOTAL</th>
-                    <th>VENDA TOTAL</th>
-                    <th>LUCRO PRODUTO</th>
-                </tr>
-                
-                ${rowsHtml}
-                
-                <tr><td colspan="6" style="height: 15px;"></td></tr>
-                
-                <tr class="totais">
-                    <td colspan="5" style="text-align: right; padding: 10px;">RECEITA DO PEDIDO:</td>
-                    <td style="text-align: right; padding: 10px; color: #2563eb;">R$ ${finalRevenue.toFixed(2).replace('.', ',')}</td>
-                </tr>
-                <tr class="totais">
-                    <td colspan="5" style="text-align: right; padding: 10px;">CUSTO DOS PRODUTOS:</td>
-                    <td style="text-align: right; padding: 10px; color: #dc2626;">- R$ ${totalCost.toFixed(2).replace('.', ',')}</td>
-                </tr>
-                <tr class="totais">
-                    <td colspan="5" style="text-align: right; padding: 12px; font-size: 18px; background-color: #e2e8f0; color: #0f172a;">LUCRO LÍQUIDO:</td>
-                    <td style="text-align: right; padding: 12px; font-size: 18px; color: #16a34a; background-color: #e2e8f0;">R$ ${liquidProfit.toFixed(2).replace('.', ',')}</td>
-                </tr>
-                <tr class="totais">
-                    <td colspan="5" style="text-align: right; padding: 10px; font-size: 12px; color: #64748b; border-top: none;">Margem de Lucro:</td>
-                    <td style="text-align: right; padding: 10px; font-size: 12px; color: #1d4ed8; border-top: none;">${profitMargin}%</td>
-                </tr>
-            </table>
-        </body>
-        </html>
-    `;
-
-    // Converte e dispara o download do arquivo .xls
-    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Lucro_Pedido_${order.code || orderId}.xls`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    // Cria o link invisível e força o download
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Analise_Lucro_Pedido_${order.code || orderId}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     
     showToast("Planilha gerada com sucesso!", "success");
 };
@@ -3053,8 +2993,6 @@ window.exportFinancePDF = (orderId) => {
         printWindow.close(); 
     }, 500);
 };
-
-
 // --- FUNÇÃO PARA MARCAR COMO VISTO ---
 window.markAsViewed = async (id) => {
     // 1. Encontra o pedido na memória
