@@ -4027,13 +4027,27 @@ window.updateStatus = async (orderId, newStatus, oldStatus) => {
     const order = state.orders.find(o => o.id === orderId);
     if (!order) return;
 
-    // Se aprovou, dá baixa no estoque
     if (newStatus === 'Confirmado' && oldStatus !== 'Confirmado') {
-        await processStockUpdate(order.items, 'remove');
+        for (const item of order.items) {
+            const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+            const prodInState = state.products.find(p => p.id === item.id);
+            if (prodInState) {
+                const allowNegative = state.globalSettings.allowNoStock || prodInState.allowNoStock;
+                let newStock = prodInState.stock - item.qty;
+                if (!allowNegative && newStock < 0) newStock = 0;
+                await updateDoc(prodRef, { stock: newStock });
+            }
+        }
     }
-    // Se cancelou/reembolsou, devolve pro estoque
     if ((newStatus === 'Cancelado' || newStatus === 'Reembolsado') && oldStatus === 'Confirmado') {
-        await processStockUpdate(order.items, 'add');
+        for (const item of order.items) {
+            const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+            const prodInState = state.products.find(p => p.id === item.id);
+            if (prodInState) {
+                const newStock = prodInState.stock + item.qty;
+                await updateDoc(prodRef, { stock: newStock });
+            }
+        }
     }
 };
 
@@ -4060,6 +4074,7 @@ window.openProductModal = (productId) => {
             .thin-scroll::-webkit-scrollbar-track { background: transparent; }
             .thin-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
             
+            /* FORÇA A IMAGEM A ANCORAR NOS 4 CANTOS DA COLUNA E PREENCHER TUDO */
             #modal-img {
                 position: absolute !important;
                 inset: 0 !important;
@@ -4070,6 +4085,7 @@ window.openProductModal = (productId) => {
                 z-index: 1 !important;
             }
             
+            /* COLOCA AS MINIATURAS FLUTUANDO NO RODAPÉ DA IMAGEM */
             #modal-thumbnails {
                 position: absolute !important;
                 bottom: 20px !important;
@@ -4092,6 +4108,8 @@ window.openProductModal = (productId) => {
         imgCol.className = "w-full md:w-1/2 h-[40vh] md:h-auto relative shrink-0 overflow-hidden bg-black";
     }
 
+    // ✨ CORREÇÃO CRÍTICA DO SCROLL: 
+    // Removidas as travas (flex-1 e min-h-0) das filhas, permitindo que o conteúdo "vaze" e crie a rolagem do mouse!
     if (rightCol) {
         rightCol.className = "w-full md:w-1/2 flex flex-col bg-gray-900 overflow-y-auto relative hide-scroll md:max-h-[90vh]";
         if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
@@ -4191,6 +4209,7 @@ window.openProductModal = (productId) => {
             btnMore.className = 'text-yellow-500 font-bold text-xs mt-2 hover:underline focus:outline-none transition';
             btnMore.innerText = 'Ver mais';
 
+            // ✨ CORREÇÃO "VER MAIS": Expande natural, sem criar uma sub-rolagem irritante.
             btnMore.onclick = () => {
                 if (elDesc.style.webkitLineClamp === '3') {
                     elDesc.style.webkitLineClamp = 'unset';
@@ -4245,16 +4264,14 @@ window.openProductModal = (productId) => {
         btnAdd.style.marginTop = '16px'; 
     }
 
-    let selectedSizeInModal = null;
+    let selectedSizeInModal = 'U';
 
     const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
     const isSizeOutOfStock = (sizeStock) => sizeStock <= 0 && !allowNegative;
 
     if (sizesDiv) {
         sizesDiv.innerHTML = '';
-        
-        if (p.hasVariations && p.sizes && p.sizes.length > 0) {
-            // ✨ ESTOQUE GRADEADO
+        if (p.sizes && p.sizes.length > 0) {
             if (sizesWrapper) sizesWrapper.classList.remove('hidden');
 
             const formattedSizes = p.sizes.map(s => {
@@ -4298,22 +4315,7 @@ window.openProductModal = (productId) => {
                 sizesDiv.appendChild(btn);
             });
         } else {
-            // ✨ ESTOQUE GERAL: Exibe "Tamanho Único" em vez de esconder tudo
-            if (sizesWrapper) sizesWrapper.classList.remove('hidden');
-            
-            const currentStock = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
-            const isOut = currentStock <= 0 && !allowNegative;
-            
-            const btnSingle = document.createElement('div');
-            
-            if (isOut) {
-                btnSingle.className = `px-4 h-10 rounded border border-gray-700 bg-gray-800/50 text-gray-500 font-bold flex items-center justify-center text-sm cursor-not-allowed relative overflow-hidden`;
-                btnSingle.innerHTML = `<span class="opacity-50">Tamanho Único</span><div class="absolute inset-0 w-[140%] h-[1px] bg-red-500/70 transform origin-top-left rotate-6"></div>`;
-            } else {
-                btnSingle.className = `px-4 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold flex items-center justify-center text-sm select-none`;
-                btnSingle.innerHTML = `<span>Tamanho Único</span>`;
-            }
-            sizesDiv.appendChild(btnSingle);
+            if (sizesWrapper) sizesWrapper.classList.add('hidden');
         }
     }
 
@@ -4322,7 +4324,6 @@ window.openProductModal = (productId) => {
         if (!btnAdd) return;
 
         let currentStock = 0;
-        
         if (p.hasVariations && selectedSizeInModal) {
             currentStock = selectedSizeInModal.stock;
         } else {
@@ -4340,8 +4341,7 @@ window.openProductModal = (productId) => {
             btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i><span>ADICIONAR</span>`;
             btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide";
             
-            // Manda o código "U" pro carrinho para o carrinho não desenhar caixa nenhuma!
-            const sizeNamePass = (p.hasVariations && selectedSizeInModal) ? selectedSizeInModal.name : 'U';
+            const sizeNamePass = selectedSizeInModal ? selectedSizeInModal.name : 'U';
             btnAdd.onclick = () => { addToCart(p, sizeNamePass); closeProductModal(); };
         }
     };
@@ -4676,9 +4676,6 @@ window.confirmDeleteProduct = async (id) => {
 // =================================================================
 // 📦 SALVAR E EDITAR PRODUTOS (ESTOQUE HÍBRIDO DEFINITIVO)
 // =================================================================
-// =================================================================
-// 📦 ALTERNA ENTRE GERAL E GRADEADO (TOTALMENTE INDEPENDENTES)
-// =================================================================
 window.toggleStockMode = () => {
     const isGraded = document.getElementById('prod-has-variations').checked;
     const divGen = document.getElementById('div-general-stock');
@@ -4689,19 +4686,18 @@ window.toggleStockMode = () => {
         divGen.classList.add('hidden');
         divVar.classList.remove('hidden');
         divVar.classList.add('flex');
+        
         if (typeof renderVariationBadges === 'function') renderVariationBadges();
     } else {
-        // Esconde a Grade e volta o Estoque Geral.
-        // Nenhuma matemática é feita aqui! O valor fica intacto.
+        // Esconde a Grade e volta o Estoque Geral intacto
         divGen.classList.remove('hidden');
         divVar.classList.add('hidden');
         divVar.classList.remove('flex');
+        
+        // Removemos a soma automática daqui!
+        // O valor que você digitou no Estoque Geral permanecerá exatamente como você deixou.
     }
 };
-
-// =================================================================
-// 📦 SALVAR PRODUTO NO BANCO (COM SEPARAÇÃO DE ESTOQUES)
-// =================================================================
 window.saveProduct = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     const btnSave = document.querySelector('#form-product button[type="submit"]');
@@ -4711,26 +4707,21 @@ window.saveProduct = async (e) => {
         if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
 
         const isGraded = document.getElementById('prod-has-variations').checked;
+        let finalStock = 0;
         
-        // ✨ O SEGREDO ESTÁ AQUI: Captura o Estoque Geral que o usuário digitou
-        // E garante que ele NUNCA se misture com a grade!
-        const inputGeneralStock = parseInt(document.getElementById('prod-stock').value) || 0;
-        
-        let finalStock = 0; // O Estoque que os clientes vão ver na vitrine
+        // Os tamanhos NUNCA mais são apagados da memória, mesmo se desativar a chave
         let finalSizes = state.tempVariations ? [...state.tempVariations] : [];
 
+        // VALIDAÇÃO BLINDADA DA GRADE
         if (isGraded) {
-            // TRAVA: Não deixa salvar grade ligada se não tiver caixinhas
             if (finalSizes.length === 0) {
                 showToast("Adicione pelo menos um tamanho no estoque gradeado.", "error");
                 if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
-                return; 
+                return; // Bloqueia salvar sem caixinhas
             }
-            // Vitrine usa a soma dos tamanhos
-            finalStock = finalSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0); 
+            finalStock = finalSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0);
         } else {
-            // Vitrine usa o que foi digitado no estoque geral
-            finalStock = inputGeneralStock;
+            finalStock = parseInt(document.getElementById('prod-stock').value) || 0;
         }
 
         if (!state.tempImages || state.tempImages.length === 0) {
@@ -4746,11 +4737,10 @@ window.saveProduct = async (e) => {
             price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
             promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
             cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
-            hasVariations: isGraded, 
-            stock: finalStock,               // 👉 Vai para a vitrine
-            generalStock: inputGeneralStock, // 👉 Fica guardado na memória do Painel
-            sizes: finalSizes,       
-            images: state.tempImages || [],
+            hasVariations: isGraded, // O banco grava exatamente se a chave estava ligada
+            stock: finalStock,
+            sizes: finalSizes,       // O banco guarda as caixinhas para sempre
+            images: state.tempImages,
             allowNoStock: document.getElementById('prod-allow-no-stock').checked,
             highlight: document.getElementById('prod-highlight').checked,
             paymentOptions: { 
@@ -4780,12 +4770,10 @@ window.saveProduct = async (e) => {
         state.tempImages = [];
         state.tempVariations = [];
         
-        // Garante que o Formulário não bugue no F5
+        // Garante que o Formulário saiba que ele delega a ação ao JavaScript
         const formEl = document.getElementById('form-product');
         if(formEl) formEl.onsubmit = window.saveProduct; 
-        
-        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-        
+
     } catch (error) {
         alert('Erro ao salvar: ' + error.message);
     } finally {
@@ -4793,9 +4781,6 @@ window.saveProduct = async (e) => {
     }
 };
 
-// =================================================================
-// 📦 ABRIR PRODUTO PARA EDITAR (LENDO OS ESTOQUES SEPARADOS)
-// =================================================================
 window.editProduct = (id) => {
     const p = state.products.find(x => x.id === id);
     if (!p) return;
@@ -4811,15 +4796,7 @@ window.editProduct = (id) => {
     document.getElementById('prod-allow-no-stock').checked = p.allowNoStock || false;
     document.getElementById('prod-highlight').checked = p.highlight || false;
 
-    // ✨ CORREÇÃO SUPREMA: 
-    // Se existir a memória de "generalStock", puxa ela. 
-    // Se for um produto antigo que ainda não tem isso, não mistura as coisas.
-    if (p.generalStock !== undefined) {
-        document.getElementById('prod-stock').value = p.generalStock;
-    } else {
-        document.getElementById('prod-stock').value = p.hasVariations ? 0 : (p.stock || 0);
-    }
-
+    // Carrega os tamanhos se existirem
     state.tempVariations = [];
     if (Array.isArray(p.sizes) && p.sizes.length > 0) {
         state.tempVariations = p.sizes.map(s => {
@@ -4829,13 +4806,16 @@ window.editProduct = (id) => {
     }
 
     const chkVar = document.getElementById('prod-has-variations');
+    
+    // Liga a chave baseada exclusivamente no que está salvo
     if (p.hasVariations) {
         chkVar.checked = true;
     } else {
         chkVar.checked = false;
+        document.getElementById('prod-stock').value = p.stock || 0;
     }
 
-    toggleStockMode(); 
+    toggleStockMode();
 
     state.tempImages = p.images ? [...p.images] : [];
     if (typeof renderImagePreviews === 'function') renderImagePreviews();
@@ -5653,6 +5633,7 @@ window.cancelProfileEdit = () => {
 };
 
 // Função para carregar dados nos inputs de configuração
+// Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
     const p = state.storeProfile || {};
 
@@ -5678,32 +5659,39 @@ function fillProfileForm() {
 
     if (typeof updateFreeInstallmentsSelect === 'function') updateFreeInstallmentsSelect();
 
+    // Atualiza visual do parcelamento
     const elCardDetails = document.getElementById('conf-card-details');
     if (elCardDetails) {
         if (inst.active) elCardDetails.classList.remove('opacity-50', 'pointer-events-none');
         else elCardDetails.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    // 3. Configurações de Pedido
+    // 3. Configurações de Pedido (Entrega, Tempo, Frete)
     const dConfig = p.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5, shippingRule: 'none', shippingValue: 0 };
-    const settings = p.settings || {}; 
+    const settings = p.settings || {}; // Alguns dados podem estar aqui
 
     setCheck('conf-own-delivery', dConfig.ownDelivery);
 
+    // O Código e o Tempo podem estar em 'deliveryConfig' ou 'settings' dependendo da versão anterior do seu banco.
+    // Verificamos ambos para garantir.
     const reqCode = dConfig.reqCustomerCode !== undefined ? dConfig.reqCustomerCode : (settings.reqClientCode || false);
     const cancelTime = dConfig.cancelTimeMin !== undefined ? dConfig.cancelTimeMin : (settings.cancellationTime || 5);
 
     setCheck('conf-req-code', reqCode);
     setVal('conf-cancel-time', cancelTime);
+
+    // Frete
     setVal('conf-shipping-rule', dConfig.shippingRule || 'none');
     setVal('conf-shipping-value', typeof formatMoneyForInput === 'function' ? formatMoneyForInput(dConfig.shippingValue) : dConfig.shippingValue);
 
+    // Controle Visual do Frete
     const elShipCont = document.getElementById('shipping-value-container');
     if (elShipCont) {
         if (dConfig.shippingRule && dConfig.shippingRule !== 'none') elShipCont.classList.remove('opacity-50', 'pointer-events-none');
         else elShipCont.classList.add('opacity-50', 'pointer-events-none');
     }
 
+    // Controle Visual do Código de Entrega
     const elReq = document.getElementById('conf-req-code');
     if (elReq) {
         if (dConfig.ownDelivery) {
@@ -5755,19 +5743,6 @@ function fillProfileForm() {
     setCheck('conf-pay-delivery-debit', payConfig.delivery?.debit !== false);
     setCheck('conf-pay-delivery-cash', payConfig.delivery?.cash !== false);
 
-    // ✨ 7. PIX GLOBAL (CORREÇÃO: AGORA ELE CARREGA QUANDO VOCÊ ABRE O ADMIN)
-    const pg = p.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
-    setCheck('conf-pix-disable-all', pg.disableAll);
-    setCheck('conf-pix-global-active', pg.active);
-    setVal('conf-pix-global-value', pg.value);
-
-    const rMode = document.querySelector(`input[name="conf-pix-mode"][value="${pg.mode}"]`);
-    if (rMode) rMode.checked = true;
-
-    const rType = document.querySelector(`input[name="conf-pix-type"][value="${pg.type || 'percent'}"]`);
-    if (rType) rType.checked = true;
-
-    // Atualiza Visual
     if (typeof updatePaymentVisuals === 'function') updatePaymentVisuals();
     if (typeof togglePixGlobalUI === 'function') togglePixGlobalUI();
 }
@@ -6039,12 +6014,8 @@ window.openCheckoutModal = () => {
         checkoutState.distance = 0;
     }
 
-    // 3. Aplica visibilidade das abas principais
-    if (typeof applyCheckoutVisibility === 'function') applyCheckoutVisibility();
-    
-    // ✨ FORÇA O REDESENHO DOS BOTÕES DE PAGAMENTO 
-    // Assim que a tela abrir, ele ajusta se vai ter dinheiro, crédito, etc.
-    if (typeof togglePaymentMode === 'function') togglePaymentMode(); 
+    // 3. Aplica visibilidade das opções (Pix, Cartão, etc)
+    applyCheckoutVisibility();
 
     // 4. Exibição das Telas
     const viewCart = document.getElementById('view-cart-list');
@@ -6066,12 +6037,12 @@ window.openCheckoutModal = () => {
     // Força o bloqueio visual e adiciona a classe de trava
     if (paySection) {
         paySection.classList.add('opacity-50', 'locked-section');
-        paySection.classList.remove('pointer-events-none'); 
+        paySection.classList.remove('pointer-events-none'); // Importante para o Toast funcionar
     }
 
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = true; 
+        btnFinish.disabled = true; // <--- AGORA TRAVA O BOTÃO
         btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
     }
 
@@ -6819,64 +6790,46 @@ function updateFreeInstallmentsSelect() {
 }
 
 // 1. Controla o Modo Principal (Online vs Entrega)
-window.togglePaymentMode = () => {
+function togglePaymentMode() {
     const modeEl = document.querySelector('input[name="pay-mode"]:checked');
     if (!modeEl) return;
 
     const mode = modeEl.value;
     const lblMethod = document.getElementById('lbl-payment-method');
 
-    // Recupera Configs do Banco (com fallback seguro)
+    // --- CORREÇÃO: REMOVIDAS AS LINHAS QUE DESBLOQUEAVAM AUTOMATICAMENTE ---
+    // Quem decide se desbloqueia agora é APENAS a função validateCheckoutForm()
+    // -----------------------------------------------------------------------
+
+    // Recupera Configs (com fallback seguro para credit/debit)
     const pm = state.storeProfile?.paymentMethods || {};
 
-    // ✨ SELETOR BLINDADO APRIMORADO: Acha a caixa inteira do pagamento (Pix, Cartão, Dinheiro)
-    const getWrapper = (val) => {
-        // Tenta achar com os dois nomes possíveis que o HTML possa estar usando
-        const radio = document.querySelector(`input[name="payment-method-selection"][value="${val}"]`) || 
-                      document.querySelector(`input[name="payment-method"][value="${val}"]`);
-        
-        if (!radio) return null;
+    // --- SELETORES ---
+    const radioPix = document.querySelector('input[name="payment-method-selection"][value="pix"]');
+    const lblPix = radioPix ? radioPix.closest('label') : null;
 
-        // Tenta achar o container pai pelo ID (caso exista)
-        let wrapper = document.getElementById(`container-${val}-option`);
-        
-        // Se não achar o ID, sobe o HTML até achar a div principal (que tem as bordas/label)
-        if (!wrapper) {
-            const label = radio.closest('label');
-            wrapper = label ? label.parentElement : radio.parentElement;
-        }
-        
-        return { radio, wrapper };
-    };
+    // Crédito (div container)
+    const radioCredit = document.querySelector('input[name="payment-method-selection"][value="credit"]');
+    const divCredit = document.getElementById('container-credit-option');
 
-    // Mapeia todas as opções
-    const pix = getWrapper('pix');
-    const credit = getWrapper('credit');
-    const debit = getWrapper('debit');
-    const cash = getWrapper('cash');
+    // Débito (label)
+    const radioDebit = document.querySelector('input[name="payment-method-selection"][value="debit"]');
+    const lblDebit = document.getElementById('container-debit-option');
 
-    const updateVis = (obj, show) => {
-        if (!obj) return;
-        
-        // Força a remoção de TODAS as classes de ocultamento
+    // Dinheiro
+    const radioCash = document.querySelector('input[name="payment-method-selection"][value="cash"]');
+    const containerCash = document.getElementById('container-cash-option');
+
+    const updateVis = (el, show, radio) => {
+        if (!el) return;
         if (show) {
-            if (obj.wrapper) {
-                obj.wrapper.classList.remove('hidden');
-                // Se o elemento for flexível ou em bloco, remove a restrição inline
-                obj.wrapper.style.display = ''; 
-            }
-            if (obj.radio) {
-                obj.radio.disabled = false;
-                // Assegura que o label em volta (se houver) também apareça
-                const parentLabel = obj.radio.closest('label');
-                if (parentLabel) parentLabel.classList.remove('hidden');
-            }
+            el.classList.remove('hidden');
+            el.style.display = '';
+            if (radio) radio.disabled = false;
         } else {
-            if (obj.wrapper) {
-                obj.wrapper.classList.add('hidden');
-                obj.wrapper.style.setProperty('display', 'none', 'important');
-            }
-            if (obj.radio) obj.radio.disabled = true;
+            el.classList.add('hidden');
+            el.style.setProperty('display', 'none', 'important');
+            if (radio) radio.disabled = true;
         }
     };
 
@@ -6885,10 +6838,10 @@ window.togglePaymentMode = () => {
 
         // Verifica configurações de Entrega
         const pDel = pm.delivery || {};
-        updateVis(pix, pDel.pix !== false);
-        updateVis(credit, pDel.credit !== false);
-        updateVis(debit, pDel.debit !== false);
-        updateVis(cash, pDel.cash !== false); // ✨ MOSTRA O DINHEIRO E CARTÕES
+        updateVis(lblPix, pDel.pix !== false, radioPix);
+        updateVis(divCredit, pDel.credit !== false, radioCredit);
+        updateVis(lblDebit, pDel.debit !== false, radioDebit);
+        updateVis(containerCash, pDel.cash !== false, radioCash);
 
     } else {
         // ONLINE
@@ -6896,44 +6849,34 @@ window.togglePaymentMode = () => {
 
         // Verifica configurações Online
         const pOn = pm.online || {};
-        updateVis(pix, pOn.pix !== false);
-        updateVis(credit, pOn.credit !== false);
-        updateVis(debit, pOn.debit !== false);
-        updateVis(cash, false); // ⛔ Dinheiro NUNCA existe online
+        updateVis(lblPix, pOn.pix !== false, radioPix);
+        updateVis(divCredit, pOn.credit !== false, radioCredit);
+        updateVis(lblDebit, pOn.debit !== false, radioDebit);
+        updateVis(containerCash, false, radioCash); // Dinheiro nunca no online
     }
 
-    // Auto-Correção: Se a opção que estava marcada foi escondida, pula pra próxima visível
-    const current = document.querySelector('input[name="payment-method-selection"]:checked') || document.querySelector('input[name="payment-method"]:checked');
+    // Auto-Correção
+    const current = document.querySelector('input[name="payment-method-selection"]:checked');
     let isInvalid = false;
 
-    if (!current || current.disabled) {
-        isInvalid = true;
-    } else {
-        const wrap = current.closest('label')?.parentElement;
-        if (wrap && wrap.classList.contains('hidden')) isInvalid = true;
-    }
+    if (!current) isInvalid = true;
+    else if (current.disabled) isInvalid = true;
+    else if (current.closest('.hidden')) isInvalid = true;
 
     if (isInvalid) {
-        let foundValid = null;
-        const radios = document.querySelectorAll('input[name="payment-method-selection"]:not(:disabled), input[name="payment-method"]:not(:disabled)');
-        
-        radios.forEach(r => {
-            const wrap = r.closest('label')?.parentElement || r.parentElement;
-            if (wrap && !wrap.classList.contains('hidden') && !foundValid) {
-                foundValid = r;
-            }
-        });
-        
-        if (foundValid) {
-            foundValid.checked = true;
-            if (typeof toggleMethodSelection === 'function') toggleMethodSelection();
+        const valid = document.querySelector('input[name="payment-method-selection"]:not(:disabled)');
+        if (valid && !valid.closest('.hidden')) {
+            valid.checked = true;
+            if (typeof window.toggleMethodSelection === 'function') window.toggleMethodSelection();
         }
     } else {
-        if (typeof toggleMethodSelection === 'function') toggleMethodSelection();
+        if (typeof window.toggleMethodSelection === 'function') window.toggleMethodSelection();
     }
 
-    // Valida o botão de checkout após a dança das opções
+    // IMPORTANTE: Após ajustar o visual, validamos se deve continuar bloqueado
     if (typeof validateCheckoutForm === 'function') validateCheckoutForm();
+
+    applyCheckoutVisibility();
 };
 
 // 2. Controla a Seleção Específica (Pix vs Cartão vs Dinheiro)
@@ -7363,12 +7306,35 @@ async function updateOrderStatusDB(orderId, newStatus) {
 
         // --- CENÁRIO A: BAIXA DE ESTOQUE (Entrou em status válido) ---
         if (!wasConsuming && isConsuming) {
-            await processStockUpdate(items, 'remove');
-            showToast(`Estoque baixado com sucesso!`, 'success');
+            for (const item of items) {
+                if (item.id) {
+                    const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+                    const pSnap = await getDoc(prodRef);
+                    if (pSnap.exists()) {
+                        const currentStock = parseInt(pSnap.data().stock) || 0;
+                        const qty = parseInt(item.qty) || 0;
+                        let newStock = currentStock - qty;
+                        if (newStock < 0) newStock = 0;
+                        await updateDoc(prodRef, { stock: newStock });
+                    }
+                }
+            }
+            showToast(`Estoque baixado!`, 'success');
         }
+
         // --- CENÁRIO B: DEVOLUÇÃO DE ESTOQUE (Saiu de status válido) ---
         else if (wasConsuming && !isConsuming) {
-            await processStockUpdate(items, 'add');
+            for (const item of items) {
+                if (item.id) {
+                    const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+                    const pSnap = await getDoc(prodRef);
+                    if (pSnap.exists()) {
+                        const currentStock = parseInt(pSnap.data().stock) || 0;
+                        const qty = parseInt(item.qty) || 0;
+                        await updateDoc(prodRef, { stock: currentStock + qty });
+                    }
+                }
+            }
             showToast(`Estoque devolvido.`, 'info');
         }
 
@@ -7379,6 +7345,7 @@ async function updateOrderStatusDB(orderId, newStatus) {
         }
 
         await updateDoc(orderRef, updateData);
+        // O onSnapshot do loadAdminSales cuidará de atualizar a tela automaticamente.
 
     } catch (error) {
         console.error("Erro ao atualizar status:", error);
@@ -7386,59 +7353,6 @@ async function updateOrderStatusDB(orderId, newStatus) {
     }
 }
 
-async function processStockUpdate(items, operation) {
-    for (const item of items) {
-        if (!item.id) continue;
-
-        const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
-        const pSnap = await getDoc(prodRef);
-        
-        if (pSnap.exists()) {
-            let pData = pSnap.data();
-            let qty = parseInt(item.qty) || 0;
-            let updates = {};
-
-            if (pData.hasVariations && Array.isArray(pData.sizes)) {
-                // ESTOQUE GRADEADO
-                let newSizes = [...pData.sizes];
-                
-                // Encontra o tamanho exato que o cliente comprou
-                let sizeObj = newSizes.find(s => s.name === item.size);
-                
-                if (sizeObj) {
-                    let currentSizeStock = parseInt(sizeObj.stock) || 0;
-                    if (operation === 'remove') {
-                        sizeObj.stock = Math.max(0, currentSizeStock - qty);
-                    } else {
-                        sizeObj.stock = currentSizeStock + qty;
-                    }
-                }
-                
-                // Recalcula o estoque total do produto baseado nas caixinhas atualizadas
-                let newTotalStock = newSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0);
-                
-                updates.sizes = newSizes;
-                updates.stock = newTotalStock;
-                
-            } else {
-                // ESTOQUE GERAL
-                let currentStock = parseInt(pData.stock) || 0;
-                let currentGenStock = parseInt(pData.generalStock) || 0;
-                
-                if (operation === 'remove') {
-                    updates.stock = Math.max(0, currentStock - qty);
-                    updates.generalStock = Math.max(0, currentGenStock - qty);
-                } else {
-                    updates.stock = currentStock + qty;
-                    updates.generalStock = currentGenStock + qty;
-                }
-            }
-            
-            // Salva as alterações no banco de dados
-            await updateDoc(prodRef, updates);
-        }
-    }
-}
 
 // ÍCONE DE RASTREIO CHAMA ISSO:
 async function openTrackModal() {

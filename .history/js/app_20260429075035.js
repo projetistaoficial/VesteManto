@@ -5653,6 +5653,7 @@ window.cancelProfileEdit = () => {
 };
 
 // Função para carregar dados nos inputs de configuração
+// Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
     const p = state.storeProfile || {};
 
@@ -5678,32 +5679,39 @@ function fillProfileForm() {
 
     if (typeof updateFreeInstallmentsSelect === 'function') updateFreeInstallmentsSelect();
 
+    // Atualiza visual do parcelamento
     const elCardDetails = document.getElementById('conf-card-details');
     if (elCardDetails) {
         if (inst.active) elCardDetails.classList.remove('opacity-50', 'pointer-events-none');
         else elCardDetails.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    // 3. Configurações de Pedido
+    // 3. Configurações de Pedido (Entrega, Tempo, Frete)
     const dConfig = p.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5, shippingRule: 'none', shippingValue: 0 };
-    const settings = p.settings || {}; 
+    const settings = p.settings || {}; // Alguns dados podem estar aqui
 
     setCheck('conf-own-delivery', dConfig.ownDelivery);
 
+    // O Código e o Tempo podem estar em 'deliveryConfig' ou 'settings' dependendo da versão anterior do seu banco.
+    // Verificamos ambos para garantir.
     const reqCode = dConfig.reqCustomerCode !== undefined ? dConfig.reqCustomerCode : (settings.reqClientCode || false);
     const cancelTime = dConfig.cancelTimeMin !== undefined ? dConfig.cancelTimeMin : (settings.cancellationTime || 5);
 
     setCheck('conf-req-code', reqCode);
     setVal('conf-cancel-time', cancelTime);
+
+    // Frete
     setVal('conf-shipping-rule', dConfig.shippingRule || 'none');
     setVal('conf-shipping-value', typeof formatMoneyForInput === 'function' ? formatMoneyForInput(dConfig.shippingValue) : dConfig.shippingValue);
 
+    // Controle Visual do Frete
     const elShipCont = document.getElementById('shipping-value-container');
     if (elShipCont) {
         if (dConfig.shippingRule && dConfig.shippingRule !== 'none') elShipCont.classList.remove('opacity-50', 'pointer-events-none');
         else elShipCont.classList.add('opacity-50', 'pointer-events-none');
     }
 
+    // Controle Visual do Código de Entrega
     const elReq = document.getElementById('conf-req-code');
     if (elReq) {
         if (dConfig.ownDelivery) {
@@ -5755,19 +5763,6 @@ function fillProfileForm() {
     setCheck('conf-pay-delivery-debit', payConfig.delivery?.debit !== false);
     setCheck('conf-pay-delivery-cash', payConfig.delivery?.cash !== false);
 
-    // ✨ 7. PIX GLOBAL (CORREÇÃO: AGORA ELE CARREGA QUANDO VOCÊ ABRE O ADMIN)
-    const pg = p.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
-    setCheck('conf-pix-disable-all', pg.disableAll);
-    setCheck('conf-pix-global-active', pg.active);
-    setVal('conf-pix-global-value', pg.value);
-
-    const rMode = document.querySelector(`input[name="conf-pix-mode"][value="${pg.mode}"]`);
-    if (rMode) rMode.checked = true;
-
-    const rType = document.querySelector(`input[name="conf-pix-type"][value="${pg.type || 'percent'}"]`);
-    if (rType) rType.checked = true;
-
-    // Atualiza Visual
     if (typeof updatePaymentVisuals === 'function') updatePaymentVisuals();
     if (typeof togglePixGlobalUI === 'function') togglePixGlobalUI();
 }
@@ -6039,12 +6034,8 @@ window.openCheckoutModal = () => {
         checkoutState.distance = 0;
     }
 
-    // 3. Aplica visibilidade das abas principais
-    if (typeof applyCheckoutVisibility === 'function') applyCheckoutVisibility();
-    
-    // ✨ FORÇA O REDESENHO DOS BOTÕES DE PAGAMENTO 
-    // Assim que a tela abrir, ele ajusta se vai ter dinheiro, crédito, etc.
-    if (typeof togglePaymentMode === 'function') togglePaymentMode(); 
+    // 3. Aplica visibilidade das opções (Pix, Cartão, etc)
+    applyCheckoutVisibility();
 
     // 4. Exibição das Telas
     const viewCart = document.getElementById('view-cart-list');
@@ -6066,12 +6057,12 @@ window.openCheckoutModal = () => {
     // Força o bloqueio visual e adiciona a classe de trava
     if (paySection) {
         paySection.classList.add('opacity-50', 'locked-section');
-        paySection.classList.remove('pointer-events-none'); 
+        paySection.classList.remove('pointer-events-none'); // Importante para o Toast funcionar
     }
 
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = true; 
+        btnFinish.disabled = true; // <--- AGORA TRAVA O BOTÃO
         btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
     }
 

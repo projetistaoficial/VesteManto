@@ -2173,157 +2173,189 @@
         </div>
     </dialog>
 
-    <div id="product-form-modal" class="fixed inset-0 z-[60] hidden bg-black bg-opacity-95 flex items-center justify-center p-4">
-    <div class="bg-gray-800 w-full max-w-2xl rounded p-6 overflow-y-auto max-h-[90vh] border border-gray-700 thin-scroll">
-        <h3 class="text-xl font-bold text-white mb-6 border-b border-gray-700 pb-2">Gerenciar Produto</h3>
+    <div id="product-form-modal"
+        class="fixed inset-0 z-[60] hidden bg-black bg-opacity-95 flex items-center justify-center p-4">
+        <div
+            class="bg-gray-800 w-full max-w-2xl rounded p-6 overflow-y-auto max-h-[90vh] border border-gray-700 thin-scroll">
+            <h3 class="text-xl font-bold text-white mb-6 border-b border-gray-700 pb-2">Gerenciar Produto</h3>
 
-        <!-- ✨ CORREÇÃO 1: Adicionado o onsubmit para impedir que a página recarregue -->
-        <form id="form-product" class="space-y-4" onsubmit="saveProduct(event)">
-            <input type="hidden" id="edit-prod-id">
+            <form id="form-product" class="space-y-4">
+                <input type="hidden" id="edit-prod-id">
 
-            <div>
-                <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Nome do Produto</label>
-                <input type="text" id="prod-name" placeholder="Ex: Camisa Oficial 2025"
-                    class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none" required>
-            </div>
-
-            <div>
-                <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Categoria</label>
-                <select id="prod-cat-select"
-                    class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
-                    <option value="">Selecione...</option>
-                </select>
-            </div>
-
-            <div>
-                <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Descrição Detalhada</label>
-                <textarea id="prod-desc" rows="3" placeholder="Detalhes do tecido, modelo, etc..."
-                    class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"></textarea>
-            </div>
-
-            <!-- Preços -->
-            <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço de Venda (R$)</label>
-                    <input type="text" id="prod-price" placeholder="0.00"
-                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none" step="0.01" required>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Nome do Produto</label>
+                    <input type="text" id="prod-name" placeholder="Ex: Camisa Oficial 2025"
+                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
+                        required>
                 </div>
+
                 <div>
-                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço Promocional (Opcional)</label>
-                    <input type="text" id="prod-promo" placeholder="0.00"
-                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none" step="0.01">
-                </div>
-            </div>
-
-            <div class="w-1/2 pr-2">
-                <label class="text-gray-500 text-xs font-bold uppercase mb-1 block">Preço de Custo (Visível só p/ Admin)</label>
-                <input type="text" id="prod-cost" placeholder="0.00"
-                    class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none" step="0.01">
-            </div>
-
-            <!-- ========================================== -->
-            <!-- 📦 MÓDULO DE ESTOQUE HÍBRIDO -->
-            <!-- ========================================== -->
-            <div class="bg-gray-900 p-4 rounded-lg border border-gray-700 mt-4">
-                <!-- Estoque Geral -->
-                <div id="div-general-stock" class="mb-4 flex items-center gap-4 bg-gray-800 p-4 rounded border border-gray-600">
-                    <label class="text-white font-bold text-sm whitespace-nowrap">Estoque Geral</label>
-                    <input type="number" id="prod-stock"
-                        class="w-32 bg-black text-white font-bold border border-gray-600 rounded px-3 py-2 focus:border-yellow-500 focus:outline-none"
-                        placeholder="0">
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Categoria</label>
+                    <select id="prod-cat-select"
+                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
+                        <option value="">Selecione...</option>
+                    </select>
                 </div>
 
-                <!-- ✨ CORREÇÃO 2: Adicionado 'peer' e 'peer-checked:' para animar o Switch -->
-                <label class="flex items-center gap-3 cursor-pointer mb-4">
-                    <span class="text-white font-bold text-sm">Ativar estoque gradeado</span>
-                    <div class="relative">
-                        <input type="checkbox" id="prod-has-variations" class="sr-only peer" onchange="toggleStockMode()">
-                        <div class="block bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-yellow-500 transition"></div>
-                        <div class="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-4"></div>
+                <div>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Descrição Detalhada</label>
+                    <textarea id="prod-desc" rows="3" placeholder="Detalhes do tecido, modelo, etc..."
+                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"></textarea>
+                </div>
+
+                <!-- Preços -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço de Venda
+                            (R$)</label>
+                        <input type="text" id="prod-price" placeholder="0.00"
+                            class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
+                            step="0.01" required>
                     </div>
-                </label>
+                    <div>
+                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço Promocional
+                            (Opcional)</label>
+                        <input type="text" id="prod-promo" placeholder="0.00"
+                            class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
+                            step="0.01">
+                    </div>
+                </div>
 
-                <!-- Bloco de Tamanhos (Gradeado) -->
-                <div id="div-variations-stock" class="hidden flex-col gap-4 bg-black p-4 rounded border border-gray-600">
-                    <h4 class="text-white font-bold text-sm">Tamanhos/Estoque</h4>
+                <div class="w-1/2 pr-2">
+                    <label class="text-gray-500 text-xs font-bold uppercase mb-1 block">Preço de Custo (Visível só p/
+                        Admin)</label>
+                    <input type="text" id="prod-cost" placeholder="0.00"
+                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
+                        step="0.01">
+                </div>
 
-                    <div class="flex items-end justify-between w-full">
-                        <!-- Container dos Botões -->
-                        <div class="flex items-center gap-2 overflow-x-auto hide-scroll pb-1" id="variations-container">
-                            <!-- Os botões gerados pelo JS vão entrar aqui -->
+                <!-- ========================================== -->
+                <!-- 📦 MÓDULO DE ESTOQUE HÍBRIDO -->
+                <!-- ========================================== -->
+                <div class="bg-gray-900 p-4 rounded-lg border border-gray-700 mt-4">
+                    <!-- Estoque Geral -->
+                    <div id="div-general-stock"
+                        class="mb-4 flex items-center gap-4 bg-gray-800 p-4 rounded border border-gray-600">
+                        <label class="text-white font-bold text-sm whitespace-nowrap">Estoque Geral</label>
+                        <input type="number" id="prod-stock"
+                            class="w-32 bg-black text-white font-bold border border-gray-600 rounded px-3 py-2 focus:border-yellow-500 focus:outline-none"
+                            placeholder="0">
+                    </div>
+
+                    <!-- Switch Ativar Grade -->
+                    <label class="flex items-center gap-3 cursor-pointer mb-4">
+                        <span class="text-white font-bold text-sm">Ativar estoque gradeado</span>
+                        <div class="relative">
+                            <input type="checkbox" id="prod-has-variations" class="sr-only"
+                                onchange="toggleStockMode()">
+                            <div class="block bg-gray-600 w-10 h-6 rounded-full switch-bg transition"></div>
+                            <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition switch-dot">
+                            </div>
                         </div>
+                    </label>
 
-                        <!-- Bloco de Totais (Fixo na direita) -->
-                        <div class="flex flex-col items-center ml-4 shrink-0">
-                            <span class="text-white font-bold text-sm mb-1">Total:</span>
-                            <div class="border border-gray-600 rounded overflow-hidden flex flex-col w-14 text-center">
-                                <div class="bg-gray-800 text-white font-bold py-1 border-b border-gray-600 text-xs" id="var-total-count">0</div>
-                                <div class="bg-black text-white font-bold py-2 text-sm" id="var-total-stock">0</div>
+                    <!-- Bloco de Tamanhos (Gradeado) -->
+                    <div id="div-variations-stock"
+                        class="hidden flex-col gap-4 bg-black p-4 rounded border border-gray-600">
+                        <h4 class="text-white font-bold text-sm">Tamanhos/Estoque</h4>
+
+                        <div class="flex items-end justify-between w-full">
+                            <!-- Container dos Botões -->
+                            <div class="flex items-center gap-2 overflow-x-auto hide-scroll pb-1"
+                                id="variations-container">
+                                <!-- Os botões gerados pelo JS vão entrar aqui -->
+                            </div>
+
+                            <!-- Bloco de Totais (Fixo na direita) -->
+                            <div class="flex flex-col items-center ml-4 shrink-0">
+                                <span class="text-white font-bold text-sm mb-1">Total:</span>
+                                <div
+                                    class="border border-gray-600 rounded overflow-hidden flex flex-col w-14 text-center">
+                                    <div class="bg-gray-800 text-white font-bold py-1 border-b border-gray-600 text-xs"
+                                        id="var-total-count">0</div>
+                                    <div class="bg-black text-white font-bold py-2 text-sm" id="var-total-stock">0</div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Configurações Extras (Pix, Sem Estoque, Destaque) -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <!-- Bloco Pix -->
-                <div class="bg-gray-900 p-4 rounded border border-gray-700 flex flex-col gap-4">
-                    <div class="flex items-center gap-3">
-                        <input type="checkbox" id="prod-pix-active" class="w-5 h-5 rounded text-green-500 bg-gray-700 border-gray-600 focus:ring-green-500 cursor-pointer">
-                        <label for="prod-pix-active" class="text-white font-bold text-sm cursor-pointer select-none">Ativar Desconto no Pix</label>
-                    </div>
-
-                    <div id="pix-settings" class="flex flex-col xl:flex-row gap-3 opacity-50 pointer-events-none transition-opacity duration-200 w-full">
-                        <div class="flex items-center gap-2 flex-1 bg-black border border-gray-600 rounded px-3 h-10 focus-within:border-green-500 transition">
-                            <span class="text-gray-400 text-xs uppercase font-bold shrink-0">Valor:</span>
-                            <input type="text" id="prod-pix-val" placeholder="0" class="bg-transparent border-none text-white text-sm w-full outline-none font-bold h-full">
+                <!-- Configurações Extras (Pix, Sem Estoque, Destaque) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <!-- Bloco Pix -->
+                    <div class="bg-gray-900 p-4 rounded border border-gray-700 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" id="prod-pix-active"
+                                class="w-5 h-5 rounded text-green-500 bg-gray-700 border-gray-600 focus:ring-green-500 cursor-pointer">
+                            <label for="prod-pix-active"
+                                class="text-white font-bold text-sm cursor-pointer select-none">Ativar Desconto no
+                                Pix</label>
                         </div>
-                        <div class="flex bg-black rounded border border-gray-600 overflow-hidden h-10 shrink-0">
-                            <button type="button" id="btn-pix-percent" class="px-4 bg-green-600 text-white text-xs font-bold transition flex items-center justify-center hover:bg-green-700">%</button>
-                            <div class="w-px bg-gray-600"></div>
-                            <button type="button" id="btn-pix-fixed" class="px-4 bg-black text-gray-400 text-xs font-bold transition flex items-center justify-center hover:text-white hover:bg-gray-800">R$</button>
+
+                        <div id="pix-settings"
+                            class="flex flex-col xl:flex-row gap-3 opacity-50 pointer-events-none transition-opacity duration-200 w-full">
+                            <div
+                                class="flex items-center gap-2 flex-1 bg-black border border-gray-600 rounded px-3 h-10 focus-within:border-green-500 transition">
+                                <span class="text-gray-400 text-xs uppercase font-bold shrink-0">Valor:</span>
+                                <input type="text" id="prod-pix-val" placeholder="0"
+                                    class="bg-transparent border-none text-white text-sm w-full outline-none font-bold h-full">
+                            </div>
+                            <div class="flex bg-black rounded border border-gray-600 overflow-hidden h-10 shrink-0">
+                                <button type="button" id="btn-pix-percent"
+                                    class="px-4 bg-green-600 text-white text-xs font-bold transition flex items-center justify-center hover:bg-green-700">%</button>
+                                <div class="w-px bg-gray-600"></div>
+                                <button type="button" id="btn-pix-fixed"
+                                    class="px-4 bg-black text-gray-400 text-xs font-bold transition flex items-center justify-center hover:text-white hover:bg-gray-800">R$</button>
+                            </div>
+                            <input type="hidden" id="prod-pix-type" value="percent">
                         </div>
-                        <input type="hidden" id="prod-pix-type" value="percent">
+                    </div>
+
+                    <!-- Bloco Flags -->
+                    <div class="bg-gray-900 p-4 rounded border border-gray-700 flex flex-col justify-center gap-4">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="prod-allow-no-stock"
+                                class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-yellow-500 focus:ring-yellow-500 cursor-pointer">
+                            <label for="prod-allow-no-stock"
+                                class="ml-2 text-sm font-medium text-gray-300 cursor-pointer select-none">Vender sem
+                                estoque</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="prod-highlight"
+                                class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-purple-500 focus:ring-purple-500 cursor-pointer">
+                            <label for="prod-highlight"
+                                class="ml-2 text-sm font-bold text-purple-400 cursor-pointer select-none flex items-center gap-1">
+                                <i class="fas fa-star text-xs"></i> Destaque
+                            </label>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Bloco Flags -->
-                <div class="bg-gray-900 p-4 rounded border border-gray-700 flex flex-col justify-center gap-4">
-                    <div class="flex items-center">
-                        <input type="checkbox" id="prod-allow-no-stock" class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-yellow-500 focus:ring-yellow-500 cursor-pointer">
-                        <label for="prod-allow-no-stock" class="ml-2 text-sm font-medium text-gray-300 cursor-pointer select-none">Vender sem estoque</label>
-                    </div>
-                    <div class="flex items-center">
-                        <input type="checkbox" id="prod-highlight" class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-purple-500 focus:ring-purple-500 cursor-pointer">
-                        <label for="prod-highlight" class="ml-2 text-sm font-bold text-purple-400 cursor-pointer select-none flex items-center gap-1">
-                            <i class="fas fa-star text-xs"></i> Destaque
-                        </label>
+                <!-- Imagens -->
+                <div class="mt-4">
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Imagens do Produto</label>
+                    <input type="file" id="prod-imgs-input" multiple accept="image/*" class="hidden">
+                    <button type="button" onclick="document.getElementById('prod-imgs-input').click()"
+                        class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm mb-2 transition border border-gray-600 flex items-center gap-2">
+                        <i class="fas fa-camera text-yellow-500"></i> Escolher Fotos (Do Dispositivo)
+                    </button>
+                    <div id="prod-imgs-preview"
+                        class="flex gap-2 flex-wrap min-h-[80px] bg-black/50 p-2 rounded border border-gray-700">
+                        <p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada</p>
                     </div>
                 </div>
-            </div>
 
-            <!-- Imagens -->
-            <div class="mt-4">
-                <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Imagens do Produto</label>
-                <input type="file" id="prod-imgs-input" multiple accept="image/*" class="hidden">
-                <button type="button" onclick="document.getElementById('prod-imgs-input').click()"
-                    class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm mb-2 transition border border-gray-600 flex items-center gap-2">
-                    <i class="fas fa-camera text-yellow-500"></i> Escolher Fotos (Do Dispositivo)
-                </button>
-                <div id="prod-imgs-preview" class="flex gap-2 flex-wrap min-h-[80px] bg-black/50 p-2 rounded border border-gray-700">
-                    <p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada</p>
+                <!-- Botões -->
+                <div class="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-700">
+                    <button type="button" id="btn-cancel-prod"
+                        class="bg-gray-600 hover:bg-gray-500 px-6 py-2 rounded text-white font-medium">Cancelar</button>
+                    <button type="submit"
+                        class="bg-yellow-500 hover:bg-yellow-400 px-6 py-2 rounded text-black font-bold shadow-lg transform hover:scale-105 transition">Salvar
+                        Produto</button>
                 </div>
-            </div>
-
-            <!-- Botões -->
-            <div class="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-700">
-                <button type="button" id="btn-cancel-prod" class="bg-gray-600 hover:bg-gray-500 px-6 py-2 rounded text-white font-medium">Cancelar</button>
-                <button type="submit" class="bg-yellow-500 hover:bg-yellow-400 px-6 py-2 rounded text-black font-bold shadow-lg transform hover:scale-105 transition">Salvar Produto</button>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
-</div>
 
     <div id="image-viewer"
         class="fixed inset-0 bg-black/95 z-[100] hidden items-center justify-center backdrop-blur-sm select-none">

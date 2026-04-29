@@ -3074,36 +3074,47 @@ window.markAsViewed = async (id) => {
 };
 
 
-// =================================================================
-// 8. EVENT LISTENERS (LIMPO - SEM CÓDIGO FANTASMA)
-// =================================================================
 function setupEventListeners() {
     setupAccordion('btn-acc-cat', 'content-acc-cat', 'arrow-acc-cat');
     setupAccordion('btn-acc-coupon', 'content-acc-coupon', 'arrow-acc-coupon');
 
+    // 1. Botão Sair (Logout) - AGORA LIMPA A URL À FORÇA
     const btnLogout = document.getElementById('btn-logout');
     if (btnLogout) {
         btnLogout.onclick = () => {
             sessionStorage.removeItem('isStoreAdmin');
             sessionStorage.removeItem('wantsAdmin');
+
+            // Monta a URL limpa baseada se está na nuvem ou localhost
             const isLocal = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
             const urlLimpa = isLocal ? window.location.pathname + '?site=' + state.siteId : window.location.pathname;
 
             if (typeof signOut === 'function' && typeof auth !== 'undefined') {
-                signOut(auth).then(() => { window.location.href = urlLimpa; });
-            } else { window.location.href = urlLimpa; }
+                signOut(auth).then(() => {
+                    window.location.href = urlLimpa; // Força a ida para a URL limpa
+                });
+            } else {
+                window.location.href = urlLimpa;
+            }
         };
     }
 
+    // 2. Cancelar e Fechar o Login
     const btnLoginCancel = getEl('btn-login-cancel');
-    if (btnLoginCancel) btnLoginCancel.onclick = () => { if (typeof fecharModalLogin === 'function') fecharModalLogin(); };
+    if (btnLoginCancel) btnLoginCancel.onclick = () => {
+        if (typeof fecharModalLogin === 'function') fecharModalLogin();
+    };
 
     const btnLoginSubmit = document.getElementById('btn-login-submit');
     const passInput = document.getElementById('admin-pass');
 
+    // Permitir "Enter" no teclado
     if (passInput) {
         passInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); if (btnLoginSubmit) btnLoginSubmit.click(); }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (btnLoginSubmit) btnLoginSubmit.click();
+            }
         });
     }
 
@@ -3111,78 +3122,124 @@ function setupEventListeners() {
         btnLoginSubmit.onclick = async () => {
             const pass = passInput ? passInput.value.trim() : '';
             const btnOriginalText = btnLoginSubmit.innerText;
+
             btnLoginSubmit.innerText = "Verificando...";
             btnLoginSubmit.disabled = true;
+
             try {
+                // 1. Suporte / Desenvolvedor
                 if (checkAndActivateSupport(pass)) {
                     if (typeof fecharModalLogin === 'function') fecharModalLogin();
                     if (passInput) passInput.value = '';
-                    showView('admin'); showView('support'); return;
+                    showView('admin');
+                    showView('support');
+                    return;
                 }
 
                 let loggedIn = false;
-                const emailDaLoja = `${state.siteId}@projetista.com`.toLowerCase();
+                // Força minúsculo para evitar erro de letras (Case Sensitivity)
+                const emailDaLoja = `${state.siteId}@projetista.com`.toLowerCase(); 
 
+                // ✨ TENTATIVA 1: Lojista Oficial (Nova Segurança)
                 try {
                     await signInWithEmailAndPassword(auth, emailDaLoja, pass);
                     loggedIn = true;
+                    console.log("✅ Login: Lojista Oficial");
                 } catch (e1) {
+                    
+                    // ✨ TENTATIVA 2: Mestre Oficial
                     try {
                         await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
                         loggedIn = true;
+                        console.log("✅ Login: Administrador Mestre");
                     } catch (e2) {
+                        
+                        // ✨ TENTATIVA 3: AUTO-MIGRAÇÃO (A MÁGICA ACONTECE AQUI)
                         const docRef = doc(db, "sites", state.siteId);
                         const snap = await getDocFromServer(docRef);
+                        
                         if (snap.exists() && snap.data().access?.admin === pass) {
+                            // A senha confere no banco antigo! Vamos criar o crachá oficial agora.
                             if (pass.length >= 6) {
                                 try {
+                                    // Cria a conta oficial no Firebase Auth e já loga na mesma hora!
                                     await createUserWithEmailAndPassword(auth, emailDaLoja, pass);
                                     loggedIn = true;
+                                    console.log("✅ Conta migrada e logada com sucesso!");
                                 } catch (migErr) {
-                                    alert("Erro de segurança ao migrar conta."); return;
+                                    console.error("Erro ao migrar:", migErr);
+                                    alert("Erro de segurança ao migrar conta. Salve a loja novamente no Painel Master.");
+                                    return;
                                 }
                             } else {
-                                alert("Sua senha tem menos de 6 caracteres. Peça ao Administrador para aumentar."); return;
+                                alert("⚠️ Sua senha tem menos de 6 caracteres.\nO novo sistema de segurança do Firebase exige 6 ou mais caracteres.\nPeça ao Administrador para aumentar sua senha no Painel.");
+                                return;
                             }
                         }
                     }
                 }
 
+                // --- SUCESSO OU FALHA FINAL ---
                 if (loggedIn) {
                     sessionStorage.removeItem('support_mode');
                     if (typeof fecharModalLogin === 'function') fecharModalLogin();
                     if (passInput) passInput.value = '';
+                    
                     if (els.menuBtnAdmin) {
                         els.menuBtnAdmin.classList.remove('hidden');
                         els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white group-hover:text-white transition"></i><span class="font-bold uppercase text-sm tracking-wide ml-2">Painel Admin</span>`;
                     }
                     const btnLoginNav = getEl('btn-admin-login');
                     if (btnLoginNav) {
-                        btnLoginNav.classList.remove('hidden'); btnLoginNav.innerText = 'Painel Admin';
+                        btnLoginNav.classList.remove('hidden');
+                        btnLoginNav.innerText = 'Painel Admin';
                     }
+
                     showView('admin');
                     if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
                     if (typeof loadAdminSales === 'function') loadAdminSales();
-                } else { alert("Senha incorreta."); }
+                } else {
+                    alert("Senha incorreta.");
+                }
 
-            } catch (error) { alert("Erro inesperado. Tente novamente."); }
-            finally { btnLoginSubmit.innerText = btnOriginalText; btnLoginSubmit.disabled = false; }
+            } catch (error) {
+                console.error("Erro crítico no botão de login:", error);
+                alert("Erro inesperado. Tente novamente.");
+            } finally {
+                btnLoginSubmit.innerText = btnOriginalText;
+                btnLoginSubmit.disabled = false;
+            }
         };
     }
 
+    // 2. Accordion do Tema (Aparência)
     setupAccordion('btn-acc-theme', 'content-acc-theme', 'arrow-acc-theme');
 
-    if (els.checkoutCep) els.checkoutCep.addEventListener('blur', (e) => handleCheckoutCep(e));
+    // --- CORREÇÃO 1: Removido 'window.' ---
+    if (els.checkoutCep) {
+        // Usamos uma "arrow function" () => ... para garantir que a função exista na hora do clique
+        els.checkoutCep.addEventListener('blur', (e) => handleCheckoutCep(e));
+    }
 
+    // =================================================================
+    // CORREÇÃO: LIBERAR HORÁRIO IMEDIATAMENTE AO CLICAR
+    // =================================================================
     const checkHours = document.getElementById('conf-hours-active');
     const divHours = document.getElementById('hours-settings');
+
     if (checkHours && divHours) {
         checkHours.addEventListener('change', (e) => {
-            if (e.target.checked) divHours.classList.remove('opacity-50', 'pointer-events-none');
-            else divHours.classList.add('opacity-50', 'pointer-events-none');
+            if (e.target.checked) {
+                // Se marcou: Remove opacidade e permite cliques
+                divHours.classList.remove('opacity-50', 'pointer-events-none');
+            } else {
+                // Se desmarcou: Deixa transparente e bloqueia cliques
+                divHours.classList.add('opacity-50', 'pointer-events-none');
+            }
         });
     }
 
+    // Filtros Admin
     if (els.adminSearchProd) els.adminSearchProd.addEventListener('input', filterAndRenderProducts);
     if (els.adminFilterCat) els.adminFilterCat.addEventListener('change', filterAndRenderProducts);
     if (els.adminSortProd) els.adminSortProd.addEventListener('change', filterAndRenderProducts);
@@ -3195,6 +3252,7 @@ function setupEventListeners() {
     }
     setupAccordion('btn-acc-installments', 'content-acc-installments', 'arrow-acc-installments');
 
+    // Ações em Massa
     const btnBulkDel = getEl('btn-bulk-delete');
     if (btnBulkDel) btnBulkDel.onclick = async () => {
         if (!confirm(`Excluir ${state.selectedProducts.size} produtos selecionados?`)) return;
@@ -3220,12 +3278,24 @@ function setupEventListeners() {
         } catch (error) { alert("Erro ao mover: " + error.message); }
     };
 
+    // Filtros Vitrine
     if (els.searchInput) els.searchInput.addEventListener('input', (e) => { const term = e.target.value.toLowerCase(); const filtered = state.products.filter(p => p.name.toLowerCase().includes(term) || p.description.toLowerCase().includes(term)); renderCatalog(filtered); });
     if (els.catFilter) els.catFilter.addEventListener('change', (e) => { const cat = e.target.value; if (!cat) return renderCatalog(state.products); const filtered = state.products.filter(p => p.category === cat || p.category.startsWith(cat + ' -')); renderCatalog(filtered); });
 
+    // Filtros de Vendas
     setupAccordion('btn-acc-sales-filters', 'content-acc-sales-filters', 'arrow-acc-sales-filters');
 
-    const idsFiltros = ['filter-search-general', 'filter-search-product', 'filter-status', 'filter-payment', 'filter-sort-order', 'filter-date-start', 'filter-date-end', 'filter-search-code'];
+    const idsFiltros = [
+        'filter-search-general',
+        'filter-search-product',
+        'filter-status',
+        'filter-payment',
+        'filter-sort-order',
+        'filter-date-start',
+        'filter-date-end',
+        'filter-search-code'
+    ];
+
     idsFiltros.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -3237,48 +3307,145 @@ function setupEventListeners() {
     const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
-            idsFiltros.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            idsFiltros.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
             const sort = document.getElementById('filter-sort-order');
             if (sort) sort.value = 'date_desc';
             filterAndRenderSales();
         };
     }
 
+    // Dashboard
     if (els.dashPrevDate) els.dashPrevDate.onclick = () => { if (state.dashViewMode === 'day') state.dashDate.setDate(state.dashDate.getDate() - 1); else state.dashDate.setMonth(state.dashDate.getMonth() - 1); updateDashboardUI(); };
     if (els.dashNextDate) els.dashNextDate.onclick = () => { if (state.dashViewMode === 'day') state.dashDate.setDate(state.dashDate.getDate() + 1); else state.dashDate.setMonth(state.dashDate.getMonth() + 1); updateDashboardUI(); };
     if (els.btnViewDay) els.btnViewDay.onclick = () => { state.dashViewMode = 'day'; updateDashboardUI(); };
     if (els.btnViewMonth) els.btnViewMonth.onclick = () => { state.dashViewMode = 'month'; updateDashboardUI(); };
 
+    // Estatísticas
     if (els.statsFilterAll) els.statsFilterAll.onclick = () => { state.statsFilterType = 'all'; updateStatsUI(); };
     if (els.statsFilterPeriod) els.statsFilterPeriod.onclick = () => { state.statsFilterType = 'period'; updateStatsUI(); };
-    if (els.statsPrevDate) els.statsPrevDate.onclick = () => { if (state.statsViewMode === 'day') state.statsDate.setDate(state.statsDate.getDate() - 1); else state.statsDate.setMonth(state.statsDate.getMonth() - 1); updateStatsUI(); };
-    if (els.statsNextDate) els.statsNextDate.onclick = () => { if (state.statsViewMode === 'day') state.statsDate.setDate(state.statsDate.getDate() + 1); else state.statsDate.setMonth(state.statsDate.getMonth() + 1); updateStatsUI(); };
+    if (els.statsPrevDate) els.statsPrevDate.onclick = () => {
+        if (state.statsViewMode === 'day') state.statsDate.setDate(state.statsDate.getDate() - 1);
+        else state.statsDate.setMonth(state.statsDate.getMonth() - 1);
+        updateStatsUI();
+    };
+    if (els.statsNextDate) els.statsNextDate.onclick = () => {
+        if (state.statsViewMode === 'day') state.statsDate.setDate(state.statsDate.getDate() + 1);
+        else state.statsDate.setMonth(state.statsDate.getMonth() + 1);
+        updateStatsUI();
+    };
     if (els.statsViewDay) els.statsViewDay.onclick = () => { state.statsViewMode = 'day'; updateStatsUI(); };
     if (els.statsViewMonth) els.statsViewMonth.onclick = () => { state.statsViewMode = 'month'; updateStatsUI(); };
 
-    const btnCart = document.getElementById('cart-btn'); if (btnCart) btnCart.onclick = () => openCart();
-    const btnCartMob = document.getElementById('cart-btn-mobile'); if (btnCartMob) btnCartMob.onclick = () => openCart();
-    
-    if (els.btnCheckout) {
-        els.btnCheckout.onclick = () => {
-            if (state.cart.length === 0) return alert('Carrinho vazio');
-            els.cartModal.classList.add('hidden');
-            openCheckoutModal();
+    // --- CORREÇÃO 2: Funções de Janela (Mantemos window aqui pois é atribuição) ---
+    window.openProductSelectorModal = () => {
+        const modal = document.getElementById('modal-product-selector');
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            const input = document.getElementById('selector-internal-search');
+            if (input) { input.value = ''; input.focus(); }
+            renderProductSelectorList('');
+        }
+    };
+    window.closeProductSelectorModal = () => {
+        const modal = document.getElementById('modal-product-selector');
+        if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+    };
+    window.renderProductSelectorList = (term = '') => {
+        const container = document.getElementById('product-selector-list');
+        if (!container) return;
+        container.innerHTML = '';
+        const cleanTerm = term.toLowerCase().trim();
+        const filtered = state.products.filter(p => {
+            const name = p.name.toLowerCase();
+            const code = p.code ? String(p.code).toLowerCase() : '';
+            return name.includes(cleanTerm) || code.includes(cleanTerm);
+        });
+        if (filtered.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 text-center py-4 text-sm">Nenhum produto encontrado.</p>';
+            return;
+        }
+        filtered.forEach(p => {
+            const codeStr = p.code ? `#${p.code}` : '-';
+            const item = document.createElement('div');
+            item.className = "flex items-center justify-between p-3 rounded-lg hover:bg-gray-800 cursor-pointer border border-transparent hover:border-gray-700 transition mb-1 group";
+            item.onclick = () => confirmProductSelection(p.name, p.code);
+            item.innerHTML = `
+            <div class="flex items-center gap-3">
+                <span class="text-yellow-500 font-mono font-bold text-xs bg-yellow-900/20 px-2 py-1 rounded">${codeStr}</span>
+                <span class="text-gray-300 font-medium text-sm group-hover:text-white transition">${p.name}</span>
+            </div>
+            <i class="fas fa-chevron-right text-gray-600 text-xs opacity-0 group-hover:opacity-100 transition"></i>
+        `;
+            container.appendChild(item);
+        });
+    };
+    window.confirmProductSelection = (name, code) => {
+        const inputHidden = document.getElementById('filter-search-product-value');
+        if (inputHidden) inputHidden.value = name;
+        const display = document.getElementById('selected-product-display');
+        const btnClear = document.getElementById('btn-clear-prod-selection');
+        if (display) {
+            display.innerText = name;
+            display.classList.add('text-white', 'font-bold');
+            display.classList.remove('text-gray-400');
+        }
+        if (btnClear) btnClear.classList.remove('hidden');
+        closeProductSelectorModal();
+        filterAndRenderSales();
+    };
+    window.clearProductFilter = () => {
+        const inputHidden = document.getElementById('filter-search-product-value');
+        if (inputHidden) inputHidden.value = '';
+        const display = document.getElementById('selected-product-display');
+        const btnClear = document.getElementById('btn-clear-prod-selection');
+        if (display) {
+            display.innerText = "Selecionar produto...";
+            display.classList.remove('text-white', 'font-bold');
+            display.classList.add('text-gray-400');
+        }
+        if (btnClear) btnClear.classList.add('hidden');
+        filterAndRenderSales();
+    };
+
+    // --- CORREÇÃO 3: Botões Principais (SEM 'window.') ---
+
+    // Carrinho Desktop
+    const btnCart = document.getElementById('cart-btn');
+    if (btnCart) {
+        // Usamos () => para atrasar a execução e evitar o erro "not defined"
+        btnCart.onclick = () => openCart();
+    }
+
+    // Carrinho Mobile
+    const btnCartMob = document.getElementById('cart-btn-mobile');
+    if (btnCartMob) {
+        btnCartMob.onclick = () => openCart(); // <--- MUDANÇA AQUI
+    }
+
+    // Login
+    const btnAdminLogin = getEl('btn-admin-login');
+    if (btnAdminLogin) {
+        btnAdminLogin.onclick = () => {
+            if (state.user) { showView('admin'); } else { getEl('login-modal').showModal(); }
         };
     }
 
-    const btnAdminLogin = getEl('btn-admin-login');
-    if (btnAdminLogin) { btnAdminLogin.onclick = () => { if (state.user) { showView('admin'); } else { getEl('login-modal').showModal(); } }; }
-
+    // Sidebar e UI Geral (CORREÇÃO: SEM 'window.')
     const btnMob = getEl('mobile-menu-btn'); if (btnMob) btnMob.onclick = toggleSidebar;
     const btnCloseSide = getEl('close-sidebar'); if (btnCloseSide) btnCloseSide.onclick = toggleSidebar;
     if (els.sidebarOverlay) els.sidebarOverlay.onclick = toggleSidebar;
 
-    if (els.themeToggle) els.themeToggle.onclick = () => toggleTheme(true);
+    if (els.themeToggle) els.themeToggle.onclick = () => { toggleTheme(true); };
 
     if (els.menuLinkHome) {
         els.menuLinkHome.onclick = (e) => {
-            if (e) e.preventDefault(); showView('catalog'); filterByCat('');
+            if (e) e.preventDefault();
+            showView('catalog');
+            filterByCat('');
             if (window.innerWidth < 1024) toggleSidebar();
         };
     }
@@ -3293,28 +3460,43 @@ function setupEventListeners() {
     const btnToggleFilters = getEl('btn-toggle-filters'); const filtersBody = getEl('filters-body'); const iconFilter = getEl('icon-filter-arrow');
     if (btnToggleFilters && filtersBody) { btnToggleFilters.onclick = () => { filtersBody.classList.toggle('hidden'); if (iconFilter) { iconFilter.style.transform = filtersBody.classList.contains('hidden') ? 'rotate(180deg)' : 'rotate(0deg)'; } }; }
 
+    // Modais - Fechar
     const btnCloseModal = getEl('close-modal-btn'); if (btnCloseModal) btnCloseModal.onclick = closeProductModal;
     const backdrop = getEl('modal-backdrop'); if (backdrop) backdrop.onclick = closeProductModal;
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !getEl('product-modal').classList.contains('hidden')) closeProductModal(); });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !getEl('product-modal').classList.contains('hidden')) closeProductModal();
+    });
 
+    // Forms
     if (els.btnAddCat) {
-        els.btnAddCat.onclick = async () => {
-            const nameInput = els.newCatName.value.trim();
-            if (!nameInput) return alert("Digite o nome");
-            let finalName = nameInput;
-            if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
-            try {
-                await addDoc(collection(db, `sites/${state.siteId}/categories`), { name: finalName, order: Date.now() });
-                els.newCatName.value = ''; state.selectedCategoryParent = null; renderAdminCategoryList();
-            } catch (error) { alert("Erro: " + error.message); }
-        };
+    els.btnAddCat.onclick = async () => {
+        const nameInput = els.newCatName.value.trim();
+        if (!nameInput) return alert("Digite o nome");
+        let finalName = nameInput;
+        if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
+        try {
+            // ✨ Adiciona Date.now() no order para garantir que ela caia sempre no fim da lista
+            await addDoc(collection(db, `sites/${state.siteId}/categories`), { 
+                name: finalName, 
+                order: Date.now() 
+            });
+            els.newCatName.value = '';
+            state.selectedCategoryParent = null;
+            renderAdminCategoryList();
+        } catch (error) { alert("Erro: " + error.message); }
+    };
 
         setupAccordion('btn-acc-profile', 'content-acc-profile', 'arrow-acc-profile');
         const btnProfile = getEl('btn-acc-profile');
-        if (btnProfile) { btnProfile.addEventListener('click', () => { setTimeout(() => { if (typeof window.checkFooter === 'function') window.checkFooter(); }, 50); }); }
+        if (btnProfile) {
+            btnProfile.addEventListener('click', () => {
+                setTimeout(() => { if (typeof window.checkFooter === 'function') window.checkFooter(); }, 50);
+            });
+        }
         if (els.btnSaveProfile) els.btnSaveProfile.onclick = saveStoreProfile;
     }
 
+    // Formulário Produto
     const checkPix = getEl('prod-pix-active');
     const settingsPix = getEl('pix-settings');
     if (checkPix && settingsPix) {
@@ -3336,7 +3518,7 @@ function setupEventListeners() {
     const settingsCard = getEl('card-settings');
     if (checkCard && settingsCard) {
         checkCard.addEventListener('change', (e) => {
-            if (e.target.checked) { settingsCard.classList.remove('opacity-50', 'pointer-events-none'); getEl('prod-card-installments')?.focus(); }
+            if (e.target.checked) { settingsCard.classList.remove('opacity-50', 'pointer-events-none'); getEl('prod-card-installments').focus(); }
             else { settingsCard.classList.add('opacity-50', 'pointer-events-none'); }
         });
     }
@@ -3362,8 +3544,10 @@ function setupEventListeners() {
                 }
                 resetCouponForm();
             } catch (error) {
+                console.error("Erro no cupom:", error);
                 if (error.code === 'not-found' || error.message.includes('No document to update')) {
-                    alert("Atenção: O cupom não existe mais. Tente criar novo."); state.editingCouponId = null;
+                    alert("Atenção: O cupom não existe mais. Tente criar novo.");
+                    state.editingCouponId = null;
                 } else { alert("Erro ao salvar: " + error.message); }
             }
         };
@@ -3401,20 +3585,27 @@ function setupEventListeners() {
             if (files.length === 0) return;
             for (const file of files) {
                 try {
-                    const base64 = await processImageFile(file); state.tempImages.push(base64);
+                    const base64 = await processImageFile(file);
+                    state.tempImages.push(base64);
                 } catch (err) { console.error("Erro imagem", err); }
             }
-            renderImagePreviews(); fileInput.value = '';
+            renderImagePreviews();
+            fileInput.value = '';
         });
     }
 
     const btnAddProd = getEl('btn-add-product');
     if (btnAddProd) {
         btnAddProd.onclick = () => {
-            if(typeof openNewProductModal === 'function') openNewProductModal();
+            getEl('form-product').reset();
+            getEl('edit-prod-id').value = '';
+            state.tempImages = [];
+            renderImagePreviews();
+            const checkNoStock = getEl('prod-allow-no-stock');
+            if (checkNoStock) checkNoStock.checked = false;
+            if (els.productFormModal) els.productFormModal.classList.remove('hidden');
         };
     }
-
     const btnCancelProd = getEl('btn-cancel-prod'); if (btnCancelProd) btnCancelProd.onclick = () => { if (els.productFormModal) els.productFormModal.classList.add('hidden'); };
 
     if (els.confCardActive) {
@@ -3427,11 +3618,95 @@ function setupEventListeners() {
         });
     }
 
+    // Botão de Finalizar no Carrinho
+    if (els.btnCheckout) {
+        els.btnCheckout.onclick = () => {
+            if (state.cart.length === 0) return alert('Carrinho vazio');
+            els.cartModal.classList.add('hidden');
+            // CORREÇÃO: Removido 'window.'
+            openCheckoutModal();
+        };
+    }
+
+    const formProd = getEl('form-product');
+    if (formProd) {
+        formProd.onsubmit = async (e) => {
+            e.preventDefault();
+            const btnSave = document.querySelector('#form-product button[type="submit"]');
+            const originalText = btnSave ? btnSave.innerText : 'Salvar';
+            try {
+                if (btnSave) { btnSave.innerText = "Salvando..."; btnSave.disabled = true; }
+                const idEl = getEl('edit-prod-id');
+                const nameEl = getEl('prod-name');
+                const catEl = getEl('prod-cat-select');
+                const descEl = getEl('prod-desc');
+                const priceEl = getEl('prod-price');
+                const promoEl = getEl('prod-promo');
+                const stockEl = getEl('prod-stock');
+                const costEl = getEl('prod-cost');
+                const sizesEl = getEl('prod-sizes');
+
+                const noStockEl = getEl('prod-allow-no-stock');
+                const highlightEl = getEl('prod-highlight');
+                const parseVal = (val) => val ? parseFloat(val.replace(/\./g, '').replace(',', '.')) : 0;
+
+                if (state.tempImages.length === 0) { alert("Adicione pelo menos uma imagem!"); return; }
+
+                const pixActive = getEl('prod-pix-active').checked;
+                const pixValRaw = getEl('prod-pix-val').value;
+                const pixVal = parseVal(pixValRaw);
+                const pixType = getEl('prod-pix-type').value;
+
+                const data = {
+                    name: nameEl ? nameEl.value : 'Sem Nome',
+                    category: catEl ? catEl.value : "Geral",
+                    description: descEl ? descEl.value : '',
+                    price: priceEl ? parseVal(priceEl.value) : 0,
+                    promoPrice: promoEl && promoEl.value ? parseVal(promoEl.value) : null,
+                    stock: stockEl ? parseInt(stockEl.value) : 0,
+                    cost: costEl ? parseVal(costEl.value) : 0,
+                    sizes: sizesEl ? sizesEl.value.split(',').map(s => s.trim()).filter(s => s !== '') : [],
+                    images: state.tempImages,
+                    allowNoStock: noStockEl ? noStockEl.checked : false,
+                    highlight: highlightEl ? highlightEl.checked : false,
+                    paymentOptions: { pix: { active: pixActive, val: pixVal, type: pixType } }
+                };
+
+                const id = idEl.value;
+                if (id) {
+                    await updateDoc(doc(db, `sites/${state.siteId}/products`, id), data);
+                    showToast('Produto atualizado!');
+                } else {
+                    const nextCode = await getNextProductCode(state.siteId);
+                    data.code = nextCode;
+                    data.createdAt = new Date().toISOString();
+                    await addDoc(collection(db, `sites/${state.siteId}/products`), data);
+                    showToast('Produto criado!');
+                }
+                if (els.productFormModal) els.productFormModal.classList.add('hidden');
+                e.target.reset();
+                state.tempImages = [];
+                if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+            } catch (err) {
+                console.error(err); alert("Erro ao salvar produto: " + err.message);
+            } finally {
+                if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
+            }
+        };
+    }
+
     const btnGoCheckout = document.getElementById('btn-go-checkout');
     const btnFinishPayment = document.getElementById('btn-finish-payment');
     const btnCloseCart = document.getElementById('close-cart');
 
-    if (btnGoCheckout) { btnGoCheckout.onclick = () => { if (typeof goToCheckoutView === 'function') goToCheckoutView(); }; }
+    // --- CORREÇÃO 4: Removido 'window.' (Funções Locais) ---
+    if (btnGoCheckout) {
+        // Usamos () => para evitar o erro "not defined" durante o carregamento
+        btnGoCheckout.onclick = () => {
+            if (typeof goToCheckoutView === 'function') goToCheckoutView();
+            else if (window.goToCheckoutView) window.goToCheckoutView();
+        };
+    }
     if (btnFinishPayment) btnFinishPayment.onclick = submitOrder;
     if (btnCloseCart) btnCloseCart.onclick = closeCartModal;
 
@@ -3532,50 +3807,92 @@ function setupEventListeners() {
         }, true);
     }
 
+    // =================================================================
+    // INICIALIZAÇÃO DO MÓDULO DE SUPORTE (Recolocado)
+    // =================================================================
+    // Isso envia o 'state' e o 'db' para o arquivo support.js
     if (typeof initSupportModule === 'function') {
         initSupportModule({
             state: state,
             auth: auth,
-            showToast: showToast,
-            loadAdminSales: loadAdminSales,
+            showToast: showToast, // Para os alertas bonitos
+            loadAdminSales: loadAdminSales, // Para resetar vendas se precisar
             checkActiveOrders: checkActiveOrders,
-            loadProducts: loadProducts,
+            loadProducts: loadProducts, // Para recarregar produtos após organizar
             windowRef: window
         });
     }
 
+    // =================================================================
+    // AUTO-SAVE DE PARCELAMENTO (Restauração)
+    // =================================================================
+
+    // 1. Checkbox de Ativar/Desativar
     const cardActive = document.getElementById('conf-card-active');
     if (cardActive) {
         cardActive.addEventListener('change', (e) => {
+            // Controle Visual
             const details = document.getElementById('conf-card-details');
             if (details) {
                 if (e.target.checked) details.classList.remove('opacity-50', 'pointer-events-none');
                 else details.classList.add('opacity-50', 'pointer-events-none');
             }
+            // Salva Imediatamente
             autoSaveSettings('installments');
         });
     }
 
+    // 2. Campos de Texto/Número (Salva ao sair do campo - blur)
     const cardInputs = ['conf-card-max', 'conf-card-rate'];
     cardInputs.forEach(id => {
         const el = document.getElementById(id);
-        if (el) { el.addEventListener('blur', () => { autoSaveSettings('installments'); }); }
-    });
-
-    const cardFree = document.getElementById('conf-card-free');
-    if (cardFree) { cardFree.addEventListener('change', () => autoSaveSettings('installments')); }
-
-    setupRateMask();
-
-    const logisticsInputs = ['conf-store-cep', 'conf-max-dist'];
-    logisticsInputs.forEach(id => {
-        const el = document.getElementById(id);
         if (el) {
-            el.addEventListener('blur', () => { autoSaveSettings('logistics'); });
-            el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { el.blur(); } });
+            el.addEventListener('blur', () => {
+                // Se for a taxa, formata visualmente antes de salvar
+                if (id === 'conf-card-rate' && typeof formatMoneyInput === 'function') {
+                    // Pequeno truque para manter formatado bonito
+                    // (Opcional, se não tiver a função ele ignora)
+                }
+                autoSaveSettings('installments');
+            });
         }
     });
 
+    // 3. Select "Sem Juros" (Salva ao mudar a opção)
+    const cardFree = document.getElementById('conf-card-free');
+    if (cardFree) {
+        cardFree.addEventListener('change', () => autoSaveSettings('installments'));
+    }
+
+    setupRateMask();
+
+    // =================================================================
+    // AUTO-SAVE LOGÍSTICA (CEP E RAIO)
+    // =================================================================
+    const logisticsInputs = ['conf-store-cep', 'conf-max-dist'];
+
+    logisticsInputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            // Salva ao sair do campo (blur)
+            el.addEventListener('blur', () => {
+                autoSaveSettings('logistics');
+            });
+
+            // Opcional: Se quiser salvar ao pressionar Enter
+            el.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    el.blur(); // Tira o foco para disparar o save
+                }
+            });
+        }
+    });
+
+    // =================================================================
+    // CONTROLE DE PAGAMENTOS (LISTENERS & TRAVAS)
+    // =================================================================
+
+    // Lista de IDs dos Checkboxes
     const payCheckboxes = [
         'conf-pay-online-active', 'conf-pay-online-pix', 'conf-pay-online-credit', 'conf-pay-online-debit',
         'conf-pay-delivery-active', 'conf-pay-delivery-pix', 'conf-pay-delivery-credit', 'conf-pay-delivery-debit', 'conf-pay-delivery-cash'
@@ -3584,6 +3901,7 @@ function setupEventListeners() {
     payCheckboxes.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
+            // Remove listeners antigos (clone) para não duplicar lógica
             const newEl = el.cloneNode(true);
             el.parentNode.replaceChild(newEl, el);
 
@@ -3592,46 +3910,69 @@ function setupEventListeners() {
                 const isMasterDelivery = id === 'conf-pay-delivery-active';
                 const isChecked = e.target.checked;
 
+                // --- TRAVA 1: Não pode desativar o ÚLTIMO método Mestre ---
                 if ((isMasterOnline || isMasterDelivery) && !isChecked) {
                     const onlineActive = document.getElementById('conf-pay-online-active').checked;
                     const deliveryActive = document.getElementById('conf-pay-delivery-active').checked;
+
                     if (!onlineActive && !deliveryActive) {
                         alert("⚠️ Você não pode desativar todas as formas de pagamento.\nPelo menos uma (Online ou Entrega) deve ficar ativa.");
-                        e.target.checked = true; return;
+                        e.target.checked = true; // Reverte
+                        return;
                     }
                 }
 
+                // --- TRAVA 2: Não pode desativar todas as sub-opções de um grupo ativo ---
+                // Se eu estou desmarcando um sub-item (ex: Pix Online), verifico se sobrou algum outro no grupo
                 if (!isMasterOnline && !isMasterDelivery && !isChecked) {
                     const group = id.includes('online') ? 'online' : 'delivery';
                     const masterId = `conf-pay-${group}-active`;
                     const masterChecked = document.getElementById(masterId).checked;
 
+                    // Só valida se o grupo Mestre estiver ativo
                     if (masterChecked) {
+                        // Conta quantos estão marcados neste grupo (excluindo o Master)
                         const inputs = document.querySelectorAll(`input[id^="conf-pay-${group}-"]:not([id$="-active"]):checked`);
                         if (inputs.length === 0) {
                             alert(`⚠️ O grupo ${group === 'online' ? 'Online' : 'Entrega'} precisa de pelo menos uma opção ativa.`);
-                            e.target.checked = true; return;
+                            e.target.checked = true; // Reverte
+                            return;
                         }
                     }
                 }
+
+                // Atualiza visual (opacidade)
                 if (typeof updatePaymentVisuals === 'function') updatePaymentVisuals();
+
+                // Salva no Banco
                 autoSaveSettings('payments');
             });
         }
     });
 
+    // =================================================================
+    // AUTO-SAVE: CONFIGURAÇÕES DE PEDIDO (Frete, Código, Tempo)
+    // =================================================================
+    // 1. Pedir Código do Cliente (Checkbox)
     const elReqCode = document.getElementById('conf-req-code');
-    if (elReqCode) { elReqCode.addEventListener('change', () => autoSaveSettings('orders')); }
+    if (elReqCode) {
+        elReqCode.addEventListener('change', () => autoSaveSettings('orders'));
+    }
 
+    // 2. Tempo de Cancelamento (Input Número)
     const elCancelTime = document.getElementById('conf-cancel-time');
     if (elCancelTime) {
         elCancelTime.addEventListener('blur', () => autoSaveSettings('orders'));
-        elCancelTime.addEventListener('keydown', (e) => { if (e.key === 'Enter') elCancelTime.blur(); });
+        elCancelTime.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') elCancelTime.blur();
+        });
     }
 
+    // 3. Regra de Frete (Select)
     const elShipRule = document.getElementById('conf-shipping-rule');
     if (elShipRule) {
         elShipRule.addEventListener('change', (e) => {
+            // Controle Visual
             const container = document.getElementById('shipping-value-container');
             if (container) {
                 if (e.target.value !== 'none') container.classList.remove('opacity-50', 'pointer-events-none');
@@ -3641,10 +3982,12 @@ function setupEventListeners() {
         });
     }
 
+    // 4. Valor do Frete (Input Texto)
     const elShipValue = document.getElementById('conf-shipping-value');
     if (elShipValue) {
         elShipValue.addEventListener('blur', () => {
             if (typeof formatMoneyForInput === 'function' && elShipValue.value) {
+                // Formatação visual simples
                 let val = parseFloat(elShipValue.value.replace(/[^\d,.]/g, '').replace(',', '.')) || 0;
                 if (val > 0) elShipValue.value = formatMoneyForInput(val);
             }
@@ -3652,16 +3995,33 @@ function setupEventListeners() {
         });
     }
 
+    // =================================================================
+    // MÁSCARA DE MOEDA PARA PRODUTOS (Venda, Promo, Custo, Pix)
+    // =================================================================
     const productPriceInputs = ['prod-price', 'prod-promo', 'prod-cost', 'prod-pix-val'];
+
     productPriceInputs.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('input', (e) => {
-                let value = e.target.value.replace(/\D/g, "");
-                if (value === "") { e.target.value = ""; return; }
+                let value = e.target.value.replace(/\D/g, ""); // Remove tudo que não é número
+
+                // Se apagar tudo, limpa o campo
+                if (value === "") {
+                    e.target.value = "";
+                    return;
+                }
+
+                // Converte para decimal (divide por 100 para criar os centavos)
+                // Ex: digita 1 -> 0.01 | digita 100 -> 1.00
                 value = (parseFloat(value) / 100).toFixed(2) + '';
+
+                // Troca ponto por vírgula
                 value = value.replace(".", ",");
+
+                // Adiciona ponto de milhar (ex: 1.000,00)
                 value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+
                 e.target.value = value;
             });
         }
@@ -4027,13 +4387,27 @@ window.updateStatus = async (orderId, newStatus, oldStatus) => {
     const order = state.orders.find(o => o.id === orderId);
     if (!order) return;
 
-    // Se aprovou, dá baixa no estoque
     if (newStatus === 'Confirmado' && oldStatus !== 'Confirmado') {
-        await processStockUpdate(order.items, 'remove');
+        for (const item of order.items) {
+            const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+            const prodInState = state.products.find(p => p.id === item.id);
+            if (prodInState) {
+                const allowNegative = state.globalSettings.allowNoStock || prodInState.allowNoStock;
+                let newStock = prodInState.stock - item.qty;
+                if (!allowNegative && newStock < 0) newStock = 0;
+                await updateDoc(prodRef, { stock: newStock });
+            }
+        }
     }
-    // Se cancelou/reembolsou, devolve pro estoque
     if ((newStatus === 'Cancelado' || newStatus === 'Reembolsado') && oldStatus === 'Confirmado') {
-        await processStockUpdate(order.items, 'add');
+        for (const item of order.items) {
+            const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+            const prodInState = state.products.find(p => p.id === item.id);
+            if (prodInState) {
+                const newStock = prodInState.stock + item.qty;
+                await updateDoc(prodRef, { stock: newStock });
+            }
+        }
     }
 };
 
@@ -4060,6 +4434,7 @@ window.openProductModal = (productId) => {
             .thin-scroll::-webkit-scrollbar-track { background: transparent; }
             .thin-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
             
+            /* FORÇA A IMAGEM A ANCORAR NOS 4 CANTOS DA COLUNA E PREENCHER TUDO */
             #modal-img {
                 position: absolute !important;
                 inset: 0 !important;
@@ -4070,6 +4445,7 @@ window.openProductModal = (productId) => {
                 z-index: 1 !important;
             }
             
+            /* COLOCA AS MINIATURAS FLUTUANDO NO RODAPÉ DA IMAGEM */
             #modal-thumbnails {
                 position: absolute !important;
                 bottom: 20px !important;
@@ -4092,6 +4468,8 @@ window.openProductModal = (productId) => {
         imgCol.className = "w-full md:w-1/2 h-[40vh] md:h-auto relative shrink-0 overflow-hidden bg-black";
     }
 
+    // ✨ CORREÇÃO CRÍTICA DO SCROLL: 
+    // Removidas as travas (flex-1 e min-h-0) das filhas, permitindo que o conteúdo "vaze" e crie a rolagem do mouse!
     if (rightCol) {
         rightCol.className = "w-full md:w-1/2 flex flex-col bg-gray-900 overflow-y-auto relative hide-scroll md:max-h-[90vh]";
         if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
@@ -4191,6 +4569,7 @@ window.openProductModal = (productId) => {
             btnMore.className = 'text-yellow-500 font-bold text-xs mt-2 hover:underline focus:outline-none transition';
             btnMore.innerText = 'Ver mais';
 
+            // ✨ CORREÇÃO "VER MAIS": Expande natural, sem criar uma sub-rolagem irritante.
             btnMore.onclick = () => {
                 if (elDesc.style.webkitLineClamp === '3') {
                     elDesc.style.webkitLineClamp = 'unset';
@@ -4245,16 +4624,14 @@ window.openProductModal = (productId) => {
         btnAdd.style.marginTop = '16px'; 
     }
 
-    let selectedSizeInModal = null;
+    let selectedSizeInModal = 'U';
 
     const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
     const isSizeOutOfStock = (sizeStock) => sizeStock <= 0 && !allowNegative;
 
     if (sizesDiv) {
         sizesDiv.innerHTML = '';
-        
-        if (p.hasVariations && p.sizes && p.sizes.length > 0) {
-            // ✨ ESTOQUE GRADEADO
+        if (p.sizes && p.sizes.length > 0) {
             if (sizesWrapper) sizesWrapper.classList.remove('hidden');
 
             const formattedSizes = p.sizes.map(s => {
@@ -4298,22 +4675,7 @@ window.openProductModal = (productId) => {
                 sizesDiv.appendChild(btn);
             });
         } else {
-            // ✨ ESTOQUE GERAL: Exibe "Tamanho Único" em vez de esconder tudo
-            if (sizesWrapper) sizesWrapper.classList.remove('hidden');
-            
-            const currentStock = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
-            const isOut = currentStock <= 0 && !allowNegative;
-            
-            const btnSingle = document.createElement('div');
-            
-            if (isOut) {
-                btnSingle.className = `px-4 h-10 rounded border border-gray-700 bg-gray-800/50 text-gray-500 font-bold flex items-center justify-center text-sm cursor-not-allowed relative overflow-hidden`;
-                btnSingle.innerHTML = `<span class="opacity-50">Tamanho Único</span><div class="absolute inset-0 w-[140%] h-[1px] bg-red-500/70 transform origin-top-left rotate-6"></div>`;
-            } else {
-                btnSingle.className = `px-4 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold flex items-center justify-center text-sm select-none`;
-                btnSingle.innerHTML = `<span>Tamanho Único</span>`;
-            }
-            sizesDiv.appendChild(btnSingle);
+            if (sizesWrapper) sizesWrapper.classList.add('hidden');
         }
     }
 
@@ -4322,7 +4684,6 @@ window.openProductModal = (productId) => {
         if (!btnAdd) return;
 
         let currentStock = 0;
-        
         if (p.hasVariations && selectedSizeInModal) {
             currentStock = selectedSizeInModal.stock;
         } else {
@@ -4340,8 +4701,7 @@ window.openProductModal = (productId) => {
             btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i><span>ADICIONAR</span>`;
             btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide";
             
-            // Manda o código "U" pro carrinho para o carrinho não desenhar caixa nenhuma!
-            const sizeNamePass = (p.hasVariations && selectedSizeInModal) ? selectedSizeInModal.name : 'U';
+            const sizeNamePass = selectedSizeInModal ? selectedSizeInModal.name : 'U';
             btnAdd.onclick = () => { addToCart(p, sizeNamePass); closeProductModal(); };
         }
     };
@@ -4355,6 +4715,42 @@ window.openProductModal = (productId) => {
         card.classList.remove('opacity-0', 'scale-95');
         card.classList.add('opacity-100', 'scale-100');
     }, 10);
+};
+
+// =================================================================
+// 📦 LÓGICA DE ESTOQUE HÍBRIDO E GRADE DE TAMANHOS
+// =================================================================
+// 1. Alterna entre Estoque Geral e Gradeado
+// =================================================================
+// 📦 ALTERNA ENTRE GERAL E GRADEADO (COM SALVA-VIDAS DE ESTOQUE)
+// =================================================================
+window.toggleStockMode = () => {
+    const isGraded = document.getElementById('prod-has-variations').checked;
+    const divGen = document.getElementById('div-general-stock');
+    const divVar = document.getElementById('div-variations-stock');
+    const inputGen = document.getElementById('prod-stock');
+
+    if (isGraded) {
+        divGen.classList.add('hidden');
+        divVar.classList.remove('hidden');
+        divVar.classList.add('flex');
+        renderVariationBadges();
+    } else {
+        divGen.classList.remove('hidden');
+        divVar.classList.add('hidden');
+        divVar.classList.remove('flex');
+        
+        // ✨ SALVA-VIDAS: Evita que o estoque zere ao desativar a grade!
+        // Ele pega a soma das caixinhas e joga para o estoque geral automaticamente
+        if (state.tempVariations && state.tempVariations.length > 0) {
+            const totalSizes = state.tempVariations.reduce((acc, val) => acc + parseInt(val.stock || 0), 0);
+            
+            // Só preenche se o campo geral estiver vazio ou zerado, para não apagar o que o lojista digitou
+            if (!inputGen.value || inputGen.value === '0') {
+                inputGen.value = totalSizes;
+            }
+        }
+    }
 };
 
 // 2. Desenha a caixinha igual à imagem
@@ -4676,34 +5072,11 @@ window.confirmDeleteProduct = async (id) => {
 // =================================================================
 // 📦 SALVAR E EDITAR PRODUTOS (ESTOQUE HÍBRIDO DEFINITIVO)
 // =================================================================
-// =================================================================
-// 📦 ALTERNA ENTRE GERAL E GRADEADO (TOTALMENTE INDEPENDENTES)
-// =================================================================
-window.toggleStockMode = () => {
-    const isGraded = document.getElementById('prod-has-variations').checked;
-    const divGen = document.getElementById('div-general-stock');
-    const divVar = document.getElementById('div-variations-stock');
 
-    if (isGraded) {
-        // Esconde o Estoque Geral e mostra a Grade
-        divGen.classList.add('hidden');
-        divVar.classList.remove('hidden');
-        divVar.classList.add('flex');
-        if (typeof renderVariationBadges === 'function') renderVariationBadges();
-    } else {
-        // Esconde a Grade e volta o Estoque Geral.
-        // Nenhuma matemática é feita aqui! O valor fica intacto.
-        divGen.classList.remove('hidden');
-        divVar.classList.add('hidden');
-        divVar.classList.remove('flex');
-    }
-};
-
-// =================================================================
-// 📦 SALVAR PRODUTO NO BANCO (COM SEPARAÇÃO DE ESTOQUES)
-// =================================================================
 window.saveProduct = async (e) => {
+    // Evita o recarregamento da página (garantia máxima)
     if (e && e.preventDefault) e.preventDefault();
+    
     const btnSave = document.querySelector('#form-product button[type="submit"]');
     const originalText = btnSave ? btnSave.innerText : 'Salvar';
 
@@ -4711,34 +5084,33 @@ window.saveProduct = async (e) => {
         if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
 
         const isGraded = document.getElementById('prod-has-variations').checked;
+        let finalStock = 0;
         
-        // ✨ O SEGREDO ESTÁ AQUI: Captura o Estoque Geral que o usuário digitou
-        // E garante que ele NUNCA se misture com a grade!
-        const inputGeneralStock = parseInt(document.getElementById('prod-stock').value) || 0;
-        
-        let finalStock = 0; // O Estoque que os clientes vão ver na vitrine
-        let finalSizes = state.tempVariations ? [...state.tempVariations] : [];
+        // ✨ CORREÇÃO 1: MANTÉM OS TAMANHOS NA MEMÓRIA MESMO SE A CHAVE FOR DESATIVADA
+        let finalSizes = state.tempVariations ? [...state.tempVariations] : []; 
 
+        // ✨ CORREÇÃO 2: VALIDAÇÃO BLINDADA
         if (isGraded) {
-            // TRAVA: Não deixa salvar grade ligada se não tiver caixinhas
+            // Se ativou a chave, DEVE ter pelo menos um tamanho!
             if (finalSizes.length === 0) {
                 showToast("Adicione pelo menos um tamanho no estoque gradeado.", "error");
                 if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
-                return; 
+                return; // ⛔ BLOQUEIA O SALVAMENTO AQUI
             }
-            // Vitrine usa a soma dos tamanhos
+            // O estoque geral passa a ser a soma exata das caixinhas
             finalStock = finalSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0); 
         } else {
-            // Vitrine usa o que foi digitado no estoque geral
-            finalStock = inputGeneralStock;
+            // Se desativou, usa o estoque do campo geral (mas guarda os tamanhos no banco adormecidos)
+            finalStock = parseInt(document.getElementById('prod-stock').value) || 0;
         }
 
         if (!state.tempImages || state.tempImages.length === 0) {
             showToast("Adicione pelo menos uma imagem!", "error");
             if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
-            return;
+            return; // Bloqueia se não tiver imagem
         }
 
+        // Monta o Pacote de Dados
         const productData = {
             name: document.getElementById('prod-name').value,
             category: document.getElementById('prod-cat-select').value,
@@ -4746,10 +5118,9 @@ window.saveProduct = async (e) => {
             price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
             promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
             cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
-            hasVariations: isGraded, 
-            stock: finalStock,               // 👉 Vai para a vitrine
-            generalStock: inputGeneralStock, // 👉 Fica guardado na memória do Painel
-            sizes: finalSizes,       
+            hasVariations: isGraded, // 🧠 A "chave mestre" salva se vai usar grade ou geral
+            stock: finalStock,       
+            sizes: finalSizes,       // 💾 Nunca mais apaga a grade!
             images: state.tempImages || [],
             allowNoStock: document.getElementById('prod-allow-no-stock').checked,
             highlight: document.getElementById('prod-highlight').checked,
@@ -4775,15 +5146,13 @@ window.saveProduct = async (e) => {
             showToast('Produto atualizado com sucesso!', 'success');
         }
 
+        // Fecha e limpa
         document.getElementById('product-form-modal').classList.add('hidden');
         document.getElementById('form-product').reset();
         state.tempImages = [];
         state.tempVariations = [];
         
-        // Garante que o Formulário não bugue no F5
-        const formEl = document.getElementById('form-product');
-        if(formEl) formEl.onsubmit = window.saveProduct; 
-        
+        // Atualiza a tabela imediatamente
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
         
     } catch (error) {
@@ -4793,9 +5162,6 @@ window.saveProduct = async (e) => {
     }
 };
 
-// =================================================================
-// 📦 ABRIR PRODUTO PARA EDITAR (LENDO OS ESTOQUES SEPARADOS)
-// =================================================================
 window.editProduct = (id) => {
     const p = state.products.find(x => x.id === id);
     if (!p) return;
@@ -4811,17 +5177,10 @@ window.editProduct = (id) => {
     document.getElementById('prod-allow-no-stock').checked = p.allowNoStock || false;
     document.getElementById('prod-highlight').checked = p.highlight || false;
 
-    // ✨ CORREÇÃO SUPREMA: 
-    // Se existir a memória de "generalStock", puxa ela. 
-    // Se for um produto antigo que ainda não tem isso, não mistura as coisas.
-    if (p.generalStock !== undefined) {
-        document.getElementById('prod-stock').value = p.generalStock;
-    } else {
-        document.getElementById('prod-stock').value = p.hasVariations ? 0 : (p.stock || 0);
-    }
-
+    // ✨ CORREÇÃO 3: CARREGA OS TAMANHOS SEMPRE (Mesmo se estiver desativado)
     state.tempVariations = [];
     if (Array.isArray(p.sizes) && p.sizes.length > 0) {
+        // Puxa a lista de tamanhos do banco para a memória
         state.tempVariations = p.sizes.map(s => {
             if (typeof s === 'object') return s;
             return { name: s, stock: p.stock || 0 }; 
@@ -4829,12 +5188,17 @@ window.editProduct = (id) => {
     }
 
     const chkVar = document.getElementById('prod-has-variations');
+    
+    // 🧠 Liga ou desliga o switch baseado no status do banco
     if (p.hasVariations) {
         chkVar.checked = true;
     } else {
         chkVar.checked = false;
+        // Se estiver desligado, preenche o estoque geral
+        document.getElementById('prod-stock').value = p.stock || 0;
     }
 
+    // Exibe ou esconde os painéis baseados na chave
     toggleStockMode(); 
 
     state.tempImages = p.images ? [...p.images] : [];
@@ -5653,6 +6017,7 @@ window.cancelProfileEdit = () => {
 };
 
 // Função para carregar dados nos inputs de configuração
+// Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
     const p = state.storeProfile || {};
 
@@ -5678,32 +6043,39 @@ function fillProfileForm() {
 
     if (typeof updateFreeInstallmentsSelect === 'function') updateFreeInstallmentsSelect();
 
+    // Atualiza visual do parcelamento
     const elCardDetails = document.getElementById('conf-card-details');
     if (elCardDetails) {
         if (inst.active) elCardDetails.classList.remove('opacity-50', 'pointer-events-none');
         else elCardDetails.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    // 3. Configurações de Pedido
+    // 3. Configurações de Pedido (Entrega, Tempo, Frete)
     const dConfig = p.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5, shippingRule: 'none', shippingValue: 0 };
-    const settings = p.settings || {}; 
+    const settings = p.settings || {}; // Alguns dados podem estar aqui
 
     setCheck('conf-own-delivery', dConfig.ownDelivery);
 
+    // O Código e o Tempo podem estar em 'deliveryConfig' ou 'settings' dependendo da versão anterior do seu banco.
+    // Verificamos ambos para garantir.
     const reqCode = dConfig.reqCustomerCode !== undefined ? dConfig.reqCustomerCode : (settings.reqClientCode || false);
     const cancelTime = dConfig.cancelTimeMin !== undefined ? dConfig.cancelTimeMin : (settings.cancellationTime || 5);
 
     setCheck('conf-req-code', reqCode);
     setVal('conf-cancel-time', cancelTime);
+
+    // Frete
     setVal('conf-shipping-rule', dConfig.shippingRule || 'none');
     setVal('conf-shipping-value', typeof formatMoneyForInput === 'function' ? formatMoneyForInput(dConfig.shippingValue) : dConfig.shippingValue);
 
+    // Controle Visual do Frete
     const elShipCont = document.getElementById('shipping-value-container');
     if (elShipCont) {
         if (dConfig.shippingRule && dConfig.shippingRule !== 'none') elShipCont.classList.remove('opacity-50', 'pointer-events-none');
         else elShipCont.classList.add('opacity-50', 'pointer-events-none');
     }
 
+    // Controle Visual do Código de Entrega
     const elReq = document.getElementById('conf-req-code');
     if (elReq) {
         if (dConfig.ownDelivery) {
@@ -5755,19 +6127,6 @@ function fillProfileForm() {
     setCheck('conf-pay-delivery-debit', payConfig.delivery?.debit !== false);
     setCheck('conf-pay-delivery-cash', payConfig.delivery?.cash !== false);
 
-    // ✨ 7. PIX GLOBAL (CORREÇÃO: AGORA ELE CARREGA QUANDO VOCÊ ABRE O ADMIN)
-    const pg = p.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
-    setCheck('conf-pix-disable-all', pg.disableAll);
-    setCheck('conf-pix-global-active', pg.active);
-    setVal('conf-pix-global-value', pg.value);
-
-    const rMode = document.querySelector(`input[name="conf-pix-mode"][value="${pg.mode}"]`);
-    if (rMode) rMode.checked = true;
-
-    const rType = document.querySelector(`input[name="conf-pix-type"][value="${pg.type || 'percent'}"]`);
-    if (rType) rType.checked = true;
-
-    // Atualiza Visual
     if (typeof updatePaymentVisuals === 'function') updatePaymentVisuals();
     if (typeof togglePixGlobalUI === 'function') togglePixGlobalUI();
 }
@@ -6039,12 +6398,8 @@ window.openCheckoutModal = () => {
         checkoutState.distance = 0;
     }
 
-    // 3. Aplica visibilidade das abas principais
-    if (typeof applyCheckoutVisibility === 'function') applyCheckoutVisibility();
-    
-    // ✨ FORÇA O REDESENHO DOS BOTÕES DE PAGAMENTO 
-    // Assim que a tela abrir, ele ajusta se vai ter dinheiro, crédito, etc.
-    if (typeof togglePaymentMode === 'function') togglePaymentMode(); 
+    // 3. Aplica visibilidade das opções (Pix, Cartão, etc)
+    applyCheckoutVisibility();
 
     // 4. Exibição das Telas
     const viewCart = document.getElementById('view-cart-list');
@@ -6066,12 +6421,12 @@ window.openCheckoutModal = () => {
     // Força o bloqueio visual e adiciona a classe de trava
     if (paySection) {
         paySection.classList.add('opacity-50', 'locked-section');
-        paySection.classList.remove('pointer-events-none'); 
+        paySection.classList.remove('pointer-events-none'); // Importante para o Toast funcionar
     }
 
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = true; 
+        btnFinish.disabled = true; // <--- AGORA TRAVA O BOTÃO
         btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
     }
 
@@ -6819,64 +7174,46 @@ function updateFreeInstallmentsSelect() {
 }
 
 // 1. Controla o Modo Principal (Online vs Entrega)
-window.togglePaymentMode = () => {
+function togglePaymentMode() {
     const modeEl = document.querySelector('input[name="pay-mode"]:checked');
     if (!modeEl) return;
 
     const mode = modeEl.value;
     const lblMethod = document.getElementById('lbl-payment-method');
 
-    // Recupera Configs do Banco (com fallback seguro)
+    // --- CORREÇÃO: REMOVIDAS AS LINHAS QUE DESBLOQUEAVAM AUTOMATICAMENTE ---
+    // Quem decide se desbloqueia agora é APENAS a função validateCheckoutForm()
+    // -----------------------------------------------------------------------
+
+    // Recupera Configs (com fallback seguro para credit/debit)
     const pm = state.storeProfile?.paymentMethods || {};
 
-    // ✨ SELETOR BLINDADO APRIMORADO: Acha a caixa inteira do pagamento (Pix, Cartão, Dinheiro)
-    const getWrapper = (val) => {
-        // Tenta achar com os dois nomes possíveis que o HTML possa estar usando
-        const radio = document.querySelector(`input[name="payment-method-selection"][value="${val}"]`) || 
-                      document.querySelector(`input[name="payment-method"][value="${val}"]`);
-        
-        if (!radio) return null;
+    // --- SELETORES ---
+    const radioPix = document.querySelector('input[name="payment-method-selection"][value="pix"]');
+    const lblPix = radioPix ? radioPix.closest('label') : null;
 
-        // Tenta achar o container pai pelo ID (caso exista)
-        let wrapper = document.getElementById(`container-${val}-option`);
-        
-        // Se não achar o ID, sobe o HTML até achar a div principal (que tem as bordas/label)
-        if (!wrapper) {
-            const label = radio.closest('label');
-            wrapper = label ? label.parentElement : radio.parentElement;
-        }
-        
-        return { radio, wrapper };
-    };
+    // Crédito (div container)
+    const radioCredit = document.querySelector('input[name="payment-method-selection"][value="credit"]');
+    const divCredit = document.getElementById('container-credit-option');
 
-    // Mapeia todas as opções
-    const pix = getWrapper('pix');
-    const credit = getWrapper('credit');
-    const debit = getWrapper('debit');
-    const cash = getWrapper('cash');
+    // Débito (label)
+    const radioDebit = document.querySelector('input[name="payment-method-selection"][value="debit"]');
+    const lblDebit = document.getElementById('container-debit-option');
 
-    const updateVis = (obj, show) => {
-        if (!obj) return;
-        
-        // Força a remoção de TODAS as classes de ocultamento
+    // Dinheiro
+    const radioCash = document.querySelector('input[name="payment-method-selection"][value="cash"]');
+    const containerCash = document.getElementById('container-cash-option');
+
+    const updateVis = (el, show, radio) => {
+        if (!el) return;
         if (show) {
-            if (obj.wrapper) {
-                obj.wrapper.classList.remove('hidden');
-                // Se o elemento for flexível ou em bloco, remove a restrição inline
-                obj.wrapper.style.display = ''; 
-            }
-            if (obj.radio) {
-                obj.radio.disabled = false;
-                // Assegura que o label em volta (se houver) também apareça
-                const parentLabel = obj.radio.closest('label');
-                if (parentLabel) parentLabel.classList.remove('hidden');
-            }
+            el.classList.remove('hidden');
+            el.style.display = '';
+            if (radio) radio.disabled = false;
         } else {
-            if (obj.wrapper) {
-                obj.wrapper.classList.add('hidden');
-                obj.wrapper.style.setProperty('display', 'none', 'important');
-            }
-            if (obj.radio) obj.radio.disabled = true;
+            el.classList.add('hidden');
+            el.style.setProperty('display', 'none', 'important');
+            if (radio) radio.disabled = true;
         }
     };
 
@@ -6885,10 +7222,10 @@ window.togglePaymentMode = () => {
 
         // Verifica configurações de Entrega
         const pDel = pm.delivery || {};
-        updateVis(pix, pDel.pix !== false);
-        updateVis(credit, pDel.credit !== false);
-        updateVis(debit, pDel.debit !== false);
-        updateVis(cash, pDel.cash !== false); // ✨ MOSTRA O DINHEIRO E CARTÕES
+        updateVis(lblPix, pDel.pix !== false, radioPix);
+        updateVis(divCredit, pDel.credit !== false, radioCredit);
+        updateVis(lblDebit, pDel.debit !== false, radioDebit);
+        updateVis(containerCash, pDel.cash !== false, radioCash);
 
     } else {
         // ONLINE
@@ -6896,44 +7233,34 @@ window.togglePaymentMode = () => {
 
         // Verifica configurações Online
         const pOn = pm.online || {};
-        updateVis(pix, pOn.pix !== false);
-        updateVis(credit, pOn.credit !== false);
-        updateVis(debit, pOn.debit !== false);
-        updateVis(cash, false); // ⛔ Dinheiro NUNCA existe online
+        updateVis(lblPix, pOn.pix !== false, radioPix);
+        updateVis(divCredit, pOn.credit !== false, radioCredit);
+        updateVis(lblDebit, pOn.debit !== false, radioDebit);
+        updateVis(containerCash, false, radioCash); // Dinheiro nunca no online
     }
 
-    // Auto-Correção: Se a opção que estava marcada foi escondida, pula pra próxima visível
-    const current = document.querySelector('input[name="payment-method-selection"]:checked') || document.querySelector('input[name="payment-method"]:checked');
+    // Auto-Correção
+    const current = document.querySelector('input[name="payment-method-selection"]:checked');
     let isInvalid = false;
 
-    if (!current || current.disabled) {
-        isInvalid = true;
-    } else {
-        const wrap = current.closest('label')?.parentElement;
-        if (wrap && wrap.classList.contains('hidden')) isInvalid = true;
-    }
+    if (!current) isInvalid = true;
+    else if (current.disabled) isInvalid = true;
+    else if (current.closest('.hidden')) isInvalid = true;
 
     if (isInvalid) {
-        let foundValid = null;
-        const radios = document.querySelectorAll('input[name="payment-method-selection"]:not(:disabled), input[name="payment-method"]:not(:disabled)');
-        
-        radios.forEach(r => {
-            const wrap = r.closest('label')?.parentElement || r.parentElement;
-            if (wrap && !wrap.classList.contains('hidden') && !foundValid) {
-                foundValid = r;
-            }
-        });
-        
-        if (foundValid) {
-            foundValid.checked = true;
-            if (typeof toggleMethodSelection === 'function') toggleMethodSelection();
+        const valid = document.querySelector('input[name="payment-method-selection"]:not(:disabled)');
+        if (valid && !valid.closest('.hidden')) {
+            valid.checked = true;
+            if (typeof window.toggleMethodSelection === 'function') window.toggleMethodSelection();
         }
     } else {
-        if (typeof toggleMethodSelection === 'function') toggleMethodSelection();
+        if (typeof window.toggleMethodSelection === 'function') window.toggleMethodSelection();
     }
 
-    // Valida o botão de checkout após a dança das opções
+    // IMPORTANTE: Após ajustar o visual, validamos se deve continuar bloqueado
     if (typeof validateCheckoutForm === 'function') validateCheckoutForm();
+
+    applyCheckoutVisibility();
 };
 
 // 2. Controla a Seleção Específica (Pix vs Cartão vs Dinheiro)
@@ -7363,12 +7690,35 @@ async function updateOrderStatusDB(orderId, newStatus) {
 
         // --- CENÁRIO A: BAIXA DE ESTOQUE (Entrou em status válido) ---
         if (!wasConsuming && isConsuming) {
-            await processStockUpdate(items, 'remove');
-            showToast(`Estoque baixado com sucesso!`, 'success');
+            for (const item of items) {
+                if (item.id) {
+                    const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+                    const pSnap = await getDoc(prodRef);
+                    if (pSnap.exists()) {
+                        const currentStock = parseInt(pSnap.data().stock) || 0;
+                        const qty = parseInt(item.qty) || 0;
+                        let newStock = currentStock - qty;
+                        if (newStock < 0) newStock = 0;
+                        await updateDoc(prodRef, { stock: newStock });
+                    }
+                }
+            }
+            showToast(`Estoque baixado!`, 'success');
         }
+
         // --- CENÁRIO B: DEVOLUÇÃO DE ESTOQUE (Saiu de status válido) ---
         else if (wasConsuming && !isConsuming) {
-            await processStockUpdate(items, 'add');
+            for (const item of items) {
+                if (item.id) {
+                    const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+                    const pSnap = await getDoc(prodRef);
+                    if (pSnap.exists()) {
+                        const currentStock = parseInt(pSnap.data().stock) || 0;
+                        const qty = parseInt(item.qty) || 0;
+                        await updateDoc(prodRef, { stock: currentStock + qty });
+                    }
+                }
+            }
             showToast(`Estoque devolvido.`, 'info');
         }
 
@@ -7379,6 +7729,7 @@ async function updateOrderStatusDB(orderId, newStatus) {
         }
 
         await updateDoc(orderRef, updateData);
+        // O onSnapshot do loadAdminSales cuidará de atualizar a tela automaticamente.
 
     } catch (error) {
         console.error("Erro ao atualizar status:", error);
@@ -7386,59 +7737,6 @@ async function updateOrderStatusDB(orderId, newStatus) {
     }
 }
 
-async function processStockUpdate(items, operation) {
-    for (const item of items) {
-        if (!item.id) continue;
-
-        const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
-        const pSnap = await getDoc(prodRef);
-        
-        if (pSnap.exists()) {
-            let pData = pSnap.data();
-            let qty = parseInt(item.qty) || 0;
-            let updates = {};
-
-            if (pData.hasVariations && Array.isArray(pData.sizes)) {
-                // ESTOQUE GRADEADO
-                let newSizes = [...pData.sizes];
-                
-                // Encontra o tamanho exato que o cliente comprou
-                let sizeObj = newSizes.find(s => s.name === item.size);
-                
-                if (sizeObj) {
-                    let currentSizeStock = parseInt(sizeObj.stock) || 0;
-                    if (operation === 'remove') {
-                        sizeObj.stock = Math.max(0, currentSizeStock - qty);
-                    } else {
-                        sizeObj.stock = currentSizeStock + qty;
-                    }
-                }
-                
-                // Recalcula o estoque total do produto baseado nas caixinhas atualizadas
-                let newTotalStock = newSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0);
-                
-                updates.sizes = newSizes;
-                updates.stock = newTotalStock;
-                
-            } else {
-                // ESTOQUE GERAL
-                let currentStock = parseInt(pData.stock) || 0;
-                let currentGenStock = parseInt(pData.generalStock) || 0;
-                
-                if (operation === 'remove') {
-                    updates.stock = Math.max(0, currentStock - qty);
-                    updates.generalStock = Math.max(0, currentGenStock - qty);
-                } else {
-                    updates.stock = currentStock + qty;
-                    updates.generalStock = currentGenStock + qty;
-                }
-            }
-            
-            // Salva as alterações no banco de dados
-            await updateDoc(prodRef, updates);
-        }
-    }
-}
 
 // ÍCONE DE RASTREIO CHAMA ISSO:
 async function openTrackModal() {

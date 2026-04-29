@@ -5653,6 +5653,7 @@ window.cancelProfileEdit = () => {
 };
 
 // Função para carregar dados nos inputs de configuração
+// Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
     const p = state.storeProfile || {};
 
@@ -5678,32 +5679,39 @@ function fillProfileForm() {
 
     if (typeof updateFreeInstallmentsSelect === 'function') updateFreeInstallmentsSelect();
 
+    // Atualiza visual do parcelamento
     const elCardDetails = document.getElementById('conf-card-details');
     if (elCardDetails) {
         if (inst.active) elCardDetails.classList.remove('opacity-50', 'pointer-events-none');
         else elCardDetails.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    // 3. Configurações de Pedido
+    // 3. Configurações de Pedido (Entrega, Tempo, Frete)
     const dConfig = p.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5, shippingRule: 'none', shippingValue: 0 };
-    const settings = p.settings || {}; 
+    const settings = p.settings || {}; // Alguns dados podem estar aqui
 
     setCheck('conf-own-delivery', dConfig.ownDelivery);
 
+    // O Código e o Tempo podem estar em 'deliveryConfig' ou 'settings' dependendo da versão anterior do seu banco.
+    // Verificamos ambos para garantir.
     const reqCode = dConfig.reqCustomerCode !== undefined ? dConfig.reqCustomerCode : (settings.reqClientCode || false);
     const cancelTime = dConfig.cancelTimeMin !== undefined ? dConfig.cancelTimeMin : (settings.cancellationTime || 5);
 
     setCheck('conf-req-code', reqCode);
     setVal('conf-cancel-time', cancelTime);
+
+    // Frete
     setVal('conf-shipping-rule', dConfig.shippingRule || 'none');
     setVal('conf-shipping-value', typeof formatMoneyForInput === 'function' ? formatMoneyForInput(dConfig.shippingValue) : dConfig.shippingValue);
 
+    // Controle Visual do Frete
     const elShipCont = document.getElementById('shipping-value-container');
     if (elShipCont) {
         if (dConfig.shippingRule && dConfig.shippingRule !== 'none') elShipCont.classList.remove('opacity-50', 'pointer-events-none');
         else elShipCont.classList.add('opacity-50', 'pointer-events-none');
     }
 
+    // Controle Visual do Código de Entrega
     const elReq = document.getElementById('conf-req-code');
     if (elReq) {
         if (dConfig.ownDelivery) {
@@ -5755,19 +5763,6 @@ function fillProfileForm() {
     setCheck('conf-pay-delivery-debit', payConfig.delivery?.debit !== false);
     setCheck('conf-pay-delivery-cash', payConfig.delivery?.cash !== false);
 
-    // ✨ 7. PIX GLOBAL (CORREÇÃO: AGORA ELE CARREGA QUANDO VOCÊ ABRE O ADMIN)
-    const pg = p.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
-    setCheck('conf-pix-disable-all', pg.disableAll);
-    setCheck('conf-pix-global-active', pg.active);
-    setVal('conf-pix-global-value', pg.value);
-
-    const rMode = document.querySelector(`input[name="conf-pix-mode"][value="${pg.mode}"]`);
-    if (rMode) rMode.checked = true;
-
-    const rType = document.querySelector(`input[name="conf-pix-type"][value="${pg.type || 'percent'}"]`);
-    if (rType) rType.checked = true;
-
-    // Atualiza Visual
     if (typeof updatePaymentVisuals === 'function') updatePaymentVisuals();
     if (typeof togglePixGlobalUI === 'function') togglePixGlobalUI();
 }
@@ -6039,12 +6034,9 @@ window.openCheckoutModal = () => {
         checkoutState.distance = 0;
     }
 
-    // 3. Aplica visibilidade das abas principais
-    if (typeof applyCheckoutVisibility === 'function') applyCheckoutVisibility();
-    
-    // ✨ FORÇA O REDESENHO DOS BOTÕES DE PAGAMENTO 
-    // Assim que a tela abrir, ele ajusta se vai ter dinheiro, crédito, etc.
-    if (typeof togglePaymentMode === 'function') togglePaymentMode(); 
+    // 3. Aplica visibilidade das opções (Pix, Cartão, Dinheiro)
+    applyCheckoutVisibility();
+    togglePaymentMode(); // ✨ O SEGREDO: Garante que o dinheiro aparece assim que o modal abre!
 
     // 4. Exibição das Telas
     const viewCart = document.getElementById('view-cart-list');
@@ -6066,12 +6058,12 @@ window.openCheckoutModal = () => {
     // Força o bloqueio visual e adiciona a classe de trava
     if (paySection) {
         paySection.classList.add('opacity-50', 'locked-section');
-        paySection.classList.remove('pointer-events-none'); 
+        paySection.classList.remove('pointer-events-none'); // Importante para o Toast funcionar
     }
 
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = true; 
+        btnFinish.disabled = true; // AGORA TRAVA O BOTÃO
         btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
     }
 
@@ -6826,10 +6818,10 @@ window.togglePaymentMode = () => {
     const mode = modeEl.value;
     const lblMethod = document.getElementById('lbl-payment-method');
 
-    // Recupera Configs do Banco (com fallback seguro)
+    // Recupera Configurações (com fallback seguro)
     const pm = state.storeProfile?.paymentMethods || {};
 
-    // ✨ SELETOR BLINDADO APRIMORADO: Acha a caixa inteira do pagamento (Pix, Cartão, Dinheiro)
+    // ✨ SELETOR BLINDADO: Acha o botão independente de falhas de nomenclatura no HTML
     const getWrapper = (val) => {
         // Tenta achar com os dois nomes possíveis que o HTML possa estar usando
         const radio = document.querySelector(`input[name="payment-method-selection"][value="${val}"]`) || 
@@ -6837,10 +6829,10 @@ window.togglePaymentMode = () => {
         
         if (!radio) return null;
 
-        // Tenta achar o container pai pelo ID (caso exista)
+        // Tenta achar o container pai para esconder a caixa toda
         let wrapper = document.getElementById(`container-${val}-option`);
         
-        // Se não achar o ID, sobe o HTML até achar a div principal (que tem as bordas/label)
+        // Se não achar o ID, sobe o HTML até achar a div principal (que tem as bordas)
         if (!wrapper) {
             const label = radio.closest('label');
             wrapper = label ? label.parentElement : radio.parentElement;
@@ -6849,7 +6841,6 @@ window.togglePaymentMode = () => {
         return { radio, wrapper };
     };
 
-    // Mapeia todas as opções
     const pix = getWrapper('pix');
     const credit = getWrapper('credit');
     const debit = getWrapper('debit');
@@ -6858,18 +6849,15 @@ window.togglePaymentMode = () => {
     const updateVis = (obj, show) => {
         if (!obj) return;
         
-        // Força a remoção de TODAS as classes de ocultamento
+        // Força a remoção de TODAS as classes de ocultamento (Tailwind e CSS)
         if (show) {
             if (obj.wrapper) {
                 obj.wrapper.classList.remove('hidden');
-                // Se o elemento for flexível ou em bloco, remove a restrição inline
-                obj.wrapper.style.display = ''; 
+                obj.wrapper.style.display = 'flex'; // Força a exibição e evita quebra de layout
             }
             if (obj.radio) {
                 obj.radio.disabled = false;
-                // Assegura que o label em volta (se houver) também apareça
-                const parentLabel = obj.radio.closest('label');
-                if (parentLabel) parentLabel.classList.remove('hidden');
+                if (obj.radio.closest('label')) obj.radio.closest('label').classList.remove('hidden');
             }
         } else {
             if (obj.wrapper) {
@@ -6882,27 +6870,25 @@ window.togglePaymentMode = () => {
 
     if (mode === 'delivery') {
         if (lblMethod) lblMethod.innerText = "Pagarei na entrega com:";
-
-        // Verifica configurações de Entrega
         const pDel = pm.delivery || {};
+        
         updateVis(pix, pDel.pix !== false);
         updateVis(credit, pDel.credit !== false);
         updateVis(debit, pDel.debit !== false);
-        updateVis(cash, pDel.cash !== false); // ✨ MOSTRA O DINHEIRO E CARTÕES
+        updateVis(cash, pDel.cash !== false); // ✨ MOSTRA O DINHEIRO
 
     } else {
         // ONLINE
         if (lblMethod) lblMethod.innerText = "Pagar agora com:";
-
-        // Verifica configurações Online
         const pOn = pm.online || {};
+        
         updateVis(pix, pOn.pix !== false);
         updateVis(credit, pOn.credit !== false);
         updateVis(debit, pOn.debit !== false);
         updateVis(cash, false); // ⛔ Dinheiro NUNCA existe online
     }
 
-    // Auto-Correção: Se a opção que estava marcada foi escondida, pula pra próxima visível
+    // Auto-Correção: Pula para a próxima opção visível se a atual for escondida
     const current = document.querySelector('input[name="payment-method-selection"]:checked') || document.querySelector('input[name="payment-method"]:checked');
     let isInvalid = false;
 
@@ -6918,7 +6904,7 @@ window.togglePaymentMode = () => {
         const radios = document.querySelectorAll('input[name="payment-method-selection"]:not(:disabled), input[name="payment-method"]:not(:disabled)');
         
         radios.forEach(r => {
-            const wrap = r.closest('label')?.parentElement || r.parentElement;
+            const wrap = r.closest('label')?.parentElement;
             if (wrap && !wrap.classList.contains('hidden') && !foundValid) {
                 foundValid = r;
             }
@@ -6934,6 +6920,67 @@ window.togglePaymentMode = () => {
 
     // Valida o botão de checkout após a dança das opções
     if (typeof validateCheckoutForm === 'function') validateCheckoutForm();
+};
+
+// =================================================================
+// ✨ ABERTURA DO CHECKOUT (FORÇANDO A ATUALIZAÇÃO DOS BOTÕES)
+// =================================================================
+window.openCheckoutModal = () => {
+    // 1. Limpa campos anteriores
+    ['checkout-cep', 'checkout-number', 'checkout-comp', 'checkout-name', 'checkout-phone'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+
+    ['address-details', 'delivery-error'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+
+    // 2. Reseta o estado do CEP
+    if (typeof checkoutState !== 'undefined') {
+        checkoutState.isValidDelivery = false;
+        checkoutState.address = null;
+        checkoutState.distance = 0;
+    }
+
+    // 3. Aplica visibilidade das opções (Pix, Cartão, Dinheiro)
+    applyCheckoutVisibility();
+    togglePaymentMode(); // ✨ O SEGREDO: Garante que o dinheiro aparece assim que o modal abre!
+
+    // 4. Exibição das Telas
+    const viewCart = document.getElementById('view-cart-list');
+    const viewCheckout = document.getElementById('view-checkout');
+
+    if (viewCart) viewCart.classList.add('hidden');
+    if (viewCheckout) viewCheckout.classList.remove('hidden');
+
+    const cartTitle = document.getElementById('cart-modal-title');
+    if (cartTitle) cartTitle.innerText = "FINALIZAR PEDIDO";
+
+    document.getElementById('btn-modal-back')?.classList.remove('hidden');
+    document.getElementById('btn-go-checkout')?.classList.add('hidden');
+
+    // 5. TRAVAMENTO INICIAL 
+    const btnFinish = document.getElementById('btn-finish-payment');
+    const paySection = document.getElementById('checkout-payment-options');
+
+    // Força o bloqueio visual e adiciona a classe de trava
+    if (paySection) {
+        paySection.classList.add('opacity-50', 'locked-section');
+        paySection.classList.remove('pointer-events-none'); // Importante para o Toast funcionar
+    }
+
+    if (btnFinish) {
+        btnFinish.classList.remove('hidden');
+        btnFinish.disabled = true; // AGORA TRAVA O BOTÃO
+        btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+
+    // 6. Roda a validação final para garantir que continue travado
+    if (typeof validateCheckoutForm === 'function') {
+        validateCheckoutForm();
+    }
 };
 
 // 2. Controla a Seleção Específica (Pix vs Cartão vs Dinheiro)

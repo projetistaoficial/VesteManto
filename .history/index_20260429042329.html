@@ -2177,8 +2177,7 @@
     <div class="bg-gray-800 w-full max-w-2xl rounded p-6 overflow-y-auto max-h-[90vh] border border-gray-700 thin-scroll">
         <h3 class="text-xl font-bold text-white mb-6 border-b border-gray-700 pb-2">Gerenciar Produto</h3>
 
-        <!-- ✨ CORREÇÃO 1: Adicionado o onsubmit para impedir que a página recarregue -->
-        <form id="form-product" class="space-y-4" onsubmit="saveProduct(event)">
+        <form id="form-product" class="space-y-4">
             <input type="hidden" id="edit-prod-id">
 
             <div>
@@ -2233,13 +2232,13 @@
                         placeholder="0">
                 </div>
 
-                <!-- ✨ CORREÇÃO 2: Adicionado 'peer' e 'peer-checked:' para animar o Switch -->
+                <!-- Switch Ativar Grade -->
                 <label class="flex items-center gap-3 cursor-pointer mb-4">
                     <span class="text-white font-bold text-sm">Ativar estoque gradeado</span>
                     <div class="relative">
-                        <input type="checkbox" id="prod-has-variations" class="sr-only peer" onchange="toggleStockMode()">
-                        <div class="block bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-yellow-500 transition"></div>
-                        <div class="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-4"></div>
+                        <input type="checkbox" id="prod-has-variations" class="sr-only" onchange="toggleStockMode()">
+                        <div class="block bg-gray-600 w-10 h-6 rounded-full switch-bg transition"></div>
+                        <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition switch-dot"></div>
                     </div>
                 </label>
 

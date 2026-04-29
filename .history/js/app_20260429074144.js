@@ -5653,6 +5653,7 @@ window.cancelProfileEdit = () => {
 };
 
 // Função para carregar dados nos inputs de configuração
+// Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
     const p = state.storeProfile || {};
 
@@ -5678,32 +5679,39 @@ function fillProfileForm() {
 
     if (typeof updateFreeInstallmentsSelect === 'function') updateFreeInstallmentsSelect();
 
+    // Atualiza visual do parcelamento
     const elCardDetails = document.getElementById('conf-card-details');
     if (elCardDetails) {
         if (inst.active) elCardDetails.classList.remove('opacity-50', 'pointer-events-none');
         else elCardDetails.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    // 3. Configurações de Pedido
+    // 3. Configurações de Pedido (Entrega, Tempo, Frete)
     const dConfig = p.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5, shippingRule: 'none', shippingValue: 0 };
-    const settings = p.settings || {}; 
+    const settings = p.settings || {}; // Alguns dados podem estar aqui
 
     setCheck('conf-own-delivery', dConfig.ownDelivery);
 
+    // O Código e o Tempo podem estar em 'deliveryConfig' ou 'settings' dependendo da versão anterior do seu banco.
+    // Verificamos ambos para garantir.
     const reqCode = dConfig.reqCustomerCode !== undefined ? dConfig.reqCustomerCode : (settings.reqClientCode || false);
     const cancelTime = dConfig.cancelTimeMin !== undefined ? dConfig.cancelTimeMin : (settings.cancellationTime || 5);
 
     setCheck('conf-req-code', reqCode);
     setVal('conf-cancel-time', cancelTime);
+
+    // Frete
     setVal('conf-shipping-rule', dConfig.shippingRule || 'none');
     setVal('conf-shipping-value', typeof formatMoneyForInput === 'function' ? formatMoneyForInput(dConfig.shippingValue) : dConfig.shippingValue);
 
+    // Controle Visual do Frete
     const elShipCont = document.getElementById('shipping-value-container');
     if (elShipCont) {
         if (dConfig.shippingRule && dConfig.shippingRule !== 'none') elShipCont.classList.remove('opacity-50', 'pointer-events-none');
         else elShipCont.classList.add('opacity-50', 'pointer-events-none');
     }
 
+    // Controle Visual do Código de Entrega
     const elReq = document.getElementById('conf-req-code');
     if (elReq) {
         if (dConfig.ownDelivery) {
@@ -5755,19 +5763,6 @@ function fillProfileForm() {
     setCheck('conf-pay-delivery-debit', payConfig.delivery?.debit !== false);
     setCheck('conf-pay-delivery-cash', payConfig.delivery?.cash !== false);
 
-    // ✨ 7. PIX GLOBAL (CORREÇÃO: AGORA ELE CARREGA QUANDO VOCÊ ABRE O ADMIN)
-    const pg = p.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
-    setCheck('conf-pix-disable-all', pg.disableAll);
-    setCheck('conf-pix-global-active', pg.active);
-    setVal('conf-pix-global-value', pg.value);
-
-    const rMode = document.querySelector(`input[name="conf-pix-mode"][value="${pg.mode}"]`);
-    if (rMode) rMode.checked = true;
-
-    const rType = document.querySelector(`input[name="conf-pix-type"][value="${pg.type || 'percent'}"]`);
-    if (rType) rType.checked = true;
-
-    // Atualiza Visual
     if (typeof updatePaymentVisuals === 'function') updatePaymentVisuals();
     if (typeof togglePixGlobalUI === 'function') togglePixGlobalUI();
 }
@@ -6039,12 +6034,8 @@ window.openCheckoutModal = () => {
         checkoutState.distance = 0;
     }
 
-    // 3. Aplica visibilidade das abas principais
-    if (typeof applyCheckoutVisibility === 'function') applyCheckoutVisibility();
-    
-    // ✨ FORÇA O REDESENHO DOS BOTÕES DE PAGAMENTO 
-    // Assim que a tela abrir, ele ajusta se vai ter dinheiro, crédito, etc.
-    if (typeof togglePaymentMode === 'function') togglePaymentMode(); 
+    // 3. Aplica visibilidade das opções (Pix, Cartão, etc)
+    applyCheckoutVisibility();
 
     // 4. Exibição das Telas
     const viewCart = document.getElementById('view-cart-list');
@@ -6066,12 +6057,12 @@ window.openCheckoutModal = () => {
     // Força o bloqueio visual e adiciona a classe de trava
     if (paySection) {
         paySection.classList.add('opacity-50', 'locked-section');
-        paySection.classList.remove('pointer-events-none'); 
+        paySection.classList.remove('pointer-events-none'); // Importante para o Toast funcionar
     }
 
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = true; 
+        btnFinish.disabled = true; // <--- AGORA TRAVA O BOTÃO
         btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
     }
 
@@ -6819,63 +6810,40 @@ function updateFreeInstallmentsSelect() {
 }
 
 // 1. Controla o Modo Principal (Online vs Entrega)
-window.togglePaymentMode = () => {
+function togglePaymentMode() {
     const modeEl = document.querySelector('input[name="pay-mode"]:checked');
     if (!modeEl) return;
 
     const mode = modeEl.value;
     const lblMethod = document.getElementById('lbl-payment-method');
 
-    // Recupera Configs do Banco (com fallback seguro)
+    // Recupera Configs (com fallback seguro)
     const pm = state.storeProfile?.paymentMethods || {};
 
-    // ✨ SELETOR BLINDADO APRIMORADO: Acha a caixa inteira do pagamento (Pix, Cartão, Dinheiro)
+    // ✨ FUNÇÃO NINJA: Acha a caixa inteira do pagamento ignorando os IDs do HTML
     const getWrapper = (val) => {
-        // Tenta achar com os dois nomes possíveis que o HTML possa estar usando
-        const radio = document.querySelector(`input[name="payment-method-selection"][value="${val}"]`) || 
-                      document.querySelector(`input[name="payment-method"][value="${val}"]`);
-        
+        const radio = document.querySelector(`input[name="payment-method-selection"][value="${val}"]`);
         if (!radio) return null;
-
-        // Tenta achar o container pai pelo ID (caso exista)
-        let wrapper = document.getElementById(`container-${val}-option`);
-        
-        // Se não achar o ID, sobe o HTML até achar a div principal (que tem as bordas/label)
-        if (!wrapper) {
-            const label = radio.closest('label');
-            wrapper = label ? label.parentElement : radio.parentElement;
-        }
-        
+        // Procura a label pai, ou uma div que tenha borda (que costuma ser o container no Tailwind)
+        const wrapper = radio.closest('label') || radio.closest('.border') || radio.parentElement;
         return { radio, wrapper };
     };
 
-    // Mapeia todas as opções
+    // Mapeia todas as opções visualmente
     const pix = getWrapper('pix');
     const credit = getWrapper('credit');
     const debit = getWrapper('debit');
     const cash = getWrapper('cash');
 
     const updateVis = (obj, show) => {
-        if (!obj) return;
-        
-        // Força a remoção de TODAS as classes de ocultamento
+        if (!obj || !obj.wrapper) return;
         if (show) {
-            if (obj.wrapper) {
-                obj.wrapper.classList.remove('hidden');
-                // Se o elemento for flexível ou em bloco, remove a restrição inline
-                obj.wrapper.style.display = ''; 
-            }
-            if (obj.radio) {
-                obj.radio.disabled = false;
-                // Assegura que o label em volta (se houver) também apareça
-                const parentLabel = obj.radio.closest('label');
-                if (parentLabel) parentLabel.classList.remove('hidden');
-            }
+            obj.wrapper.classList.remove('hidden');
+            obj.wrapper.style.display = '';
+            if (obj.radio) obj.radio.disabled = false;
         } else {
-            if (obj.wrapper) {
-                obj.wrapper.classList.add('hidden');
-                obj.wrapper.style.setProperty('display', 'none', 'important');
-            }
+            obj.wrapper.classList.add('hidden');
+            obj.wrapper.style.setProperty('display', 'none', 'important');
             if (obj.radio) obj.radio.disabled = true;
         }
     };
@@ -6888,7 +6856,7 @@ window.togglePaymentMode = () => {
         updateVis(pix, pDel.pix !== false);
         updateVis(credit, pDel.credit !== false);
         updateVis(debit, pDel.debit !== false);
-        updateVis(cash, pDel.cash !== false); // ✨ MOSTRA O DINHEIRO E CARTÕES
+        updateVis(cash, pDel.cash !== false); // ✨ Libera o Dinheiro na entrega!
 
     } else {
         // ONLINE
@@ -6902,26 +6870,22 @@ window.togglePaymentMode = () => {
         updateVis(cash, false); // ⛔ Dinheiro NUNCA existe online
     }
 
-    // Auto-Correção: Se a opção que estava marcada foi escondida, pula pra próxima visível
-    const current = document.querySelector('input[name="payment-method-selection"]:checked') || document.querySelector('input[name="payment-method"]:checked');
+    // Auto-Correção: Se a opção que estava marcada sumiu, pula pra próxima visível
+    const current = document.querySelector('input[name="payment-method-selection"]:checked');
     let isInvalid = false;
 
-    if (!current || current.disabled) {
-        isInvalid = true;
-    } else {
-        const wrap = current.closest('label')?.parentElement;
+    if (!current) isInvalid = true;
+    else if (current.disabled) isInvalid = true;
+    else {
+        const wrap = current.closest('label') || current.closest('.border') || current.parentElement;
         if (wrap && wrap.classList.contains('hidden')) isInvalid = true;
     }
 
     if (isInvalid) {
         let foundValid = null;
-        const radios = document.querySelectorAll('input[name="payment-method-selection"]:not(:disabled), input[name="payment-method"]:not(:disabled)');
-        
-        radios.forEach(r => {
-            const wrap = r.closest('label')?.parentElement || r.parentElement;
-            if (wrap && !wrap.classList.contains('hidden') && !foundValid) {
-                foundValid = r;
-            }
+        document.querySelectorAll('input[name="payment-method-selection"]:not(:disabled)').forEach(r => {
+            const wrap = r.closest('label') || r.closest('.border') || r.parentElement;
+            if(wrap && !wrap.classList.contains('hidden')) foundValid = r;
         });
         
         if (foundValid) {
@@ -6934,7 +6898,7 @@ window.togglePaymentMode = () => {
 
     // Valida o botão de checkout após a dança das opções
     if (typeof validateCheckoutForm === 'function') validateCheckoutForm();
-};
+}
 
 // 2. Controla a Seleção Específica (Pix vs Cartão vs Dinheiro)
 function toggleMethodSelection() {
