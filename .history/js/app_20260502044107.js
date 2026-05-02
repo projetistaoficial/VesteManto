@@ -257,146 +257,29 @@ function updateCarouselUI(images) {
 }
 
 // 2. Renderiza as miniaturas no formulário
-// =================================================================
-// 📸 RENDERIZADOR DE IMAGENS COM DRAG & DROP (DESKTOP E MOBILE)
-// =================================================================
-window.renderImagePreviews = () => {
-    const container = document.getElementById('prod-imgs-preview');
+function renderImagePreviews() {
+    const container = getEl('prod-imgs-preview');
     if (!container) return;
 
     container.innerHTML = '';
 
-    if (!state.tempImages || state.tempImages.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada. Clique em "Adicionar Foto".</p>';
+    if (state.tempImages.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada</p>';
         return;
     }
 
-    let draggedIndex = null; // Memória de quem está sendo arrastado
-
     state.tempImages.forEach((imgSrc, index) => {
         const div = document.createElement('div');
-        // Classes atualizadas para cursor de movimento e animações
-        div.className = "relative w-20 h-20 group border border-gray-600 rounded-lg overflow-hidden cursor-move transition-transform shadow-sm drag-item select-none";
-        
-        // Permite o drag nativo no PC
-        div.draggable = true;
-        div.dataset.index = index;
-
-        // O HTML da caixinha (Note o pointer-events-none nas imagens para não bugar o toque do celular)
+        div.className = "relative w-16 h-16 group border border-gray-600 rounded overflow-hidden";
         div.innerHTML = `
-            <img src="${imgSrc}" class="w-full h-full object-cover pointer-events-none select-none">
-            
-            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center pointer-events-none">
-                <i class="fas fa-arrows-alt text-white text-sm"></i>
-            </div>
-            
-            <button type="button" onclick="event.stopPropagation(); removeTempImage(${index})" 
-                class="absolute top-1 right-1 w-6 h-6 bg-red-600 hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-10 shadow-md">
-                <i class="fas fa-trash text-[10px]"></i>
+            <img src="${imgSrc}" class="w-full h-full object-cover">
+            <button type="button" onclick="removeTempImage(${index})" class="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                <i class="fas fa-trash text-red-500"></i>
             </button>
-            
-            ${index === 0 ? '<span class="absolute bottom-0 left-0 right-0 bg-yellow-500 text-black text-[9px] font-bold text-center uppercase py-0.5 pointer-events-none shadow-[0_-2px_4px_rgba(0,0,0,0.3)]">Capa</span>' : ''}
         `;
-
-        // ---------------------------------------------------
-        // 🖱️ EVENTOS PARA PC (MOUSE / HTML5 DRAG & DROP)
-        // ---------------------------------------------------
-        div.addEventListener('dragstart', (e) => {
-            draggedIndex = index;
-            e.dataTransfer.effectAllowed = "move";
-            setTimeout(() => div.classList.add('opacity-30'), 0);
-        });
-
-        div.addEventListener('dragend', () => {
-            div.classList.remove('opacity-30');
-            renderImagePreviews(); // Limpa as bordas amarelas
-        });
-
-        div.addEventListener('dragover', (e) => {
-            e.preventDefault(); // OBRIGATÓRIO para permitir soltar
-            div.classList.add('border-yellow-500', 'border-2', 'scale-105');
-        });
-
-        div.addEventListener('dragleave', () => {
-            div.classList.remove('border-yellow-500', 'border-2', 'scale-105');
-        });
-
-        div.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const targetIndex = index;
-            if (draggedIndex !== null && draggedIndex !== targetIndex) {
-                reorderImages(draggedIndex, targetIndex);
-            }
-        });
-
-        // ---------------------------------------------------
-        // 📱 EVENTOS PARA CELULAR (TOUCH API)
-        // ---------------------------------------------------
-        div.addEventListener('touchstart', (e) => {
-            // Ignora o toque se o usuário clicou na lixeirinha
-            if(e.target.closest('button')) return;
-            
-            draggedIndex = index;
-            div.classList.add('opacity-50', 'scale-110', 'z-50', 'ring-2', 'ring-yellow-500');
-        }, {passive: true});
-
-        div.addEventListener('touchmove', (e) => {
-            if (draggedIndex === null) return;
-            e.preventDefault(); // 🛑 Trava a tela para não rolar o site enquanto arrasta a foto
-            
-            const touch = e.touches[0];
-            // O Segredo: Acha qual elemento está embaixo do dedo em tempo real
-            const element = document.elementFromPoint(touch.clientX, touch.clientY);
-            
-            // Limpa as bordas de todos
-            document.querySelectorAll('.drag-item').forEach(el => el.classList.remove('border-yellow-500', 'border-2', 'scale-105'));
-            
-            // Acende a borda de quem o dedo está sobrevoando
-            if (element && element.closest('.drag-item')) {
-                const targetEl = element.closest('.drag-item');
-                if(targetEl !== div) targetEl.classList.add('border-yellow-500', 'border-2', 'scale-105');
-            }
-        }, {passive: false}); // passive false é necessário para o e.preventDefault funcionar no mobile
-
-        div.addEventListener('touchend', (e) => {
-            if (draggedIndex === null) return;
-            
-            const touch = e.changedTouches[0];
-            const element = document.elementFromPoint(touch.clientX, touch.clientY);
-            const targetEl = element ? element.closest('.drag-item') : null;
-
-            if (targetEl) {
-                const targetIndex = parseInt(targetEl.dataset.index);
-                if (draggedIndex !== targetIndex) {
-                    reorderImages(draggedIndex, targetIndex);
-                } else {
-                    renderImagePreviews();
-                }
-            } else {
-                renderImagePreviews(); // Soltou fora, só reseta
-            }
-            draggedIndex = null;
-        });
-
         container.appendChild(div);
     });
-};
-
-// --- Função que executa a troca na memória ---
-window.reorderImages = (fromIndex, toIndex) => {
-    // Tira a imagem da posição antiga
-    const imgToMove = state.tempImages.splice(fromIndex, 1)[0];
-    // Insere na nova posição
-    state.tempImages.splice(toIndex, 0, imgToMove);
-    // Renderiza a tela de novo
-    renderImagePreviews();
-};
-
-// --- Remove imagem da lista temporária ---
-window.removeTempImage = (index) => {
-    state.tempImages.splice(index, 1);
-    renderImagePreviews();
-};
+}
 
 // 3. Remove imagem da lista temporária
 window.removeTempImage = (index) => {
@@ -699,90 +582,9 @@ window.fecharModalLogin = () => {
 // =================================================================
 // 3. INICIALIZAÇÃO CORRIGIDA
 // =================================================================
-// =================================================================
-// =================================================================
-// 🛡️ SISTEMA DE BLINDAGEM DOM (ANTI-VAZAMENTO DE HTML) - DEFINITIVO
-// =================================================================
-const domVault = {}; 
-
-// ✨ A MÁGICA: Interceptador de Busca!
-// Como nós arrancamos o HTML da tela, o JS normal ficaria "cego".
-// Esse código ensina o navegador a procurar os itens DENTRO do cofre também!
-const originalGetElementById = document.getElementById.bind(document);
-document.getElementById = function(id) {
-    let el = originalGetElementById(id);
-    if (el) return el; // Se achou na tela, perfeito.
-    
-    // Se não achou na tela, vasculha o cofre:
-    for (let key in domVault) {
-        const vaultEl = domVault[key];
-        if (vaultEl && typeof vaultEl.querySelector === 'function') {
-            if (vaultEl.id === id) return vaultEl;
-            const found = vaultEl.querySelector(`#${id}`);
-            if (found) return found;
-        }
-    }
-    return null;
-};
-
-window.lockAdminVault = () => {
-    // Áreas sensíveis que devem SUMIR fisicamente do código fonte
-    const secureAreas = ['view-admin', 'view-support', 'product-form-modal', 'modal-admin-order'];
-    
-    secureAreas.forEach(id => {
-        const el = originalGetElementById(id);
-        if (el && !domVault[id]) {
-            // Cria uma âncora invisível para saber onde devolver o HTML depois
-            const placeholder = document.createElement('div');
-            placeholder.id = `vault-placeholder-${id}`;
-            placeholder.style.display = 'none';
-            
-            el.parentNode.insertBefore(placeholder, el);
-            domVault[id] = el; // Guarda a área inteira na memória RAM
-            el.remove(); // ✨ EXCLUI o HTML da página, impossibilitando leitura sem senha!
-        }
-    });
-
-    // Oculta atalhos do admin
-    ['menu-btn-admin', 'btn-admin-login'].forEach(id => {
-        const btn = originalGetElementById(id);
-        if (btn) btn.style.setProperty('display', 'none', 'important');
-    });
-};
-
-window.unlockAdminVault = () => {
-    const secureAreas = ['view-admin', 'view-support', 'product-form-modal', 'modal-admin-order'];
-    
-    secureAreas.forEach(id => {
-        const placeholder = originalGetElementById(`vault-placeholder-${id}`);
-        if (placeholder && domVault[id]) {
-            // Pega o HTML do cofre e devolve pra página exatamente no lugar original
-            placeholder.parentNode.insertBefore(domVault[id], placeholder);
-            placeholder.remove();
-            delete domVault[id]; // Limpa a memória
-        }
-    });
-
-    ['menu-btn-admin', 'btn-admin-login'].forEach(id => {
-        const btn = originalGetElementById(id);
-        if (btn) btn.style.display = '';
-    });
-
-    // ✨ FORÇA A ATUALIZAÇÃO DA TELA
-    // Como o HTML acabou de "nascer" de novo na página, as tabelas estariam vazias.
-    // Isso injeta os dados do banco imediatamente!
-    if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
-    if (typeof renderAdminCoupons === 'function') renderAdminCoupons();
-    if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-    if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
-    if (typeof fillProfileForm === 'function') fillProfileForm();
-};
 
 const startApplication = async () => {
     console.log("🚀 Iniciando App V4...");
-
-    // ✨ 0. TRANCA O COFRE ANTES DE QUALQUER COISA (Evita o vazamento do HTML)
-    if (typeof lockAdminVault === 'function') lockAdminVault();
 
     // ✨ 1. SALVA NA MEMÓRIA E LIMPA A URL SEM PERDER O ID ✨
     const currentUrl = window.location.href;
@@ -883,11 +685,7 @@ async function initApp() {
         loadCoupons();
         updateCartUI();
         startBackgroundListeners();
-        try {
-            if (typeof initStatsModule === 'function') initStatsModule();
-        } catch (errStats) {
-            console.warn("Aviso: Módulo de estatísticas falhou, mas o sistema continuará carregando.", errStats);
-        }
+        initStatsModule();
         loadTheme();
 
 
@@ -909,14 +707,6 @@ async function initApp() {
         onAuthStateChanged(auth, (user) => {
             // ✨ FIM DO CRACHÁ FALSO: Agora só existe o 'user' real do Firebase!
             state.user = user;
-
-            // ✨ SE FOR ADMIN AUTENTICADO, ABRE O COFRE E DEVOLVE O HTML
-            if (user) {
-                if (typeof unlockAdminVault === 'function') unlockAdminVault();
-            } else {
-                // ✨ SE DESLOGAR, TRANCA O HTML NA MEMÓRIA NOVAMENTE
-                if (typeof lockAdminVault === 'function') lockAdminVault();
-            }
 
             // ✨ PASSO 2: Controle de visibilidade do botão na Sidebar
             if (els.menuBtnAdmin) {
@@ -3881,42 +3671,38 @@ function setupEventListeners() {
 // =================================================================
 // RECUPERAÇÃO DAS ABAS DO ADMIN (Produtos, Categoria, Stats, Config)
 // =================================================================
-// =================================================================
-// RECUPERAÇÃO DAS ABAS DO ADMIN (Blindado e Sempre Ativo)
-// =================================================================
-document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.tab-btn');
-    if (!btn) return;
+const adminTabs = document.querySelectorAll('.tab-btn');
 
-    // 1. Esconde todos os conteúdos das abas com Blindagem Dupla
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.add('hidden');
-        content.setAttribute('hidden', 'true'); // Trava HTML
-        content.style.setProperty('display', 'none', 'important'); // Trava inline
+if (adminTabs.length > 0) {
+    adminTabs.forEach(btn => {
+        btn.onclick = () => {
+            // 1. Esconde todos os conteúdos das abas
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+
+            // 2. Remove o destaque (amarelo) de todos os botões
+            adminTabs.forEach(b => {
+                b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500');
+                b.classList.add('text-gray-400');
+            });
+
+            // 3. Mostra o conteúdo da aba clicada
+            const targetId = btn.dataset.tab; // Pega o ID do HTML (ex: data-tab="tab-produtos")
+            const targetContent = document.getElementById(targetId);
+
+            if (targetContent) {
+                targetContent.classList.remove('hidden');
+            } else {
+                console.warn(`Aba alvo não encontrada: ${targetId}`);
+            }
+
+            // 4. Destaca o botão clicado
+            btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500');
+            btn.classList.remove('text-gray-400');
+        };
     });
-
-    // 2. Remove o destaque de todos os botões
-    document.querySelectorAll('.tab-btn').forEach(b => {
-        b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500');
-        b.classList.add('text-gray-400');
-    });
-
-    // 3. Mostra o conteúdo da aba clicada
-    const targetId = btn.dataset.tab; 
-    const targetContent = document.getElementById(targetId);
-
-    if (targetContent) {
-        targetContent.classList.remove('hidden');
-        targetContent.removeAttribute('hidden'); // Destrava HTML
-        targetContent.style.display = '';
-    } else {
-        console.warn(`Aba alvo não encontrada: ${targetId}`);
-    }
-
-    // 4. Destaca o botão clicado
-    btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500');
-    btn.classList.remove('text-gray-400');
-});
+}
 
 function updateCardStyles(isLight) {
     const cards = document.querySelectorAll('.product-card');
@@ -3988,68 +3774,55 @@ function showView(viewName) {
     const viewAdmin = document.getElementById('view-admin');
     const viewSupport = document.getElementById('view-support');
 
-    // ✨ 1. BLINDAGEM NATIVA ABSOLUTA: Esconde usando Tailwind, CSS inline e o atributo HTML
-    const hideSecure = (el) => {
-        if (!el) return;
-        el.classList.add('hidden');
-        el.setAttribute('hidden', 'true'); // Oculta mesmo se desativarem o CSS
-        el.style.setProperty('display', 'none', 'important');
-    };
-
-    const showSecure = (el) => {
-        if (!el) return;
-        el.classList.remove('hidden');
-        el.removeAttribute('hidden');
-        el.style.display = '';
-    };
-
-    // Esconde todas por segurança antes de revelar a certa
-    hideSecure(viewCatalog);
-    hideSecure(viewAdmin);
-    hideSecure(viewSupport);
+    // 1. Esconde TODAS as telas
+    if (viewCatalog) viewCatalog.classList.add('hidden');
+    if (viewAdmin) viewAdmin.classList.add('hidden');
+    if (viewSupport) viewSupport.classList.add('hidden');
 
     // 2. Lógica do TOPO (Cabeçalho)
     if (viewName === 'admin' || viewName === 'support') {
-        hideSecure(header);
-        hideSecure(searchBar);
-        hideSecure(floatCapsule);
+        if (header) header.classList.add('hidden');
+        if (searchBar) searchBar.classList.add('hidden');
+        if (floatCapsule) floatCapsule.classList.add('hidden');
         document.body.classList.remove('pt-6');
     } else {
-        showSecure(header);
-        showSecure(searchBar);
-        showSecure(floatCapsule);
+        if (header) header.classList.remove('hidden');
+        if (searchBar) searchBar.classList.remove('hidden');
+        if (floatCapsule) floatCapsule.classList.remove('hidden');
     }
 
-    // =========================================================
+   // =========================================================
     // 3. MOSTRA A TELA ESPECÍFICA E MUDA O TÍTULO DA ABA
     // =========================================================
     const storeName = state.storeProfile?.name || 'Loja';
 
     if (viewName === 'admin') {
-        showSecure(viewAdmin);
+        if (viewAdmin) viewAdmin.classList.remove('hidden');
         if (typeof loadAdminSales === 'function') loadAdminSales();
 
         document.title = `${storeName} - Painel Admin`;
 
+        // ✨ O ÚNICO GATILHO PARA LIGAR O RADAR: Só liga quando a tela do Admin está aberta e renderizada.
         if (typeof window.loadAvisos === 'function') window.loadAvisos();
     }
     else if (viewName === 'support') {
-        showSecure(viewSupport);
+        if (viewSupport) viewSupport.classList.remove('hidden');
         document.title = `Suporte - ${storeName}`;
     }
     else {
         // Padrão: Catálogo (Vitrine)
-        showSecure(viewCatalog);
-        hideSecure(viewAdmin); // Reafirma a trava do admin!
-        
+        if (viewCatalog) viewCatalog.classList.remove('hidden');
         window.scrollTo({ top: 0, behavior: 'smooth' });
+
         document.title = `${storeName} - Catálogo`;
 
+        // ✨ O GATILHO PARA DESLIGAR O RADAR NA VITRINE ✨
         if (window.activeAvisosListener) {
-            window.activeAvisosListener(); 
+            window.activeAvisosListener(); // Desconecta imediatamente do banco
             window.activeAvisosListener = null;
         }
         
+        // Esconde o ícone de sino forçadamente se ele estiver visível
         try {
             const alertIcon = document.getElementById('icone-avisos');
             if (alertIcon) alertIcon.classList.add('hidden');
@@ -6177,7 +5950,6 @@ let checkoutState = {
     isValidDelivery: false
 };
 
-
 window.closeCheckoutModal = () => {
     els.checkoutModal.classList.add('hidden');
     els.checkoutModal.classList.remove('flex');
@@ -6913,6 +6685,7 @@ function updateFreeInstallmentsSelect() {
 // 🛒 1. RENDERIZADOR CENTRAL DO CHECKOUT (BLINDADO)
 // =================================================================
 window.renderCheckoutPaymentsUI = () => {
+    // 1. Puxa os dados fresquinhos da memória (atualizados pelo Admin instantaneamente)
     const pm = state.storeProfile?.paymentMethods || {};
     const dConfig = state.storeProfile?.deliveryConfig || {};
 
@@ -6931,9 +6704,11 @@ window.renderCheckoutPaymentsUI = () => {
     if (labelOnline) {
         if (onlineActive) {
             labelOnline.classList.remove('hidden');
+            labelOnline.style.display = '';
             if (radioOnline) radioOnline.disabled = false;
         } else {
             labelOnline.classList.add('hidden');
+            labelOnline.style.setProperty('display', 'none', 'important');
             if (radioOnline) { radioOnline.disabled = true; radioOnline.checked = false; }
         }
     }
@@ -6941,9 +6716,11 @@ window.renderCheckoutPaymentsUI = () => {
     if (containerDelivery) {
         if (showDeliveryTab) {
             containerDelivery.classList.remove('hidden');
+            containerDelivery.style.display = '';
             if (radioDelivery) radioDelivery.disabled = false;
         } else {
             containerDelivery.classList.add('hidden');
+            containerDelivery.style.setProperty('display', 'none', 'important');
             if (radioDelivery) { radioDelivery.disabled = true; radioDelivery.checked = false; }
         }
     }
@@ -6966,11 +6743,11 @@ window.renderCheckoutPaymentsUI = () => {
     const deliveryContent = document.getElementById('pay-delivery-content');
     const onlineContent = document.getElementById('pay-online-content');
     if (mode === 'delivery') {
-        if (deliveryContent) deliveryContent.classList.remove('hidden'); 
-        if (onlineContent) onlineContent.classList.add('hidden'); 
+        if (deliveryContent) { deliveryContent.classList.remove('hidden'); deliveryContent.style.display = ''; }
+        if (onlineContent) { onlineContent.classList.add('hidden'); onlineContent.style.setProperty('display', 'none', 'important'); }
     } else if (mode === 'online') {
-        if (deliveryContent) deliveryContent.classList.add('hidden'); 
-        if (onlineContent) onlineContent.classList.remove('hidden'); 
+        if (deliveryContent) { deliveryContent.classList.add('hidden'); deliveryContent.style.setProperty('display', 'none', 'important'); }
+        if (onlineContent) { onlineContent.classList.remove('hidden'); onlineContent.style.display = ''; }
     }
 
     // 4. FORMAS DE PAGAMENTO SECUNDÁRIAS (Pix, Cartão, Dinheiro)
@@ -6982,12 +6759,10 @@ window.renderCheckoutPaymentsUI = () => {
         const radio = document.querySelector(`input[name="payment-method-selection"][value="${val}"]`) || 
                       document.querySelector(`input[name="payment-method"][value="${val}"]`);
         if (!radio) return null;
-        
-        // ✨ CORREÇÃO CRÍTICA: Pega apenas a label em volta do input, ou o ID exato. 
-        // Não sobe para o parentElement para não pegar a caixa toda.
         let wrapper = document.getElementById(`container-${val}-option`);
         if (!wrapper) {
-            wrapper = radio.closest('label');
+            const label = radio.closest('label');
+            wrapper = label ? label.parentElement : radio.parentElement;
         }
         return { radio, wrapper };
     };
@@ -6999,23 +6774,23 @@ window.renderCheckoutPaymentsUI = () => {
 
     const pConfig = mode === 'delivery' ? (pm.delivery || {}) : (pm.online || {});
 
-    // ✨ CORREÇÃO CRÍTICA: Usa APENAS as classes do Tailwind para não quebrar o layout!
+    // Função que força a exibição ou ocultação absoluta no HTML
     const forceUpdateVis = (obj, shouldShow) => {
         if (!obj) return;
         if (shouldShow) {
-            if (obj.wrapper) obj.wrapper.classList.remove('hidden');
-            if (obj.radio) {
-                obj.radio.disabled = false;
-                const lbl = obj.radio.closest('label');
-                if (lbl) lbl.classList.remove('hidden');
+            if (obj.wrapper) {
+                obj.wrapper.classList.remove('hidden');
+                obj.wrapper.style.display = 'flex';
             }
+            if (obj.radio) obj.radio.disabled = false;
         } else {
-            if (obj.wrapper) obj.wrapper.classList.add('hidden');
+            if (obj.wrapper) {
+                obj.wrapper.classList.add('hidden');
+                obj.wrapper.style.setProperty('display', 'none', 'important'); // Esconde na força bruta
+            }
             if (obj.radio) {
                 obj.radio.disabled = true;
                 obj.radio.checked = false; // Desmarca para não bugar
-                const lbl = obj.radio.closest('label');
-                if (lbl) lbl.classList.add('hidden');
             }
         }
     };
@@ -7033,8 +6808,8 @@ window.renderCheckoutPaymentsUI = () => {
     if (!currentMethodEl || currentMethodEl.disabled) {
         invalidMethod = true;
     } else {
-        const wrap = currentMethodEl.closest('label') || document.getElementById(`container-${currentMethodEl.value}-option`);
-        if (wrap && wrap.classList.contains('hidden')) {
+        const wrap = currentMethodEl.closest('label')?.parentElement || currentMethodEl.parentElement;
+        if (wrap && (wrap.classList.contains('hidden') || wrap.style.display === 'none')) {
             invalidMethod = true;
         }
     }
@@ -7042,8 +6817,8 @@ window.renderCheckoutPaymentsUI = () => {
     if (invalidMethod) {
         const validRadios = document.querySelectorAll('input[name="payment-method-selection"]:not(:disabled), input[name="payment-method"]:not(:disabled)');
         for (let r of validRadios) {
-            const w = r.closest('label') || document.getElementById(`container-${r.value}-option`);
-            if (w && !w.classList.contains('hidden')) {
+            const w = r.closest('label')?.parentElement || r.parentElement;
+            if (w && !w.classList.contains('hidden') && w.style.display !== 'none') {
                 r.checked = true;
                 break;
             }
@@ -7055,14 +6830,15 @@ window.renderCheckoutPaymentsUI = () => {
     if (typeof validateCheckoutForm === 'function') validateCheckoutForm();
 };
 
-// Mantém os atalhos antigos funcionando sem erro
+// ✨ SUBSTITUÍMOS AS DUAS FUNÇÕES ANTIGAS POR ESTAS LINHAS AQUI ✨
 window.applyCheckoutVisibility = () => renderCheckoutPaymentsUI();
 window.togglePaymentMode = () => renderCheckoutPaymentsUI();
 
 // =================================================================
-// ✨ 2. ABERTURA DO CHECKOUT 
+// ✨ 2. ABERTURA DO CHECKOUT (ORDEM CORRETA)
 // =================================================================
 window.openCheckoutModal = () => {
+    // 1. Limpa campos anteriores
     ['checkout-cep', 'checkout-number', 'checkout-comp', 'checkout-name', 'checkout-phone'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -7079,6 +6855,7 @@ window.openCheckoutModal = () => {
         checkoutState.distance = 0;
     }
 
+    // 2. Transição de Telas (Abre a tela ANTES de filtrar para o HTML "acordar")
     const viewCart = document.getElementById('view-cart-list');
     const viewCheckout = document.getElementById('view-checkout');
 
@@ -7091,9 +6868,11 @@ window.openCheckoutModal = () => {
     document.getElementById('btn-modal-back')?.classList.remove('hidden');
     document.getElementById('btn-go-checkout')?.classList.add('hidden');
 
-    // ✨ Roda a faxina AGORA, com a tela aberta
+    // ✨ 3. O SEGREDO MÁXIMO: Executa a faxina com a tela aberta
+    // Isso garante que tudo que você desativou no Admin fique invisível no exato segundo que a tela abre!
     renderCheckoutPaymentsUI();
 
+    // 4. Bloqueia o botão de finalizar até o cliente digitar CEP e Nome
     const btnFinish = document.getElementById('btn-finish-payment');
     const paySection = document.getElementById('checkout-payment-options');
 
@@ -7113,39 +6892,7 @@ window.openCheckoutModal = () => {
     }
 };
 
-// 2. Controla a Seleção Específica (Pix vs Cartão vs Dinheiro)
-function toggleMethodSelection() {
-    // Modo Principal (Online/Entrega)
-    const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value;
-    // Método (Pix/Credit/Debit/Cash)
-    const method = document.querySelector('input[name="payment-method-selection"]:checked')?.value;
 
-    const creditInstallmentsDiv = document.getElementById('credit-installments-container');
-    const cashChangeContainer = document.getElementById('cash-change-container');
-
-    // 1. Reseta
-    if (creditInstallmentsDiv) creditInstallmentsDiv.classList.add('hidden');
-    if (cashChangeContainer) cashChangeContainer.classList.add('hidden');
-
-    // 2. CRÉDITO (Mostra parcelas SÓ se for Online)
-    if (method === 'credit') {
-        if (payMode === 'online') {
-            if (creditInstallmentsDiv) creditInstallmentsDiv.classList.remove('hidden');
-            populateInstallments();
-        }
-    }
-    // 3. DINHEIRO
-    else if (method === 'cash') {
-        if (cashChangeContainer) {
-            cashChangeContainer.classList.remove('hidden');
-            setTimeout(() => document.getElementById('checkout-change-for')?.focus(), 100);
-        }
-    }
-    // Débito e Pix não abrem nada extra
-
-    // Recalcula totais (para atualizar texto do botão e valores)
-    calcCheckoutTotal();
-};
 
 
 

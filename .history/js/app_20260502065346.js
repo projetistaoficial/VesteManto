@@ -257,146 +257,29 @@ function updateCarouselUI(images) {
 }
 
 // 2. Renderiza as miniaturas no formulário
-// =================================================================
-// 📸 RENDERIZADOR DE IMAGENS COM DRAG & DROP (DESKTOP E MOBILE)
-// =================================================================
-window.renderImagePreviews = () => {
-    const container = document.getElementById('prod-imgs-preview');
+function renderImagePreviews() {
+    const container = getEl('prod-imgs-preview');
     if (!container) return;
 
     container.innerHTML = '';
 
-    if (!state.tempImages || state.tempImages.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada. Clique em "Adicionar Foto".</p>';
+    if (state.tempImages.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada</p>';
         return;
     }
 
-    let draggedIndex = null; // Memória de quem está sendo arrastado
-
     state.tempImages.forEach((imgSrc, index) => {
         const div = document.createElement('div');
-        // Classes atualizadas para cursor de movimento e animações
-        div.className = "relative w-20 h-20 group border border-gray-600 rounded-lg overflow-hidden cursor-move transition-transform shadow-sm drag-item select-none";
-        
-        // Permite o drag nativo no PC
-        div.draggable = true;
-        div.dataset.index = index;
-
-        // O HTML da caixinha (Note o pointer-events-none nas imagens para não bugar o toque do celular)
+        div.className = "relative w-16 h-16 group border border-gray-600 rounded overflow-hidden";
         div.innerHTML = `
-            <img src="${imgSrc}" class="w-full h-full object-cover pointer-events-none select-none">
-            
-            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center pointer-events-none">
-                <i class="fas fa-arrows-alt text-white text-sm"></i>
-            </div>
-            
-            <button type="button" onclick="event.stopPropagation(); removeTempImage(${index})" 
-                class="absolute top-1 right-1 w-6 h-6 bg-red-600 hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-10 shadow-md">
-                <i class="fas fa-trash text-[10px]"></i>
+            <img src="${imgSrc}" class="w-full h-full object-cover">
+            <button type="button" onclick="removeTempImage(${index})" class="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                <i class="fas fa-trash text-red-500"></i>
             </button>
-            
-            ${index === 0 ? '<span class="absolute bottom-0 left-0 right-0 bg-yellow-500 text-black text-[9px] font-bold text-center uppercase py-0.5 pointer-events-none shadow-[0_-2px_4px_rgba(0,0,0,0.3)]">Capa</span>' : ''}
         `;
-
-        // ---------------------------------------------------
-        // 🖱️ EVENTOS PARA PC (MOUSE / HTML5 DRAG & DROP)
-        // ---------------------------------------------------
-        div.addEventListener('dragstart', (e) => {
-            draggedIndex = index;
-            e.dataTransfer.effectAllowed = "move";
-            setTimeout(() => div.classList.add('opacity-30'), 0);
-        });
-
-        div.addEventListener('dragend', () => {
-            div.classList.remove('opacity-30');
-            renderImagePreviews(); // Limpa as bordas amarelas
-        });
-
-        div.addEventListener('dragover', (e) => {
-            e.preventDefault(); // OBRIGATÓRIO para permitir soltar
-            div.classList.add('border-yellow-500', 'border-2', 'scale-105');
-        });
-
-        div.addEventListener('dragleave', () => {
-            div.classList.remove('border-yellow-500', 'border-2', 'scale-105');
-        });
-
-        div.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const targetIndex = index;
-            if (draggedIndex !== null && draggedIndex !== targetIndex) {
-                reorderImages(draggedIndex, targetIndex);
-            }
-        });
-
-        // ---------------------------------------------------
-        // 📱 EVENTOS PARA CELULAR (TOUCH API)
-        // ---------------------------------------------------
-        div.addEventListener('touchstart', (e) => {
-            // Ignora o toque se o usuário clicou na lixeirinha
-            if(e.target.closest('button')) return;
-            
-            draggedIndex = index;
-            div.classList.add('opacity-50', 'scale-110', 'z-50', 'ring-2', 'ring-yellow-500');
-        }, {passive: true});
-
-        div.addEventListener('touchmove', (e) => {
-            if (draggedIndex === null) return;
-            e.preventDefault(); // 🛑 Trava a tela para não rolar o site enquanto arrasta a foto
-            
-            const touch = e.touches[0];
-            // O Segredo: Acha qual elemento está embaixo do dedo em tempo real
-            const element = document.elementFromPoint(touch.clientX, touch.clientY);
-            
-            // Limpa as bordas de todos
-            document.querySelectorAll('.drag-item').forEach(el => el.classList.remove('border-yellow-500', 'border-2', 'scale-105'));
-            
-            // Acende a borda de quem o dedo está sobrevoando
-            if (element && element.closest('.drag-item')) {
-                const targetEl = element.closest('.drag-item');
-                if(targetEl !== div) targetEl.classList.add('border-yellow-500', 'border-2', 'scale-105');
-            }
-        }, {passive: false}); // passive false é necessário para o e.preventDefault funcionar no mobile
-
-        div.addEventListener('touchend', (e) => {
-            if (draggedIndex === null) return;
-            
-            const touch = e.changedTouches[0];
-            const element = document.elementFromPoint(touch.clientX, touch.clientY);
-            const targetEl = element ? element.closest('.drag-item') : null;
-
-            if (targetEl) {
-                const targetIndex = parseInt(targetEl.dataset.index);
-                if (draggedIndex !== targetIndex) {
-                    reorderImages(draggedIndex, targetIndex);
-                } else {
-                    renderImagePreviews();
-                }
-            } else {
-                renderImagePreviews(); // Soltou fora, só reseta
-            }
-            draggedIndex = null;
-        });
-
         container.appendChild(div);
     });
-};
-
-// --- Função que executa a troca na memória ---
-window.reorderImages = (fromIndex, toIndex) => {
-    // Tira a imagem da posição antiga
-    const imgToMove = state.tempImages.splice(fromIndex, 1)[0];
-    // Insere na nova posição
-    state.tempImages.splice(toIndex, 0, imgToMove);
-    // Renderiza a tela de novo
-    renderImagePreviews();
-};
-
-// --- Remove imagem da lista temporária ---
-window.removeTempImage = (index) => {
-    state.tempImages.splice(index, 1);
-    renderImagePreviews();
-};
+}
 
 // 3. Remove imagem da lista temporária
 window.removeTempImage = (index) => {
@@ -700,52 +583,31 @@ window.fecharModalLogin = () => {
 // 3. INICIALIZAÇÃO CORRIGIDA
 // =================================================================
 // =================================================================
-// =================================================================
-// 🛡️ SISTEMA DE BLINDAGEM DOM (ANTI-VAZAMENTO DE HTML) - DEFINITIVO
+// 🛡️ SISTEMA DE BLINDAGEM DOM (ANTI-VAZAMENTO DE HTML)
 // =================================================================
 const domVault = {}; 
 
-// ✨ A MÁGICA: Interceptador de Busca!
-// Como nós arrancamos o HTML da tela, o JS normal ficaria "cego".
-// Esse código ensina o navegador a procurar os itens DENTRO do cofre também!
-const originalGetElementById = document.getElementById.bind(document);
-document.getElementById = function(id) {
-    let el = originalGetElementById(id);
-    if (el) return el; // Se achou na tela, perfeito.
-    
-    // Se não achou na tela, vasculha o cofre:
-    for (let key in domVault) {
-        const vaultEl = domVault[key];
-        if (vaultEl && typeof vaultEl.querySelector === 'function') {
-            if (vaultEl.id === id) return vaultEl;
-            const found = vaultEl.querySelector(`#${id}`);
-            if (found) return found;
-        }
-    }
-    return null;
-};
-
 window.lockAdminVault = () => {
-    // Áreas sensíveis que devem SUMIR fisicamente do código fonte
+    // IDs das áreas sensíveis que devem SUMIR do código fonte
     const secureAreas = ['view-admin', 'view-support', 'product-form-modal', 'modal-admin-order'];
     
     secureAreas.forEach(id => {
-        const el = originalGetElementById(id);
-        if (el && !domVault[id]) {
-            // Cria uma âncora invisível para saber onde devolver o HTML depois
-            const placeholder = document.createElement('div');
-            placeholder.id = `vault-placeholder-${id}`;
-            placeholder.style.display = 'none';
-            
-            el.parentNode.insertBefore(placeholder, el);
-            domVault[id] = el; // Guarda a área inteira na memória RAM
-            el.remove(); // ✨ EXCLUI o HTML da página, impossibilitando leitura sem senha!
+        const el = document.getElementById(id);
+        // Se a área existe, tem conteúdo e ainda não foi guardada
+        if (el && el.children.length > 0 && !domVault[id]) {
+            const fragment = document.createDocumentFragment();
+            // Arranca todos os elementos de dentro do HTML e move para a memória do JS
+            while (el.firstChild) {
+                fragment.appendChild(el.firstChild);
+            }
+            domVault[id] = fragment; // Salva o HTML no cofre
+            el.style.setProperty('display', 'none', 'important'); // Aplica bloqueio duplo inline
         }
     });
 
-    // Oculta atalhos do admin
+    // Botões que expõem funções (arranca da tela)
     ['menu-btn-admin', 'btn-admin-login'].forEach(id => {
-        const btn = originalGetElementById(id);
+        const btn = document.getElementById(id);
         if (btn) btn.style.setProperty('display', 'none', 'important');
     });
 };
@@ -754,28 +616,19 @@ window.unlockAdminVault = () => {
     const secureAreas = ['view-admin', 'view-support', 'product-form-modal', 'modal-admin-order'];
     
     secureAreas.forEach(id => {
-        const placeholder = originalGetElementById(`vault-placeholder-${id}`);
-        if (placeholder && domVault[id]) {
-            // Pega o HTML do cofre e devolve pra página exatamente no lugar original
-            placeholder.parentNode.insertBefore(domVault[id], placeholder);
-            placeholder.remove();
+        const el = document.getElementById(id);
+        // Se o cofre tiver o HTML salvo, devolve para a tela
+        if (el && domVault[id]) {
+            el.appendChild(domVault[id]);
             delete domVault[id]; // Limpa a memória
+            el.style.display = ''; // Remove o bloqueio inline
         }
     });
 
     ['menu-btn-admin', 'btn-admin-login'].forEach(id => {
-        const btn = originalGetElementById(id);
+        const btn = document.getElementById(id);
         if (btn) btn.style.display = '';
     });
-
-    // ✨ FORÇA A ATUALIZAÇÃO DA TELA
-    // Como o HTML acabou de "nascer" de novo na página, as tabelas estariam vazias.
-    // Isso injeta os dados do banco imediatamente!
-    if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
-    if (typeof renderAdminCoupons === 'function') renderAdminCoupons();
-    if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-    if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
-    if (typeof fillProfileForm === 'function') fillProfileForm();
 };
 
 const startApplication = async () => {
@@ -3988,68 +3841,55 @@ function showView(viewName) {
     const viewAdmin = document.getElementById('view-admin');
     const viewSupport = document.getElementById('view-support');
 
-    // ✨ 1. BLINDAGEM NATIVA ABSOLUTA: Esconde usando Tailwind, CSS inline e o atributo HTML
-    const hideSecure = (el) => {
-        if (!el) return;
-        el.classList.add('hidden');
-        el.setAttribute('hidden', 'true'); // Oculta mesmo se desativarem o CSS
-        el.style.setProperty('display', 'none', 'important');
-    };
-
-    const showSecure = (el) => {
-        if (!el) return;
-        el.classList.remove('hidden');
-        el.removeAttribute('hidden');
-        el.style.display = '';
-    };
-
-    // Esconde todas por segurança antes de revelar a certa
-    hideSecure(viewCatalog);
-    hideSecure(viewAdmin);
-    hideSecure(viewSupport);
+    // 1. Esconde TODAS as telas
+    if (viewCatalog) viewCatalog.classList.add('hidden');
+    if (viewAdmin) viewAdmin.classList.add('hidden');
+    if (viewSupport) viewSupport.classList.add('hidden');
 
     // 2. Lógica do TOPO (Cabeçalho)
     if (viewName === 'admin' || viewName === 'support') {
-        hideSecure(header);
-        hideSecure(searchBar);
-        hideSecure(floatCapsule);
+        if (header) header.classList.add('hidden');
+        if (searchBar) searchBar.classList.add('hidden');
+        if (floatCapsule) floatCapsule.classList.add('hidden');
         document.body.classList.remove('pt-6');
     } else {
-        showSecure(header);
-        showSecure(searchBar);
-        showSecure(floatCapsule);
+        if (header) header.classList.remove('hidden');
+        if (searchBar) searchBar.classList.remove('hidden');
+        if (floatCapsule) floatCapsule.classList.remove('hidden');
     }
 
-    // =========================================================
+   // =========================================================
     // 3. MOSTRA A TELA ESPECÍFICA E MUDA O TÍTULO DA ABA
     // =========================================================
     const storeName = state.storeProfile?.name || 'Loja';
 
     if (viewName === 'admin') {
-        showSecure(viewAdmin);
+        if (viewAdmin) viewAdmin.classList.remove('hidden');
         if (typeof loadAdminSales === 'function') loadAdminSales();
 
         document.title = `${storeName} - Painel Admin`;
 
+        // ✨ O ÚNICO GATILHO PARA LIGAR O RADAR: Só liga quando a tela do Admin está aberta e renderizada.
         if (typeof window.loadAvisos === 'function') window.loadAvisos();
     }
     else if (viewName === 'support') {
-        showSecure(viewSupport);
+        if (viewSupport) viewSupport.classList.remove('hidden');
         document.title = `Suporte - ${storeName}`;
     }
     else {
         // Padrão: Catálogo (Vitrine)
-        showSecure(viewCatalog);
-        hideSecure(viewAdmin); // Reafirma a trava do admin!
-        
+        if (viewCatalog) viewCatalog.classList.remove('hidden');
         window.scrollTo({ top: 0, behavior: 'smooth' });
+
         document.title = `${storeName} - Catálogo`;
 
+        // ✨ O GATILHO PARA DESLIGAR O RADAR NA VITRINE ✨
         if (window.activeAvisosListener) {
-            window.activeAvisosListener(); 
+            window.activeAvisosListener(); // Desconecta imediatamente do banco
             window.activeAvisosListener = null;
         }
         
+        // Esconde o ícone de sino forçadamente se ele estiver visível
         try {
             const alertIcon = document.getElementById('icone-avisos');
             if (alertIcon) alertIcon.classList.add('hidden');

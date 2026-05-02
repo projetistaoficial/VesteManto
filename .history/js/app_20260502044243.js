@@ -257,146 +257,29 @@ function updateCarouselUI(images) {
 }
 
 // 2. Renderiza as miniaturas no formulário
-// =================================================================
-// 📸 RENDERIZADOR DE IMAGENS COM DRAG & DROP (DESKTOP E MOBILE)
-// =================================================================
-window.renderImagePreviews = () => {
-    const container = document.getElementById('prod-imgs-preview');
+function renderImagePreviews() {
+    const container = getEl('prod-imgs-preview');
     if (!container) return;
 
     container.innerHTML = '';
 
-    if (!state.tempImages || state.tempImages.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada. Clique em "Adicionar Foto".</p>';
+    if (state.tempImages.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada</p>';
         return;
     }
 
-    let draggedIndex = null; // Memória de quem está sendo arrastado
-
     state.tempImages.forEach((imgSrc, index) => {
         const div = document.createElement('div');
-        // Classes atualizadas para cursor de movimento e animações
-        div.className = "relative w-20 h-20 group border border-gray-600 rounded-lg overflow-hidden cursor-move transition-transform shadow-sm drag-item select-none";
-        
-        // Permite o drag nativo no PC
-        div.draggable = true;
-        div.dataset.index = index;
-
-        // O HTML da caixinha (Note o pointer-events-none nas imagens para não bugar o toque do celular)
+        div.className = "relative w-16 h-16 group border border-gray-600 rounded overflow-hidden";
         div.innerHTML = `
-            <img src="${imgSrc}" class="w-full h-full object-cover pointer-events-none select-none">
-            
-            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center pointer-events-none">
-                <i class="fas fa-arrows-alt text-white text-sm"></i>
-            </div>
-            
-            <button type="button" onclick="event.stopPropagation(); removeTempImage(${index})" 
-                class="absolute top-1 right-1 w-6 h-6 bg-red-600 hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-10 shadow-md">
-                <i class="fas fa-trash text-[10px]"></i>
+            <img src="${imgSrc}" class="w-full h-full object-cover">
+            <button type="button" onclick="removeTempImage(${index})" class="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                <i class="fas fa-trash text-red-500"></i>
             </button>
-            
-            ${index === 0 ? '<span class="absolute bottom-0 left-0 right-0 bg-yellow-500 text-black text-[9px] font-bold text-center uppercase py-0.5 pointer-events-none shadow-[0_-2px_4px_rgba(0,0,0,0.3)]">Capa</span>' : ''}
         `;
-
-        // ---------------------------------------------------
-        // 🖱️ EVENTOS PARA PC (MOUSE / HTML5 DRAG & DROP)
-        // ---------------------------------------------------
-        div.addEventListener('dragstart', (e) => {
-            draggedIndex = index;
-            e.dataTransfer.effectAllowed = "move";
-            setTimeout(() => div.classList.add('opacity-30'), 0);
-        });
-
-        div.addEventListener('dragend', () => {
-            div.classList.remove('opacity-30');
-            renderImagePreviews(); // Limpa as bordas amarelas
-        });
-
-        div.addEventListener('dragover', (e) => {
-            e.preventDefault(); // OBRIGATÓRIO para permitir soltar
-            div.classList.add('border-yellow-500', 'border-2', 'scale-105');
-        });
-
-        div.addEventListener('dragleave', () => {
-            div.classList.remove('border-yellow-500', 'border-2', 'scale-105');
-        });
-
-        div.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const targetIndex = index;
-            if (draggedIndex !== null && draggedIndex !== targetIndex) {
-                reorderImages(draggedIndex, targetIndex);
-            }
-        });
-
-        // ---------------------------------------------------
-        // 📱 EVENTOS PARA CELULAR (TOUCH API)
-        // ---------------------------------------------------
-        div.addEventListener('touchstart', (e) => {
-            // Ignora o toque se o usuário clicou na lixeirinha
-            if(e.target.closest('button')) return;
-            
-            draggedIndex = index;
-            div.classList.add('opacity-50', 'scale-110', 'z-50', 'ring-2', 'ring-yellow-500');
-        }, {passive: true});
-
-        div.addEventListener('touchmove', (e) => {
-            if (draggedIndex === null) return;
-            e.preventDefault(); // 🛑 Trava a tela para não rolar o site enquanto arrasta a foto
-            
-            const touch = e.touches[0];
-            // O Segredo: Acha qual elemento está embaixo do dedo em tempo real
-            const element = document.elementFromPoint(touch.clientX, touch.clientY);
-            
-            // Limpa as bordas de todos
-            document.querySelectorAll('.drag-item').forEach(el => el.classList.remove('border-yellow-500', 'border-2', 'scale-105'));
-            
-            // Acende a borda de quem o dedo está sobrevoando
-            if (element && element.closest('.drag-item')) {
-                const targetEl = element.closest('.drag-item');
-                if(targetEl !== div) targetEl.classList.add('border-yellow-500', 'border-2', 'scale-105');
-            }
-        }, {passive: false}); // passive false é necessário para o e.preventDefault funcionar no mobile
-
-        div.addEventListener('touchend', (e) => {
-            if (draggedIndex === null) return;
-            
-            const touch = e.changedTouches[0];
-            const element = document.elementFromPoint(touch.clientX, touch.clientY);
-            const targetEl = element ? element.closest('.drag-item') : null;
-
-            if (targetEl) {
-                const targetIndex = parseInt(targetEl.dataset.index);
-                if (draggedIndex !== targetIndex) {
-                    reorderImages(draggedIndex, targetIndex);
-                } else {
-                    renderImagePreviews();
-                }
-            } else {
-                renderImagePreviews(); // Soltou fora, só reseta
-            }
-            draggedIndex = null;
-        });
-
         container.appendChild(div);
     });
-};
-
-// --- Função que executa a troca na memória ---
-window.reorderImages = (fromIndex, toIndex) => {
-    // Tira a imagem da posição antiga
-    const imgToMove = state.tempImages.splice(fromIndex, 1)[0];
-    // Insere na nova posição
-    state.tempImages.splice(toIndex, 0, imgToMove);
-    // Renderiza a tela de novo
-    renderImagePreviews();
-};
-
-// --- Remove imagem da lista temporária ---
-window.removeTempImage = (index) => {
-    state.tempImages.splice(index, 1);
-    renderImagePreviews();
-};
+}
 
 // 3. Remove imagem da lista temporária
 window.removeTempImage = (index) => {
@@ -699,90 +582,9 @@ window.fecharModalLogin = () => {
 // =================================================================
 // 3. INICIALIZAÇÃO CORRIGIDA
 // =================================================================
-// =================================================================
-// =================================================================
-// 🛡️ SISTEMA DE BLINDAGEM DOM (ANTI-VAZAMENTO DE HTML) - DEFINITIVO
-// =================================================================
-const domVault = {}; 
-
-// ✨ A MÁGICA: Interceptador de Busca!
-// Como nós arrancamos o HTML da tela, o JS normal ficaria "cego".
-// Esse código ensina o navegador a procurar os itens DENTRO do cofre também!
-const originalGetElementById = document.getElementById.bind(document);
-document.getElementById = function(id) {
-    let el = originalGetElementById(id);
-    if (el) return el; // Se achou na tela, perfeito.
-    
-    // Se não achou na tela, vasculha o cofre:
-    for (let key in domVault) {
-        const vaultEl = domVault[key];
-        if (vaultEl && typeof vaultEl.querySelector === 'function') {
-            if (vaultEl.id === id) return vaultEl;
-            const found = vaultEl.querySelector(`#${id}`);
-            if (found) return found;
-        }
-    }
-    return null;
-};
-
-window.lockAdminVault = () => {
-    // Áreas sensíveis que devem SUMIR fisicamente do código fonte
-    const secureAreas = ['view-admin', 'view-support', 'product-form-modal', 'modal-admin-order'];
-    
-    secureAreas.forEach(id => {
-        const el = originalGetElementById(id);
-        if (el && !domVault[id]) {
-            // Cria uma âncora invisível para saber onde devolver o HTML depois
-            const placeholder = document.createElement('div');
-            placeholder.id = `vault-placeholder-${id}`;
-            placeholder.style.display = 'none';
-            
-            el.parentNode.insertBefore(placeholder, el);
-            domVault[id] = el; // Guarda a área inteira na memória RAM
-            el.remove(); // ✨ EXCLUI o HTML da página, impossibilitando leitura sem senha!
-        }
-    });
-
-    // Oculta atalhos do admin
-    ['menu-btn-admin', 'btn-admin-login'].forEach(id => {
-        const btn = originalGetElementById(id);
-        if (btn) btn.style.setProperty('display', 'none', 'important');
-    });
-};
-
-window.unlockAdminVault = () => {
-    const secureAreas = ['view-admin', 'view-support', 'product-form-modal', 'modal-admin-order'];
-    
-    secureAreas.forEach(id => {
-        const placeholder = originalGetElementById(`vault-placeholder-${id}`);
-        if (placeholder && domVault[id]) {
-            // Pega o HTML do cofre e devolve pra página exatamente no lugar original
-            placeholder.parentNode.insertBefore(domVault[id], placeholder);
-            placeholder.remove();
-            delete domVault[id]; // Limpa a memória
-        }
-    });
-
-    ['menu-btn-admin', 'btn-admin-login'].forEach(id => {
-        const btn = originalGetElementById(id);
-        if (btn) btn.style.display = '';
-    });
-
-    // ✨ FORÇA A ATUALIZAÇÃO DA TELA
-    // Como o HTML acabou de "nascer" de novo na página, as tabelas estariam vazias.
-    // Isso injeta os dados do banco imediatamente!
-    if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
-    if (typeof renderAdminCoupons === 'function') renderAdminCoupons();
-    if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-    if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
-    if (typeof fillProfileForm === 'function') fillProfileForm();
-};
 
 const startApplication = async () => {
     console.log("🚀 Iniciando App V4...");
-
-    // ✨ 0. TRANCA O COFRE ANTES DE QUALQUER COISA (Evita o vazamento do HTML)
-    if (typeof lockAdminVault === 'function') lockAdminVault();
 
     // ✨ 1. SALVA NA MEMÓRIA E LIMPA A URL SEM PERDER O ID ✨
     const currentUrl = window.location.href;
@@ -883,11 +685,7 @@ async function initApp() {
         loadCoupons();
         updateCartUI();
         startBackgroundListeners();
-        try {
-            if (typeof initStatsModule === 'function') initStatsModule();
-        } catch (errStats) {
-            console.warn("Aviso: Módulo de estatísticas falhou, mas o sistema continuará carregando.", errStats);
-        }
+        initStatsModule();
         loadTheme();
 
 
@@ -909,14 +707,6 @@ async function initApp() {
         onAuthStateChanged(auth, (user) => {
             // ✨ FIM DO CRACHÁ FALSO: Agora só existe o 'user' real do Firebase!
             state.user = user;
-
-            // ✨ SE FOR ADMIN AUTENTICADO, ABRE O COFRE E DEVOLVE O HTML
-            if (user) {
-                if (typeof unlockAdminVault === 'function') unlockAdminVault();
-            } else {
-                // ✨ SE DESLOGAR, TRANCA O HTML NA MEMÓRIA NOVAMENTE
-                if (typeof lockAdminVault === 'function') lockAdminVault();
-            }
 
             // ✨ PASSO 2: Controle de visibilidade do botão na Sidebar
             if (els.menuBtnAdmin) {
@@ -3881,42 +3671,38 @@ function setupEventListeners() {
 // =================================================================
 // RECUPERAÇÃO DAS ABAS DO ADMIN (Produtos, Categoria, Stats, Config)
 // =================================================================
-// =================================================================
-// RECUPERAÇÃO DAS ABAS DO ADMIN (Blindado e Sempre Ativo)
-// =================================================================
-document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.tab-btn');
-    if (!btn) return;
+const adminTabs = document.querySelectorAll('.tab-btn');
 
-    // 1. Esconde todos os conteúdos das abas com Blindagem Dupla
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.add('hidden');
-        content.setAttribute('hidden', 'true'); // Trava HTML
-        content.style.setProperty('display', 'none', 'important'); // Trava inline
+if (adminTabs.length > 0) {
+    adminTabs.forEach(btn => {
+        btn.onclick = () => {
+            // 1. Esconde todos os conteúdos das abas
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+
+            // 2. Remove o destaque (amarelo) de todos os botões
+            adminTabs.forEach(b => {
+                b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500');
+                b.classList.add('text-gray-400');
+            });
+
+            // 3. Mostra o conteúdo da aba clicada
+            const targetId = btn.dataset.tab; // Pega o ID do HTML (ex: data-tab="tab-produtos")
+            const targetContent = document.getElementById(targetId);
+
+            if (targetContent) {
+                targetContent.classList.remove('hidden');
+            } else {
+                console.warn(`Aba alvo não encontrada: ${targetId}`);
+            }
+
+            // 4. Destaca o botão clicado
+            btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500');
+            btn.classList.remove('text-gray-400');
+        };
     });
-
-    // 2. Remove o destaque de todos os botões
-    document.querySelectorAll('.tab-btn').forEach(b => {
-        b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500');
-        b.classList.add('text-gray-400');
-    });
-
-    // 3. Mostra o conteúdo da aba clicada
-    const targetId = btn.dataset.tab; 
-    const targetContent = document.getElementById(targetId);
-
-    if (targetContent) {
-        targetContent.classList.remove('hidden');
-        targetContent.removeAttribute('hidden'); // Destrava HTML
-        targetContent.style.display = '';
-    } else {
-        console.warn(`Aba alvo não encontrada: ${targetId}`);
-    }
-
-    // 4. Destaca o botão clicado
-    btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500');
-    btn.classList.remove('text-gray-400');
-});
+}
 
 function updateCardStyles(isLight) {
     const cards = document.querySelectorAll('.product-card');
@@ -3988,68 +3774,55 @@ function showView(viewName) {
     const viewAdmin = document.getElementById('view-admin');
     const viewSupport = document.getElementById('view-support');
 
-    // ✨ 1. BLINDAGEM NATIVA ABSOLUTA: Esconde usando Tailwind, CSS inline e o atributo HTML
-    const hideSecure = (el) => {
-        if (!el) return;
-        el.classList.add('hidden');
-        el.setAttribute('hidden', 'true'); // Oculta mesmo se desativarem o CSS
-        el.style.setProperty('display', 'none', 'important');
-    };
-
-    const showSecure = (el) => {
-        if (!el) return;
-        el.classList.remove('hidden');
-        el.removeAttribute('hidden');
-        el.style.display = '';
-    };
-
-    // Esconde todas por segurança antes de revelar a certa
-    hideSecure(viewCatalog);
-    hideSecure(viewAdmin);
-    hideSecure(viewSupport);
+    // 1. Esconde TODAS as telas
+    if (viewCatalog) viewCatalog.classList.add('hidden');
+    if (viewAdmin) viewAdmin.classList.add('hidden');
+    if (viewSupport) viewSupport.classList.add('hidden');
 
     // 2. Lógica do TOPO (Cabeçalho)
     if (viewName === 'admin' || viewName === 'support') {
-        hideSecure(header);
-        hideSecure(searchBar);
-        hideSecure(floatCapsule);
+        if (header) header.classList.add('hidden');
+        if (searchBar) searchBar.classList.add('hidden');
+        if (floatCapsule) floatCapsule.classList.add('hidden');
         document.body.classList.remove('pt-6');
     } else {
-        showSecure(header);
-        showSecure(searchBar);
-        showSecure(floatCapsule);
+        if (header) header.classList.remove('hidden');
+        if (searchBar) searchBar.classList.remove('hidden');
+        if (floatCapsule) floatCapsule.classList.remove('hidden');
     }
 
-    // =========================================================
+   // =========================================================
     // 3. MOSTRA A TELA ESPECÍFICA E MUDA O TÍTULO DA ABA
     // =========================================================
     const storeName = state.storeProfile?.name || 'Loja';
 
     if (viewName === 'admin') {
-        showSecure(viewAdmin);
+        if (viewAdmin) viewAdmin.classList.remove('hidden');
         if (typeof loadAdminSales === 'function') loadAdminSales();
 
         document.title = `${storeName} - Painel Admin`;
 
+        // ✨ O ÚNICO GATILHO PARA LIGAR O RADAR: Só liga quando a tela do Admin está aberta e renderizada.
         if (typeof window.loadAvisos === 'function') window.loadAvisos();
     }
     else if (viewName === 'support') {
-        showSecure(viewSupport);
+        if (viewSupport) viewSupport.classList.remove('hidden');
         document.title = `Suporte - ${storeName}`;
     }
     else {
         // Padrão: Catálogo (Vitrine)
-        showSecure(viewCatalog);
-        hideSecure(viewAdmin); // Reafirma a trava do admin!
-        
+        if (viewCatalog) viewCatalog.classList.remove('hidden');
         window.scrollTo({ top: 0, behavior: 'smooth' });
+
         document.title = `${storeName} - Catálogo`;
 
+        // ✨ O GATILHO PARA DESLIGAR O RADAR NA VITRINE ✨
         if (window.activeAvisosListener) {
-            window.activeAvisosListener(); 
+            window.activeAvisosListener(); // Desconecta imediatamente do banco
             window.activeAvisosListener = null;
         }
         
+        // Esconde o ícone de sino forçadamente se ele estiver visível
         try {
             const alertIcon = document.getElementById('icone-avisos');
             if (alertIcon) alertIcon.classList.add('hidden');
@@ -6177,7 +5950,6 @@ let checkoutState = {
     isValidDelivery: false
 };
 
-
 window.closeCheckoutModal = () => {
     els.checkoutModal.classList.add('hidden');
     els.checkoutModal.classList.remove('flex');
@@ -6386,143 +6158,6 @@ window.handleCheckoutCep = async () => {
     }
 };
 
-// 4. Submit Order (Para garantir que use a validação)
-async function submitOrder() {
-    try {
-        const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
-        const dConfig = state.storeProfile?.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
-
-        // Trava de Segurança
-        const payModeEl = document.querySelector('input[name="pay-mode"]:checked');
-        const payMode = payModeEl ? payModeEl.value : null;
-
-        if (dConfig.ownDelivery === true && payMode === 'delivery') {
-            if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery === false) {
-                return alert("⛔ ENDEREÇO INVÁLIDO OU DISTANTE\n\nO sistema bloqueou a entrega para este CEP.");
-            }
-        }
-
-        const name = getVal('checkout-name');
-        const phone = getVal('checkout-phone');
-        const cep = getVal('checkout-cep');
-        const street = getVal('checkout-street');
-        const number = getVal('checkout-number');
-        const district = getVal('checkout-district');
-        const comp = getVal('checkout-comp');
-
-        if (!name || !phone || !cep || !number || !street) return alert("⚠️ Preencha todos os campos obrigatórios.");
-
-        const methodEl = document.querySelector('input[name="payment-method-selection"]:checked');
-        if (!payMode || !methodEl) return alert("⚠️ Selecione a forma de pagamento.");
-
-        const method = methodEl.value;
-        let paymentDetails = "", paymentMsgShort = "";
-
-        if (method === 'pix') { paymentDetails = "Pix"; paymentMsgShort = "Pix"; }
-        else if (method === 'credit') {
-            const select = document.getElementById('checkout-installments');
-            let parcelas = "1x (À vista)";
-            if (payMode === 'online' && select && select.selectedIndex >= 0) parcelas = select.options[select.selectedIndex].text;
-            else if (payMode === 'delivery') parcelas = "Na Maquininha";
-            paymentDetails = `Cartão de Crédito (${parcelas})`;
-            paymentMsgShort = `Crédito (${parcelas})`;
-        }
-        else if (method === 'debit') {
-            let info = payMode === 'delivery' ? "Na Maquininha" : "À vista";
-            paymentDetails = `Cartão de Débito (${info})`;
-            paymentMsgShort = `Débito (${info})`;
-        }
-        else if (method === 'cash') {
-            const trocoVal = getVal('checkout-change-for');
-            paymentDetails = `Dinheiro (Troco para: ${trocoVal || 'Não precisa'})`;
-            paymentMsgShort = `Dinheiro ${trocoVal ? `(Troco p/ ${trocoVal})` : '(Sem troco)'}`;
-        }
-        paymentDetails += (payMode === 'online') ? " [Pago Online]" : " [Pagar na Entrega]";
-
-        const totalEl = document.getElementById('checkout-final-total');
-        let finalValue = 0;
-        let totalString = "R$ 0,00";
-        if (totalEl) {
-            totalString = totalEl.innerText;
-            finalValue = parseFloat(totalEl.innerText.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
-        }
-
-        let couponData = null;
-        if (state.currentCoupon) {
-            let subtotal = state.cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-            let discountVal = state.currentCoupon.type === 'percent' ? subtotal * (state.currentCoupon.val / 100) : state.currentCoupon.val;
-            if (discountVal > subtotal) discountVal = subtotal;
-            couponData = { code: state.currentCoupon.code, value: discountVal };
-        }
-
-        const cancelMinutes = parseInt(dConfig.cancelTimeMin) || 5;
-        let securityCode = null;
-        if (payMode === 'delivery' && dConfig.reqCustomerCode === true) securityCode = Math.floor(1000 + Math.random() * 9000);
-
-        const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
-        const nextCode = await getNextOrderNumber(state.siteId);
-
-        // ✨ CORREÇÃO DE FRETE BLINDADA AQUI NO SALVAMENTO DO BANCO TAMBÉM
-        const shipRule = dConfig.shippingRule || 'none';
-        const shipValue = parseFloat(dConfig.shippingValue) || 0;
-        let valueToSave = 0;
-        if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery && shipValue > 0) {
-            let applyFrete = false;
-            if (shipRule === 'both' || shipRule === 'todos' || shipRule === 'sempre') applyFrete = true;
-            else if ((shipRule === 'online' || shipRule === 'pagamento_online') && payMode === 'online') applyFrete = true;
-            else if ((shipRule === 'delivery' || shipRule === 'pagamento_entrega' || shipRule === 'entrega') && payMode === 'delivery') applyFrete = true;
-
-            if (applyFrete) valueToSave = shipValue;
-        }
-
-        const order = {
-            code: nextCode, date: new Date().toISOString(),
-            customer: { name, phone, address: fullAddress, addressNum: number, cep, district, street, comp },
-            items: state.cart || [], total: finalValue, status: 'Aguardando aprovação',
-            paymentMethod: paymentDetails, securityCode, shippingFee: valueToSave,
-            couponData, cupom: couponData ? couponData.code : null,
-            cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
-        };
-
-        const btnSubmit = document.getElementById('btn-finish-payment');
-        if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.innerText = "⏳ Enviando..."; }
-
-        const docRef = await addDoc(collection(db, `sites/${state.siteId}/sales`), order);
-        const newOrderLocal = { id: docRef.id, ...order };
-        if (!Array.isArray(state.myOrders)) state.myOrders = [];
-        state.myOrders.push(newOrderLocal);
-        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
-
-        startBackgroundListeners(); checkActiveOrders(); state.cart = []; state.currentCoupon = null;
-        localStorage.setItem('cart', JSON.stringify([])); updateCartUI();
-
-        if (payMode === 'online') {
-            let msg = `*NOVO PEDIDO #${order.code}*\n--------------------------------\n`;
-            msg += `*Cliente:* ${name}\n *Tel:* ${phone}\n\n*ITENS:*\n`;
-            order.items.forEach(item => { msg += `▪ ${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}\n`; });
-            msg += `\n *TOTAL: ${totalString}*\n *Tipo:* ${payMode === 'online' ? "Pagar Agora (Online)" : "Pagar na Entrega"}\n *Pagamento:* ${paymentMsgShort}\n`;
-            msg += `\n📍 *Endereço:*\n${fullAddress}`;
-
-            let storePhone = state.storeProfile.whatsapp || "";
-            let targetNumber = storePhone.replace(/\D/g, '');
-            if (targetNumber.length >= 10) {
-                if (targetNumber.length <= 11) targetNumber = "55" + targetNumber;
-                const url = `https://api.whatsapp.com/send?phone=${targetNumber}&text=${encodeURIComponent(msg)}`;
-                const newWindow = window.open(url, '_blank');
-                if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') window.location.href = url;
-            }
-        }
-        openTrackModal();
-
-    } catch (e) {
-        console.error("Erro Submit:", e);
-        alert("Erro ao enviar pedido: " + e.message);
-    } finally {
-        const btnSubmit = document.getElementById('btn-finish-payment');
-        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerText = "Confirmar Pedido"; }
-    }
-};
-
 
 
 function enablePaymentSection() {
@@ -6552,157 +6187,7 @@ window.handlePaymentSelection = (method) => {
     updateCheckoutTotal();
 };
 
-function populateInstallments() {
-    const instConfig = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3, rate: 0 };
-    const select = document.getElementById('checkout-installments');
 
-    if (!select) return;
-
-    select.innerHTML = '';
-
-    // 1. Calcula o Valor dos Produtos com Desconto do Cupom
-    let valorBaseProdutos = 0;
-    state.cart.forEach(i => valorBaseProdutos += i.price * i.qty);
-
-    if (state.currentCoupon) {
-        if (state.currentCoupon.type === 'percent') {
-            valorBaseProdutos -= valorBaseProdutos * (state.currentCoupon.val / 100);
-        } else {
-            valorBaseProdutos -= state.currentCoupon.val;
-        }
-    }
-
-    // 2. Calcula o Valor do Frete
-    let valorFrete = 0;
-    const dConfig = state.storeProfile.deliveryConfig || {};
-    const shipRule = dConfig.shippingRule || 'none';
-    const shipValue = parseFloat(dConfig.shippingValue) || 0;
-    const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value || 'online';
-
-    // ✨ CORREÇÃO DE FRETE BLINDADA
-    if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery && shipValue > 0) {
-        let shouldAddShip = false;
-        if (shipRule === 'both' || shipRule === 'todos' || shipRule === 'sempre') shouldAddShip = true;
-        else if ((shipRule === 'online' || shipRule === 'pagamento_online') && payMode === 'online') shouldAddShip = true;
-        else if ((shipRule === 'delivery' || shipRule === 'pagamento_entrega' || shipRule === 'entrega') && payMode === 'delivery') shouldAddShip = true;
-
-        if (shouldAddShip) {
-            valorFrete = shipValue;
-        }
-    }
-
-    // 3. Define o Valor Presente (PV) Total para financiamento
-    const valorPresenteTotal = Math.max(0, valorBaseProdutos + valorFrete);
-
-    // 4. Gera Opções
-    const maxParcelas = (instConfig.active && valorPresenteTotal > 0) ? instConfig.max : 1;
-
-    for (let i = 1; i <= maxParcelas; i++) {
-
-        let montanteFinal = valorPresenteTotal;
-        let label = `${i}x Sem Juros`;
-
-        if (instConfig.active && i > instConfig.freeUntil && instConfig.rate > 0) {
-            const taxa = instConfig.rate / 100;
-            const fator = Math.pow(1 + taxa, i);
-            const valorPrestacao = valorPresenteTotal * ((taxa * fator) / (fator - 1));
-
-            montanteFinal = valorPrestacao * i;
-            label = `${i}x (c/ juros)`;
-        }
-
-        const valorParcelaDisplay = montanteFinal / i;
-        const option = document.createElement('option');
-        option.value = i;
-        option.dataset.total = montanteFinal.toFixed(2);
-        option.text = `${label} de ${formatCurrency(valorParcelaDisplay)}`;
-        select.appendChild(option);
-    }
-
-    if (typeof calcCheckoutTotal === 'function') calcCheckoutTotal();
-}
-
-window.updateCheckoutTotal = () => {
-    const methodEl = document.querySelector('input[name="payment-method"]:checked');
-    if (!methodEl) return;
-    const method = methodEl.value;
-
-    let cartTotal = 0;
-    state.cart.forEach(item => { cartTotal += item.price * item.qty; });
-
-    let discountCoupon = 0;
-    if (state.currentCoupon) {
-        if (state.currentCoupon.type === 'percent') discountCoupon = cartTotal * (state.currentCoupon.val / 100);
-        else discountCoupon = state.currentCoupon.val;
-    }
-
-    // Valor Inicial
-    let finalTotal = Math.max(0, cartTotal - discountCoupon);
-
-    // Reseta textos
-    if (els.labelPixDiscount) els.labelPixDiscount.innerText = '';
-    if (els.installmentObs) els.installmentObs.innerText = '';
-
-    // --- CASO PIX (Desconto por Produto) ---
-    if (method === 'pix') {
-        let totalWithPixDiscount = 0;
-        state.cart.forEach(item => {
-            const product = state.products.find(p => p.id === item.id);
-            let itemPrice = item.price;
-
-            // Verifica desconto específico
-            if (product && product.paymentOptions && product.paymentOptions.pix && product.paymentOptions.pix.active) {
-                const pixConfig = product.paymentOptions.pix;
-                let discountVal = 0;
-                if (pixConfig.type === 'percent') discountVal = itemPrice * (pixConfig.val / 100);
-                else discountVal = pixConfig.val;
-
-                itemPrice = Math.max(0, itemPrice - discountVal);
-            }
-            totalWithPixDiscount += itemPrice * item.qty;
-        });
-
-        // Reaplica cupom sobre novo total
-        let discountOnPix = 0;
-        if (state.currentCoupon) {
-            if (state.currentCoupon.type === 'percent') discountOnPix = totalWithPixDiscount * (state.currentCoupon.val / 100);
-            else discountOnPix = state.currentCoupon.val;
-        }
-
-        const oldTotal = finalTotal;
-        finalTotal = Math.max(0, totalWithPixDiscount - discountOnPix);
-
-        const saved = oldTotal - finalTotal;
-        if (saved > 0 && els.labelPixDiscount) {
-            els.labelPixDiscount.innerText = `Economia de ${formatCurrency(saved)}`;
-        }
-    }
-    // --- CASO CARTÃO (Juros) ---
-    else if (method === 'card') {
-        const select = els.checkoutInstallments;
-        if (select && select.options.length > 0) {
-            const selectedOption = select.options[select.selectedIndex];
-            if (selectedOption && selectedOption.dataset.total) {
-                finalTotal = parseFloat(selectedOption.dataset.total);
-            }
-
-            // Texto de Obs
-            const instConfig = state.storeProfile.installments;
-            const parcelas = parseInt(select.value);
-            if (instConfig && parcelas >= instConfig.freeUntil) {
-                if (els.installmentObs) els.installmentObs.innerText = `* Inclui juros de ${instConfig.rate}% a.m.`;
-            }
-        }
-    }
-
-    // Atualiza Display
-    els.checkoutTotalDisplay.innerText = formatCurrency(finalTotal);
-
-    // Atualiza Botão
-    if (method === 'whatsapp') els.btnFinishOrder.innerText = 'Enviar Pedido no Zap';
-    else if (method === 'pix') els.btnFinishOrder.innerText = 'Gerar Chave Pix';
-    else els.btnFinishOrder.innerText = 'Gerar Link Cartão';
-};
 
 
 
@@ -6909,9 +6394,13 @@ function updateFreeInstallmentsSelect() {
     }
 }
 
+
+
 // =================================================================
-// 🛒 1. RENDERIZADOR CENTRAL DO CHECKOUT (BLINDADO)
+// 🛒 SISTEMA DE CHECKOUT CENTRALIZADO E BLINDADO
 // =================================================================
+
+// 1. Renderizador Central (Substitui applyCheckoutVisibility e togglePaymentMode)
 window.renderCheckoutPaymentsUI = () => {
     const pm = state.storeProfile?.paymentMethods || {};
     const dConfig = state.storeProfile?.deliveryConfig || {};
@@ -6927,13 +6416,15 @@ window.renderCheckoutPaymentsUI = () => {
     const labelOnline = document.getElementById('label-pay-online') || (radioOnline ? radioOnline.closest('label') : null);
     const containerDelivery = document.getElementById('container-delivery-option') || (radioDelivery ? radioDelivery.closest('label') : null);
 
-    // 2. ABAS PRINCIPAIS (Online vs Entrega)
+    // ABAS PRINCIPAIS (Online vs Entrega)
     if (labelOnline) {
         if (onlineActive) {
             labelOnline.classList.remove('hidden');
+            labelOnline.style.display = '';
             if (radioOnline) radioOnline.disabled = false;
         } else {
             labelOnline.classList.add('hidden');
+            labelOnline.style.setProperty('display', 'none', 'important');
             if (radioOnline) { radioOnline.disabled = true; radioOnline.checked = false; }
         }
     }
@@ -6941,14 +6432,16 @@ window.renderCheckoutPaymentsUI = () => {
     if (containerDelivery) {
         if (showDeliveryTab) {
             containerDelivery.classList.remove('hidden');
+            containerDelivery.style.display = '';
             if (radioDelivery) radioDelivery.disabled = false;
         } else {
             containerDelivery.classList.add('hidden');
+            containerDelivery.style.setProperty('display', 'none', 'important');
             if (radioDelivery) { radioDelivery.disabled = true; radioDelivery.checked = false; }
         }
     }
 
-    // 3. GARANTE SELEÇÃO DE ABA: Se nada estiver marcado, marca a primeira visível sozinha
+    // GARANTE SELEÇÃO DE ABA
     let currentModeEl = document.querySelector('input[name="pay-mode"]:checked');
     if (!currentModeEl || currentModeEl.disabled || (currentModeEl.closest('label') && currentModeEl.closest('label').classList.contains('hidden'))) {
         if (onlineActive && radioOnline) {
@@ -6962,18 +6455,18 @@ window.renderCheckoutPaymentsUI = () => {
 
     const mode = currentModeEl ? currentModeEl.value : null;
 
-    // Alterna os painéis internos baseado na aba
+    // Alterna painéis internos
     const deliveryContent = document.getElementById('pay-delivery-content');
     const onlineContent = document.getElementById('pay-online-content');
     if (mode === 'delivery') {
-        if (deliveryContent) deliveryContent.classList.remove('hidden'); 
-        if (onlineContent) onlineContent.classList.add('hidden'); 
+        if (deliveryContent) { deliveryContent.classList.remove('hidden'); deliveryContent.style.display = ''; }
+        if (onlineContent) { onlineContent.classList.add('hidden'); onlineContent.style.setProperty('display', 'none', 'important'); }
     } else if (mode === 'online') {
-        if (deliveryContent) deliveryContent.classList.add('hidden'); 
-        if (onlineContent) onlineContent.classList.remove('hidden'); 
+        if (deliveryContent) { deliveryContent.classList.add('hidden'); deliveryContent.style.setProperty('display', 'none', 'important'); }
+        if (onlineContent) { onlineContent.classList.remove('hidden'); onlineContent.style.display = ''; }
     }
 
-    // 4. FORMAS DE PAGAMENTO SECUNDÁRIAS (Pix, Cartão, Dinheiro)
+    // FORMAS DE PAGAMENTO SECUNDÁRIAS
     const lblMethod = document.getElementById('lbl-payment-method');
     if (mode === 'delivery' && lblMethod) lblMethod.innerText = "Pagarei na entrega com:";
     if (mode === 'online' && lblMethod) lblMethod.innerText = "Pagar agora com:";
@@ -6982,12 +6475,10 @@ window.renderCheckoutPaymentsUI = () => {
         const radio = document.querySelector(`input[name="payment-method-selection"][value="${val}"]`) || 
                       document.querySelector(`input[name="payment-method"][value="${val}"]`);
         if (!radio) return null;
-        
-        // ✨ CORREÇÃO CRÍTICA: Pega apenas a label em volta do input, ou o ID exato. 
-        // Não sobe para o parentElement para não pegar a caixa toda.
         let wrapper = document.getElementById(`container-${val}-option`);
         if (!wrapper) {
-            wrapper = radio.closest('label');
+            const label = radio.closest('label');
+            wrapper = label ? label.parentElement : radio.parentElement;
         }
         return { radio, wrapper };
     };
@@ -6999,23 +6490,22 @@ window.renderCheckoutPaymentsUI = () => {
 
     const pConfig = mode === 'delivery' ? (pm.delivery || {}) : (pm.online || {});
 
-    // ✨ CORREÇÃO CRÍTICA: Usa APENAS as classes do Tailwind para não quebrar o layout!
     const forceUpdateVis = (obj, shouldShow) => {
         if (!obj) return;
         if (shouldShow) {
-            if (obj.wrapper) obj.wrapper.classList.remove('hidden');
-            if (obj.radio) {
-                obj.radio.disabled = false;
-                const lbl = obj.radio.closest('label');
-                if (lbl) lbl.classList.remove('hidden');
+            if (obj.wrapper) {
+                obj.wrapper.classList.remove('hidden');
+                obj.wrapper.style.display = 'flex';
             }
+            if (obj.radio) obj.radio.disabled = false;
         } else {
-            if (obj.wrapper) obj.wrapper.classList.add('hidden');
+            if (obj.wrapper) {
+                obj.wrapper.classList.add('hidden');
+                obj.wrapper.style.setProperty('display', 'none', 'important'); 
+            }
             if (obj.radio) {
                 obj.radio.disabled = true;
-                obj.radio.checked = false; // Desmarca para não bugar
-                const lbl = obj.radio.closest('label');
-                if (lbl) lbl.classList.add('hidden');
+                obj.radio.checked = false; 
             }
         }
     };
@@ -7025,7 +6515,7 @@ window.renderCheckoutPaymentsUI = () => {
     forceUpdateVis(debit, pConfig.debit !== false);
     forceUpdateVis(cash, mode === 'delivery' ? (pConfig.cash !== false) : false);
 
-    // 5. GARANTE SELEÇÃO DE MÉTODO: Pega o primeiro válido e marca sozinho
+    // GARANTE SELEÇÃO DE MÉTODO
     let currentMethodEl = document.querySelector('input[name="payment-method-selection"]:checked') || 
                           document.querySelector('input[name="payment-method"]:checked');
     
@@ -7033,8 +6523,8 @@ window.renderCheckoutPaymentsUI = () => {
     if (!currentMethodEl || currentMethodEl.disabled) {
         invalidMethod = true;
     } else {
-        const wrap = currentMethodEl.closest('label') || document.getElementById(`container-${currentMethodEl.value}-option`);
-        if (wrap && wrap.classList.contains('hidden')) {
+        const wrap = currentMethodEl.closest('label')?.parentElement || currentMethodEl.parentElement;
+        if (wrap && (wrap.classList.contains('hidden') || wrap.style.display === 'none')) {
             invalidMethod = true;
         }
     }
@@ -7042,118 +6532,106 @@ window.renderCheckoutPaymentsUI = () => {
     if (invalidMethod) {
         const validRadios = document.querySelectorAll('input[name="payment-method-selection"]:not(:disabled), input[name="payment-method"]:not(:disabled)');
         for (let r of validRadios) {
-            const w = r.closest('label') || document.getElementById(`container-${r.value}-option`);
-            if (w && !w.classList.contains('hidden')) {
+            const w = r.closest('label')?.parentElement || r.parentElement;
+            if (w && !w.classList.contains('hidden') && w.style.display !== 'none') {
                 r.checked = true;
                 break;
             }
         }
     }
 
-    // Aciona as lógicas secundárias
-    if (typeof toggleMethodSelection === 'function') toggleMethodSelection();
-    if (typeof validateCheckoutForm === 'function') validateCheckoutForm();
+    if (typeof window.toggleMethodSelection === 'function') window.toggleMethodSelection();
+    if (typeof window.validateCheckoutForm === 'function') window.validateCheckoutForm();
 };
 
-// Mantém os atalhos antigos funcionando sem erro
 window.applyCheckoutVisibility = () => renderCheckoutPaymentsUI();
 window.togglePaymentMode = () => renderCheckoutPaymentsUI();
 
-// =================================================================
-// ✨ 2. ABERTURA DO CHECKOUT 
-// =================================================================
-window.openCheckoutModal = () => {
-    ['checkout-cep', 'checkout-number', 'checkout-comp', 'checkout-name', 'checkout-phone'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
-    });
-
-    ['address-details', 'delivery-error'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.add('hidden');
-    });
-
-    if (typeof checkoutState !== 'undefined') {
-        checkoutState.isValidDelivery = false;
-        checkoutState.address = null;
-        checkoutState.distance = 0;
-    }
-
-    const viewCart = document.getElementById('view-cart-list');
-    const viewCheckout = document.getElementById('view-checkout');
-
-    if (viewCart) viewCart.classList.add('hidden');
-    if (viewCheckout) viewCheckout.classList.remove('hidden');
-
-    const cartTitle = document.getElementById('cart-modal-title');
-    if (cartTitle) cartTitle.innerText = "FINALIZAR PEDIDO";
-
-    document.getElementById('btn-modal-back')?.classList.remove('hidden');
-    document.getElementById('btn-go-checkout')?.classList.add('hidden');
-
-    // ✨ Roda a faxina AGORA, com a tela aberta
-    renderCheckoutPaymentsUI();
-
-    const btnFinish = document.getElementById('btn-finish-payment');
-    const paySection = document.getElementById('checkout-payment-options');
-
-    if (paySection) {
-        paySection.classList.add('opacity-50', 'locked-section');
-        paySection.classList.remove('pointer-events-none'); 
-    }
-
-    if (btnFinish) {
-        btnFinish.classList.remove('hidden');
-        btnFinish.disabled = true; 
-        btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
-    }
-
-    if (typeof validateCheckoutForm === 'function') {
-        validateCheckoutForm();
-    }
-};
-
-// 2. Controla a Seleção Específica (Pix vs Cartão vs Dinheiro)
-function toggleMethodSelection() {
-    // Modo Principal (Online/Entrega)
-    const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value;
-    // Método (Pix/Credit/Debit/Cash)
-    const method = document.querySelector('input[name="payment-method-selection"]:checked')?.value;
+// 2. Seleção de Método e Parcelas
+window.toggleMethodSelection = () => {
+    const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value || 'online';
+    const methodEl = document.querySelector('input[name="payment-method-selection"]:checked') || document.querySelector('input[name="payment-method"]:checked');
+    const method = methodEl ? methodEl.value : null;
 
     const creditInstallmentsDiv = document.getElementById('credit-installments-container');
     const cashChangeContainer = document.getElementById('cash-change-container');
 
-    // 1. Reseta
     if (creditInstallmentsDiv) creditInstallmentsDiv.classList.add('hidden');
     if (cashChangeContainer) cashChangeContainer.classList.add('hidden');
 
-    // 2. CRÉDITO (Mostra parcelas SÓ se for Online)
-    if (method === 'credit') {
-        if (payMode === 'online') {
-            if (creditInstallmentsDiv) creditInstallmentsDiv.classList.remove('hidden');
-            populateInstallments();
-        }
-    }
-    // 3. DINHEIRO
-    else if (method === 'cash') {
+    if (method === 'credit' && payMode === 'online') {
+        if (creditInstallmentsDiv) creditInstallmentsDiv.classList.remove('hidden');
+        if (typeof window.populateInstallments === 'function') window.populateInstallments();
+    } else if (method === 'cash') {
         if (cashChangeContainer) {
             cashChangeContainer.classList.remove('hidden');
             setTimeout(() => document.getElementById('checkout-change-for')?.focus(), 100);
         }
     }
-    // Débito e Pix não abrem nada extra
 
-    // Recalcula totais (para atualizar texto do botão e valores)
-    calcCheckoutTotal();
+    if (typeof window.calcCheckoutTotal === 'function') window.calcCheckoutTotal();
 };
 
+window.populateInstallments = () => {
+    const instConfig = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3, rate: 0 };
+    const select = document.getElementById('checkout-installments');
+    if (!select) return;
 
+    select.innerHTML = '';
 
-// --- FUNÇÃO ÚNICA: CALCULAR TOTAL DO CHECKOUT ---
-window.calcCheckoutTotal = () => {
-    // 1. Configurações e Estado Atual
+    let valorBaseProdutos = 0;
+    state.cart.forEach(i => valorBaseProdutos += i.price * i.qty);
+
+    if (state.currentCoupon) {
+        if (state.currentCoupon.type === 'percent') valorBaseProdutos -= valorBaseProdutos * (state.currentCoupon.val / 100);
+        else valorBaseProdutos -= state.currentCoupon.val;
+    }
+
+    let valorFrete = 0;
+    const dConfig = state.storeProfile.deliveryConfig || {};
+    const shipRule = dConfig.shippingRule || 'none';
+    const shipValue = parseFloat(dConfig.shippingValue) || 0;
     const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value || 'online';
-    const methodEl = document.querySelector('input[name="payment-method-selection"]:checked');
+
+    if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery && shipValue > 0) {
+        let shouldAddShip = false;
+        if (shipRule === 'both' || shipRule === 'todos' || shipRule === 'sempre') shouldAddShip = true;
+        else if ((shipRule === 'online' || shipRule === 'pagamento_online') && payMode === 'online') shouldAddShip = true;
+        else if ((shipRule === 'delivery' || shipRule === 'pagamento_entrega' || shipRule === 'entrega') && payMode === 'delivery') shouldAddShip = true;
+
+        if (shouldAddShip) valorFrete = shipValue;
+    }
+
+    const valorPresenteTotal = Math.max(0, valorBaseProdutos + valorFrete);
+    const maxParcelas = (instConfig.active && valorPresenteTotal > 0) ? instConfig.max : 1;
+
+    for (let i = 1; i <= maxParcelas; i++) {
+        let montanteFinal = valorPresenteTotal;
+        let label = `${i}x Sem Juros`;
+
+        if (instConfig.active && i > instConfig.freeUntil && instConfig.rate > 0) {
+            const taxa = instConfig.rate / 100;
+            const fator = Math.pow(1 + taxa, i);
+            const valorPrestacao = valorPresenteTotal * ((taxa * fator) / (fator - 1));
+            montanteFinal = valorPrestacao * i;
+            label = `${i}x (c/ juros)`;
+        }
+
+        const valorParcelaDisplay = montanteFinal / i;
+        const option = document.createElement('option');
+        option.value = i;
+        option.dataset.total = montanteFinal.toFixed(2);
+        option.text = `${label} de ${formatCurrency(valorParcelaDisplay)}`;
+        select.appendChild(option);
+    }
+
+    if (typeof window.calcCheckoutTotal === 'function') window.calcCheckoutTotal();
+};
+
+// 3. Cálculos
+window.calcCheckoutTotal = () => {
+    const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value || 'online';
+    const methodEl = document.querySelector('input[name="payment-method-selection"]:checked') || document.querySelector('input[name="payment-method"]:checked');
     const method = methodEl ? methodEl.value : 'pix';
 
     const dConfig = state.storeProfile?.deliveryConfig || {};
@@ -7161,7 +6639,6 @@ window.calcCheckoutTotal = () => {
     const shipValue = parseFloat(dConfig.shippingValue) || 0;
     const pixGlobal = state.storeProfile?.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
 
-    // Variáveis de Exibição
     let subtotalDisplay = 0;
     let discountPixDisplay = 0;
     let discountCouponDisplay = 0;
@@ -7169,10 +6646,8 @@ window.calcCheckoutTotal = () => {
     let finalTotal = 0;
     let obsJuros = '';
 
-    // 2. Calcula Subtotal dos Itens
     state.cart.forEach(item => subtotalDisplay += item.price * item.qty);
 
-    // 3. ✨ CORREÇÃO DE FRETE BLINDADA
     if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery && shipValue > 0) {
         let applyFrete = false;
         if (shipRule === 'both' || shipRule === 'todos' || shipRule === 'sempre') applyFrete = true;
@@ -7182,25 +6657,18 @@ window.calcCheckoutTotal = () => {
         if (applyFrete) shippingDisplay = shipValue;
     }
 
-    // --- CÁLCULOS POR MÉTODO DE PAGAMENTO ---
-
-    // A. PIX (Calcula descontos)
     if (method === 'pix') {
         let totalWithPixPrices = 0;
-
         if (pixGlobal.disableAll) {
             totalWithPixPrices = subtotalDisplay;
-        }
-        else if (pixGlobal.active && pixGlobal.value > 0) {
+        } else if (pixGlobal.active && pixGlobal.value > 0) {
             const isFixed = (pixGlobal.type === 'fixed');
             const val = pixGlobal.value;
-
             if (pixGlobal.mode === 'product') {
                 state.cart.forEach(item => {
                     let price = item.price;
                     let descVal = isFixed ? val : price * (val / 100);
-                    price = Math.max(0, price - descVal);
-                    totalWithPixPrices += price * item.qty;
+                    totalWithPixPrices += Math.max(0, price - descVal) * item.qty;
                 });
             } else {
                 let totalDesc = isFixed ? val : subtotalDisplay * (val / 100);
@@ -7218,44 +6686,31 @@ window.calcCheckoutTotal = () => {
                 totalWithPixPrices += price * item.qty;
             });
         }
-
         discountPixDisplay = Math.max(0, subtotalDisplay - totalWithPixPrices);
-
         if (state.currentCoupon) {
-            const baseCupom = totalWithPixPrices;
-            if (state.currentCoupon.type === 'percent') discountCouponDisplay = baseCupom * (state.currentCoupon.val / 100);
+            if (state.currentCoupon.type === 'percent') discountCouponDisplay = totalWithPixPrices * (state.currentCoupon.val / 100);
             else discountCouponDisplay = state.currentCoupon.val;
         }
-
         finalTotal = (subtotalDisplay - discountPixDisplay - discountCouponDisplay) + shippingDisplay;
-    }
-    // B. CRÉDITO
-    else if (method === 'credit' && payMode === 'online') {
+    } else if (method === 'credit' && payMode === 'online') {
         if (state.currentCoupon) {
             if (state.currentCoupon.type === 'percent') discountCouponDisplay = subtotalDisplay * (state.currentCoupon.val / 100);
             else discountCouponDisplay = state.currentCoupon.val;
         }
-
         const select = document.getElementById('checkout-installments');
         if (select && select.options.length > 0 && select.selectedIndex >= 0) {
             const selectedOpt = select.options[select.selectedIndex];
-            if (selectedOpt.dataset.total) {
-                finalTotal = parseFloat(selectedOpt.dataset.total);
-            } else {
-                finalTotal = (subtotalDisplay - discountCouponDisplay) + shippingDisplay;
-            }
+            if (selectedOpt.dataset.total) finalTotal = parseFloat(selectedOpt.dataset.total);
+            else finalTotal = (subtotalDisplay - discountCouponDisplay) + shippingDisplay;
         } else {
             finalTotal = (subtotalDisplay - discountCouponDisplay) + shippingDisplay;
         }
-
         const instConfig = state.storeProfile?.installments;
         const parcelas = select ? parseInt(select.value) : 1;
         if (instConfig && instConfig.active && instConfig.rate > 0 && parcelas > instConfig.freeUntil) {
             obsJuros = `* Inclui juros de ${instConfig.rate}% a.m.`;
         }
-    }
-    // C. OUTROS
-    else {
+    } else {
         if (state.currentCoupon) {
             if (state.currentCoupon.type === 'percent') discountCouponDisplay = subtotalDisplay * (state.currentCoupon.val / 100);
             else discountCouponDisplay = state.currentCoupon.val;
@@ -7265,39 +6720,203 @@ window.calcCheckoutTotal = () => {
 
     finalTotal = Math.max(0, finalTotal);
 
-    // --- RENDERIZAÇÃO (RESUMO) ---
     const detailsContainer = document.getElementById('checkout-details-breakdown');
     if (detailsContainer) {
         let html = `<div class="flex justify-between text-gray-400"><span>Subtotal</span><span>${formatCurrency(subtotalDisplay)}</span></div>`;
-
-        if (discountPixDisplay > 0.01) {
-            html += `<div class="flex justify-between text-green-500 font-medium"><span>Desconto Pix</span><span>- ${formatCurrency(discountPixDisplay)}</span></div>`;
-        }
-        if (discountCouponDisplay > 0.01) {
-            const code = state.currentCoupon?.code || 'Cupom';
-            html += `<div class="flex justify-between text-green-500 font-medium"><span>${code}</span><span>- ${formatCurrency(discountCouponDisplay)}</span></div>`;
-        }
-        if (shippingDisplay > 0) {
-            html += `<div class="flex justify-between text-yellow-500 font-medium"><span>Frete</span><span>+ ${formatCurrency(shippingDisplay)}</span></div>`;
-        }
+        if (discountPixDisplay > 0.01) html += `<div class="flex justify-between text-green-500 font-medium"><span>Desconto Pix</span><span>- ${formatCurrency(discountPixDisplay)}</span></div>`;
+        if (discountCouponDisplay > 0.01) html += `<div class="flex justify-between text-green-500 font-medium"><span>${state.currentCoupon?.code || 'Cupom'}</span><span>- ${formatCurrency(discountCouponDisplay)}</span></div>`;
+        if (shippingDisplay > 0) html += `<div class="flex justify-between text-yellow-500 font-medium"><span>Frete</span><span>+ ${formatCurrency(shippingDisplay)}</span></div>`;
 
         const somaSimples = (subtotalDisplay - discountPixDisplay - discountCouponDisplay) + shippingDisplay;
-        if (finalTotal > somaSimples + 0.05) {
-            const valorJuros = finalTotal - somaSimples;
-            html += `<div class="flex justify-between text-gray-400 font-medium"><span>Juros</span><span>+ ${formatCurrency(valorJuros)}</span></div>`;
-        }
-
+        if (finalTotal > somaSimples + 0.05) html += `<div class="flex justify-between text-gray-400 font-medium"><span>Juros</span><span>+ ${formatCurrency(finalTotal - somaSimples)}</span></div>`;
         if (obsJuros) html += `<div class="text-[10px] text-gray-500 text-right italic mt-1">${obsJuros}</div>`;
+
+        const lblPixDesc = document.getElementById('label-pix-discount');
+        if (lblPixDesc) lblPixDesc.innerText = discountPixDisplay > 0 ? `Economia de ${formatCurrency(discountPixDisplay)}` : '';
+        const obsInst = document.getElementById('installment-obs');
+        if (obsInst) obsInst.innerText = '';
 
         detailsContainer.innerHTML = html;
     }
 
     const elTotal = document.getElementById('checkout-final-total');
     if (elTotal) elTotal.innerText = formatCurrency(finalTotal);
-
     const elTotalHeader = document.getElementById('checkout-total-display');
     if (elTotalHeader) elTotalHeader.innerText = formatCurrency(finalTotal);
 };
+
+window.updateCheckoutTotal = () => { if(typeof calcCheckoutTotal === 'function') calcCheckoutTotal(); };
+
+// 4. Abertura e Validação
+window.openCheckoutModal = () => {
+    ['checkout-cep', 'checkout-number', 'checkout-comp', 'checkout-name', 'checkout-phone'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
+    ['address-details', 'delivery-error'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.classList.add('hidden');
+    });
+
+    if (typeof checkoutState !== 'undefined') { checkoutState.isValidDelivery = false; checkoutState.address = null; checkoutState.distance = 0; }
+
+    const viewCart = document.getElementById('view-cart-list');
+    const viewCheckout = document.getElementById('view-checkout');
+    if (viewCart) viewCart.classList.add('hidden');
+    if (viewCheckout) viewCheckout.classList.remove('hidden');
+
+    const cartTitle = document.getElementById('cart-modal-title');
+    if (cartTitle) cartTitle.innerText = "FINALIZAR PEDIDO";
+    document.getElementById('btn-modal-back')?.classList.remove('hidden');
+    document.getElementById('btn-go-checkout')?.classList.add('hidden');
+
+    // CHAMA A FUNÇÃO CENTRAL ASSIM QUE A TELA ABRE
+    renderCheckoutPaymentsUI();
+
+    const btnFinish = document.getElementById('btn-finish-payment');
+    const paySection = document.getElementById('checkout-payment-options');
+    if (paySection) { paySection.classList.add('opacity-50', 'locked-section'); paySection.classList.remove('pointer-events-none'); }
+    if (btnFinish) { btnFinish.classList.remove('hidden'); btnFinish.disabled = true; btnFinish.classList.add('opacity-50', 'cursor-not-allowed'); }
+
+    if (typeof window.validateCheckoutForm === 'function') window.validateCheckoutForm();
+};
+
+window.submitOrder = async () => {
+    try {
+        const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
+        const dConfig = state.storeProfile?.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
+
+        const payModeEl = document.querySelector('input[name="pay-mode"]:checked');
+        const payMode = payModeEl ? payModeEl.value : null;
+
+        if (dConfig.ownDelivery === true && payMode === 'delivery') {
+            if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery === false) {
+                return alert("⛔ ENDEREÇO INVÁLIDO OU DISTANTE\n\nO sistema bloqueou a entrega para este CEP.");
+            }
+        }
+
+        const name = getVal('checkout-name');
+        const phone = getVal('checkout-phone');
+        const cep = getVal('checkout-cep');
+        const street = getVal('checkout-street');
+        const number = getVal('checkout-number');
+        const district = getVal('checkout-district');
+        const comp = getVal('checkout-comp');
+
+        if (!name || !phone || !cep || !number || !street) return alert("⚠️ Preencha todos os campos obrigatórios.");
+
+        const methodEl = document.querySelector('input[name="payment-method-selection"]:checked') || document.querySelector('input[name="payment-method"]:checked');
+        if (!payMode || !methodEl) return alert("⚠️ Selecione a forma de pagamento.");
+
+        const method = methodEl.value;
+        let paymentDetails = "", paymentMsgShort = "";
+
+        if (method === 'pix') { paymentDetails = "Pix"; paymentMsgShort = "Pix"; }
+        else if (method === 'credit') {
+            const select = document.getElementById('checkout-installments');
+            let parcelas = "1x (À vista)";
+            if (payMode === 'online' && select && select.selectedIndex >= 0) parcelas = select.options[select.selectedIndex].text;
+            else if (payMode === 'delivery') parcelas = "Na Maquininha";
+            paymentDetails = `Cartão de Crédito (${parcelas})`;
+            paymentMsgShort = `Crédito (${parcelas})`;
+        }
+        else if (method === 'debit') {
+            let info = payMode === 'delivery' ? "Na Maquininha" : "À vista";
+            paymentDetails = `Cartão de Débito (${info})`;
+            paymentMsgShort = `Débito (${info})`;
+        }
+        else if (method === 'cash') {
+            const trocoVal = getVal('checkout-change-for');
+            paymentDetails = `Dinheiro (Troco para: ${trocoVal || 'Não precisa'})`;
+            paymentMsgShort = `Dinheiro ${trocoVal ? \`(Troco p/ ${trocoVal})\` : '(Sem troco)'}`;
+        }
+        paymentDetails += (payMode === 'online') ? " [Pago Online]" : " [Pagar na Entrega]";
+
+        const totalEl = document.getElementById('checkout-final-total');
+        let finalValue = 0;
+        let totalString = "R$ 0,00";
+        if (totalEl) {
+            totalString = totalEl.innerText;
+            finalValue = parseFloat(totalEl.innerText.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+        }
+
+        let couponData = null;
+        if (state.currentCoupon) {
+            let subtotal = state.cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+            let discountVal = state.currentCoupon.type === 'percent' ? subtotal * (state.currentCoupon.val / 100) : state.currentCoupon.val;
+            if (discountVal > subtotal) discountVal = subtotal;
+            couponData = { code: state.currentCoupon.code, value: discountVal };
+        }
+
+        const cancelMinutes = parseInt(dConfig.cancelTimeMin) || 5;
+        let securityCode = null;
+        if (payMode === 'delivery' && dConfig.reqCustomerCode === true) securityCode = Math.floor(1000 + Math.random() * 9000);
+
+        const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
+        const nextCode = await getNextOrderNumber(state.siteId);
+
+        const shipRule = dConfig.shippingRule || 'none';
+        const shipValue = parseFloat(dConfig.shippingValue) || 0;
+        let valueToSave = 0;
+        
+        if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery && shipValue > 0) {
+            let applyFrete = false;
+            if (shipRule === 'both' || shipRule === 'todos' || shipRule === 'sempre') applyFrete = true;
+            else if ((shipRule === 'online' || shipRule === 'pagamento_online') && payMode === 'online') applyFrete = true;
+            else if ((shipRule === 'delivery' || shipRule === 'pagamento_entrega' || shipRule === 'entrega') && payMode === 'delivery') applyFrete = true;
+
+            if (applyFrete) valueToSave = shipValue;
+        }
+
+        const order = {
+            code: nextCode, date: new Date().toISOString(),
+            customer: { name, phone, address: fullAddress, addressNum: number, cep, district, street, comp },
+            items: state.cart || [], total: finalValue, status: 'Aguardando aprovação',
+            paymentMethod: paymentDetails, securityCode, shippingFee: valueToSave,
+            couponData, cupom: couponData ? couponData.code : null,
+            cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
+        };
+
+        const btnSubmit = document.getElementById('btn-finish-payment');
+        if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.innerText = "⏳ Enviando..."; }
+
+        const docRef = await addDoc(collection(db, `sites/${state.siteId}/sales`), order);
+        const newOrderLocal = { id: docRef.id, ...order };
+        if (!Array.isArray(state.myOrders)) state.myOrders = [];
+        state.myOrders.push(newOrderLocal);
+        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+
+        startBackgroundListeners(); checkActiveOrders(); state.cart = []; state.currentCoupon = null;
+        localStorage.setItem('cart', JSON.stringify([])); updateCartUI();
+
+        if (payMode === 'online') {
+            let msg = `*NOVO PEDIDO #${order.code}*\n--------------------------------\n`;
+            msg += `*Cliente:* ${name}\n *Tel:* ${phone}\n\n*ITENS:*\n`;
+            order.items.forEach(item => { msg += `▪ ${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}\n`; });
+            msg += `\n *TOTAL: ${totalString}*\n *Tipo:* ${payMode === 'online' ? "Pagar Agora (Online)" : "Pagar na Entrega"}\n *Pagamento:* ${paymentMsgShort}\n`;
+            msg += `\n📍 *Endereço:*\n${fullAddress}`;
+
+            let storePhone = state.storeProfile.whatsapp || "";
+            let targetNumber = storePhone.replace(/\D/g, '');
+            if (targetNumber.length >= 10) {
+                if (targetNumber.length <= 11) targetNumber = "55" + targetNumber;
+                const url = `https://api.whatsapp.com/send?phone=${targetNumber}&text=${encodeURIComponent(msg)}`;
+                const newWindow = window.open(url, '_blank');
+                if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') window.location.href = url;
+            }
+        }
+        if (typeof openTrackModal === 'function') openTrackModal();
+
+    } catch (e) {
+        console.error("Erro Submit:", e);
+        alert("Erro ao enviar pedido: " + e.message);
+    } finally {
+        const btnSubmit = document.getElementById('btn-finish-payment');
+        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerText = "Confirmar Pedido"; }
+    }
+};
+
+
+
+
 
 // Função para gerar número sequencial seguro
 async function getNextOrderNumber(siteId) {

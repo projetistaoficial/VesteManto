@@ -257,146 +257,29 @@ function updateCarouselUI(images) {
 }
 
 // 2. Renderiza as miniaturas no formulário
-// =================================================================
-// 📸 RENDERIZADOR DE IMAGENS COM DRAG & DROP (DESKTOP E MOBILE)
-// =================================================================
-window.renderImagePreviews = () => {
-    const container = document.getElementById('prod-imgs-preview');
+function renderImagePreviews() {
+    const container = getEl('prod-imgs-preview');
     if (!container) return;
 
     container.innerHTML = '';
 
-    if (!state.tempImages || state.tempImages.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada. Clique em "Adicionar Foto".</p>';
+    if (state.tempImages.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada</p>';
         return;
     }
 
-    let draggedIndex = null; // Memória de quem está sendo arrastado
-
     state.tempImages.forEach((imgSrc, index) => {
         const div = document.createElement('div');
-        // Classes atualizadas para cursor de movimento e animações
-        div.className = "relative w-20 h-20 group border border-gray-600 rounded-lg overflow-hidden cursor-move transition-transform shadow-sm drag-item select-none";
-        
-        // Permite o drag nativo no PC
-        div.draggable = true;
-        div.dataset.index = index;
-
-        // O HTML da caixinha (Note o pointer-events-none nas imagens para não bugar o toque do celular)
+        div.className = "relative w-16 h-16 group border border-gray-600 rounded overflow-hidden";
         div.innerHTML = `
-            <img src="${imgSrc}" class="w-full h-full object-cover pointer-events-none select-none">
-            
-            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center pointer-events-none">
-                <i class="fas fa-arrows-alt text-white text-sm"></i>
-            </div>
-            
-            <button type="button" onclick="event.stopPropagation(); removeTempImage(${index})" 
-                class="absolute top-1 right-1 w-6 h-6 bg-red-600 hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-10 shadow-md">
-                <i class="fas fa-trash text-[10px]"></i>
+            <img src="${imgSrc}" class="w-full h-full object-cover">
+            <button type="button" onclick="removeTempImage(${index})" class="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                <i class="fas fa-trash text-red-500"></i>
             </button>
-            
-            ${index === 0 ? '<span class="absolute bottom-0 left-0 right-0 bg-yellow-500 text-black text-[9px] font-bold text-center uppercase py-0.5 pointer-events-none shadow-[0_-2px_4px_rgba(0,0,0,0.3)]">Capa</span>' : ''}
         `;
-
-        // ---------------------------------------------------
-        // 🖱️ EVENTOS PARA PC (MOUSE / HTML5 DRAG & DROP)
-        // ---------------------------------------------------
-        div.addEventListener('dragstart', (e) => {
-            draggedIndex = index;
-            e.dataTransfer.effectAllowed = "move";
-            setTimeout(() => div.classList.add('opacity-30'), 0);
-        });
-
-        div.addEventListener('dragend', () => {
-            div.classList.remove('opacity-30');
-            renderImagePreviews(); // Limpa as bordas amarelas
-        });
-
-        div.addEventListener('dragover', (e) => {
-            e.preventDefault(); // OBRIGATÓRIO para permitir soltar
-            div.classList.add('border-yellow-500', 'border-2', 'scale-105');
-        });
-
-        div.addEventListener('dragleave', () => {
-            div.classList.remove('border-yellow-500', 'border-2', 'scale-105');
-        });
-
-        div.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const targetIndex = index;
-            if (draggedIndex !== null && draggedIndex !== targetIndex) {
-                reorderImages(draggedIndex, targetIndex);
-            }
-        });
-
-        // ---------------------------------------------------
-        // 📱 EVENTOS PARA CELULAR (TOUCH API)
-        // ---------------------------------------------------
-        div.addEventListener('touchstart', (e) => {
-            // Ignora o toque se o usuário clicou na lixeirinha
-            if(e.target.closest('button')) return;
-            
-            draggedIndex = index;
-            div.classList.add('opacity-50', 'scale-110', 'z-50', 'ring-2', 'ring-yellow-500');
-        }, {passive: true});
-
-        div.addEventListener('touchmove', (e) => {
-            if (draggedIndex === null) return;
-            e.preventDefault(); // 🛑 Trava a tela para não rolar o site enquanto arrasta a foto
-            
-            const touch = e.touches[0];
-            // O Segredo: Acha qual elemento está embaixo do dedo em tempo real
-            const element = document.elementFromPoint(touch.clientX, touch.clientY);
-            
-            // Limpa as bordas de todos
-            document.querySelectorAll('.drag-item').forEach(el => el.classList.remove('border-yellow-500', 'border-2', 'scale-105'));
-            
-            // Acende a borda de quem o dedo está sobrevoando
-            if (element && element.closest('.drag-item')) {
-                const targetEl = element.closest('.drag-item');
-                if(targetEl !== div) targetEl.classList.add('border-yellow-500', 'border-2', 'scale-105');
-            }
-        }, {passive: false}); // passive false é necessário para o e.preventDefault funcionar no mobile
-
-        div.addEventListener('touchend', (e) => {
-            if (draggedIndex === null) return;
-            
-            const touch = e.changedTouches[0];
-            const element = document.elementFromPoint(touch.clientX, touch.clientY);
-            const targetEl = element ? element.closest('.drag-item') : null;
-
-            if (targetEl) {
-                const targetIndex = parseInt(targetEl.dataset.index);
-                if (draggedIndex !== targetIndex) {
-                    reorderImages(draggedIndex, targetIndex);
-                } else {
-                    renderImagePreviews();
-                }
-            } else {
-                renderImagePreviews(); // Soltou fora, só reseta
-            }
-            draggedIndex = null;
-        });
-
         container.appendChild(div);
     });
-};
-
-// --- Função que executa a troca na memória ---
-window.reorderImages = (fromIndex, toIndex) => {
-    // Tira a imagem da posição antiga
-    const imgToMove = state.tempImages.splice(fromIndex, 1)[0];
-    // Insere na nova posição
-    state.tempImages.splice(toIndex, 0, imgToMove);
-    // Renderiza a tela de novo
-    renderImagePreviews();
-};
-
-// --- Remove imagem da lista temporária ---
-window.removeTempImage = (index) => {
-    state.tempImages.splice(index, 1);
-    renderImagePreviews();
-};
+}
 
 // 3. Remove imagem da lista temporária
 window.removeTempImage = (index) => {
