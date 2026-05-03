@@ -5,26 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Projetista Oficial</title>
-    <style>
-        /* 🛡️ BLINDAGEM NÍVEL 1: Oculta tudo que não for o Loader até o JS autorizar */
-        body:not(.loaded)> :not(#global-loader):not(noscript) {
-            display: none !important;
-        }
-
-        /* Oculta o loader suavemente depois que o JS carrega */
-        body.loaded #global-loader {
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.5s ease;
-        }
-
-        /* Animação do Loader */
-        @keyframes spin-loader {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-    </style>
 
 
 
@@ -63,31 +43,6 @@
 </head>
 
 <body class="bg-[var(--bg-main)] text-[var(--txt-body)] text-white font-sans antialiased">
-    <noscript>
-        <div
-            style="position: fixed; inset: 0; background: #000; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999999;">
-            <svg style="width: 80px; height: 80px; color: #ef4444; margin-bottom: 20px;" fill="none"
-                stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
-                </path>
-            </svg>
-            <h1 style="font-size: 24px; font-weight: bold; margin: 0;">Javascript Desativado</h1>
-            <p style="color: #9ca3af; margin-top: 10px; max-width: 400px; text-align: center;">O sistema de segurança
-                desta loja exige o Javascript ativado para funcionar. Por favor, habilite-o nas configurações do seu
-                navegador.</p>
-        </div>
-    </noscript>
-
-    <!-- 🛡️ BLINDAGEM NÍVEL 3: O Carregamento Infinito (Até o JS trancar o cofre) -->
-    <div id="global-loader"
-        style="position: fixed; inset: 0; background: #0a0c13; z-index: 9999999; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-        <div
-            style="width: 50px; height: 50px; border: 4px solid #1f2937; border-top-color: #eab308; border-radius: 50%; animation: spin-loader 1s linear infinite;">
-        </div>
-        <p style="color: #eab308; margin-top: 20px; font-family: monospace; font-weight: bold; letter-spacing: 2px;">
-            INICIANDO SITE...</p>
-    </div>
 
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/stats.js"></script>
@@ -1180,12 +1135,7 @@
                                 <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">WhatsApp (Apenas
                                     números)</label>
                                 <input type="text" id="conf-store-wpp" placeholder="5511999999999"
-                                    class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none transition">
-
-                                <!-- Mensagem de erro escondida -->
-                                <span id="erro-conf-wpp" class="text-red-500 text-[10px] font-bold mt-1 hidden block">
-                                    ⚠️ Digite um número válido (ex: 11999999999).
-                                </span>
+                                    class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
                             </div>
 
                             <div>
@@ -2223,192 +2173,158 @@
         </div>
     </dialog>
 
-    <div id="product-form-modal"
-        class="fixed inset-0 z-[60] hidden bg-black bg-opacity-95 flex items-center justify-center p-4">
-        <div
-            class="bg-gray-800 w-full max-w-2xl rounded p-6 overflow-y-auto max-h-[90vh] border border-gray-700 thin-scroll">
-            <h3 class="text-xl font-bold text-white mb-6 border-b border-gray-700 pb-2">Gerenciar Produto</h3>
+    <div id="product-form-modal" class="fixed inset-0 z-[60] hidden bg-black bg-opacity-95 flex items-center justify-center p-4">
+    <div class="bg-gray-800 w-full max-w-3xl rounded-xl p-6 overflow-y-auto max-h-[90vh] border border-gray-700 custom-scrollbar relative">
+        
+        <!-- Botão Fechar no Topo -->
+        <button type="button" class="absolute top-5 right-5 text-gray-400 hover:text-white transition" onclick="document.getElementById('product-form-modal').classList.add('hidden')">
+            <i class="fas fa-times text-xl"></i>
+        </button>
 
-            <!-- ✨ CORREÇÃO 1: Adicionado o onsubmit para impedir que a página recarregue -->
-            <form id="form-product" class="space-y-4" onsubmit="saveProduct(event)">
-                <input type="hidden" id="edit-prod-id">
+        <h3 class="text-xl font-bold text-yellow-500 mb-6 border-b border-gray-700 pb-3"><i class="fas fa-box-open mr-2"></i> Gerenciar Produto</h3>
 
+        <form id="form-product" class="space-y-5" onsubmit="saveProduct(event)">
+            <input type="hidden" id="edit-prod-id">
+
+            <!-- Informações Básicas -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Nome do Produto</label>
-                    <input type="text" id="prod-name" placeholder="Ex: Camisa Oficial 2025"
-                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
-                        required>
+                    <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Nome do Produto</label>
+                    <input type="text" id="prod-name" placeholder="Ex: Camisa Oficial 2025" class="w-full bg-[#0f111a] border border-gray-600 p-2.5 text-white rounded-lg focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 outline-none transition" required>
                 </div>
-
                 <div>
-                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Categoria</label>
-                    <select id="prod-cat-select"
-                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none">
+                    <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Categoria</label>
+                    <select id="prod-cat-select" class="w-full bg-[#0f111a] border border-gray-600 p-2.5 text-white rounded-lg focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 outline-none transition cursor-pointer">
                         <option value="">Selecione...</option>
                     </select>
                 </div>
+            </div>
 
+            <div>
+                <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">Descrição Detalhada</label>
+                <textarea id="prod-desc" rows="3" placeholder="Detalhes do tecido, modelo, etc..." class="w-full bg-[#0f111a] border border-gray-600 p-2.5 text-white rounded-lg focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 outline-none transition resize-none"></textarea>
+            </div>
+
+            <!-- Painel de Preços -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-900/50 p-4 rounded-lg border border-gray-700/50">
                 <div>
-                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Descrição Detalhada</label>
-                    <textarea id="prod-desc" rows="3" placeholder="Detalhes do tecido, modelo, etc..."
-                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"></textarea>
+                    <label class="text-green-500 text-xs font-bold uppercase mb-1 block">Preço Venda (R$)</label>
+                    <input type="text" id="prod-price" placeholder="0,00" class="w-full bg-[#0f111a] border border-gray-600 p-2.5 text-white font-bold rounded-lg focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition" required>
                 </div>
+                <div>
+                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço Promo (Opcional)</label>
+                    <input type="text" id="prod-promo" placeholder="0,00" class="w-full bg-[#0f111a] border border-gray-600 p-2.5 text-white font-bold rounded-lg focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 outline-none transition">
+                </div>
+                <div>
+                    <label class="text-red-400 text-xs font-bold uppercase mb-1 block">Custo (Só Admin)</label>
+                    <input type="text" id="prod-cost" placeholder="0,00" class="w-full bg-[#0f111a] border border-gray-600 p-2.5 text-white font-bold rounded-lg focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition">
+                </div>
+            </div>
 
-                <!-- Preços -->
-                <div class="grid grid-cols-2 gap-4">
+            <!-- Painel de Estoque Híbrido -->
+            <div class="bg-gray-900 p-4 rounded-lg border border-gray-700">
+                <div class="flex items-center justify-between mb-4 border-b border-gray-800 pb-4">
                     <div>
-                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço de Venda
-                            (R$)</label>
-                        <input type="text" id="prod-price" placeholder="0.00"
-                            class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
-                            step="0.01" required>
+                        <h4 class="text-white font-bold text-sm">Controle de Estoque</h4>
+                        <p class="text-gray-500 text-[10px] mt-0.5 uppercase tracking-wide">Gerencie a quantidade disponível</p>
                     </div>
-                    <div>
-                        <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Preço Promocional
-                            (Opcional)</label>
-                        <input type="text" id="prod-promo" placeholder="0.00"
-                            class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
-                            step="0.01">
-                    </div>
-                </div>
-
-                <div class="w-1/2 pr-2">
-                    <label class="text-gray-500 text-xs font-bold uppercase mb-1 block">Preço de Custo (Visível só p/
-                        Admin)</label>
-                    <input type="text" id="prod-cost" placeholder="0.00"
-                        class="w-full bg-black border border-gray-600 p-2 text-white rounded focus:border-yellow-500 outline-none"
-                        step="0.01">
-                </div>
-
-                <!-- ========================================== -->
-                <!-- 📦 MÓDULO DE ESTOQUE HÍBRIDO -->
-                <!-- ========================================== -->
-                <div class="bg-gray-900 p-4 rounded-lg border border-gray-700 mt-4">
-                    <!-- Estoque Geral -->
-                    <div id="div-general-stock"
-                        class="mb-4 flex items-center gap-4 bg-gray-800 p-4 rounded border border-gray-600">
-                        <label class="text-white font-bold text-sm whitespace-nowrap">Estoque Geral</label>
-                        <input type="number" id="prod-stock"
-                            class="w-32 bg-black text-white font-bold border border-gray-600 rounded px-3 py-2 focus:border-yellow-500 focus:outline-none"
-                            placeholder="0">
-                    </div>
-
-                    <!-- ✨ CORREÇÃO 2: Adicionado 'peer' e 'peer-checked:' para animar o Switch -->
-                    <label class="flex items-center gap-3 cursor-pointer mb-4">
-                        <span class="text-white font-bold text-sm">Ativar estoque gradeado</span>
+                    
+                    <label class="flex items-center gap-3 cursor-pointer group">
+                        <span class="text-gray-300 font-bold text-xs uppercase group-hover:text-yellow-500 transition">Estoque Gradeado</span>
                         <div class="relative">
-                            <input type="checkbox" id="prod-has-variations" class="sr-only peer"
-                                onchange="toggleStockMode()">
-                            <div class="block bg-gray-600 w-10 h-6 rounded-full peer-checked:bg-yellow-500 transition">
-                            </div>
-                            <div
-                                class="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-4">
-                            </div>
+                            <input type="checkbox" id="prod-has-variations" class="sr-only peer" onchange="toggleStockMode()">
+                            <div class="block bg-gray-700 w-11 h-6 rounded-full peer-checked:bg-yellow-500 transition-colors duration-300 border border-gray-600 peer-checked:border-yellow-400"></div>
+                            <div class="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-300 peer-checked:translate-x-5 shadow-sm"></div>
                         </div>
                     </label>
+                </div>
 
-                    <!-- Bloco de Tamanhos (Gradeado) -->
-                    <div id="div-variations-stock"
-                        class="hidden flex-col gap-4 bg-black p-4 rounded border border-gray-600">
-                        <h4 class="text-white font-bold text-sm">Tamanhos/Estoque</h4>
+                <!-- Estoque Geral -->
+                <div id="div-general-stock" class="flex items-center gap-4 bg-[#0f111a] p-4 rounded-lg border border-gray-700 transition-all">
+                    <label class="text-gray-300 font-bold text-sm whitespace-nowrap">Estoque Total:</label>
+                    <input type="number" id="prod-stock" class="w-32 bg-black text-white font-bold border border-gray-600 rounded-lg px-4 py-2.5 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 focus:outline-none transition text-center" placeholder="0" min="0">
+                </div>
 
-                        <div class="flex items-end justify-between w-full">
-                            <!-- Container dos Botões -->
-                            <div class="flex items-center gap-2 overflow-x-auto hide-scroll pb-1"
-                                id="variations-container">
-                                <!-- Os botões gerados pelo JS vão entrar aqui -->
-                            </div>
-
-                            <!-- Bloco de Totais (Fixo na direita) -->
-                            <div class="flex flex-col items-center ml-4 shrink-0">
-                                <span class="text-white font-bold text-sm mb-1">Total:</span>
-                                <div
-                                    class="border border-gray-600 rounded overflow-hidden flex flex-col w-14 text-center">
-                                    <div class="bg-gray-800 text-white font-bold py-1 border-b border-gray-600 text-xs"
-                                        id="var-total-count">0</div>
-                                    <div class="bg-black text-white font-bold py-2 text-sm" id="var-total-stock">0</div>
-                                </div>
-                            </div>
+                <!-- Estoque Gradeado -->
+                <div id="div-variations-stock" class="hidden flex-col gap-4 bg-[#0f111a] p-4 rounded-lg border border-gray-700 transition-all">
+                    <div class="flex items-end justify-between w-full">
+                        <div class="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-2 flex-1" id="variations-container">
+                            <!-- Botões gerados pelo JS entram aqui -->
+                        </div>
+                        <div class="flex flex-col items-center ml-4 shrink-0 bg-black p-2.5 rounded-lg border border-gray-700 min-w-[70px]">
+                            <span class="text-gray-500 text-[9px] font-bold uppercase mb-1">Qtd Total</span>
+                            <div class="text-yellow-500 font-bold text-xl leading-none" id="var-total-stock">0</div>
+                            <div class="text-gray-600 text-[9px] mt-1 font-bold"><span id="var-total-count">0</span> Tmhs</div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Configurações Extras (Pix, Sem Estoque, Destaque) -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <!-- Bloco Pix -->
-                    <div class="bg-gray-900 p-4 rounded border border-gray-700 flex flex-col gap-4">
-                        <div class="flex items-center gap-3">
-                            <input type="checkbox" id="prod-pix-active"
-                                class="w-5 h-5 rounded text-green-500 bg-gray-700 border-gray-600 focus:ring-green-500 cursor-pointer">
-                            <label for="prod-pix-active"
-                                class="text-white font-bold text-sm cursor-pointer select-none">Ativar Desconto no
-                                Pix</label>
-                        </div>
-
-                        <div id="pix-settings"
-                            class="flex flex-col xl:flex-row gap-3 opacity-50 pointer-events-none transition-opacity duration-200 w-full">
-                            <div
-                                class="flex items-center gap-2 flex-1 bg-black border border-gray-600 rounded px-3 h-10 focus-within:border-green-500 transition">
-                                <span class="text-gray-400 text-xs uppercase font-bold shrink-0">Valor:</span>
-                                <input type="text" id="prod-pix-val" placeholder="0"
-                                    class="bg-transparent border-none text-white text-sm w-full outline-none font-bold h-full">
-                            </div>
-                            <div class="flex bg-black rounded border border-gray-600 overflow-hidden h-10 shrink-0">
-                                <button type="button" id="btn-pix-percent"
-                                    class="px-4 bg-green-600 text-white text-xs font-bold transition flex items-center justify-center hover:bg-green-700">%</button>
-                                <div class="w-px bg-gray-600"></div>
-                                <button type="button" id="btn-pix-fixed"
-                                    class="px-4 bg-black text-gray-400 text-xs font-bold transition flex items-center justify-center hover:text-white hover:bg-gray-800">R$</button>
-                            </div>
-                            <input type="hidden" id="prod-pix-type" value="percent">
-                        </div>
+            <!-- Configurações Extras (Pix, Sem Estoque, Destaque) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <!-- Bloco Pix -->
+                <div class="bg-gray-900 p-4 rounded-lg border border-gray-700 flex flex-col justify-between">
+                    <div class="flex items-center gap-3 mb-3 border-b border-gray-800 pb-3">
+                        <input type="checkbox" id="prod-pix-active" class="w-5 h-5 rounded text-green-500 bg-gray-800 border-gray-600 focus:ring-green-500 focus:ring-offset-gray-900 cursor-pointer transition">
+                        <label for="prod-pix-active" class="text-green-400 font-bold text-sm cursor-pointer select-none">Desconto no Pix</label>
                     </div>
-
-                    <!-- Bloco Flags -->
-                    <div class="bg-gray-900 p-4 rounded border border-gray-700 flex flex-col justify-center gap-4">
-                        <div class="flex items-center">
-                            <input type="checkbox" id="prod-allow-no-stock"
-                                class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-yellow-500 focus:ring-yellow-500 cursor-pointer">
-                            <label for="prod-allow-no-stock"
-                                class="ml-2 text-sm font-medium text-gray-300 cursor-pointer select-none">Vender sem
-                                estoque</label>
+                    
+                    <div id="pix-settings" class="flex flex-col sm:flex-row gap-3 opacity-50 pointer-events-none transition-opacity duration-300 w-full">
+                        <div class="flex items-center gap-2 flex-1 bg-[#0f111a] border border-gray-600 rounded-lg px-3 h-10 focus-within:border-green-500 focus-within:ring-1 focus-within:ring-green-500 transition">
+                            <span class="text-gray-500 text-xs font-bold shrink-0 uppercase">Valor:</span>
+                            <input type="text" id="prod-pix-val" placeholder="0,00" class="bg-transparent border-none text-white text-sm w-full outline-none font-bold h-full">
                         </div>
-                        <div class="flex items-center">
-                            <input type="checkbox" id="prod-highlight"
-                                class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-purple-500 focus:ring-purple-500 cursor-pointer">
-                            <label for="prod-highlight"
-                                class="ml-2 text-sm font-bold text-purple-400 cursor-pointer select-none flex items-center gap-1">
-                                <i class="fas fa-star text-xs"></i> Destaque
-                            </label>
+                        <div class="flex bg-[#0f111a] rounded-lg border border-gray-600 overflow-hidden h-10 shrink-0">
+                            <button type="button" id="btn-pix-percent" class="px-4 bg-green-600 text-white text-xs font-bold transition flex items-center justify-center hover:bg-green-500">%</button>
+                            <div class="w-px bg-gray-600"></div>
+                            <button type="button" id="btn-pix-fixed" class="px-4 text-gray-400 text-xs font-bold transition flex items-center justify-center hover:text-white hover:bg-gray-700">R$</button>
                         </div>
+                        <input type="hidden" id="prod-pix-type" value="percent">
                     </div>
                 </div>
 
-                <!-- Imagens -->
-                <div class="mt-4">
-                    <label class="text-yellow-500 text-xs font-bold uppercase mb-1 block">Imagens do Produto</label>
-                    <input type="file" id="prod-imgs-input" multiple accept="image/*" class="hidden">
-                    <button type="button" onclick="document.getElementById('prod-imgs-input').click()"
-                        class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm mb-2 transition border border-gray-600 flex items-center gap-2">
-                        <i class="fas fa-camera text-yellow-500"></i> Escolher Fotos (Do Dispositivo)
+                <!-- Bloco Flags -->
+                <div class="bg-gray-900 p-4 rounded-lg border border-gray-700 flex flex-col justify-center gap-2">
+                    <label class="flex items-center gap-3 cursor-pointer group p-2 rounded hover:bg-gray-800/50 transition">
+                        <input type="checkbox" id="prod-allow-no-stock" class="w-5 h-5 rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-yellow-500 focus:ring-offset-gray-900 cursor-pointer transition">
+                        <span class="text-sm font-medium text-gray-300 group-hover:text-white select-none">Vender sem estoque <span class="text-[10px] text-gray-500 uppercase block">(Sob encomenda)</span></span>
+                    </label>
+                    <label class="flex items-center gap-3 cursor-pointer group p-2 rounded hover:bg-gray-800/50 transition">
+                        <input type="checkbox" id="prod-highlight" class="w-5 h-5 rounded bg-gray-800 border-gray-600 text-purple-500 focus:ring-purple-500 focus:ring-offset-gray-900 cursor-pointer transition">
+                        <span class="text-sm font-bold text-purple-400 group-hover:text-purple-300 select-none flex items-center gap-2">
+                            <i class="fas fa-star text-xs"></i> Destacar na Vitrine
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Painel de Imagens -->
+            <div class="bg-gray-900 p-4 rounded-lg border border-gray-700">
+                <div class="flex items-center justify-between mb-3">
+                    <label class="text-gray-400 text-xs font-bold uppercase block">Imagens do Produto</label>
+                    <button type="button" onclick="document.getElementById('prod-imgs-input').click()" class="bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-xs font-bold transition border border-gray-600 flex items-center gap-2">
+                        <i class="fas fa-upload text-yellow-500"></i> Adicionar Foto
                     </button>
-                    <div id="prod-imgs-preview"
-                        class="flex gap-2 flex-wrap min-h-[80px] bg-black/50 p-2 rounded border border-gray-700">
-                        <p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada</p>
-                    </div>
                 </div>
+                <input type="file" id="prod-imgs-input" multiple accept="image/*" class="hidden">
+                <div id="prod-imgs-preview" class="flex gap-3 flex-wrap min-h-[90px] bg-[#0f111a] p-3 rounded-lg border border-dashed border-gray-600 items-center justify-center">
+                    <p class="text-gray-500 text-xs italic">Nenhuma imagem. Clique em "Adicionar Foto".</p>
+                </div>
+            </div>
 
-                <!-- Botões -->
-                <div class="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-700">
-                    <button type="button" id="btn-cancel-prod"
-                        class="bg-gray-600 hover:bg-gray-500 px-6 py-2 rounded text-white font-medium">Cancelar</button>
-                    <button type="submit"
-                        class="bg-yellow-500 hover:bg-yellow-400 px-6 py-2 rounded text-black font-bold shadow-lg transform hover:scale-105 transition">Salvar
-                        Produto</button>
-                </div>
-            </form>
-        </div>
+            <!-- Botões de Ação Final -->
+            <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-700">
+                <button type="button" id="btn-cancel-prod" class="bg-gray-700 hover:bg-gray-600 border border-gray-600 px-6 py-2.5 rounded-lg text-white font-bold transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit" class="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-2.5 rounded-lg font-extrabold shadow-lg shadow-yellow-500/20 transform hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                    <i class="fas fa-save"></i> Salvar Produto
+                </button>
+            </div>
+        </form>
     </div>
+</div>
 
     <div id="image-viewer"
         class="fixed inset-0 bg-black/95 z-[100] hidden items-center justify-center backdrop-blur-sm select-none">
@@ -2432,33 +2348,50 @@
     </div>
 
 
-    <div id="modal-product-selector"
-        class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-[60]">
-        <div
-            class="bg-[#151720] w-full max-w-md rounded-2xl border border-gray-800 shadow-2xl flex flex-col max-h-[80vh] m-4 animate-scale-up">
+    <!-- ================================================================= -->
+<!-- 🔍 MODAL: SELETOR DE PRODUTOS (FILTRO DO ADMIN)                   -->
+<!-- ================================================================= -->
+<div id="product-selector-modal" class="fixed inset-0 z-[80] hidden bg-black bg-opacity-90 items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-gray-900 w-full max-w-md rounded-xl border border-gray-700 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden transform transition-all">
+        
+        <!-- Header -->
+        <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-black/50 shrink-0">
+            <h3 class="text-white font-bold text-lg flex items-center gap-2">
+                <i class="fas fa-search text-yellow-500"></i> Filtrar Vendas por Produto
+            </h3>
+            <button type="button" onclick="closeProductSelectorModal()" class="text-gray-500 hover:text-red-500 transition p-2 rounded-full hover:bg-red-500/10">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
 
-            <div class="p-4 border-b border-gray-800 flex justify-between items-center">
-                <h3 class="text-white font-bold text-lg">Selecionar Produto</h3>
-                <button onclick="closeProductSelectorModal()"
-                    class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-800 flex items-center justify-center transition">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-
-            <div class="p-4 pb-2">
-                <div
-                    class="bg-black border border-gray-700 rounded-lg flex items-center px-3 h-10 focus-within:border-yellow-500 transition">
-                    <i class="fas fa-search text-gray-500 mr-2"></i>
-                    <input type="text" id="selector-internal-search" oninput="renderProductSelectorList(this.value)"
-                        placeholder="Buscar na lista..."
-                        class="bg-transparent border-none text-white text-sm w-full outline-none">
+        <!-- Barra de Busca -->
+        <div class="p-4 border-b border-gray-800 bg-[#0f111a] shrink-0">
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fas fa-search text-gray-500 text-sm"></i>
                 </div>
-            </div>
-
-            <div id="product-selector-list" class="flex-1 overflow-y-auto p-2 custom-scrollbar">
+                <input type="text" id="product-selector-search" oninput="handleProductSelectorSearch(event)" 
+                    placeholder="Buscar pelo nome ou código..." 
+                    class="w-full bg-black border border-gray-700 text-white text-sm rounded-lg pl-9 pr-3 py-2.5 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 outline-none transition shadow-inner">
             </div>
         </div>
+
+        <!-- Lista de Produtos (O JS vai injetar os itens aqui) -->
+        <div id="product-selector-list" class="flex-1 overflow-y-auto custom-scrollbar p-2 bg-[#0a0c13] min-h-[300px]">
+            <!-- Os itens aparecem aqui dinamicamente -->
+        </div>
+        
+        <!-- Footer -->
+        <div class="p-4 border-t border-gray-800 bg-black/50 flex justify-between items-center shrink-0">
+            <button onclick="clearProductFilter()" class="text-xs text-red-400 hover:text-red-300 transition font-bold uppercase flex items-center gap-1 p-2 rounded hover:bg-red-400/10">
+                <i class="fas fa-eraser"></i> Limpar Filtro
+            </button>
+            <button onclick="closeProductSelectorModal()" class="bg-gray-700 hover:bg-gray-600 text-white px-5 py-2.5 rounded-lg text-xs font-bold uppercase transition border border-gray-600">
+                Fechar
+            </button>
+        </div>
     </div>
+</div>
 
     <div id="modal-store-closed"
         class="fixed inset-0 bg-black/95 z-[90] hidden flex-col items-center justify-center p-6 text-center backdrop-blur-md">

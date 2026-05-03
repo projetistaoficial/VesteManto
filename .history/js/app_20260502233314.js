@@ -3435,7 +3435,7 @@ function setupEventListeners() {
 
     setupAccordion('btn-acc-sales-filters', 'content-acc-sales-filters', 'arrow-acc-sales-filters');
 
-    const idsFiltros = ['filter-search-general', 'filter-search-product-value', 'filter-status', 'filter-payment', 'filter-sort-order', 'filter-date-start', 'filter-date-end', 'filter-search-code'];
+    const idsFiltros = ['filter-search-general', 'filter-search-product', 'filter-search-product-value', 'filter-status', 'filter-payment', 'filter-sort-order', 'filter-date-start', 'filter-date-end', 'filter-search-code'];
     idsFiltros.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -3447,17 +3447,14 @@ function setupEventListeners() {
    const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
-            // Limpa todos os inputs da lista
             idsFiltros.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-            
-            // Reseta a ordenação
             const sort = document.getElementById('filter-sort-order');
             if (sort) sort.value = 'date_desc';
             
-            // 👉 A MÁGICA: Limpa a nossa caixa visual de produtos
-            clearProductFilter(null); 
+            // Restaura o texto visual do botão se ele não for um input
+            const displayInput = document.getElementById('filter-search-product');
+            if (displayInput && displayInput.tagName !== 'INPUT') displayInput.innerText = 'Filtrar por Produto';
             
-            // Recarrega a tabela
             filterAndRenderSales();
         };
     }
@@ -3884,37 +3881,6 @@ function setupEventListeners() {
             });
         }
     });
-
-    // --- VALIDAÇÃO EM TEMPO REAL: WHATSAPP DA LOJA ---
-    const inputWpp = document.getElementById('conf-store-wpp');
-    const erroWpp = document.getElementById('erro-conf-wpp');
-
-    if (inputWpp && erroWpp) {
-        inputWpp.addEventListener('input', (e) => {
-            // 1. Remove qualquer letra ou símbolo na hora que o cara digita
-            let valor = e.target.value.replace(/\D/g, '');
-            e.target.value = valor;
-
-            if (valor.length > 0) {
-                // 2. Se tiver menos de 10 ou mais de 13 números, está errado
-                if (valor.length < 11 || valor.length > 13) {
-                    inputWpp.classList.remove('border-gray-700', 'focus:border-yellow-500', 'border-green-500');
-                    inputWpp.classList.add('border-red-500', 'focus:border-red-500'); // Borda vermelha
-                    erroWpp.classList.remove('hidden'); // Mostra o aviso
-                } else {
-                    // 3. Se estiver no tamanho certo, fica VERDE de sucesso
-                    inputWpp.classList.remove('border-red-500', 'focus:border-red-500', 'border-gray-700', 'focus:border-yellow-500');
-                    inputWpp.classList.add('border-green-500'); // Borda verde
-                    erroWpp.classList.add('hidden'); // Esconde o aviso
-                }
-            } else {
-                // 4. Se ele apagar tudo e o campo ficar vazio, volta pra cor original (cinza/amarelo)
-                inputWpp.classList.remove('border-red-500', 'focus:border-red-500', 'border-green-500');
-                inputWpp.classList.add('border-gray-700', 'focus:border-yellow-500');
-                erroWpp.classList.add('hidden');
-            }
-        });
-    }
 }
 
 // =================================================================
@@ -9119,141 +9085,37 @@ window.selectProductForFilter = (productName) => {
     if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
 };
 
-// =================================================================
-// 🔍 SELETOR DE PRODUTOS PARA FILTRO DE VENDAS (RESOLVIDO)
-// =================================================================
-
-window.openProductSelectorModal = () => {
-    const modal = document.getElementById('modal-product-selector'); 
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        
-        const searchInput = document.getElementById('selector-internal-search');
-        if (searchInput) {
-            searchInput.value = ''; // Limpa a busca anterior
-            setTimeout(() => searchInput.focus(), 100);
-        }
-        
-        window.renderProductSelectorList(''); 
-    }
-};
-
-window.closeProductSelectorModal = () => {
-    const modal = document.getElementById('modal-product-selector');
-    if (modal) {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
-};
-
-window.renderProductSelectorList = (searchTerm = '') => {
-    const listContainer = document.getElementById('product-selector-list');
-    if (!listContainer) return;
-
-    let filteredProducts = state.products;
-
-    if (searchTerm) {
-        const term = searchTerm.toLowerCase().trim();
-        filteredProducts = state.products.filter(p => 
-            p.name.toLowerCase().includes(term) || 
-            (p.code && String(p.code).includes(term))
-        );
-    }
-
-    if (filteredProducts.length === 0) {
-        listContainer.innerHTML = '<div class="p-8 text-center text-gray-500 text-sm italic">Nenhum produto encontrado.</div>';
-        return;
-    }
-
-    listContainer.innerHTML = filteredProducts.map(p => {
-        const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://placehold.co/100?text=Sem+Foto';
-        const safeName = p.name.replace(/'/g, "\\'"); // Impede que aspas no nome quebrem o clique
-        
-        return `
-            <div onclick="selectProductForFilter('${safeName}')" 
-                 class="flex items-center gap-3 p-3 border-b border-gray-800 hover:bg-gray-800 cursor-pointer transition active:scale-[0.98] rounded">
-                <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0">
-                <div class="flex flex-col flex-1 min-w-0">
-                    <span class="text-white font-bold text-sm truncate">${p.name}</span>
-                    <span class="text-gray-500 text-[10px] font-mono mt-0.5">Cód: #${p.code || '-'}</span>
-                </div>
-            </div>
-        `;
-    }).join('');
-};
-
-window.selectProductForFilter = (productName) => {
-    // 1. Atualiza o input oculto que a tabela lê
-    const filterInput = document.getElementById('filter-search-product-value'); 
-    if (filterInput) filterInput.value = productName;
-    
-    // 2. Atualiza o texto na tela (O ID exato do seu HTML)
-    const displaySpan = document.getElementById('selected-product-display');
-    if (displaySpan) {
-        displaySpan.innerText = productName;
-        displaySpan.classList.remove('text-gray-400');
-        displaySpan.classList.add('text-yellow-500'); // Deixa amarelinho pra mostrar que tem filtro ativo
-    }
-
-    // 3. Mostra o botão de (X) que estava escondido no seu HTML
-    const btnClearX = document.getElementById('btn-clear-prod-selection');
-    if (btnClearX) {
-        btnClearX.classList.remove('hidden');
-        btnClearX.classList.add('flex');
-    }
-
-    // Fecha o modal e roda o filtro da tabela
-    window.closeProductSelectorModal();
-    if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
-};
-
 window.clearProductFilter = (e) => {
-    // Impede que clicar no X acabe ativando o fundo e abrindo o modal de novo
-    if (e) {
-        e.preventDefault();
-        e.stopPropagation(); 
-    }
+    // Impede que o clique no X "vaze" e acabe ativando o botão de baixo (que abre o modal)
+    if (e) e.stopPropagation();
     
-    // 1. Zera a memória do filtro
     const filterInput = document.getElementById('filter-search-product-value');
+    const displayInput = document.getElementById('filter-search-product');
+    
+    // Zera o input oculto
     if (filterInput) filterInput.value = '';
     
-    // 2. Volta o texto visual ao estado inicial
-    const displaySpan = document.getElementById('selected-product-display');
-    if (displaySpan) {
-        displaySpan.innerText = 'Selecionar produto...';
-        displaySpan.classList.remove('text-yellow-500');
-        displaySpan.classList.add('text-gray-400');
-    }
-
-    // 3. Esconde o botão de (X) novamente
-    const btnClearX = document.getElementById('btn-clear-prod-selection');
-    if (btnClearX) {
-        btnClearX.classList.add('hidden');
-        btnClearX.classList.remove('flex');
+    // Restaura o visual padrão do botão do filtro
+    if (displayInput) {
+        if (displayInput.tagName === 'INPUT') {
+            displayInput.value = '';
+        } else {
+            displayInput.innerHTML = `
+                <div class="flex items-center gap-2 text-gray-500 w-full justify-center">
+                    <i class="fas fa-box text-gray-600"></i>
+                    <span class="truncate text-xs font-bold uppercase tracking-wider">Filtrar Produto</span>
+                </div>
+            `;
+        }
     }
     
     // Limpa a busca interna do modal para a próxima vez
     const internalSearch = document.getElementById('selector-internal-search');
     if (internalSearch) internalSearch.value = '';
     
-    // Roda a tabela para exibir todas as vendas de novo
+    // Roda a tabela de vendas sem o filtro
     if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
 };
-
-// ✨ BLINDAGEM DO BOTÃO GERAL "LIMPAR" ✨
-// Ensinamos o seu botão geral a apagar a nossa caixa personalizada
-setTimeout(() => {
-    const btnClear = document.getElementById('btn-clear-filters');
-    if (btnClear) {
-        const oldOnClick = btnClear.onclick;
-        btnClear.onclick = (e) => {
-            if (oldOnClick) oldOnClick(e); // Limpa as datas, nome de cliente, etc
-            clearProductFilter(null); // Limpa a nossa caixa "Selecionar produto..."
-        };
-    }
-}, 1000);
 
 // ============================================================
 // CONECTOR GLOBAL FINAL (ÚNICO E OBRIGATÓRIO)
@@ -9315,8 +9177,6 @@ window.retryWhatsapp = retryWhatsapp;
 window.openProductSelectorModal = openProductSelectorModal;
 window.closeProductSelectorModal = closeProductSelectorModal;
 window.renderProductSelectorList = renderProductSelectorList;
-window.selectProductForFilter = selectProductForFilter;
-window.clearProductFilter = clearProductFilter;
 
 // 6. DESTRAVA ESTATÍSTICAS (Se for admin logado)
 if (state.user && typeof loadAdminSales === 'function') {

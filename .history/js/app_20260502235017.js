@@ -3447,17 +3447,14 @@ function setupEventListeners() {
    const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
-            // Limpa todos os inputs da lista
             idsFiltros.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-            
-            // Reseta a ordenação
             const sort = document.getElementById('filter-sort-order');
             if (sort) sort.value = 'date_desc';
             
-            // 👉 A MÁGICA: Limpa a nossa caixa visual de produtos
-            clearProductFilter(null); 
+            // Restaura o texto visual do botão se ele não for um input
+            const displayInput = document.getElementById('filter-search-product');
+            if (displayInput && displayInput.tagName !== 'INPUT') displayInput.innerText = 'Filtrar por Produto';
             
-            // Recarrega a tabela
             filterAndRenderSales();
         };
     }
@@ -3884,37 +3881,6 @@ function setupEventListeners() {
             });
         }
     });
-
-    // --- VALIDAÇÃO EM TEMPO REAL: WHATSAPP DA LOJA ---
-    const inputWpp = document.getElementById('conf-store-wpp');
-    const erroWpp = document.getElementById('erro-conf-wpp');
-
-    if (inputWpp && erroWpp) {
-        inputWpp.addEventListener('input', (e) => {
-            // 1. Remove qualquer letra ou símbolo na hora que o cara digita
-            let valor = e.target.value.replace(/\D/g, '');
-            e.target.value = valor;
-
-            if (valor.length > 0) {
-                // 2. Se tiver menos de 10 ou mais de 13 números, está errado
-                if (valor.length < 11 || valor.length > 13) {
-                    inputWpp.classList.remove('border-gray-700', 'focus:border-yellow-500', 'border-green-500');
-                    inputWpp.classList.add('border-red-500', 'focus:border-red-500'); // Borda vermelha
-                    erroWpp.classList.remove('hidden'); // Mostra o aviso
-                } else {
-                    // 3. Se estiver no tamanho certo, fica VERDE de sucesso
-                    inputWpp.classList.remove('border-red-500', 'focus:border-red-500', 'border-gray-700', 'focus:border-yellow-500');
-                    inputWpp.classList.add('border-green-500'); // Borda verde
-                    erroWpp.classList.add('hidden'); // Esconde o aviso
-                }
-            } else {
-                // 4. Se ele apagar tudo e o campo ficar vazio, volta pra cor original (cinza/amarelo)
-                inputWpp.classList.remove('border-red-500', 'focus:border-red-500', 'border-green-500');
-                inputWpp.classList.add('border-gray-700', 'focus:border-yellow-500');
-                erroWpp.classList.add('hidden');
-            }
-        });
-    }
 }
 
 // =================================================================

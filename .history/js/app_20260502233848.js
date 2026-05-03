@@ -3435,7 +3435,7 @@ function setupEventListeners() {
 
     setupAccordion('btn-acc-sales-filters', 'content-acc-sales-filters', 'arrow-acc-sales-filters');
 
-    const idsFiltros = ['filter-search-general', 'filter-search-product-value', 'filter-status', 'filter-payment', 'filter-sort-order', 'filter-date-start', 'filter-date-end', 'filter-search-code'];
+    const idsFiltros = ['filter-search-general', 'filter-search-product', 'filter-search-product-value', 'filter-status', 'filter-payment', 'filter-sort-order', 'filter-date-start', 'filter-date-end', 'filter-search-code'];
     idsFiltros.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -3447,17 +3447,14 @@ function setupEventListeners() {
    const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
-            // Limpa todos os inputs da lista
             idsFiltros.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-            
-            // Reseta a ordenação
             const sort = document.getElementById('filter-sort-order');
             if (sort) sort.value = 'date_desc';
             
-            // 👉 A MÁGICA: Limpa a nossa caixa visual de produtos
-            clearProductFilter(null); 
+            // Restaura o texto visual do botão se ele não for um input
+            const displayInput = document.getElementById('filter-search-product');
+            if (displayInput && displayInput.tagName !== 'INPUT') displayInput.innerText = 'Filtrar por Produto';
             
-            // Recarrega a tabela
             filterAndRenderSales();
         };
     }
@@ -3884,37 +3881,6 @@ function setupEventListeners() {
             });
         }
     });
-
-    // --- VALIDAÇÃO EM TEMPO REAL: WHATSAPP DA LOJA ---
-    const inputWpp = document.getElementById('conf-store-wpp');
-    const erroWpp = document.getElementById('erro-conf-wpp');
-
-    if (inputWpp && erroWpp) {
-        inputWpp.addEventListener('input', (e) => {
-            // 1. Remove qualquer letra ou símbolo na hora que o cara digita
-            let valor = e.target.value.replace(/\D/g, '');
-            e.target.value = valor;
-
-            if (valor.length > 0) {
-                // 2. Se tiver menos de 10 ou mais de 13 números, está errado
-                if (valor.length < 11 || valor.length > 13) {
-                    inputWpp.classList.remove('border-gray-700', 'focus:border-yellow-500', 'border-green-500');
-                    inputWpp.classList.add('border-red-500', 'focus:border-red-500'); // Borda vermelha
-                    erroWpp.classList.remove('hidden'); // Mostra o aviso
-                } else {
-                    // 3. Se estiver no tamanho certo, fica VERDE de sucesso
-                    inputWpp.classList.remove('border-red-500', 'focus:border-red-500', 'border-gray-700', 'focus:border-yellow-500');
-                    inputWpp.classList.add('border-green-500'); // Borda verde
-                    erroWpp.classList.add('hidden'); // Esconde o aviso
-                }
-            } else {
-                // 4. Se ele apagar tudo e o campo ficar vazio, volta pra cor original (cinza/amarelo)
-                inputWpp.classList.remove('border-red-500', 'focus:border-red-500', 'border-green-500');
-                inputWpp.classList.add('border-gray-700', 'focus:border-yellow-500');
-                erroWpp.classList.add('hidden');
-            }
-        });
-    }
 }
 
 // =================================================================
@@ -9184,57 +9150,53 @@ window.renderProductSelectorList = (searchTerm = '') => {
 };
 
 window.selectProductForFilter = (productName) => {
-    // 1. Atualiza o input oculto que a tabela lê
+    // 1. Atualiza o INPUT OCULTO que a tabela de vendas usa para o cálculo
     const filterInput = document.getElementById('filter-search-product-value'); 
     if (filterInput) filterInput.value = productName;
     
-    // 2. Atualiza o texto na tela (O ID exato do seu HTML)
-    const displaySpan = document.getElementById('selected-product-display');
-    if (displaySpan) {
-        displaySpan.innerText = productName;
-        displaySpan.classList.remove('text-gray-400');
-        displaySpan.classList.add('text-yellow-500'); // Deixa amarelinho pra mostrar que tem filtro ativo
+    // 2. Atualiza a CAIXA VISUAL (A do seu print)
+    const displayBox = document.getElementById('filter-search-product'); 
+    if (displayBox) {
+        // Aqui desenhamos o nome em amarelo e criamos o botão de (X)
+        displayBox.innerHTML = `
+            <div class="flex items-center justify-between w-full">
+                <div class="flex items-center gap-2 truncate text-yellow-500 pointer-events-none">
+                    <i class="fas fa-check-circle shrink-0"></i>
+                    <span class="text-sm font-bold truncate" title="${productName}">${productName}</span>
+                </div>
+                <button type="button" onclick="clearProductFilter(event)" class="text-gray-400 hover:text-red-500 w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500/10 transition shrink-0 z-10">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
     }
 
-    // 3. Mostra o botão de (X) que estava escondido no seu HTML
-    const btnClearX = document.getElementById('btn-clear-prod-selection');
-    if (btnClearX) {
-        btnClearX.classList.remove('hidden');
-        btnClearX.classList.add('flex');
-    }
-
-    // Fecha o modal e roda o filtro da tabela
     window.closeProductSelectorModal();
     if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
 };
 
 window.clearProductFilter = (e) => {
-    // Impede que clicar no X acabe ativando o fundo e abrindo o modal de novo
+    // Essa trava impede que o clique no "X" ative a caixa inteira e abra o modal sem querer
     if (e) {
         e.preventDefault();
         e.stopPropagation(); 
     }
     
-    // 1. Zera a memória do filtro
+    // 1. Limpa a memória lógica da tabela
     const filterInput = document.getElementById('filter-search-product-value');
     if (filterInput) filterInput.value = '';
     
-    // 2. Volta o texto visual ao estado inicial
-    const displaySpan = document.getElementById('selected-product-display');
-    if (displaySpan) {
-        displaySpan.innerText = 'Selecionar produto...';
-        displaySpan.classList.remove('text-yellow-500');
-        displaySpan.classList.add('text-gray-400');
-    }
-
-    // 3. Esconde o botão de (X) novamente
-    const btnClearX = document.getElementById('btn-clear-prod-selection');
-    if (btnClearX) {
-        btnClearX.classList.add('hidden');
-        btnClearX.classList.remove('flex');
+    // 2. Restaura o visual padrão "Selecionar produto..." da sua imagem
+    const displayBox = document.getElementById('filter-search-product');
+    if (displayBox) {
+        displayBox.innerHTML = `
+            <div class="flex items-center gap-2 text-gray-400 w-full pointer-events-none">
+                <i class="fas fa-box text-gray-500 shrink-0"></i>
+                <span class="text-sm truncate">Selecionar produto...</span>
+            </div>
+        `;
     }
     
-    // Limpa a busca interna do modal para a próxima vez
     const internalSearch = document.getElementById('selector-internal-search');
     if (internalSearch) internalSearch.value = '';
     

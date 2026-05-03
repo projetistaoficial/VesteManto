@@ -3897,7 +3897,7 @@ function setupEventListeners() {
 
             if (valor.length > 0) {
                 // 2. Se tiver menos de 10 ou mais de 13 números, está errado
-                if (valor.length < 11 || valor.length > 13) {
+                if (valor.length < 10 || valor.length > 13) {
                     inputWpp.classList.remove('border-gray-700', 'focus:border-yellow-500', 'border-green-500');
                     inputWpp.classList.add('border-red-500', 'focus:border-red-500'); // Borda vermelha
                     erroWpp.classList.remove('hidden'); // Mostra o aviso

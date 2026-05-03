@@ -257,146 +257,29 @@ function updateCarouselUI(images) {
 }
 
 // 2. Renderiza as miniaturas no formulário
-// =================================================================
-// 📸 RENDERIZADOR DE IMAGENS COM DRAG & DROP (DESKTOP E MOBILE)
-// =================================================================
-window.renderImagePreviews = () => {
-    const container = document.getElementById('prod-imgs-preview');
+function renderImagePreviews() {
+    const container = getEl('prod-imgs-preview');
     if (!container) return;
 
     container.innerHTML = '';
 
-    if (!state.tempImages || state.tempImages.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada. Clique em "Adicionar Foto".</p>';
+    if (state.tempImages.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada</p>';
         return;
     }
 
-    let draggedIndex = null; // Memória de quem está sendo arrastado
-
     state.tempImages.forEach((imgSrc, index) => {
         const div = document.createElement('div');
-        // Classes atualizadas para cursor de movimento e animações
-        div.className = "relative w-20 h-20 group border border-gray-600 rounded-lg overflow-hidden cursor-move transition-transform shadow-sm drag-item select-none";
-        
-        // Permite o drag nativo no PC
-        div.draggable = true;
-        div.dataset.index = index;
-
-        // O HTML da caixinha (Note o pointer-events-none nas imagens para não bugar o toque do celular)
+        div.className = "relative w-16 h-16 group border border-gray-600 rounded overflow-hidden";
         div.innerHTML = `
-            <img src="${imgSrc}" class="w-full h-full object-cover pointer-events-none select-none">
-            
-            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center pointer-events-none">
-                <i class="fas fa-arrows-alt text-white text-sm"></i>
-            </div>
-            
-            <button type="button" onclick="event.stopPropagation(); removeTempImage(${index})" 
-                class="absolute top-1 right-1 w-6 h-6 bg-red-600 hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-10 shadow-md">
-                <i class="fas fa-trash text-[10px]"></i>
+            <img src="${imgSrc}" class="w-full h-full object-cover">
+            <button type="button" onclick="removeTempImage(${index})" class="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                <i class="fas fa-trash text-red-500"></i>
             </button>
-            
-            ${index === 0 ? '<span class="absolute bottom-0 left-0 right-0 bg-yellow-500 text-black text-[9px] font-bold text-center uppercase py-0.5 pointer-events-none shadow-[0_-2px_4px_rgba(0,0,0,0.3)]">Capa</span>' : ''}
         `;
-
-        // ---------------------------------------------------
-        // 🖱️ EVENTOS PARA PC (MOUSE / HTML5 DRAG & DROP)
-        // ---------------------------------------------------
-        div.addEventListener('dragstart', (e) => {
-            draggedIndex = index;
-            e.dataTransfer.effectAllowed = "move";
-            setTimeout(() => div.classList.add('opacity-30'), 0);
-        });
-
-        div.addEventListener('dragend', () => {
-            div.classList.remove('opacity-30');
-            renderImagePreviews(); // Limpa as bordas amarelas
-        });
-
-        div.addEventListener('dragover', (e) => {
-            e.preventDefault(); // OBRIGATÓRIO para permitir soltar
-            div.classList.add('border-yellow-500', 'border-2', 'scale-105');
-        });
-
-        div.addEventListener('dragleave', () => {
-            div.classList.remove('border-yellow-500', 'border-2', 'scale-105');
-        });
-
-        div.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const targetIndex = index;
-            if (draggedIndex !== null && draggedIndex !== targetIndex) {
-                reorderImages(draggedIndex, targetIndex);
-            }
-        });
-
-        // ---------------------------------------------------
-        // 📱 EVENTOS PARA CELULAR (TOUCH API)
-        // ---------------------------------------------------
-        div.addEventListener('touchstart', (e) => {
-            // Ignora o toque se o usuário clicou na lixeirinha
-            if(e.target.closest('button')) return;
-            
-            draggedIndex = index;
-            div.classList.add('opacity-50', 'scale-110', 'z-50', 'ring-2', 'ring-yellow-500');
-        }, {passive: true});
-
-        div.addEventListener('touchmove', (e) => {
-            if (draggedIndex === null) return;
-            e.preventDefault(); // 🛑 Trava a tela para não rolar o site enquanto arrasta a foto
-            
-            const touch = e.touches[0];
-            // O Segredo: Acha qual elemento está embaixo do dedo em tempo real
-            const element = document.elementFromPoint(touch.clientX, touch.clientY);
-            
-            // Limpa as bordas de todos
-            document.querySelectorAll('.drag-item').forEach(el => el.classList.remove('border-yellow-500', 'border-2', 'scale-105'));
-            
-            // Acende a borda de quem o dedo está sobrevoando
-            if (element && element.closest('.drag-item')) {
-                const targetEl = element.closest('.drag-item');
-                if(targetEl !== div) targetEl.classList.add('border-yellow-500', 'border-2', 'scale-105');
-            }
-        }, {passive: false}); // passive false é necessário para o e.preventDefault funcionar no mobile
-
-        div.addEventListener('touchend', (e) => {
-            if (draggedIndex === null) return;
-            
-            const touch = e.changedTouches[0];
-            const element = document.elementFromPoint(touch.clientX, touch.clientY);
-            const targetEl = element ? element.closest('.drag-item') : null;
-
-            if (targetEl) {
-                const targetIndex = parseInt(targetEl.dataset.index);
-                if (draggedIndex !== targetIndex) {
-                    reorderImages(draggedIndex, targetIndex);
-                } else {
-                    renderImagePreviews();
-                }
-            } else {
-                renderImagePreviews(); // Soltou fora, só reseta
-            }
-            draggedIndex = null;
-        });
-
         container.appendChild(div);
     });
-};
-
-// --- Função que executa a troca na memória ---
-window.reorderImages = (fromIndex, toIndex) => {
-    // Tira a imagem da posição antiga
-    const imgToMove = state.tempImages.splice(fromIndex, 1)[0];
-    // Insere na nova posição
-    state.tempImages.splice(toIndex, 0, imgToMove);
-    // Renderiza a tela de novo
-    renderImagePreviews();
-};
-
-// --- Remove imagem da lista temporária ---
-window.removeTempImage = (index) => {
-    state.tempImages.splice(index, 1);
-    renderImagePreviews();
-};
+}
 
 // 3. Remove imagem da lista temporária
 window.removeTempImage = (index) => {
@@ -3435,7 +3318,7 @@ function setupEventListeners() {
 
     setupAccordion('btn-acc-sales-filters', 'content-acc-sales-filters', 'arrow-acc-sales-filters');
 
-    const idsFiltros = ['filter-search-general', 'filter-search-product-value', 'filter-status', 'filter-payment', 'filter-sort-order', 'filter-date-start', 'filter-date-end', 'filter-search-code'];
+    const idsFiltros = ['filter-search-general', 'filter-search-product', 'filter-status', 'filter-payment', 'filter-sort-order', 'filter-date-start', 'filter-date-end', 'filter-search-code'];
     idsFiltros.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -3444,20 +3327,12 @@ function setupEventListeners() {
         }
     });
 
-   const btnClear = document.getElementById('btn-clear-filters');
+    const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
-            // Limpa todos os inputs da lista
             idsFiltros.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-            
-            // Reseta a ordenação
             const sort = document.getElementById('filter-sort-order');
             if (sort) sort.value = 'date_desc';
-            
-            // 👉 A MÁGICA: Limpa a nossa caixa visual de produtos
-            clearProductFilter(null); 
-            
-            // Recarrega a tabela
             filterAndRenderSales();
         };
     }
@@ -3884,37 +3759,6 @@ function setupEventListeners() {
             });
         }
     });
-
-    // --- VALIDAÇÃO EM TEMPO REAL: WHATSAPP DA LOJA ---
-    const inputWpp = document.getElementById('conf-store-wpp');
-    const erroWpp = document.getElementById('erro-conf-wpp');
-
-    if (inputWpp && erroWpp) {
-        inputWpp.addEventListener('input', (e) => {
-            // 1. Remove qualquer letra ou símbolo na hora que o cara digita
-            let valor = e.target.value.replace(/\D/g, '');
-            e.target.value = valor;
-
-            if (valor.length > 0) {
-                // 2. Se tiver menos de 10 ou mais de 13 números, está errado
-                if (valor.length < 11 || valor.length > 13) {
-                    inputWpp.classList.remove('border-gray-700', 'focus:border-yellow-500', 'border-green-500');
-                    inputWpp.classList.add('border-red-500', 'focus:border-red-500'); // Borda vermelha
-                    erroWpp.classList.remove('hidden'); // Mostra o aviso
-                } else {
-                    // 3. Se estiver no tamanho certo, fica VERDE de sucesso
-                    inputWpp.classList.remove('border-red-500', 'focus:border-red-500', 'border-gray-700', 'focus:border-yellow-500');
-                    inputWpp.classList.add('border-green-500'); // Borda verde
-                    erroWpp.classList.add('hidden'); // Esconde o aviso
-                }
-            } else {
-                // 4. Se ele apagar tudo e o campo ficar vazio, volta pra cor original (cinza/amarelo)
-                inputWpp.classList.remove('border-red-500', 'focus:border-red-500', 'border-green-500');
-                inputWpp.classList.add('border-gray-700', 'focus:border-yellow-500');
-                erroWpp.classList.add('hidden');
-            }
-        });
-    }
 }
 
 // =================================================================
@@ -9036,224 +8880,6 @@ function validateCheckoutForm() {
     }
 }
 
-// =================================================================
-// 🔍 SELETOR DE PRODUTOS PARA FILTRO DE VENDAS
-// =================================================================
-
-window.openProductSelectorModal = () => {
-    const modal = document.getElementById('modal-product-selector'); 
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        
-        const searchInput = document.getElementById('selector-internal-search');
-        if (searchInput) {
-            searchInput.value = ''; // Limpa a busca anterior
-            setTimeout(() => searchInput.focus(), 100);
-        }
-        
-        window.renderProductSelectorList(''); 
-    }
-};
-
-window.closeProductSelectorModal = () => {
-    const modal = document.getElementById('modal-product-selector');
-    if (modal) {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
-};
-
-window.renderProductSelectorList = (searchTerm = '') => {
-    const listContainer = document.getElementById('product-selector-list');
-    if (!listContainer) return;
-
-    let filteredProducts = state.products;
-
-    if (searchTerm) {
-        const term = searchTerm.toLowerCase().trim();
-        filteredProducts = state.products.filter(p => 
-            p.name.toLowerCase().includes(term) || 
-            (p.code && String(p.code).includes(term))
-        );
-    }
-
-    if (filteredProducts.length === 0) {
-        listContainer.innerHTML = '<div class="p-8 text-center text-gray-500 text-sm italic">Nenhum produto encontrado.</div>';
-        return;
-    }
-
-    listContainer.innerHTML = filteredProducts.map(p => {
-        const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://placehold.co/100?text=Sem+Foto';
-        const safeName = p.name.replace(/'/g, "\\'"); // Impede que aspas no nome quebrem o clique
-        
-        return `
-            <div onclick="selectProductForFilter('${safeName}')" 
-                 class="flex items-center gap-3 p-3 border-b border-gray-800 hover:bg-gray-800 cursor-pointer transition active:scale-[0.98] rounded">
-                <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0">
-                <div class="flex flex-col flex-1 min-w-0">
-                    <span class="text-white font-bold text-sm truncate">${p.name}</span>
-                    <span class="text-gray-500 text-[10px] font-mono mt-0.5">Cód: #${p.code || '-'}</span>
-                </div>
-            </div>
-        `;
-    }).join('');
-};
-
-window.selectProductForFilter = (productName) => {
-    // 1. Atualiza o input oculto que a lógica de vendas usa
-    const filterInput = document.getElementById('filter-search-product-value'); 
-    if (filterInput) filterInput.value = productName;
-    
-    // 2. Atualiza o input/div visual para o Admin ver o que selecionou
-    const displayInput = document.getElementById('filter-search-product'); 
-    if (displayInput) {
-        if (displayInput.tagName === 'INPUT') displayInput.value = productName;
-        else displayInput.innerText = productName;
-    }
-
-    // 3. Fecha o modal
-    closeProductSelectorModal();
-    
-    // 4. Roda o filtro na tabela
-    if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
-};
-
-// =================================================================
-// 🔍 SELETOR DE PRODUTOS PARA FILTRO DE VENDAS (RESOLVIDO)
-// =================================================================
-
-window.openProductSelectorModal = () => {
-    const modal = document.getElementById('modal-product-selector'); 
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        
-        const searchInput = document.getElementById('selector-internal-search');
-        if (searchInput) {
-            searchInput.value = ''; // Limpa a busca anterior
-            setTimeout(() => searchInput.focus(), 100);
-        }
-        
-        window.renderProductSelectorList(''); 
-    }
-};
-
-window.closeProductSelectorModal = () => {
-    const modal = document.getElementById('modal-product-selector');
-    if (modal) {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
-};
-
-window.renderProductSelectorList = (searchTerm = '') => {
-    const listContainer = document.getElementById('product-selector-list');
-    if (!listContainer) return;
-
-    let filteredProducts = state.products;
-
-    if (searchTerm) {
-        const term = searchTerm.toLowerCase().trim();
-        filteredProducts = state.products.filter(p => 
-            p.name.toLowerCase().includes(term) || 
-            (p.code && String(p.code).includes(term))
-        );
-    }
-
-    if (filteredProducts.length === 0) {
-        listContainer.innerHTML = '<div class="p-8 text-center text-gray-500 text-sm italic">Nenhum produto encontrado.</div>';
-        return;
-    }
-
-    listContainer.innerHTML = filteredProducts.map(p => {
-        const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://placehold.co/100?text=Sem+Foto';
-        const safeName = p.name.replace(/'/g, "\\'"); // Impede que aspas no nome quebrem o clique
-        
-        return `
-            <div onclick="selectProductForFilter('${safeName}')" 
-                 class="flex items-center gap-3 p-3 border-b border-gray-800 hover:bg-gray-800 cursor-pointer transition active:scale-[0.98] rounded">
-                <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0">
-                <div class="flex flex-col flex-1 min-w-0">
-                    <span class="text-white font-bold text-sm truncate">${p.name}</span>
-                    <span class="text-gray-500 text-[10px] font-mono mt-0.5">Cód: #${p.code || '-'}</span>
-                </div>
-            </div>
-        `;
-    }).join('');
-};
-
-window.selectProductForFilter = (productName) => {
-    // 1. Atualiza o input oculto que a tabela lê
-    const filterInput = document.getElementById('filter-search-product-value'); 
-    if (filterInput) filterInput.value = productName;
-    
-    // 2. Atualiza o texto na tela (O ID exato do seu HTML)
-    const displaySpan = document.getElementById('selected-product-display');
-    if (displaySpan) {
-        displaySpan.innerText = productName;
-        displaySpan.classList.remove('text-gray-400');
-        displaySpan.classList.add('text-yellow-500'); // Deixa amarelinho pra mostrar que tem filtro ativo
-    }
-
-    // 3. Mostra o botão de (X) que estava escondido no seu HTML
-    const btnClearX = document.getElementById('btn-clear-prod-selection');
-    if (btnClearX) {
-        btnClearX.classList.remove('hidden');
-        btnClearX.classList.add('flex');
-    }
-
-    // Fecha o modal e roda o filtro da tabela
-    window.closeProductSelectorModal();
-    if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
-};
-
-window.clearProductFilter = (e) => {
-    // Impede que clicar no X acabe ativando o fundo e abrindo o modal de novo
-    if (e) {
-        e.preventDefault();
-        e.stopPropagation(); 
-    }
-    
-    // 1. Zera a memória do filtro
-    const filterInput = document.getElementById('filter-search-product-value');
-    if (filterInput) filterInput.value = '';
-    
-    // 2. Volta o texto visual ao estado inicial
-    const displaySpan = document.getElementById('selected-product-display');
-    if (displaySpan) {
-        displaySpan.innerText = 'Selecionar produto...';
-        displaySpan.classList.remove('text-yellow-500');
-        displaySpan.classList.add('text-gray-400');
-    }
-
-    // 3. Esconde o botão de (X) novamente
-    const btnClearX = document.getElementById('btn-clear-prod-selection');
-    if (btnClearX) {
-        btnClearX.classList.add('hidden');
-        btnClearX.classList.remove('flex');
-    }
-    
-    // Limpa a busca interna do modal para a próxima vez
-    const internalSearch = document.getElementById('selector-internal-search');
-    if (internalSearch) internalSearch.value = '';
-    
-    // Roda a tabela para exibir todas as vendas de novo
-    if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
-};
-
-// ✨ BLINDAGEM DO BOTÃO GERAL "LIMPAR" ✨
-// Ensinamos o seu botão geral a apagar a nossa caixa personalizada
-setTimeout(() => {
-    const btnClear = document.getElementById('btn-clear-filters');
-    if (btnClear) {
-        const oldOnClick = btnClear.onclick;
-        btnClear.onclick = (e) => {
-            if (oldOnClick) oldOnClick(e); // Limpa as datas, nome de cliente, etc
-            clearProductFilter(null); // Limpa a nossa caixa "Selecionar produto..."
-        };
-    }
-}, 1000);
 
 // ============================================================
 // CONECTOR GLOBAL FINAL (ÚNICO E OBRIGATÓRIO)
@@ -9311,12 +8937,6 @@ window.toggleOrderAccordion = toggleOrderAccordion;
 window.markAsViewed = markAsViewed;
 window.clientCancelOrder = clientCancelOrder;
 window.retryWhatsapp = retryWhatsapp;
-
-window.openProductSelectorModal = openProductSelectorModal;
-window.closeProductSelectorModal = closeProductSelectorModal;
-window.renderProductSelectorList = renderProductSelectorList;
-window.selectProductForFilter = selectProductForFilter;
-window.clearProductFilter = clearProductFilter;
 
 // 6. DESTRAVA ESTATÍSTICAS (Se for admin logado)
 if (state.user && typeof loadAdminSales === 'function') {

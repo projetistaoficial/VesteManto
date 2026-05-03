@@ -93,3 +93,17 @@
     details>summary::-webkit-details-marker {
         display: none;
     }
+
+    /* ========================================= */
+/* DESBLOQUEIO DE SEGURANÇA                  */
+/* ========================================= */
+
+/* Se o CSS carregou, apaga a tela de erro da existência */
+#css-falhou-aviso {
+    display: none !important;
+}
+
+/* E mostra o site de volta */
+#app-conteudo {
+    display: block !important;
+}

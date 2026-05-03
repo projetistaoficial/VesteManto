@@ -5,26 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Projetista Oficial</title>
-    <style>
-        /* 🛡️ BLINDAGEM NÍVEL 1: Oculta tudo que não for o Loader até o JS autorizar */
-        body:not(.loaded)> :not(#global-loader):not(noscript) {
-            display: none !important;
-        }
-
-        /* Oculta o loader suavemente depois que o JS carrega */
-        body.loaded #global-loader {
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.5s ease;
-        }
-
-        /* Animação do Loader */
-        @keyframes spin-loader {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-    </style>
 
 
 
@@ -63,31 +43,6 @@
 </head>
 
 <body class="bg-[var(--bg-main)] text-[var(--txt-body)] text-white font-sans antialiased">
-    <noscript>
-        <div
-            style="position: fixed; inset: 0; background: #000; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999999;">
-            <svg style="width: 80px; height: 80px; color: #ef4444; margin-bottom: 20px;" fill="none"
-                stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
-                </path>
-            </svg>
-            <h1 style="font-size: 24px; font-weight: bold; margin: 0;">Javascript Desativado</h1>
-            <p style="color: #9ca3af; margin-top: 10px; max-width: 400px; text-align: center;">O sistema de segurança
-                desta loja exige o Javascript ativado para funcionar. Por favor, habilite-o nas configurações do seu
-                navegador.</p>
-        </div>
-    </noscript>
-
-    <!-- 🛡️ BLINDAGEM NÍVEL 3: O Carregamento Infinito (Até o JS trancar o cofre) -->
-    <div id="global-loader"
-        style="position: fixed; inset: 0; background: #0a0c13; z-index: 9999999; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-        <div
-            style="width: 50px; height: 50px; border: 4px solid #1f2937; border-top-color: #eab308; border-radius: 50%; animation: spin-loader 1s linear infinite;">
-        </div>
-        <p style="color: #eab308; margin-top: 20px; font-family: monospace; font-weight: bold; letter-spacing: 2px;">
-            INICIANDO SITE...</p>
-    </div>
 
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/stats.js"></script>
@@ -1180,12 +1135,7 @@
                                 <label class="text-gray-400 text-xs font-bold uppercase mb-1 block">WhatsApp (Apenas
                                     números)</label>
                                 <input type="text" id="conf-store-wpp" placeholder="5511999999999"
-                                    class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none transition">
-
-                                <!-- Mensagem de erro escondida -->
-                                <span id="erro-conf-wpp" class="text-red-500 text-[10px] font-bold mt-1 hidden block">
-                                    ⚠️ Digite um número válido (ex: 11999999999).
-                                </span>
+                                    class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none">
                             </div>
 
                             <div>
@@ -2432,33 +2382,7 @@
     </div>
 
 
-    <div id="modal-product-selector"
-        class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-[60]">
-        <div
-            class="bg-[#151720] w-full max-w-md rounded-2xl border border-gray-800 shadow-2xl flex flex-col max-h-[80vh] m-4 animate-scale-up">
-
-            <div class="p-4 border-b border-gray-800 flex justify-between items-center">
-                <h3 class="text-white font-bold text-lg">Selecionar Produto</h3>
-                <button onclick="closeProductSelectorModal()"
-                    class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-800 flex items-center justify-center transition">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-
-            <div class="p-4 pb-2">
-                <div
-                    class="bg-black border border-gray-700 rounded-lg flex items-center px-3 h-10 focus-within:border-yellow-500 transition">
-                    <i class="fas fa-search text-gray-500 mr-2"></i>
-                    <input type="text" id="selector-internal-search" oninput="renderProductSelectorList(this.value)"
-                        placeholder="Buscar na lista..."
-                        class="bg-transparent border-none text-white text-sm w-full outline-none">
-                </div>
-            </div>
-
-            <div id="product-selector-list" class="flex-1 overflow-y-auto p-2 custom-scrollbar">
-            </div>
-        </div>
-    </div>
+   
 
     <div id="modal-store-closed"
         class="fixed inset-0 bg-black/95 z-[90] hidden flex-col items-center justify-center p-6 text-center backdrop-blur-md">
