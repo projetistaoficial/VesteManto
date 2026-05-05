@@ -1057,7 +1057,7 @@ function exibirTelaMorte(titulo, msg, tipo = 'erro') {
                 <!-- 🖼️ INSIRA O LINK DA SUA IMAGEM DE PROPAGANDA AQUI 👇 -->
                 <img src="tudoCentral.png" alt="Crie sua Loja Virtual" class="promo-img">
                 
-                <h2 style="color: #fff; font-size: 1.3rem; margin: 0 0 8px 0; font-weight: 800;">Tenha o SEU E-Commerce, sua loja automática e profissional</h2>
+                <h2 style="color: #fff; font-size: 1.3rem; margin: 0 0 8px 0; font-weight: 800;">Tenha o SEU E-Commerce</h2>
                 <p style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.5; margin: 0;">
                     Tenha um catálogo online completo como este. Venda pelo WhatsApp, gerencie seus pedidos e escale o seu negócio com a Projetista Oficial.
                 </p>
@@ -1065,7 +1065,7 @@ function exibirTelaMorte(titulo, msg, tipo = 'erro') {
                 <div class="social-links">
                     <!-- 🌐 INSIRA O LINK DA SUA LANDING PAGE AQUI 👇 -->
                     <a href="https://projetistaoficial.com" target="_blank" class="social-btn btn-site">
-                        <i class="fas fa-rocket text-lg"></i> Criar Minha Loja e 5 minutos
+                        <i class="fas fa-rocket text-lg"></i> Criar Minha Loja
                     </a>
                     
                     <!-- 📸 LINK DO INSTAGRAM -->

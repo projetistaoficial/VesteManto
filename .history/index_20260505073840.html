@@ -126,40 +126,7 @@
             window.history.replaceState(null, '', '?site=' + siteId);
         }
 
-        // --- MANTENDO SEU DESIGN DE TELAS DE ERRO ---
-        function destruirTudo(titulo, motivo, tipo = 'erro') {
-            console.error("⛔ ACESSO NEGADO: " + motivo);
-            document.body.innerHTML = '';
-            document.body.style.setProperty('display', 'block', 'important');
-            document.body.classList.add('loaded');
-
-            let iconHtml = '🚫';
-            let mainColor = '#ef4444';
-            let bgStyle = 'background-color: black;';
-
-            if (tipo === 'pausado') {
-                iconHtml = '⚙️';
-                mainColor = '#facc15';
-                bgStyle = 'background: linear-gradient(135deg, #0f172a 0%, #000000 100%);';
-            }
-
-            document.body.style.cssText = `display: block !important; ${bgStyle}`;
-
-            document.body.innerHTML = `
-        <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; font-family:sans-serif; text-align:center; padding: 20px;">
-            <div style="font-size: 4rem; margin-bottom: 20px;">${iconHtml}</div>
-            <h1 style="font-size:2rem; color:${mainColor}; margin:0; line-height: 1.2;">${titulo}</h1>
-            <p style="color:#94a3b8; margin-top: 15px; font-size: 1.1rem; max-width: 400px; line-height: 1.5;">${motivo}</p>
-            <button onclick="window.location.reload()" style="margin-top:40px; padding:12px 30px; background:${mainColor}; color:${tipo === 'pausado' ? '#000' : '#fff'}; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Atualizar</button>
-            <div style="margin-top: 80px; display: flex; flex-direction: column; align-items: center; opacity: 0.6;">
-                <span style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; font-weight: bold;">Aproveite para conhecer a Projetista</span>
-                <a href="https://instagram.com/projetista_oficial" target="_blank" style="color: #ec4899; font-size: 2.2rem;">
-                    <i class="fab fa-instagram"></i>
-                </a>
-            </div>
-        </div>
-        `;
-        }
+ 
 
         // --- LÓGICA DE VALIDAÇÃO ---
         async function validar() {

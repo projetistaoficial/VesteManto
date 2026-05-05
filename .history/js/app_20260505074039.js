@@ -277,7 +277,7 @@ window.renderImagePreviews = () => {
         const div = document.createElement('div');
         // Classes atualizadas para cursor de movimento e animações
         div.className = "relative w-20 h-20 group border border-gray-600 rounded-lg overflow-hidden cursor-move transition-transform shadow-sm drag-item select-none";
-
+        
         // Permite o drag nativo no PC
         div.draggable = true;
         div.dataset.index = index;
@@ -334,33 +334,33 @@ window.renderImagePreviews = () => {
         // ---------------------------------------------------
         div.addEventListener('touchstart', (e) => {
             // Ignora o toque se o usuário clicou na lixeirinha
-            if (e.target.closest('button')) return;
-
+            if(e.target.closest('button')) return;
+            
             draggedIndex = index;
             div.classList.add('opacity-50', 'scale-110', 'z-50', 'ring-2', 'ring-yellow-500');
-        }, { passive: true });
+        }, {passive: true});
 
         div.addEventListener('touchmove', (e) => {
             if (draggedIndex === null) return;
             e.preventDefault(); // 🛑 Trava a tela para não rolar o site enquanto arrasta a foto
-
+            
             const touch = e.touches[0];
             // O Segredo: Acha qual elemento está embaixo do dedo em tempo real
             const element = document.elementFromPoint(touch.clientX, touch.clientY);
-
+            
             // Limpa as bordas de todos
             document.querySelectorAll('.drag-item').forEach(el => el.classList.remove('border-yellow-500', 'border-2', 'scale-105'));
-
+            
             // Acende a borda de quem o dedo está sobrevoando
             if (element && element.closest('.drag-item')) {
                 const targetEl = element.closest('.drag-item');
-                if (targetEl !== div) targetEl.classList.add('border-yellow-500', 'border-2', 'scale-105');
+                if(targetEl !== div) targetEl.classList.add('border-yellow-500', 'border-2', 'scale-105');
             }
-        }, { passive: false }); // passive false é necessário para o e.preventDefault funcionar no mobile
+        }, {passive: false}); // passive false é necessário para o e.preventDefault funcionar no mobile
 
         div.addEventListener('touchend', (e) => {
             if (draggedIndex === null) return;
-
+            
             const touch = e.changedTouches[0];
             const element = document.elementFromPoint(touch.clientX, touch.clientY);
             const targetEl = element ? element.closest('.drag-item') : null;
@@ -703,16 +703,16 @@ window.fecharModalLogin = () => {
 // =================================================================
 // 🛡️ SISTEMA DE BLINDAGEM DOM (ANTI-VAZAMENTO DE HTML) - DEFINITIVO
 // =================================================================
-const domVault = {};
+const domVault = {}; 
 
 // ✨ A MÁGICA: Interceptador de Busca!
 // Como nós arrancamos o HTML da tela, o JS normal ficaria "cego".
 // Esse código ensina o navegador a procurar os itens DENTRO do cofre também!
 const originalGetElementById = document.getElementById.bind(document);
-document.getElementById = function (id) {
+document.getElementById = function(id) {
     let el = originalGetElementById(id);
     if (el) return el; // Se achou na tela, perfeito.
-
+    
     // Se não achou na tela, vasculha o cofre:
     for (let key in domVault) {
         const vaultEl = domVault[key];
@@ -728,7 +728,7 @@ document.getElementById = function (id) {
 window.lockAdminVault = () => {
     // Áreas sensíveis que devem SUMIR fisicamente do código fonte
     const secureAreas = ['view-admin', 'view-support', 'product-form-modal', 'modal-admin-order'];
-
+    
     secureAreas.forEach(id => {
         const el = originalGetElementById(id);
         if (el && !domVault[id]) {
@@ -736,7 +736,7 @@ window.lockAdminVault = () => {
             const placeholder = document.createElement('div');
             placeholder.id = `vault-placeholder-${id}`;
             placeholder.style.display = 'none';
-
+            
             el.parentNode.insertBefore(placeholder, el);
             domVault[id] = el; // Guarda a área inteira na memória RAM
             el.remove(); // ✨ EXCLUI o HTML da página, impossibilitando leitura sem senha!
@@ -752,7 +752,7 @@ window.lockAdminVault = () => {
 
 window.unlockAdminVault = () => {
     const secureAreas = ['view-admin', 'view-support', 'product-form-modal', 'modal-admin-order'];
-
+    
     secureAreas.forEach(id => {
         const placeholder = originalGetElementById(`vault-placeholder-${id}`);
         if (placeholder && domVault[id]) {
@@ -970,7 +970,7 @@ async function initApp() {
                                 loginModal.setAttribute('open', 'true');
                             }
                         }
-                    }, 500);
+                    }, 500); 
                 }
             }
             setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
@@ -1007,81 +1007,53 @@ function exibirTelaMorte(titulo, msg, tipo = 'erro') {
 
     // 1. Limpa e Prepara o Body
     document.body.innerHTML = '';
-
-    // Reseta margens e fundo do body para o layout preencher tudo
-    document.body.style.cssText = `display: block !important; background-color: #0B0E14; min-height: 100vh; margin: 0; padding: 0;`;
+    document.body.style.display = 'block';
 
     // 2. Define o Design com base no Tipo
     let iconHtml = '<i class="fas fa-ban"></i>';
     let mainColor = '#ef4444'; // Vermelho Agressivo (Bloqueio)
-    let bgStyle = 'background: radial-gradient(circle at top, #2a0808 0%, #0B0E14 100%);';
+    let bgStyle = 'background: #000;';
+    let btnTextColor = 'white';
 
     if (tipo === 'pausado') {
-        iconHtml = '<i class="fas fa-cog fa-spin"></i>'; // Ícone Manutenção
+        iconHtml = '<i class="fas fa-tools"></i>'; // Ícone Manutenção
         mainColor = '#facc15'; // Amarelo Suave
-        bgStyle = 'background: radial-gradient(circle at top, #2a2208 0%, #0B0E14 100%);';
+        bgStyle = 'background: linear-gradient(135deg, #0f172a 0%, #000000 100%);'; // Fundo Azul Escuro Elegante
+        btnTextColor = '#000'; // Texto preto no botão amarelo
     }
 
-    // 3. Define o HTML Dinâmico (Com o novo design premium e cards)
+    // 3. Define o HTML Dinâmico
     document.body.innerHTML = `
-        <style>
-            .lock-wrapper { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; box-sizing: border-box; ${bgStyle} }
-            .lock-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 24px; padding: 40px 30px; text-align: center; width: 100%; max-width: 450px; backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); margin-bottom: 25px; }
-            .promo-card { background: linear-gradient(145deg, rgba(37, 99, 235, 0.1), rgba(147, 51, 234, 0.05)); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 24px; padding: 25px; text-align: center; width: 100%; max-width: 450px; box-shadow: 0 0 30px rgba(37, 99, 235, 0.1); position: relative; overflow: hidden; }
-            .promo-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899); }
-            .promo-img { width: 100%; height: 160px; object-fit: cover; border-radius: 12px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1); background-color: #161821; }
-            .btn-reload { padding: 12px 35px; border: none; border-radius: 10px; font-weight: 800; cursor: pointer; font-size: 1rem; transition: transform 0.2s, opacity 0.2s; text-transform: uppercase; letter-spacing: 1px; margin-top: 10px; }
-            .btn-reload:hover { transform: scale(1.05); opacity: 0.9; }
-            .social-links { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 20px; }
-            .social-btn { flex: 1; min-width: 140px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 12px; text-decoration: none; font-weight: bold; font-size: 0.85rem; transition: all 0.2s; text-transform: uppercase; }
-            .btn-site { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
-            .btn-site:hover { background: rgba(59, 130, 246, 0.4); color: #fff; transform: translateY(-2px); }
-            .btn-insta { background: rgba(236, 72, 153, 0.2); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.3); }
-            .btn-insta:hover { background: rgba(236, 72, 153, 0.4); color: #fff; transform: translateY(-2px); }
-        </style>
-
-        <div class="lock-wrapper">
+        <div style="
+            position: fixed; inset: 0; ${bgStyle} color: #fff; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            z-index: 999999; font-family: sans-serif; text-align: center; padding: 20px;
+        ">
+            <div style="font-size: 4rem; color: ${mainColor}; margin-bottom: 20px; opacity: 0.9;">
+                ${iconHtml}
+            </div>
+            <h1 style="font-size: 2rem; font-weight: bold; margin: 0; color: white; line-height: 1.2;">${titulo}</h1>
+            <p style="color: #94a3b8; margin-top: 15px; font-size: 1.1rem; max-width: 400px; line-height: 1.5;">${msg}</p>
             
-            <!-- ⛔ CARTÃO DE AVISO (BLOQUEIO/PAUSA) -->
-            <div class="lock-card">
-                <div style="font-size: 4rem; margin-bottom: 15px; color: ${mainColor}; text-shadow: 0 0 30px ${mainColor}60;">${iconHtml}</div>
-                <h1 style="font-size: 1.8rem; color: white; margin: 0 0 10px 0; font-weight: 900; letter-spacing: -0.5px;">${titulo}</h1>
-                <p style="color: #94a3b8; margin: 0 0 25px 0; font-size: 1rem; line-height: 1.5;">${msg}</p>
-                <button class="btn-reload" onclick="window.location.reload()" style="background: ${mainColor}; color: ${tipo === 'pausado' ? '#000' : '#fff'};">
-                    Atualizar Página
-                </button>
-            </div>
+            <button onclick="window.location.reload()" style="
+                margin-top: 40px; padding: 12px 30px; background: ${mainColor}; color: ${btnTextColor}; 
+                border: none; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: opacity 0.2s;
+            " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                Tentar Novamente
+            </button>
 
-            <!-- 🚀 CARTÃO DE PROPAGANDA (CAPTAÇÃO DE LEADS) -->
-            <div class="promo-card">
-                <!-- 🖼️ INSIRA O LINK DA SUA IMAGEM DE PROPAGANDA AQUI 👇 -->
-                <img src="tudoCentral.png" alt="Crie sua Loja Virtual" class="promo-img">
-                
-                <h2 style="color: #fff; font-size: 1.3rem; margin: 0 0 8px 0; font-weight: 800;">Tenha o SEU E-Commerce, sua loja automática e profissional</h2>
-                <p style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.5; margin: 0;">
-                    Tenha um catálogo online completo como este. Venda pelo WhatsApp, gerencie seus pedidos e escale o seu negócio com a Projetista Oficial.
-                </p>
-                
-                <div class="social-links">
-                    <!-- 🌐 INSIRA O LINK DA SUA LANDING PAGE AQUI 👇 -->
-                    <a href="https://projetistaoficial.com" target="_blank" class="social-btn btn-site">
-                        <i class="fas fa-rocket text-lg"></i> Criar Minha Loja e 5 minutos
-                    </a>
-                    
-                    <!-- 📸 LINK DO INSTAGRAM -->
-                    <a href="https://instagram.com/projetista_oficial" target="_blank" class="social-btn btn-insta">
-                        <i class="fab fa-instagram text-lg"></i> Instagram
-                    </a>
-                </div>
+            <div style="margin-top: 80px; display: flex; flex-direction: column; align-items: center; opacity: 0.6; transition: opacity 0.3s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">
+                <span style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; font-weight: bold;">Aproveite para conhecer a Projetista</span>
+                <a href="https://instagram.com/projetista_oficial" target="_blank" title="Siga a Projetista no Instagram" style="color: #ec4899; font-size: 2.2rem; text-decoration: none; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+                    <i class="fab fa-instagram"></i>
+                </a>
             </div>
-
         </div>
     `;
 
     // 4. Força a visibilidade
     document.body.style.opacity = "1";
     document.body.style.pointerEvents = "auto";
-    // Essa classe "loaded" desativa as blindagens de CSS que escondiam o site!
     document.body.classList.add('acesso-liberado', 'loaded');
 
     // 5. Garante Fonte de Ícones (Para o Insta funcionar mesmo sem carregar o resto)
@@ -1186,10 +1158,10 @@ function loadProducts() {
 function loadCategories() {
     // Carrega sem forçar ordem alfabética no banco
     const q = query(collection(db, `sites/${state.siteId}/categories`));
-
+    
     onSnapshot(q, (snapshot) => {
         let cats = snapshot.docs.map(d => ({ id: d.id, order: 999, ...d.data() }));
-
+        
         // Ordena primeiro pela numeração 'order', se empatar, vai por ordem alfabética
         cats.sort((a, b) => {
             if (a.order !== b.order) return a.order - b.order;
@@ -1393,7 +1365,7 @@ function loadSiteStats() {
         if (typeof updateStatsData === 'function') {
             updateStatsData(state.orders, state.products, state.dailyStats);
         }
-
+        
         // ✨ CORREÇÃO: Força a atualização da tela imediatamente quando o Firebase responde!
         if (typeof calculateStatsMetrics === 'function') {
             calculateStatsMetrics();
@@ -1810,7 +1782,7 @@ function renderCategories() {
     const sidebarContainer = document.getElementById('sidebar-categories');
     if (sidebarContainer) {
         const tree = {};
-
+        
         // Monta a Árvore
         state.categories.forEach(c => {
             const parts = c.name.split(' - ');
@@ -1977,7 +1949,7 @@ function renderAdminCategoryList() {
 
                     <div class="flex items-center gap-3">
                         ${hasChildren ?
-                    `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
+                            `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
                                 <span class="text-gray-300 text-sm group-open:text-yellow-500">▲</span>
                              </div>` : ''}
 
@@ -2883,7 +2855,7 @@ function renderSalesList(orders) {
         // =========================================================
         const btnPrint = `<button type="button" onclick="event.stopPropagation(); printOrder('${o.id}')" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-3 py-2 rounded text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-print"></i> Imprimir</button>`;
         const btnFinance = `<button type="button" onclick="event.stopPropagation(); document.getElementById('admin-finance-panel-${o.id}').classList.toggle('hidden');" class="bg-blue-900/20 hover:bg-blue-900/40 border border-blue-900/50 text-blue-400 px-3 py-2 rounded text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-hand-holding-usd"></i> Lucro</button>`;
-
+        
         const actionButtonsLeft = `<div class="flex items-center gap-2 w-full md:w-auto">${btnPrint}${btnFinance}</div>`;
 
         let controlsHtml = '';
@@ -2935,12 +2907,12 @@ function renderSalesList(orders) {
         // =========================================================
         let totalCost = 0;
         const financeDetailsHtml = (o.items || []).map(i => {
-            const c = parseFloat(i.cost) || 0;
-            const rev = parseFloat(i.price) * parseInt(i.qty);
-            const prof = rev - (c * parseInt(i.qty));
-            totalCost += c * parseInt(i.qty);
-
-            return `
+             const c = parseFloat(i.cost) || 0;
+             const rev = parseFloat(i.price) * parseInt(i.qty);
+             const prof = rev - (c * parseInt(i.qty));
+             totalCost += c * parseInt(i.qty);
+             
+             return `
                 <div class="flex justify-between items-center text-[11px] border-b border-gray-800/50 pb-2 mb-2 last:border-0 last:pb-0 last:mb-0">
                     <span class="font-bold text-gray-300 truncate pr-2 flex-1">${i.qty}x ${i.name}</span>
                     <div class="flex flex-col items-end text-right">
@@ -3174,7 +3146,7 @@ window.exportFinanceExcel = (orderId) => {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-
+    
     showToast("Planilha gerada com sucesso!", "success");
 };
 
@@ -3184,14 +3156,14 @@ window.exportFinancePDF = (orderId) => {
     if (!order) return showToast("Pedido não encontrado.", "error");
 
     let totalCost = 0;
-
+    
     // Constrói as linhas da tabela
     let itemsHtml = (order.items || []).map(i => {
         const cost = parseFloat(i.cost) || 0;
         const revenue = parseFloat(i.price) * parseInt(i.qty);
         const costTotal = cost * parseInt(i.qty);
         const profit = revenue - costTotal;
-
+        
         totalCost += costTotal;
 
         return `
@@ -3209,7 +3181,7 @@ window.exportFinancePDF = (orderId) => {
 
     // Abre uma nova janela para o relatório
     const printWindow = window.open('', '_blank', 'width=800,height=600');
-
+    
     // Desenha o HTML do relatório
     printWindow.document.write(`
         <!DOCTYPE html>
@@ -3280,15 +3252,15 @@ window.exportFinancePDF = (orderId) => {
         </body>
         </html>
     `);
-
+    
     printWindow.document.close();
     printWindow.focus();
-
+    
     // Aguarda o HTML carregar e abre a tela de impressão do Windows/Mac
     setTimeout(() => {
         printWindow.print();
         // Fecha a guia de impressão automaticamente depois que o usuário salvar/cancelar
-        printWindow.close();
+        printWindow.close(); 
     }, 500);
 };
 
@@ -3472,19 +3444,19 @@ function setupEventListeners() {
         }
     });
 
-    const btnClear = document.getElementById('btn-clear-filters');
+   const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
             // Limpa todos os inputs da lista
             idsFiltros.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-
+            
             // Reseta a ordenação
             const sort = document.getElementById('filter-sort-order');
             if (sort) sort.value = 'date_desc';
-
+            
             // 👉 A MÁGICA: Limpa a nossa caixa visual de produtos
-            clearProductFilter(null);
-
+            clearProductFilter(null); 
+            
             // Recarrega a tabela
             filterAndRenderSales();
         };
@@ -3504,7 +3476,7 @@ function setupEventListeners() {
 
     const btnCart = document.getElementById('cart-btn'); if (btnCart) btnCart.onclick = () => openCart();
     const btnCartMob = document.getElementById('cart-btn-mobile'); if (btnCartMob) btnCartMob.onclick = () => openCart();
-
+    
     if (els.btnCheckout) {
         els.btnCheckout.onclick = () => {
             if (state.cart.length === 0) return alert('Carrinho vazio');
@@ -3657,7 +3629,7 @@ function setupEventListeners() {
     const btnAddProd = getEl('btn-add-product');
     if (btnAddProd) {
         btnAddProd.onclick = () => {
-            if (typeof openNewProductModal === 'function') openNewProductModal();
+            if(typeof openNewProductModal === 'function') openNewProductModal();
         };
     }
 
@@ -3969,7 +3941,7 @@ document.addEventListener('click', (e) => {
     });
 
     // 3. Mostra o conteúdo da aba clicada
-    const targetId = btn.dataset.tab;
+    const targetId = btn.dataset.tab; 
     const targetContent = document.getElementById(targetId);
 
     if (targetContent) {
@@ -4108,19 +4080,19 @@ function showView(viewName) {
         // Padrão: Catálogo (Vitrine)
         showSecure(viewCatalog);
         hideSecure(viewAdmin); // Reafirma a trava do admin!
-
+        
         window.scrollTo({ top: 0, behavior: 'smooth' });
         document.title = `${storeName} - Catálogo`;
 
         if (window.activeAvisosListener) {
-            window.activeAvisosListener();
+            window.activeAvisosListener(); 
             window.activeAvisosListener = null;
         }
-
+        
         try {
             const alertIcon = document.getElementById('icone-avisos');
             if (alertIcon) alertIcon.classList.add('hidden');
-        } catch (e) { }
+        } catch (e) {}
     }
 
     if (typeof window.checkFooter === 'function') window.checkFooter();
@@ -4478,7 +4450,7 @@ window.openProductModal = (productId) => {
             elDesc.style.webkitLineClamp = '3';
             elDesc.style.webkitBoxOrient = 'vertical';
             elDesc.style.overflow = 'hidden';
-            elDesc.style.whiteSpace = 'normal';
+            elDesc.style.whiteSpace = 'normal'; 
 
             const btnMore = document.createElement('button');
             btnMore.id = 'btn-read-more';
@@ -4488,18 +4460,18 @@ window.openProductModal = (productId) => {
             btnMore.onclick = () => {
                 if (elDesc.style.webkitLineClamp === '3') {
                     elDesc.style.webkitLineClamp = 'unset';
-                    elDesc.style.whiteSpace = 'pre-line';
+                    elDesc.style.whiteSpace = 'pre-line'; 
                     btnMore.innerText = 'Ver menos';
                 } else {
                     elDesc.style.webkitLineClamp = '3';
-                    elDesc.style.whiteSpace = 'normal';
+                    elDesc.style.whiteSpace = 'normal'; 
                     btnMore.innerText = 'Ver mais';
                 }
             };
             elDesc.parentNode.insertBefore(btnMore, elDesc.nextSibling);
         } else {
             elDesc.style.webkitLineClamp = 'unset';
-            elDesc.style.whiteSpace = 'pre-line';
+            elDesc.style.whiteSpace = 'pre-line'; 
         }
     }
 
@@ -4532,11 +4504,11 @@ window.openProductModal = (productId) => {
         parent.classList.remove('flex', 'flex-col');
         sizesWrapper.style.order = '';
         btnAdd.style.order = '';
-
+        
         parent.appendChild(sizesWrapper);
         parent.appendChild(btnAdd);
-
-        btnAdd.style.marginTop = '16px';
+        
+        btnAdd.style.marginTop = '16px'; 
     }
 
     let selectedSizeInModal = null;
@@ -4546,7 +4518,7 @@ window.openProductModal = (productId) => {
 
     if (sizesDiv) {
         sizesDiv.innerHTML = '';
-
+        
         if (p.hasVariations && p.sizes && p.sizes.length > 0) {
             // ✨ ESTOQUE GRADEADO
             if (sizesWrapper) sizesWrapper.classList.remove('hidden');
@@ -4594,12 +4566,12 @@ window.openProductModal = (productId) => {
         } else {
             // ✨ ESTOQUE GERAL: Exibe "Tamanho Único" em vez de esconder tudo
             if (sizesWrapper) sizesWrapper.classList.remove('hidden');
-
+            
             const currentStock = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
             const isOut = currentStock <= 0 && !allowNegative;
-
+            
             const btnSingle = document.createElement('div');
-
+            
             if (isOut) {
                 btnSingle.className = `px-4 h-10 rounded border border-gray-700 bg-gray-800/50 text-gray-500 font-bold flex items-center justify-center text-sm cursor-not-allowed relative overflow-hidden`;
                 btnSingle.innerHTML = `<span class="opacity-50">Tamanho Único</span><div class="absolute inset-0 w-[140%] h-[1px] bg-red-500/70 transform origin-top-left rotate-6"></div>`;
@@ -4616,7 +4588,7 @@ window.openProductModal = (productId) => {
         if (!btnAdd) return;
 
         let currentStock = 0;
-
+        
         if (p.hasVariations && selectedSizeInModal) {
             currentStock = selectedSizeInModal.stock;
         } else {
@@ -4633,7 +4605,7 @@ window.openProductModal = (productId) => {
             btnAdd.disabled = false;
             btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i><span>ADICIONAR</span>`;
             btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide";
-
+            
             // Manda o código "U" pro carrinho para o carrinho não desenhar caixa nenhuma!
             const sizeNamePass = (p.hasVariations && selectedSizeInModal) ? selectedSizeInModal.name : 'U';
             btnAdd.onclick = () => { addToCart(p, sizeNamePass); closeProductModal(); };
@@ -4715,7 +4687,7 @@ window.openVariationModal = (index = null) => {
         modal.classList.remove('opacity-0');
         document.getElementById('variation-card').classList.remove('scale-95');
     }, 10);
-
+    
     inputName.focus();
 };
 
@@ -4763,8 +4735,8 @@ window.deleteVariation = () => {
 
     // Se o produto já existir no banco, verifica os pedidos pendentes
     if (prodId) {
-        const hasPendingOrder = state.orders.some(order =>
-            order.status === 'Pendente' &&
+        const hasPendingOrder = state.orders.some(order => 
+            order.status === 'Pendente' && 
             order.items.some(item => item.id === prodId && item.size === sizeName)
         );
 
@@ -5005,11 +4977,11 @@ window.saveProduct = async (e) => {
         if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
 
         const isGraded = document.getElementById('prod-has-variations').checked;
-
+        
         // ✨ O SEGREDO ESTÁ AQUI: Captura o Estoque Geral que o usuário digitou
         // E garante que ele NUNCA se misture com a grade!
         const inputGeneralStock = parseInt(document.getElementById('prod-stock').value) || 0;
-
+        
         let finalStock = 0; // O Estoque que os clientes vão ver na vitrine
         let finalSizes = state.tempVariations ? [...state.tempVariations] : [];
 
@@ -5018,10 +4990,10 @@ window.saveProduct = async (e) => {
             if (finalSizes.length === 0) {
                 showToast("Adicione pelo menos um tamanho no estoque gradeado.", "error");
                 if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
-                return;
+                return; 
             }
             // Vitrine usa a soma dos tamanhos
-            finalStock = finalSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0);
+            finalStock = finalSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0); 
         } else {
             // Vitrine usa o que foi digitado no estoque geral
             finalStock = inputGeneralStock;
@@ -5040,19 +5012,19 @@ window.saveProduct = async (e) => {
             price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
             promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
             cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
-            hasVariations: isGraded,
+            hasVariations: isGraded, 
             stock: finalStock,               // 👉 Vai para a vitrine
             generalStock: inputGeneralStock, // 👉 Fica guardado na memória do Painel
-            sizes: finalSizes,
+            sizes: finalSizes,       
             images: state.tempImages || [],
             allowNoStock: document.getElementById('prod-allow-no-stock').checked,
             highlight: document.getElementById('prod-highlight').checked,
-            paymentOptions: {
-                pix: {
-                    active: document.getElementById('prod-pix-active').checked,
-                    val: parseFloat(document.getElementById('prod-pix-val').value.replace(/\./g, '').replace(',', '.')) || 0,
-                    type: document.getElementById('prod-pix-type').value
-                }
+            paymentOptions: { 
+                pix: { 
+                    active: document.getElementById('prod-pix-active').checked, 
+                    val: parseFloat(document.getElementById('prod-pix-val').value.replace(/\./g, '').replace(',', '.')) || 0, 
+                    type: document.getElementById('prod-pix-type').value 
+                } 
             }
         };
 
@@ -5073,13 +5045,13 @@ window.saveProduct = async (e) => {
         document.getElementById('form-product').reset();
         state.tempImages = [];
         state.tempVariations = [];
-
+        
         // Garante que o Formulário não bugue no F5
         const formEl = document.getElementById('form-product');
-        if (formEl) formEl.onsubmit = window.saveProduct;
-
+        if(formEl) formEl.onsubmit = window.saveProduct; 
+        
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-
+        
     } catch (error) {
         alert('Erro ao salvar: ' + error.message);
     } finally {
@@ -5118,7 +5090,7 @@ window.editProduct = (id) => {
     if (Array.isArray(p.sizes) && p.sizes.length > 0) {
         state.tempVariations = p.sizes.map(s => {
             if (typeof s === 'object') return s;
-            return { name: s, stock: p.stock || 0 };
+            return { name: s, stock: p.stock || 0 }; 
         });
     }
 
@@ -5129,7 +5101,7 @@ window.editProduct = (id) => {
         chkVar.checked = false;
     }
 
-    toggleStockMode();
+    toggleStockMode(); 
 
     state.tempImages = p.images ? [...p.images] : [];
     if (typeof renderImagePreviews === 'function') renderImagePreviews();
@@ -5146,14 +5118,14 @@ window.editProduct = (id) => {
 window.openNewProductModal = () => {
     const form = document.getElementById('form-product');
     if (form) form.reset();
-
+    
     document.getElementById('edit-prod-id').value = '';
     state.tempImages = [];
     state.tempVariations = []; // Limpa tamanhos de edições anteriores
-
+    
     document.getElementById('prod-has-variations').checked = false; // Desativa a grade por padrão
-    toggleStockMode();
-
+    toggleStockMode(); 
+    
     if (typeof renderImagePreviews === 'function') renderImagePreviews();
     document.getElementById('product-form-modal').classList.remove('hidden');
 };
@@ -5553,7 +5525,7 @@ window.deleteCategory = async (id, name) => {
     // Se encontrar produtos, bloqueia para evitar produtos órfãos
     if (linkedProducts.length > 0) {
         alert(`❌ AÇÃO BLOQUEADA\n\nNão é possível excluir a categoria "${name}".\n\nExistem ${linkedProducts.length} produto(s) vinculados a ela ou às suas subcategorias.\nPor favor, mova ou exclua esses produtos antes de apagar a categoria.`);
-        return;
+        return; 
     }
 
     // 2. VERIFICAÇÃO DE SUBCATEGORIAS (EXCLUSÃO EM CASCATA)
@@ -5576,7 +5548,7 @@ window.deleteCategory = async (id, name) => {
 
         // 4. Exclui todas as Subcategorias dela (Cascata)
         if (linkedSubCats.length > 0) {
-            const batchPromises = linkedSubCats.map(sub =>
+            const batchPromises = linkedSubCats.map(sub => 
                 deleteDoc(doc(db, `sites/${state.siteId}/categories`, sub.id))
             );
             await Promise.all(batchPromises); // Espera apagar todas
@@ -5980,7 +5952,7 @@ function fillProfileForm() {
 
     // 3. Configurações de Pedido
     const dConfig = p.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5, shippingRule: 'none', shippingValue: 0 };
-    const settings = p.settings || {};
+    const settings = p.settings || {}; 
 
     setCheck('conf-own-delivery', dConfig.ownDelivery);
 
@@ -6990,7 +6962,7 @@ window.renderCheckoutPaymentsUI = () => {
 
     const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
     const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
-
+    
     const labelOnline = document.getElementById('label-pay-online') || (radioOnline ? radioOnline.closest('label') : null);
     const containerDelivery = document.getElementById('container-delivery-option') || (radioDelivery ? radioDelivery.closest('label') : null);
 
@@ -7033,11 +7005,11 @@ window.renderCheckoutPaymentsUI = () => {
     const deliveryContent = document.getElementById('pay-delivery-content');
     const onlineContent = document.getElementById('pay-online-content');
     if (mode === 'delivery') {
-        if (deliveryContent) deliveryContent.classList.remove('hidden');
-        if (onlineContent) onlineContent.classList.add('hidden');
+        if (deliveryContent) deliveryContent.classList.remove('hidden'); 
+        if (onlineContent) onlineContent.classList.add('hidden'); 
     } else if (mode === 'online') {
-        if (deliveryContent) deliveryContent.classList.add('hidden');
-        if (onlineContent) onlineContent.classList.remove('hidden');
+        if (deliveryContent) deliveryContent.classList.add('hidden'); 
+        if (onlineContent) onlineContent.classList.remove('hidden'); 
     }
 
     // 4. FORMAS DE PAGAMENTO SECUNDÁRIAS (Pix, Cartão, Dinheiro)
@@ -7046,10 +7018,10 @@ window.renderCheckoutPaymentsUI = () => {
     if (mode === 'online' && lblMethod) lblMethod.innerText = "Pagar agora com:";
 
     const getWrapper = (val) => {
-        const radio = document.querySelector(`input[name="payment-method-selection"][value="${val}"]`) ||
-            document.querySelector(`input[name="payment-method"][value="${val}"]`);
+        const radio = document.querySelector(`input[name="payment-method-selection"][value="${val}"]`) || 
+                      document.querySelector(`input[name="payment-method"][value="${val}"]`);
         if (!radio) return null;
-
+        
         // ✨ CORREÇÃO CRÍTICA: Pega apenas a label em volta do input, ou o ID exato. 
         // Não sobe para o parentElement para não pegar a caixa toda.
         let wrapper = document.getElementById(`container-${val}-option`);
@@ -7093,9 +7065,9 @@ window.renderCheckoutPaymentsUI = () => {
     forceUpdateVis(cash, mode === 'delivery' ? (pConfig.cash !== false) : false);
 
     // 5. GARANTE SELEÇÃO DE MÉTODO: Pega o primeiro válido e marca sozinho
-    let currentMethodEl = document.querySelector('input[name="payment-method-selection"]:checked') ||
-        document.querySelector('input[name="payment-method"]:checked');
-
+    let currentMethodEl = document.querySelector('input[name="payment-method-selection"]:checked') || 
+                          document.querySelector('input[name="payment-method"]:checked');
+    
     let invalidMethod = false;
     if (!currentMethodEl || currentMethodEl.disabled) {
         invalidMethod = true;
@@ -7166,12 +7138,12 @@ window.openCheckoutModal = () => {
 
     if (paySection) {
         paySection.classList.add('opacity-50', 'locked-section');
-        paySection.classList.remove('pointer-events-none');
+        paySection.classList.remove('pointer-events-none'); 
     }
 
     if (btnFinish) {
         btnFinish.classList.remove('hidden');
-        btnFinish.disabled = true;
+        btnFinish.disabled = true; 
         btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
     }
 
@@ -7617,7 +7589,7 @@ async function processStockUpdate(items, operation) {
 
         const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
         const pSnap = await getDoc(prodRef);
-
+        
         if (pSnap.exists()) {
             let pData = pSnap.data();
             let qty = parseInt(item.qty) || 0;
@@ -7626,10 +7598,10 @@ async function processStockUpdate(items, operation) {
             if (pData.hasVariations && Array.isArray(pData.sizes)) {
                 // ESTOQUE GRADEADO
                 let newSizes = [...pData.sizes];
-
+                
                 // Encontra o tamanho exato que o cliente comprou
                 let sizeObj = newSizes.find(s => s.name === item.size);
-
+                
                 if (sizeObj) {
                     let currentSizeStock = parseInt(sizeObj.stock) || 0;
                     if (operation === 'remove') {
@@ -7638,18 +7610,18 @@ async function processStockUpdate(items, operation) {
                         sizeObj.stock = currentSizeStock + qty;
                     }
                 }
-
+                
                 // Recalcula o estoque total do produto baseado nas caixinhas atualizadas
                 let newTotalStock = newSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0);
-
+                
                 updates.sizes = newSizes;
                 updates.stock = newTotalStock;
-
+                
             } else {
                 // ESTOQUE GERAL
                 let currentStock = parseInt(pData.stock) || 0;
                 let currentGenStock = parseInt(pData.generalStock) || 0;
-
+                
                 if (operation === 'remove') {
                     updates.stock = Math.max(0, currentStock - qty);
                     updates.generalStock = Math.max(0, currentGenStock - qty);
@@ -7658,7 +7630,7 @@ async function processStockUpdate(items, operation) {
                     updates.generalStock = currentGenStock + qty;
                 }
             }
-
+            
             // Salva as alterações no banco de dados
             await updateDoc(prodRef, updates);
         }
@@ -9069,18 +9041,18 @@ function validateCheckoutForm() {
 // =================================================================
 
 window.openProductSelectorModal = () => {
-    const modal = document.getElementById('modal-product-selector');
+    const modal = document.getElementById('modal-product-selector'); 
     if (modal) {
         modal.classList.remove('hidden');
         modal.classList.add('flex');
-
+        
         const searchInput = document.getElementById('selector-internal-search');
         if (searchInput) {
             searchInput.value = ''; // Limpa a busca anterior
             setTimeout(() => searchInput.focus(), 100);
         }
-
-        window.renderProductSelectorList('');
+        
+        window.renderProductSelectorList(''); 
     }
 };
 
@@ -9100,8 +9072,8 @@ window.renderProductSelectorList = (searchTerm = '') => {
 
     if (searchTerm) {
         const term = searchTerm.toLowerCase().trim();
-        filteredProducts = state.products.filter(p =>
-            p.name.toLowerCase().includes(term) ||
+        filteredProducts = state.products.filter(p => 
+            p.name.toLowerCase().includes(term) || 
             (p.code && String(p.code).includes(term))
         );
     }
@@ -9114,7 +9086,7 @@ window.renderProductSelectorList = (searchTerm = '') => {
     listContainer.innerHTML = filteredProducts.map(p => {
         const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://placehold.co/100?text=Sem+Foto';
         const safeName = p.name.replace(/'/g, "\\'"); // Impede que aspas no nome quebrem o clique
-
+        
         return `
             <div onclick="selectProductForFilter('${safeName}')" 
                  class="flex items-center gap-3 p-3 border-b border-gray-800 hover:bg-gray-800 cursor-pointer transition active:scale-[0.98] rounded">
@@ -9130,11 +9102,11 @@ window.renderProductSelectorList = (searchTerm = '') => {
 
 window.selectProductForFilter = (productName) => {
     // 1. Atualiza o input oculto que a lógica de vendas usa
-    const filterInput = document.getElementById('filter-search-product-value');
+    const filterInput = document.getElementById('filter-search-product-value'); 
     if (filterInput) filterInput.value = productName;
-
+    
     // 2. Atualiza o input/div visual para o Admin ver o que selecionou
-    const displayInput = document.getElementById('filter-search-product');
+    const displayInput = document.getElementById('filter-search-product'); 
     if (displayInput) {
         if (displayInput.tagName === 'INPUT') displayInput.value = productName;
         else displayInput.innerText = productName;
@@ -9142,7 +9114,7 @@ window.selectProductForFilter = (productName) => {
 
     // 3. Fecha o modal
     closeProductSelectorModal();
-
+    
     // 4. Roda o filtro na tabela
     if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
 };
@@ -9152,18 +9124,18 @@ window.selectProductForFilter = (productName) => {
 // =================================================================
 
 window.openProductSelectorModal = () => {
-    const modal = document.getElementById('modal-product-selector');
+    const modal = document.getElementById('modal-product-selector'); 
     if (modal) {
         modal.classList.remove('hidden');
         modal.classList.add('flex');
-
+        
         const searchInput = document.getElementById('selector-internal-search');
         if (searchInput) {
             searchInput.value = ''; // Limpa a busca anterior
             setTimeout(() => searchInput.focus(), 100);
         }
-
-        window.renderProductSelectorList('');
+        
+        window.renderProductSelectorList(''); 
     }
 };
 
@@ -9183,8 +9155,8 @@ window.renderProductSelectorList = (searchTerm = '') => {
 
     if (searchTerm) {
         const term = searchTerm.toLowerCase().trim();
-        filteredProducts = state.products.filter(p =>
-            p.name.toLowerCase().includes(term) ||
+        filteredProducts = state.products.filter(p => 
+            p.name.toLowerCase().includes(term) || 
             (p.code && String(p.code).includes(term))
         );
     }
@@ -9197,7 +9169,7 @@ window.renderProductSelectorList = (searchTerm = '') => {
     listContainer.innerHTML = filteredProducts.map(p => {
         const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://placehold.co/100?text=Sem+Foto';
         const safeName = p.name.replace(/'/g, "\\'"); // Impede que aspas no nome quebrem o clique
-
+        
         return `
             <div onclick="selectProductForFilter('${safeName}')" 
                  class="flex items-center gap-3 p-3 border-b border-gray-800 hover:bg-gray-800 cursor-pointer transition active:scale-[0.98] rounded">
@@ -9213,9 +9185,9 @@ window.renderProductSelectorList = (searchTerm = '') => {
 
 window.selectProductForFilter = (productName) => {
     // 1. Atualiza o input oculto que a tabela lê
-    const filterInput = document.getElementById('filter-search-product-value');
+    const filterInput = document.getElementById('filter-search-product-value'); 
     if (filterInput) filterInput.value = productName;
-
+    
     // 2. Atualiza o texto na tela (O ID exato do seu HTML)
     const displaySpan = document.getElementById('selected-product-display');
     if (displaySpan) {
@@ -9240,13 +9212,13 @@ window.clearProductFilter = (e) => {
     // Impede que clicar no X acabe ativando o fundo e abrindo o modal de novo
     if (e) {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopPropagation(); 
     }
-
+    
     // 1. Zera a memória do filtro
     const filterInput = document.getElementById('filter-search-product-value');
     if (filterInput) filterInput.value = '';
-
+    
     // 2. Volta o texto visual ao estado inicial
     const displaySpan = document.getElementById('selected-product-display');
     if (displaySpan) {
@@ -9261,11 +9233,11 @@ window.clearProductFilter = (e) => {
         btnClearX.classList.add('hidden');
         btnClearX.classList.remove('flex');
     }
-
+    
     // Limpa a busca interna do modal para a próxima vez
     const internalSearch = document.getElementById('selector-internal-search');
     if (internalSearch) internalSearch.value = '';
-
+    
     // Roda a tabela para exibir todas as vendas de novo
     if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
 };
@@ -9363,18 +9335,18 @@ window.processarAvisos = () => { console.log("Processador antigo ignorado."); };
 window.loadAvisos = () => {
     // 1. TRAVA NUCLEAR: Só roda se a tela preta do Admin estiver presente e visível
     const viewAdmin = document.getElementById('view-admin');
-
+    
     if (!viewAdmin || viewAdmin.classList.contains('hidden')) {
         console.log("🛑 Radar abortado: A tela de Admin não está visível.");
         if (window.activeAvisosListener) {
             window.activeAvisosListener();
             window.activeAvisosListener = null;
         }
-        return;
+        return; 
     }
 
     if (!state.siteId || state.siteId === 'demo') return;
-
+    
     // Evita ouvintes duplicados
     if (window.activeAvisosListener) return;
 
@@ -9389,7 +9361,7 @@ window.loadAvisos = () => {
         if (!checkAdmin || checkAdmin.classList.contains('hidden')) return;
 
         const unreadCount = snapshot.docs.length;
-
+        
         // Acende o ícone do sino apenas no painel
         try {
             const alertIcon = document.getElementById('icone-avisos');
@@ -9401,7 +9373,7 @@ window.loadAvisos = () => {
                     alertIcon.classList.add('hidden');
                 }
             }
-        } catch (e) { }
+        } catch (e) {}
 
         // Dispara a mensagem
         snapshot.docChanges().forEach((change) => {
@@ -9445,14 +9417,14 @@ window.printOrder = (orderId) => {
 
     const storeProfile = state.storeProfile || {};
     const storeName = storeProfile.name || "Loja";
-    const orderNumber = order.code || order.id.slice(0, 6);
-
+    const orderNumber = order.code || order.id.slice(0,6);
+    
     // NOME CONFIGURADO PARA A IMPRESSÃO
     const fileName = `Pedido_${orderNumber}`;
 
     const dataObj = new Date(order.date);
     const dataHoraFormatada = `${dataObj.toLocaleDateString('pt-BR')} às ${dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-
+    
     const subtotal = order.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
     const frete = order.shippingFee || 0;
     let descontos = (subtotal + frete) - order.total;
@@ -9462,13 +9434,13 @@ window.printOrder = (orderId) => {
     const cleanMethodName = rawMethod.split('[')[0].trim();
 
     // 🔄 ALTERAÇÃO 1: Logo forçada a ficar no centro (display: block; margin: 0 auto)
-    const logoHtml = storeProfile.logo
-        ? `<img src="${storeProfile.logo}" style="display: block; margin: 0 auto 8px auto; max-width: 140px; max-height: 100px; object-fit: contain; filter: grayscale(100%) contrast(1.2);">`
+    const logoHtml = storeProfile.logo 
+        ? `<img src="${storeProfile.logo}" style="display: block; margin: 0 auto 8px auto; max-width: 140px; max-height: 100px; object-fit: contain; filter: grayscale(100%) contrast(1.2);">` 
         : '';
 
     let itemsHtml = order.items.map(i => `
         <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="flex: 1; padding-right: 10px;">${i.qty}x ${i.name}${i.size !== 'U' ? ' (' + i.size + ')' : ''}</span>
+            <span style="flex: 1; padding-right: 10px;">${i.qty}x ${i.name}${i.size !== 'U' ? ' ('+i.size+')' : ''}</span>
             <span style="white-space: nowrap;">${formatCurrency(i.price * i.qty)}</span>
         </div>
     `).join('');
@@ -9511,7 +9483,7 @@ window.printOrder = (orderId) => {
     // 3. Monta o Cupom invisível na página
     const printContainer = document.createElement('div');
     printContainer.id = 'print-thermal-container';
-
+    
     const addressText = order.customer.address || "Não informado (Retirada)";
 
     printContainer.innerHTML = `

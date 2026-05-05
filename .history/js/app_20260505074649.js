@@ -1065,7 +1065,7 @@ function exibirTelaMorte(titulo, msg, tipo = 'erro') {
                 <div class="social-links">
                     <!-- 🌐 INSIRA O LINK DA SUA LANDING PAGE AQUI 👇 -->
                     <a href="https://projetistaoficial.com" target="_blank" class="social-btn btn-site">
-                        <i class="fas fa-rocket text-lg"></i> Criar Minha Loja e 5 minutos
+                        <i class="fas fa-rocket text-lg"></i> Criar Minha Loja
                     </a>
                     
                     <!-- 📸 LINK DO INSTAGRAM -->
