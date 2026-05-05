@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-import { getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, updateDoc, query, where, addDoc, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, updateDoc, query, where, addDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
 // === CONFIGURAÇÃO FIREBASE ===
@@ -1896,7 +1896,6 @@ window.submitBroadcastAlert = async () => {
 // Importe o updateDoc se ainda não tiver no topo do arquivo
 // import { collection, query, orderBy, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
-
 // ==========================================
 // 🌟 MONITORAMENTO DE LEADS (LANDING PAGE)
 // ==========================================
@@ -1996,15 +1995,3 @@ function iniciarMonitoramentoLeads() {
         }
     });
 }
-
-// Função global para atualizar o status ao clicar no botão
-window.atualizarStatusLead = async (id, novoStatus) => {
-    try {
-        await updateDoc(doc(db, 'leads', id), { status: novoStatus });
-    } catch (error) {
-        console.error("Erro ao atualizar status do lead:", error);
-    }
-};
-
-// Chame a função quando o script carregar
-iniciarMonitoramentoLeads();

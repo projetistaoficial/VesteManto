@@ -3331,7 +3331,7 @@ function setupEventListeners() {
                 }
 
                 let loggedIn = false;
-                const emailDaLoja = `${state.siteId}@app.projetistaoficial.com`.toLowerCase();
+                const emailDaLoja = `${state.siteId}@app.projetista.com`.toLowerCase();
 
                 try {
                     await signInWithEmailAndPassword(auth, emailDaLoja, pass);

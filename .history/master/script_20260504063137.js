@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-import { getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, updateDoc, query, where, addDoc, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, updateDoc, query, where, addDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
 // === CONFIGURAÇÃO FIREBASE ===
@@ -20,7 +20,7 @@ const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
 const secondaryAuth = getAuth(secondaryApp);
 
 // Adicione o /master no final do domínio de produção
-const PRODUCTION_DOMAIN = "https://app.projetistaoficial.com";
+const PRODUCTION_DOMAIN = "https://projetistaoficial.com";
 
 // Variáveis de controle
 let pendingClientStatus = 'ativo';
@@ -492,7 +492,7 @@ async function saveClientData() {
 
         // ✨ MAGIA DA SEGURANÇA: Cria a conta de acesso real no Firebase Auth!
         if (passAdmin) {
-            const emailDoLojista = `${docId}@app.projetistaoficial.com`.toLowerCase();;
+            const emailDoLojista = `${docId}@projetista.com`.toLowerCase();;
             try {
                 // Tenta criar a conta silenciosamente
                 await createUserWithEmailAndPassword(secondaryAuth, emailDoLojista, passAdmin);
@@ -1893,118 +1893,3 @@ window.submitBroadcastAlert = async () => {
     }
 };
 
-// Importe o updateDoc se ainda não tiver no topo do arquivo
-// import { collection, query, orderBy, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
-
-
-// ==========================================
-// 🌟 MONITORAMENTO DE LEADS (LANDING PAGE)
-// ==========================================
-function iniciarMonitoramentoLeads() {
-    const tableBody = document.getElementById('master-leads-body');
-    const badge = document.getElementById('badge-leads-count');
-    if (!tableBody) return;
-
-    // Conecta na coleção "leads" e ordena dos mais recentes pros mais antigos
-    const q = query(collection(db, 'leads'), orderBy('dataCadastro', 'desc'));
-
-    onSnapshot(q, (snapshot) => {
-        if (snapshot.empty) {
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="5" class="p-10 text-center text-gray-500">
-                        <i class="fas fa-inbox text-3xl mb-3 opacity-20"></i>
-                        <p>Nenhum lead recebido ainda.</p>
-                    </td>
-                </tr>`;
-            if (badge) badge.classList.add('hidden');
-            return;
-        }
-
-        let newLeadsCount = 0;
-        let html = '';
-
-        snapshot.forEach(documento => {
-            const lead = documento.data();
-            const id = documento.id;
-            
-            const dataObjeto = lead.dataCadastro ? new Date(lead.dataCadastro) : new Date();
-            const dataFormatada = dataObjeto.toLocaleDateString('pt-BR');
-            const horaFormatada = dataObjeto.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-            let statusBadge = '';
-            if (lead.status === 'Novo') {
-                statusBadge = `<span class="text-blue-400 font-bold uppercase text-[10px]"><i class="fas fa-circle text-[8px] mr-1"></i> Novo</span>`;
-                newLeadsCount++;
-            } else if (lead.status === 'Em Atendimento') {
-                statusBadge = `<span class="text-yellow-500 font-bold uppercase text-[10px]"><i class="fas fa-circle text-[8px] mr-1"></i> Atendendo</span>`;
-            } else {
-                statusBadge = `<span class="text-green-500 font-bold uppercase text-[10px]"><i class="fas fa-circle text-[8px] mr-1"></i> Fechado</span>`;
-            }
-
-            const numeroLimpo = lead.whatsapp ? lead.whatsapp.replace(/\D/g, '') : '';
-            const msgZap = encodeURIComponent(`Olá ${lead.nome}, tudo bem? Vi seu interesse em criar um catálogo para a ${lead.nomeLoja}! Sou da Projetista Oficial, como posso te ajudar?`);
-
-            // Validações para caso tenha leads antigos sem esses campos
-            const emailHtml = lead.email ? `<span class="text-gray-500 text-[9px] block truncate max-w-[150px] mt-0.5"><i class="far fa-envelope"></i> ${lead.email}</span>` : '';
-            const segmentoHtml = lead.segmento ? `<span class="text-brand-blue text-[9px] uppercase tracking-wider block mt-1">${lead.segmento}</span>` : '';
-            const faturamentoHtml = lead.faturamento ? `<span class="text-brand-green/80 text-[9px] block"><i class="fas fa-chart-line"></i> Faturamento: ${lead.faturamento}</span>` : '';
-
-            html += `
-                <tr class="hover:bg-gray-900/50 transition border-b border-gray-800 last:border-0">
-                    <td class="p-3 pl-4 align-top pt-4">
-                        <span class="text-white block font-bold text-xs">${dataFormatada}</span>
-                        <span class="text-gray-500 text-[10px]">${horaFormatada}</span>
-                    </td>
-                    <td class="p-3 align-top pt-4">
-                        <span class="text-white block font-bold text-xs truncate max-w-[150px]">${lead.nome}</span>
-                        <span class="text-gray-400 text-[10px] block mt-0.5"><i class="fab fa-whatsapp text-green-500"></i> ${lead.whatsapp}</span>
-                        ${emailHtml}
-                    </td>
-                    <td class="p-3 align-top pt-4">
-                        <span class="text-yellow-500 font-bold text-xs block truncate max-w-[150px]" title="${lead.nomeLoja}">${lead.nomeLoja}</span>
-                        ${segmentoHtml}
-                        ${faturamentoHtml}
-                    </td>
-                    <td class="p-3 align-top pt-4">${statusBadge}</td>
-                    <td class="p-3 text-center pr-4 flex justify-center gap-2 align-top pt-4">
-                        <a href="https://wa.me/${numeroLimpo}?text=${msgZap}" target="_blank" onclick="window.atualizarStatusLead('${id}', 'Em Atendimento')" class="bg-green-600 hover:bg-green-500 text-white w-7 h-7 rounded flex items-center justify-center transition" title="Chamar no WhatsApp">
-                            <i class="fab fa-whatsapp text-sm"></i>
-                        </a>
-                        ${lead.status !== 'Fechado' ? `
-                        <button onclick="window.atualizarStatusLead('${id}', 'Fechado')" class="bg-gray-800 hover:bg-yellow-500 hover:text-black text-gray-400 w-7 h-7 rounded flex items-center justify-center transition" title="Marcar como Fechado">
-                            <i class="fas fa-check text-sm"></i>
-                        </button>
-                        ` : ''}
-                    </td>
-                </tr>
-            `;
-        });
-
-        tableBody.innerHTML = html;
-
-        // Atualiza a bolinha de notificação de novos leads
-        if (badge) {
-            if (newLeadsCount > 0) {
-                badge.innerText = `${newLeadsCount} Novo${newLeadsCount > 1 ? 's' : ''}`;
-                badge.classList.remove('hidden');
-                badge.classList.add('inline-block');
-            } else {
-                badge.classList.add('hidden');
-                badge.classList.remove('inline-block');
-            }
-        }
-    });
-}
-
-// Função global para atualizar o status ao clicar no botão
-window.atualizarStatusLead = async (id, novoStatus) => {
-    try {
-        await updateDoc(doc(db, 'leads', id), { status: novoStatus });
-    } catch (error) {
-        console.error("Erro ao atualizar status do lead:", error);
-    }
-};
-
-// Chame a função quando o script carregar
-iniciarMonitoramentoLeads();

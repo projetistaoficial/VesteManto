@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-import { getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, updateDoc, query, where, addDoc, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, updateDoc, query, where, addDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
 // === CONFIGURAÇÃO FIREBASE ===
@@ -492,7 +492,7 @@ async function saveClientData() {
 
         // ✨ MAGIA DA SEGURANÇA: Cria a conta de acesso real no Firebase Auth!
         if (passAdmin) {
-            const emailDoLojista = `${docId}@app.projetistaoficial.com`.toLowerCase();;
+            const emailDoLojista = `${docId}@app.projetista.com`.toLowerCase();;
             try {
                 // Tenta criar a conta silenciosamente
                 await createUserWithEmailAndPassword(secondaryAuth, emailDoLojista, passAdmin);
@@ -1896,7 +1896,6 @@ window.submitBroadcastAlert = async () => {
 // Importe o updateDoc se ainda não tiver no topo do arquivo
 // import { collection, query, orderBy, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
-
 // ==========================================
 // 🌟 MONITORAMENTO DE LEADS (LANDING PAGE)
 // ==========================================
@@ -1945,29 +1944,19 @@ function iniciarMonitoramentoLeads() {
             const numeroLimpo = lead.whatsapp ? lead.whatsapp.replace(/\D/g, '') : '';
             const msgZap = encodeURIComponent(`Olá ${lead.nome}, tudo bem? Vi seu interesse em criar um catálogo para a ${lead.nomeLoja}! Sou da Projetista Oficial, como posso te ajudar?`);
 
-            // Validações para caso tenha leads antigos sem esses campos
-            const emailHtml = lead.email ? `<span class="text-gray-500 text-[9px] block truncate max-w-[150px] mt-0.5"><i class="far fa-envelope"></i> ${lead.email}</span>` : '';
-            const segmentoHtml = lead.segmento ? `<span class="text-brand-blue text-[9px] uppercase tracking-wider block mt-1">${lead.segmento}</span>` : '';
-            const faturamentoHtml = lead.faturamento ? `<span class="text-brand-green/80 text-[9px] block"><i class="fas fa-chart-line"></i> Faturamento: ${lead.faturamento}</span>` : '';
-
             html += `
                 <tr class="hover:bg-gray-900/50 transition border-b border-gray-800 last:border-0">
-                    <td class="p-3 pl-4 align-top pt-4">
+                    <td class="p-3 pl-4">
                         <span class="text-white block font-bold text-xs">${dataFormatada}</span>
                         <span class="text-gray-500 text-[10px]">${horaFormatada}</span>
                     </td>
-                    <td class="p-3 align-top pt-4">
-                        <span class="text-white block font-bold text-xs truncate max-w-[150px]">${lead.nome}</span>
-                        <span class="text-gray-400 text-[10px] block mt-0.5"><i class="fab fa-whatsapp text-green-500"></i> ${lead.whatsapp}</span>
-                        ${emailHtml}
+                    <td class="p-3">
+                        <span class="text-white block font-bold text-xs truncate max-w-[120px]">${lead.nome}</span>
+                        <span class="text-gray-400 text-[10px]">${lead.whatsapp}</span>
                     </td>
-                    <td class="p-3 align-top pt-4">
-                        <span class="text-yellow-500 font-bold text-xs block truncate max-w-[150px]" title="${lead.nomeLoja}">${lead.nomeLoja}</span>
-                        ${segmentoHtml}
-                        ${faturamentoHtml}
-                    </td>
-                    <td class="p-3 align-top pt-4">${statusBadge}</td>
-                    <td class="p-3 text-center pr-4 flex justify-center gap-2 align-top pt-4">
+                    <td class="p-3 text-yellow-500 font-bold text-xs truncate max-w-[120px]" title="${lead.nomeLoja}">${lead.nomeLoja}</td>
+                    <td class="p-3">${statusBadge}</td>
+                    <td class="p-3 text-center pr-4 flex justify-center gap-2">
                         <a href="https://wa.me/${numeroLimpo}?text=${msgZap}" target="_blank" onclick="window.atualizarStatusLead('${id}', 'Em Atendimento')" class="bg-green-600 hover:bg-green-500 text-white w-7 h-7 rounded flex items-center justify-center transition" title="Chamar no WhatsApp">
                             <i class="fab fa-whatsapp text-sm"></i>
                         </a>
