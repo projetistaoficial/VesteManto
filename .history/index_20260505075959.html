@@ -126,89 +126,39 @@
             window.history.replaceState(null, '', '?site=' + siteId);
         }
 
-        // --- MANTENDO SEU DESIGN DE TELAS DE ERRO ---
-        // --- MANTENDO SEU DESIGN DE TELAS DE ERRO COM PROPAGANDA ---
+       // --- MANTENDO SEU DESIGN DE TELAS DE ERRO ---
         function destruirTudo(titulo, motivo, tipo = 'erro') {
             console.error("⛔ ACESSO NEGADO: " + motivo);
             document.body.innerHTML = '';
             document.body.style.setProperty('display', 'block', 'important');
-            
-            // Impede que o loader oculte a tela
             document.body.classList.add('loaded');
 
-            let iconHtml = '<i class="fas fa-ban"></i>';
-            let mainColor = '#ef4444'; // Vermelho
-            let bgStyle = 'background: radial-gradient(circle at top, #2a0808 0%, #0B0E14 100%);';
+            let iconHtml = '🚫';
+            let mainColor = '#ef4444';
+            let bgStyle = 'background-color: black;';
 
             if (tipo === 'pausado') {
-                iconHtml = '<i class="fas fa-cog fa-spin"></i>';
-                mainColor = '#facc15'; // Amarelo
-                bgStyle = 'background: radial-gradient(circle at top, #2a2208 0%, #0B0E14 100%);';
+                iconHtml = '⚙️';
+                mainColor = '#facc15';
+                bgStyle = 'background: linear-gradient(135deg, #0f172a 0%, #000000 100%);';
             }
 
-            document.body.style.cssText = `display: block !important; background-color: #0B0E14; min-height: 100vh; margin: 0; padding: 0;`;
+            document.body.style.cssText = `display: block !important; ${bgStyle}`;
 
             document.body.innerHTML = `
-            <style>
-                .lock-wrapper { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; box-sizing: border-box; ${bgStyle} }
-                .lock-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 24px; padding: 40px 30px; text-align: center; width: 100%; max-width: 450px; backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); margin-bottom: 25px; }
-                .promo-card { background: linear-gradient(145deg, rgba(37, 99, 235, 0.1), rgba(147, 51, 234, 0.05)); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 24px; padding: 25px; text-align: center; width: 100%; max-width: 450px; box-shadow: 0 0 30px rgba(37, 99, 235, 0.1); position: relative; overflow: hidden; }
-                .promo-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899); }
-                .promo-img { width: 100%; height: 160px; object-fit: cover; border-radius: 12px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1); background-color: #161821; }
-                .btn-reload { padding: 12px 35px; border: none; border-radius: 10px; font-weight: 800; cursor: pointer; font-size: 1rem; transition: transform 0.2s, opacity 0.2s; text-transform: uppercase; letter-spacing: 1px; margin-top: 10px;}
-                .btn-reload:hover { transform: scale(1.05); opacity: 0.9; }
-                .social-links { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 20px; }
-                .social-btn { flex: 1; min-width: 140px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 12px; text-decoration: none; font-weight: bold; font-size: 0.85rem; transition: all 0.2s; text-transform: uppercase; }
-                .btn-site { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
-                .btn-site:hover { background: rgba(59, 130, 246, 0.4); color: #fff; transform: translateY(-2px); }
-                .btn-insta { background: rgba(236, 72, 153, 0.2); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.3); }
-                .btn-insta:hover { background: rgba(236, 72, 153, 0.4); color: #fff; transform: translateY(-2px); }
-            </style>
-
-            <div class="lock-wrapper">
-                
-                <!-- ⛔ CARTÃO DE AVISO (BLOQUEIO/PAUSA) -->
-                <div class="lock-card">
-                    <div style="font-size: 4rem; margin-bottom: 15px; color: ${mainColor}; text-shadow: 0 0 30px ${mainColor}60;">${iconHtml}</div>
-                    <h1 style="font-size: 1.8rem; color: white; margin: 0 0 10px 0; font-weight: 900; letter-spacing: -0.5px;">${titulo}</h1>
-                    <p style="color: #94a3b8; margin: 0 0 25px 0; font-size: 1rem; line-height: 1.5;">${motivo}</p>
-                    <button class="btn-reload" onclick="window.location.reload()" style="background: ${mainColor}; color: ${tipo === 'pausado' ? '#000' : '#fff'};">
-                        Atualizar Página
-                    </button>
-                </div>
-
-                <!-- 🚀 CARTÃO DE PROPAGANDA (CAPTAÇÃO DE LEADS) -->
-                <div class="promo-card">
-                    <!-- 🖼️ INSIRA O LINK DA SUA IMAGEM DE PROPAGANDA AQUI 👇 -->
-                    <img src="tudoCentral.png" alt="Crie sua Loja Virtual" class="promo-img">
-                    
-                    <h2 style="color: #fff; font-size: 1.3rem; margin: 0 0 8px 0; font-weight: 800;">enha o SEU E-Commerce, sua loja automática e profissional</h2>
-                    <p style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.5; margin: 0;">
-                        Tenha um catálogo online completo como este. Venda pelo WhatsApp, gerencie seus pedidos e escale o seu negócio com a Projetista Oficial.
-                    </p>
-                    
-                    <div class="social-links">
-                        <!-- 🌐 INSIRA O LINK DA SUA LANDING PAGE AQUI 👇 -->
-                        <a href="https://projetistaoficial.com" target="_blank" class="social-btn btn-site">
-                            <i class="fas fa-rocket text-lg"></i> Criar Minha Loja e 5 minutos
-                        
-                        <!-- 📸 LINK DO INSTAGRAM -->
-                        <a href="https://instagram.com/projetista_oficial" target="_blank" class="social-btn btn-insta">
-                            <i class="fab fa-instagram text-lg"></i> Instagram
-                        </a>
-                    </div>
-                </div>
-
+        <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; font-family:sans-serif; text-align:center; padding: 20px;">
+            <div style="font-size: 4rem; margin-bottom: 20px;">${iconHtml}</div>
+            <h1 style="font-size:2rem; color:${mainColor}; margin:0; line-height: 1.2;">${titulo}</h1>
+            <p style="color:#94a3b8; margin-top: 15px; font-size: 1.1rem; max-width: 400px; line-height: 1.5;">${motivo}</p>
+            <button onclick="window.location.reload()" style="margin-top:40px; padding:12px 30px; background:${mainColor}; color:${tipo === 'pausado' ? '#000' : '#fff'}; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Atualizar</button>
+            <div style="margin-top: 80px; display: flex; flex-direction: column; align-items: center; opacity: 0.6;">
+                <span style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; font-weight: bold;">Aproveite para conhecer a Projetista</span>
+                <a href="https://instagram.com/projetista_oficial" target="_blank" style="color: #ec4899; font-size: 2.2rem;">
+                    <i class="fab fa-instagram"></i>
+                </a>
             </div>
-            `;
-            
-            // Garante Fonte de Ícones
-            if (!document.querySelector('link[href*="font-awesome"]')) {
-                const link = document.createElement('link');
-                link.rel = 'stylesheet';
-                link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
-                document.head.appendChild(link);
-            }
+        </div>
+        `;
         }
 
         // --- LÓGICA DE VALIDAÇÃO ---
