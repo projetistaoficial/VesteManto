@@ -1904,25 +1904,22 @@ let currentLeadTab = 'Todos';
 let leadsData = [];
 
 
-// Alternar entre Aberto e Fechado (Comportamento seguro Flexbox)
+// Alternar entre Aberto (Metade Direita Cheia) e Fechado (Barra)
 window.toggleLeadsBlock = () => {
     const container = document.getElementById('leads-container');
     const arrow = document.getElementById('leads-arrow');
     
     if (container.classList.contains('h-20')) {
-        // ABRIR: Remove a altura pequena
-        container.classList.remove('h-20', 'border-gray-800');
-        
-        // Adiciona altura total e borda iluminada. 
-        // Como o HTML já usa 'flex-1', ele preenche a largura magicamente sozinho.
-        container.classList.add('h-full', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
+        // ABRE: Remove estado pequeno
+        container.classList.remove('h-20', 'flex-1', 'border-gray-800');
+        // Adiciona estado GRANDE (absolute no canto direito ocupando metade)
+        container.classList.add('absolute', 'top-0', 'right-0', 'h-full', 'w-1/2', 'z-[100]', 'border-l-2', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
         arrow.classList.add('rotate-180');
     } else {
-        // FECHAR: Remove as características de tela aberta
-        container.classList.remove('h-full', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
-        
-        // Volta para a altura de 20
-        container.classList.add('h-20', 'border-gray-800');
+        // FECHA: Remove estado grande absoluto
+        container.classList.remove('absolute', 'top-0', 'right-0', 'h-full', 'w-1/2', 'z-[100]', 'border-l-2', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
+        // Volta para a barra que se estica perfeitamente até o canto (flex-1)
+        container.classList.add('h-20', 'flex-1', 'border-gray-800');
         arrow.classList.remove('rotate-180');
     }
 };
@@ -2020,31 +2017,6 @@ function getFaturamentoWeight(valor) {
     if (valor === 'Acima de 20000') return 7;
     return 0;
 }
-
-window.toggleLeadSort = (column) => {
-    if (leadSortColumn === column) {
-        // Se clicou na mesma coluna, inverte a ordem
-        leadSortDirection = leadSortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-        // Se clicou em outra coluna, define ela como nova e começa do maior pro menor
-        leadSortColumn = column;
-        leadSortDirection = 'desc';
-    }
-
-    // Atualiza o visual das setinhas
-    ['data', 'empresa', 'faturamento'].forEach(col => {
-        const icon = document.getElementById(`sort-icon-${col}`);
-        if (!icon) return;
-        
-        if (col === leadSortColumn) {
-            icon.className = leadSortDirection === 'desc' ? 'fas fa-sort-down text-blue-500' : 'fas fa-sort-up text-blue-500';
-        } else {
-            icon.className = 'fas fa-sort text-gray-600 group-hover:text-gray-400 transition';
-        }
-    });
-
-    renderLeads();
-};
 
 // Renderizar a Tabela com Coluna de Status e Cores nas Bordas
 function renderLeads() {

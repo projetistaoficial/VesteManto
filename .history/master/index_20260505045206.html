@@ -658,7 +658,7 @@
     <!-- ========================================== -->
     <!-- 🟢 LADO DIREITO: LEADS E DASHBOARD         -->
     <!-- ========================================== -->
-    <div id="leads-container" class="hidden lg:flex absolute top-0 right-0 w-1/2 h-20 flex-col border-l border-gray-800 z-50 bg-[#0B0E14] transition-all duration-500 ease-in-out overflow-hidden">
+    <div id="leads-container" class="hidden lg:flex flex-1 h-20 flex-col border-l border-gray-800 z-50 bg-[#0B0E14] transition-all duration-500 ease-in-out overflow-hidden relative">
 
         <!-- Cabeçalho com Flecha para Abrir/Fechar -->
         <div onclick="toggleLeadsBlock()"
@@ -727,20 +727,15 @@
         </div>
 
         <!-- Cabeçalho da Tabela (Legendas Fixas) -->
-        <div class="grid grid-cols-12 gap-3 px-6 py-3 text-gray-500 text-[10px] font-bold uppercase tracking-wider border-b border-gray-800 bg-[#0a0b10] shrink-0 select-none">
-        <div class="col-span-2 cursor-pointer hover:text-white transition group flex items-center gap-1" onclick="toggleLeadSort('data')">
-            Data <i id="sort-icon-data" class="fas fa-sort-down text-blue-500"></i>
+        <div
+            class="grid grid-cols-12 gap-3 px-6 py-3 text-gray-500 text-[10px] font-bold uppercase tracking-wider border-b border-gray-800 bg-[#0a0b10] shrink-0">
+            <div class="col-span-2">Data</div>
+            <div class="col-span-3">Contatos</div>
+            <div class="col-span-2">Empresa</div>
+            <div class="col-span-2">Faturamento</div>
+            <div class="col-span-2 text-center">Status</div>
+            <div class="col-span-1 text-center">Ações</div>
         </div>
-        <div class="col-span-3">Contatos</div>
-        <div class="col-span-2 cursor-pointer hover:text-white transition group flex items-center gap-1" onclick="toggleLeadSort('empresa')">
-            Empresa <i id="sort-icon-empresa" class="fas fa-sort text-gray-600 group-hover:text-gray-400 transition"></i>
-        </div>
-        <div class="col-span-2 cursor-pointer hover:text-white transition group flex items-center gap-1" onclick="toggleLeadSort('faturamento')">
-            Faturamento <i id="sort-icon-faturamento" class="fas fa-sort text-gray-600 group-hover:text-gray-400 transition"></i>
-        </div>
-        <div class="col-span-2 text-center">Status</div>
-        <div class="col-span-1 text-center">Ações</div>
-    </div>
 
         <!-- Lista de Leads (Formato Tabela) -->
         <div id="leads-list" class="flex-1 overflow-y-auto custom-scrollbar bg-[#161821]">

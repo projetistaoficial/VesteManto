@@ -658,43 +658,16 @@
     <!-- ========================================== -->
     <!-- 🟢 LADO DIREITO: LEADS E DASHBOARD         -->
     <!-- ========================================== -->
-    <div id="leads-container" class="hidden lg:flex absolute top-0 right-0 w-1/2 h-20 flex-col border-l border-gray-800 z-50 bg-[#0B0E14] transition-all duration-500 ease-in-out overflow-hidden">
+    <div id="leads-container"
+        class="hidden lg:flex w-1/2 h-20 flex-col border-l border-gray-800 z-50 bg-[#0B0E14] transition-all duration-500 ease-in-out overflow-hidden">
 
         <!-- Cabeçalho com Flecha para Abrir/Fechar -->
         <div onclick="toggleLeadsBlock()"
-            class="w-full h-20 px-6 border-b border-gray-800 flex justify-between items-center bg-gradient-to-r from-[#0a0b10] to-[#12141d] cursor-pointer group transition-all duration-300 shrink-0">
-
-            <!-- Lado Esquerdo: Ícone e Título -->
-            <div class="flex items-center gap-4">
-                <div
-                    class="bg-yellow-500/10 w-12 h-12 flex items-center justify-center rounded-xl border border-yellow-500/20 group-hover:border-yellow-500/50 group-hover:shadow-[0_0_15px_rgba(234,179,8,0.2)] transition-all duration-300">
-                    <i class="fas fa-filter text-yellow-500 text-xl"></i>
-                </div>
-                <div>
-                    <h2
-                        class="text-xl md:text-2xl font-black text-white tracking-wide group-hover:text-yellow-500 transition-colors">
-                        Gestão de Leads
-                    </h2>
-                    <p class="text-gray-500 text-[10px] uppercase font-bold tracking-widest mt-0.5">Central de Vendas
-                    </p>
-                </div>
-            </div>
-
-            <!-- Lado Direito: Notificação e Flecha -->
-            <div class="flex items-center gap-4">
-                <!-- Badge Pulsante (Fica oculto e o JS ativa se tiver lead novo) -->
-                <span id="header-badge-novos"
-                    class="hidden bg-purple-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-[0_0_10px_rgba(147,51,234,0.4)] animate-pulse">
-                    0 Novos
-                </span>
-
-                <!-- Botão Circular da Flecha -->
-                <div
-                    class="bg-gray-800/80 border border-gray-700 w-10 h-10 rounded-full flex items-center justify-center group-hover:bg-yellow-500 group-hover:border-yellow-400 transition-all duration-300 shadow-md">
-                    <i id="leads-arrow"
-                        class="fas fa-chevron-up text-lg text-gray-400 group-hover:text-black transition-transform duration-500"></i>
-                </div>
-            </div>
+            class="h-20 px-6 border-b border-gray-800 flex justify-between items-center bg-[#0a0b10] cursor-pointer hover:bg-[#161821] transition shrink-0">
+            <h2 class="text-2xl font-bold flex items-center gap-3 text-white">
+                Gestão de Leads
+            </h2>
+            <i id="leads-arrow" class="fas fa-chevron-up text-xl text-gray-400 transition-transform duration-300"></i>
         </div>
 
         <!-- Menus de Filtros (Tabs) -->
@@ -727,25 +700,21 @@
         </div>
 
         <!-- Cabeçalho da Tabela (Legendas Fixas) -->
-        <div class="grid grid-cols-12 gap-3 px-6 py-3 text-gray-500 text-[10px] font-bold uppercase tracking-wider border-b border-gray-800 bg-[#0a0b10] shrink-0 select-none">
-        <div class="col-span-2 cursor-pointer hover:text-white transition group flex items-center gap-1" onclick="toggleLeadSort('data')">
-            Data <i id="sort-icon-data" class="fas fa-sort-down text-blue-500"></i>
+        <div
+            class="grid grid-cols-12 gap-3 px-6 py-3 text-gray-500 text-[10px] font-bold uppercase tracking-wider border-b border-gray-800 bg-[#0a0b10] shrink-0">
+            <div class="col-span-2">Data</div>
+            <div class="col-span-3">Contatos</div>
+            <div class="col-span-2">Empresa</div>
+            <div class="col-span-2">Faturamento</div>
+            <div class="col-span-2 text-center">Status</div>
+            <div class="col-span-1 text-center">Ações</div>
         </div>
-        <div class="col-span-3">Contatos</div>
-        <div class="col-span-2 cursor-pointer hover:text-white transition group flex items-center gap-1" onclick="toggleLeadSort('empresa')">
-            Empresa <i id="sort-icon-empresa" class="fas fa-sort text-gray-600 group-hover:text-gray-400 transition"></i>
-        </div>
-        <div class="col-span-2 cursor-pointer hover:text-white transition group flex items-center gap-1" onclick="toggleLeadSort('faturamento')">
-            Faturamento <i id="sort-icon-faturamento" class="fas fa-sort text-gray-600 group-hover:text-gray-400 transition"></i>
-        </div>
-        <div class="col-span-2 text-center">Status</div>
-        <div class="col-span-1 text-center">Ações</div>
-    </div>
 
         <!-- Lista de Leads (Formato Tabela) -->
         <div id="leads-list" class="flex-1 overflow-y-auto custom-scrollbar bg-[#161821]">
             <!-- JS renderiza as linhas aqui -->
         </div>
+    </div>
     </div>
 
     <!-- 🔍 MODAL GIGANTE DE DETALHES DO LEAD -->
@@ -771,24 +740,6 @@
 
             <!-- Corpo do Modal -->
             <div class="p-6 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
-
-                <!-- 🏆 BANNER DE SUCESSO (Oculto por padrão, aparece só nos Fechados) -->
-                <div id="modal-alerta-fechado"
-                    class="hidden col-span-1 md:col-span-3 bg-green-900/30 border border-green-500/50 p-4 md:p-6 rounded-2xl items-center justify-between shadow-inner">
-                    <div class="flex items-center gap-4">
-                        <div class="bg-green-500/20 p-3 rounded-full shrink-0">
-                            <i class="fas fa-check-circle text-green-500 text-3xl"></i>
-                        </div>
-                        <div>
-                            <p class="text-green-400 font-black text-xl">Negócio Fechado!</p>
-                            <p class="text-green-500/80 text-sm font-bold">Cliente já foi importado para o sistema.</p>
-                        </div>
-                    </div>
-                    <div class="text-left md:text-right mt-4 md:mt-0 md:border-l border-green-500/30 md:pl-6">
-                        <p class="text-green-500/60 text-[10px] uppercase font-bold mb-1">Data do Fechamento</p>
-                        <p id="det-lead-data-fechamento" class="text-green-400 font-bold text-lg"></p>
-                    </div>
-                </div>
 
                 <!-- Informações (Esquerda) -->
                 <div class="col-span-1 md:col-span-2 space-y-6">
@@ -821,21 +772,17 @@
                         <i class="fab fa-whatsapp text-2xl"></i> Chamar no Whats
                     </a>
 
-                    <!-- 📦 CONTAINER DE AÇÕES (Para o JS ocultar de uma vez só) -->
-                    <div id="det-container-acoes" class="flex flex-col gap-3 flex-1">
-                        <button id="det-btn-fechar"
-                            class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20 transform hover:-translate-y-1">
-                            <i class="fas fa-handshake text-xl"></i> Fechar Negócio
+                    <button id="det-btn-fechar"
+                        class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20 transform hover:-translate-y-1">
+                        <i class="fas fa-handshake text-xl"></i> Fechar Negócio
+                    </button>
+
+                    <div class="mt-auto pt-6">
+                        <button id="det-btn-recusar"
+                            class="w-full bg-transparent border border-red-900/50 hover:bg-red-900 hover:border-red-500 text-red-500 hover:text-white font-bold py-3 rounded-xl transition text-sm flex justify-center items-center gap-2">
+                            <i class="fas fa-times-circle"></i> Marcar Não Fechado
                         </button>
-
-                        <div class="mt-auto pt-6">
-                            <button id="det-btn-recusar"
-                                class="w-full bg-transparent border border-red-900/50 hover:bg-red-900 hover:border-red-500 text-red-500 hover:text-white font-bold py-3 rounded-xl transition text-sm flex justify-center items-center gap-2">
-                                <i class="fas fa-times-circle"></i> Marcar Não Fechado
-                            </button>
-                        </div>
                     </div>
-
                 </div>
             </div>
         </div>

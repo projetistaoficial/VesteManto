@@ -1900,70 +1900,33 @@ window.submitBroadcastAlert = async () => {
 // ==========================================
 // 🌟 MONITORAMENTO DE LEADS (LANDING PAGE)
 // ==========================================
-let currentLeadTab = 'Todos';
+let currentLeadTab = 'Novo';
 let leadsData = [];
 
-
-// Alternar entre Aberto e Fechado (Comportamento seguro Flexbox)
+// Alternar entre Aberto (Full) e Fechado (Barra)
 window.toggleLeadsBlock = () => {
     const container = document.getElementById('leads-container');
     const arrow = document.getElementById('leads-arrow');
-    
+
+    // Verifica se está fechado (h-20)
     if (container.classList.contains('h-20')) {
-        // ABRIR: Remove a altura pequena
         container.classList.remove('h-20', 'border-gray-800');
-        
-        // Adiciona altura total e borda iluminada. 
-        // Como o HTML já usa 'flex-1', ele preenche a largura magicamente sozinho.
-        container.classList.add('h-full', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
+        // Abre, adiciona uma borda em destaque na esquerda e uma sombra
+        container.classList.add('h-full', 'border-l-2', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
         arrow.classList.add('rotate-180');
     } else {
-        // FECHAR: Remove as características de tela aberta
-        container.classList.remove('h-full', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
-        
-        // Volta para a altura de 20
+        container.classList.remove('h-full', 'border-l-2', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
+        // Fecha e volta a borda normal
         container.classList.add('h-20', 'border-gray-800');
         arrow.classList.remove('rotate-180');
     }
 };
 
-// Gerenciador de Abas com Cores Personalizadas
 window.setLeadTab = (tab) => {
     currentLeadTab = tab;
-    
-    // Tabela de cores para cada aba ativa
-    const colorMap = {
-        'Todos': { bg: 'bg-blue-600', shadow: 'shadow-[0_0_15px_rgba(37,99,235,0.3)]' },
-        'Novo': { bg: 'bg-purple-600', shadow: 'shadow-[0_0_15px_rgba(147,51,234,0.3)]' },
-        'Pendente': { bg: 'bg-orange-500', shadow: 'shadow-[0_0_15px_rgba(249,115,22,0.3)]' },
-        'Fechado': { bg: 'bg-green-600', shadow: 'shadow-[0_0_15px_rgba(22,163,74,0.3)]' },
-        'NaoFechado': { bg: 'bg-red-600', shadow: 'shadow-[0_0_15px_rgba(220,38,38,0.3)]' }
-    };
-
-    const colors = colorMap[tab];
-
     document.querySelectorAll('.lead-tab-btn').forEach(btn => {
-        const span = btn.querySelector('.count');
-        const btnTab = btn.dataset.tab;
-        
-        if (btnTab === tab) {
-            // Estilo ABA ATIVA (Ganha a cor específica)
-            btn.className = `lead-tab-btn px-4 py-2.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 ${colors.bg} text-white ${colors.shadow} transform scale-105 border border-transparent`;
-            if(span) span.className = "bg-white/20 text-white px-2 py-0.5 rounded-full count";
-        } else {
-            // Estilo ABA INATIVA (Mantém uma leve cor no contador para você bater o olho rápido)
-            let badgeBg = 'bg-gray-800 text-gray-400';
-            if (btnTab === 'Todos') badgeBg = 'bg-blue-900/40 text-blue-400';
-            if (btnTab === 'Novo') badgeBg = 'bg-purple-900/40 text-purple-400';
-            if (btnTab === 'Pendente') badgeBg = 'bg-orange-900/40 text-orange-400';
-            if (btnTab === 'Fechado') badgeBg = 'bg-green-900/40 text-green-400';
-            if (btnTab === 'NaoFechado') badgeBg = 'bg-red-900/40 text-red-400';
-
-            btn.className = "lead-tab-btn px-4 py-2.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 bg-[#161821] text-gray-500 border border-gray-800 hover:bg-[#1e2029]";
-            if(span) span.className = `${badgeBg} px-2 py-0.5 rounded-full count font-bold`;
-        }
+        btn.classList.toggle('active', btn.dataset.tab === tab);
     });
-    
     renderLeads();
 };
 
@@ -1976,147 +1939,67 @@ function iniciarMonitoramentoLeads() {
     });
 }
 
-// Agora o contador contabiliza o "Todos" também
 function atualizarContadoresLeads() {
-    const counts = { Todos: leadsData.length, Novo: 0, Pendente: 0, Fechado: 0, NaoFechado: 0 };
+    const counts = { Novo: 0, Pendente: 0, Fechado: 0, NaoFechado: 0 };
     leadsData.forEach(l => {
         if (counts[l.status] !== undefined) counts[l.status]++;
     });
-    
-    // Atualiza os números dentro das abas
+
     document.querySelectorAll('.lead-tab-btn').forEach(btn => {
         const tab = btn.dataset.tab;
         const span = btn.querySelector('.count');
         if (span) span.innerText = counts[tab];
     });
-    
-    // 🌟 NOVO: Controla o badge pulsante do Cabeçalho Principal
-    const badgeHeader = document.getElementById('header-badge-novos');
-    if (badgeHeader) {
-        if (counts['Novo'] > 0) {
-            badgeHeader.innerText = `${counts['Novo']} Novo${counts['Novo'] > 1 ? 's' : ''}`;
-            badgeHeader.classList.remove('hidden');
-        } else {
-            badgeHeader.classList.add('hidden');
-        }
-    }
-    
-    setLeadTab(currentLeadTab);
 }
 
-// --- VARIÁVEIS DE ORDENAÇÃO DE LEADS ---
-let leadSortColumn = 'data';
-let leadSortDirection = 'desc';
-
-// Função para dar "peso" ao faturamento, assim a ordenação entende qual valor é maior
-function getFaturamentoWeight(valor) {
-    if (!valor || valor === 'Não sei') return 0;
-    if (valor === 'Não tem faturamento') return 1;
-    if (valor === 'Menos de 1000') return 2;
-    if (valor === '1001 a 3000') return 3;
-    if (valor === '3001 a 7000') return 4;
-    if (valor === '7001 a 12000') return 5;
-    if (valor === '12001 a 20000') return 6;
-    if (valor === 'Acima de 20000') return 7;
-    return 0;
-}
-
-window.toggleLeadSort = (column) => {
-    if (leadSortColumn === column) {
-        // Se clicou na mesma coluna, inverte a ordem
-        leadSortDirection = leadSortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-        // Se clicou em outra coluna, define ela como nova e começa do maior pro menor
-        leadSortColumn = column;
-        leadSortDirection = 'desc';
-    }
-
-    // Atualiza o visual das setinhas
-    ['data', 'empresa', 'faturamento'].forEach(col => {
-        const icon = document.getElementById(`sort-icon-${col}`);
-        if (!icon) return;
-        
-        if (col === leadSortColumn) {
-            icon.className = leadSortDirection === 'desc' ? 'fas fa-sort-down text-blue-500' : 'fas fa-sort-up text-blue-500';
-        } else {
-            icon.className = 'fas fa-sort text-gray-600 group-hover:text-gray-400 transition';
-        }
-    });
-
-    renderLeads();
-};
-
-// Renderizar a Tabela com Coluna de Status e Cores nas Bordas
 function renderLeads() {
     const list = document.getElementById('leads-list');
     if (!list) return;
 
-    // Filtra pela Aba (Novo, Pendente, etc.)
-    let filtered = currentLeadTab === 'Todos' ? [...leadsData] : leadsData.filter(l => l.status === currentLeadTab);
-    
-    // ORDENAÇÃO DINÂMICA ANTES DE DESENHAR A LISTA
-    filtered.sort((a, b) => {
-        let valA, valB;
-
-        if (leadSortColumn === 'data') {
-            valA = a.dataCadastro ? new Date(a.dataCadastro).getTime() : 0;
-            valB = b.dataCadastro ? new Date(b.dataCadastro).getTime() : 0;
-        } else if (leadSortColumn === 'empresa') {
-            valA = (a.nomeLoja || '').toLowerCase();
-            valB = (b.nomeLoja || '').toLowerCase();
-        } else if (leadSortColumn === 'faturamento') {
-            valA = getFaturamentoWeight(a.faturamento);
-            valB = getFaturamentoWeight(b.faturamento);
-        }
-
-        if (valA < valB) return leadSortDirection === 'asc' ? -1 : 1;
-        if (valA > valB) return leadSortDirection === 'asc' ? 1 : -1;
-        return 0;
-    });
+    const filtered = leadsData.filter(l => l.status === currentLeadTab);
 
     if (filtered.length === 0) {
         list.innerHTML = `<div class="text-center py-10 text-gray-500 text-sm italic">Nenhum lead encontrado em "${currentLeadTab}"</div>`;
         return;
     }
 
+    // Renderiza como uma tabela de 12 colunas (alinhado com as legendas do topo)
     list.innerHTML = filtered.map(lead => {
         const dataObj = lead.dataCadastro ? new Date(lead.dataCadastro) : new Date();
         const dataStr = dataObj.toLocaleDateString('pt-BR');
         const horaStr = dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-        let borderStatusClass = 'border-l-4 border-l-transparent';
-        if (lead.status === 'Novo') borderStatusClass = 'border-l-4 border-l-purple-500';
-        if (lead.status === 'Pendente') borderStatusClass = 'border-l-4 border-l-orange-500';
-        if (lead.status === 'Fechado') borderStatusClass = 'border-l-4 border-l-green-500';
-        if (lead.status === 'NaoFechado') borderStatusClass = 'border-l-4 border-l-red-500';
-
-        let badgeStatusHtml = '';
-        if (lead.status === 'Novo') badgeStatusHtml = '<span class="bg-purple-900/30 border border-purple-500/50 text-purple-400 px-2 py-1.5 rounded text-[9px] font-bold uppercase w-full block text-center shadow-sm">Novo</span>';
-        else if (lead.status === 'Pendente') badgeStatusHtml = '<span class="bg-orange-900/30 border border-orange-500/50 text-orange-400 px-2 py-1.5 rounded text-[9px] font-bold uppercase w-full block text-center shadow-sm">Pendente</span>';
-        else if (lead.status === 'Fechado') badgeStatusHtml = '<span class="bg-green-900/30 border border-green-500/50 text-green-400 px-2 py-1.5 rounded text-[9px] font-bold uppercase w-full block text-center shadow-sm">Fechado</span>';
-        else if (lead.status === 'NaoFechado') badgeStatusHtml = '<span class="bg-red-900/30 border border-red-500/50 text-red-400 px-2 py-1.5 rounded text-[9px] font-bold uppercase w-full block text-center shadow-sm">Não Fechou</span>';
+        // Uma sutil borda verde do lado esquerdo para identificar os Novos
+        const borderStatusClass = lead.status === 'Novo' ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-transparent';
 
         return `
         <div onclick="abrirDetalheLead('${lead.id}')" class="grid grid-cols-12 gap-3 px-6 py-4 border-b border-gray-800/50 hover:bg-[#1e2029] transition cursor-pointer items-center group ${borderStatusClass}">
+            
+            <!-- Coluna: Data -->
             <div class="col-span-2">
                 <span class="block text-white font-bold text-xs">${dataStr}</span>
                 <span class="text-gray-500 text-[10px]">${horaStr}</span>
             </div>
-            <div class="col-span-3 pr-2 truncate">
+            
+            <!-- Coluna: Contato (Nome, Zap, Email) -->
+            <div class="col-span-4 pr-2 truncate">
                 <span class="block text-white font-bold text-sm truncate" title="${lead.nome}">${lead.nome}</span>
                 <span class="block text-gray-400 text-[11px] mt-0.5"><i class="fab fa-whatsapp text-green-500"></i> ${lead.whatsapp}</span>
                 ${lead.email ? `<span class="block text-gray-500 text-[10px] mt-0.5 truncate" title="${lead.email}"><i class="far fa-envelope"></i> ${lead.email}</span>` : ''}
             </div>
-            <div class="col-span-2 pr-2 truncate">
+            
+            <!-- Coluna: Empresa e Segmento -->
+            <div class="col-span-3 pr-2 truncate">
                 <span class="block text-yellow-500 font-bold text-sm truncate" title="${lead.nomeLoja}">${lead.nomeLoja}</span>
                 <span class="block text-gray-400 text-[10px] uppercase mt-1 tracking-wider">${lead.segmento || 'Não inf.'}</span>
             </div>
+            
+            <!-- Coluna: Faturamento -->
             <div class="col-span-2">
                 <span class="text-white font-bold text-[11px] bg-gray-900 px-2 py-1.5 rounded border border-gray-700 whitespace-nowrap block text-center truncate">${lead.faturamento || 'Não inf.'}</span>
             </div>
-            <div class="col-span-2 flex justify-center items-center">
-                ${badgeStatusHtml}
-            </div>
+            
+            <!-- Coluna: Ações (Botão Excluir) -->
             <div class="col-span-1 flex justify-center items-center">
                 <button onclick="event.stopPropagation(); excluirLead('${lead.id}')" class="text-gray-600 hover:text-red-500 transition opacity-0 group-hover:opacity-100 p-2" title="Excluir Lead">
                     <i class="fas fa-trash-alt text-lg"></i>
@@ -2131,56 +2014,48 @@ window.abrirDetalheLead = (id) => {
     const lead = leadsData.find(l => l.id === id);
     if (!lead) return;
 
-    // Cabeçalho do modal
+    // Formata e exibe a data no Modal
     const dataObj = lead.dataCadastro ? new Date(lead.dataCadastro) : new Date();
     document.getElementById('det-lead-data').innerText = `${dataObj.toLocaleDateString('pt-BR')} às ${dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+
     document.getElementById('det-lead-nome').innerText = lead.nome;
     document.getElementById('det-lead-loja').innerText = lead.nomeLoja;
     document.getElementById('det-lead-wpp').innerText = lead.whatsapp;
     document.getElementById('det-lead-fat').innerText = lead.faturamento || 'Não informado';
     document.getElementById('det-lead-email').innerText = lead.email || 'Não informado';
 
-    // Chama no Whats
     const zapMsg = encodeURIComponent(`Olá ${lead.nome}! Sou da Projetista Oficial, vi seu interesse na loja ${lead.nomeLoja}. Como podemos ajudar?`);
     document.getElementById('det-btn-whats').href = `https://wa.me/${lead.whatsapp.replace(/\D/g, '')}?text=${zapMsg}`;
 
-    // 🌟 CORREÇÃO DO BUG: Muda pra Pendente no banco SEM acionar o close()
-    if (lead.status === 'Novo') {
-        updateDoc(doc(db, 'leads', id), { status: 'Pendente' });
-    }
+    document.getElementById('det-btn-fechar').onclick = () => fecharNegocioLead(lead);
+    document.getElementById('det-btn-recusar').onclick = () => mudarStatusLead(id, 'NaoFechado');
 
-    // Lógica do Banner Fechado vs Botões Abertos
-    const alertaFechado = document.getElementById('modal-alerta-fechado');
-    const containerAcoes = document.getElementById('det-container-acoes');
-    const textDataFechamento = document.getElementById('det-lead-data-fechamento');
+    if (lead.status === 'Novo') mudarStatusLead(id, 'Pendente');
 
-    if (lead.status === 'Fechado') {
-        alertaFechado.classList.remove('hidden');
-        alertaFechado.classList.add('flex', 'flex-col', 'md:flex-row');
-        containerAcoes.classList.add('hidden');
-        
-        if (lead.dataFechamento) {
-            const fDate = new Date(lead.dataFechamento);
-            textDataFechamento.innerText = `${fDate.toLocaleDateString('pt-BR')} às ${fDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-        } else {
-            textDataFechamento.innerText = "Data não registrada"; 
-        }
-    } else {
-        alertaFechado.classList.add('hidden');
-        alertaFechado.classList.remove('flex', 'flex-col', 'md:flex-row');
-        containerAcoes.classList.remove('hidden');
-        
-        // Ações programadas separadamente
-        document.getElementById('det-btn-fechar').onclick = () => fecharNegocioLead(lead);
-        
-        // Agora essa ação tem seu próprio comando de fechar embutido
-        document.getElementById('det-btn-recusar').onclick = async () => {
-            await updateDoc(doc(db, 'leads', id), { status: 'NaoFechado' });
-            document.getElementById('modal-detalhe-lead').close();
-        };
-    }
+    document.getElementById('modal-detalhe-lead').showModal();
+};
 
-    // Abre o Modal de Forma Segura
+window.abrirDetalheLead = (id) => {
+    const lead = leadsData.find(l => l.id === id);
+    if (!lead) return;
+
+    document.getElementById('det-lead-nome').innerText = lead.nome;
+    document.getElementById('det-lead-loja').innerText = lead.nomeLoja;
+    document.getElementById('det-lead-wpp').innerText = lead.whatsapp;
+    document.getElementById('det-lead-fat').innerText = lead.faturamento || 'Não informado';
+    document.getElementById('det-lead-email').innerText = lead.email || 'Não informado';
+
+    // WhatsApp Link
+    const zapMsg = encodeURIComponent(`Olá ${lead.nome}! Sou da Projetista Oficial, vi seu interesse na loja ${lead.nomeLoja}. Como podemos ajudar?`);
+    document.getElementById('det-btn-whats').href = `https://wa.me/${lead.whatsapp.replace(/\D/g, '')}?text=${zapMsg}`;
+
+    // Ações
+    document.getElementById('det-btn-fechar').onclick = () => fecharNegocioLead(lead);
+    document.getElementById('det-btn-recusar').onclick = () => mudarStatusLead(id, 'NaoFechado');
+
+    // Se abrir o modal, marca como "Pendente" (Visto) automaticamente se for Novo
+    if (lead.status === 'Novo') mudarStatusLead(id, 'Pendente');
+
     document.getElementById('modal-detalhe-lead').showModal();
 };
 
@@ -2195,25 +2070,26 @@ window.excluirLead = async (id) => {
     }
 };
 
-// 🤝 MÁGICA: FECHAR NEGÓCIO E SALVAR DATA
+// 🤝 MÁGICA: FECHAR NEGÓCIO E PUXAR DADOS
 function fecharNegocioLead(lead) {
     document.getElementById('modal-detalhe-lead').close();
-    openClientModal(); 
 
+    // Abre o modal de cadastro de cliente (sua função já existente)
+    openClientModal();
+
+    // Preenche os campos do cadastro com os dados do lead
     setTimeout(() => {
         document.getElementById('inp-name').value = lead.nomeLoja;
         document.getElementById('inp-owner').value = lead.nome;
         document.getElementById('inp-whats').value = lead.whatsapp;
         document.getElementById('inp-email').value = lead.email || '';
-        
-        generateSiteLink(); 
-        
-        // NOVO: Agora também salvamos a Data de Fechamento!
-        updateDoc(doc(db, 'leads', lead.id), { 
-            status: 'Fechado',
-            dataFechamento: new Date().toISOString() 
-        });
-        
+
+        // Gera o slug automaticamente
+        generateSiteLink();
+
+        // Muda status do lead para fechado no banco
+        updateDoc(doc(db, 'leads', lead.id), { status: 'Fechado' });
+
         showToast("Dados do lead importados com sucesso!");
     }, 500);
 }

@@ -1904,25 +1904,22 @@ let currentLeadTab = 'Todos';
 let leadsData = [];
 
 
-// Alternar entre Aberto e Fechado (Comportamento seguro Flexbox)
+// Alternar entre Aberto (Metade Direita Cheia) e Fechado (Barra)
 window.toggleLeadsBlock = () => {
     const container = document.getElementById('leads-container');
     const arrow = document.getElementById('leads-arrow');
     
     if (container.classList.contains('h-20')) {
-        // ABRIR: Remove a altura pequena
-        container.classList.remove('h-20', 'border-gray-800');
-        
-        // Adiciona altura total e borda iluminada. 
-        // Como o HTML já usa 'flex-1', ele preenche a largura magicamente sozinho.
-        container.classList.add('h-full', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
+        // ABRE: Remove estado pequeno
+        container.classList.remove('h-20', 'flex-1', 'border-gray-800');
+        // Adiciona estado GRANDE (absolute no canto direito ocupando metade)
+        container.classList.add('absolute', 'top-0', 'right-0', 'h-full', 'w-1/2', 'z-[100]', 'border-l-2', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
         arrow.classList.add('rotate-180');
     } else {
-        // FECHAR: Remove as características de tela aberta
-        container.classList.remove('h-full', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
-        
-        // Volta para a altura de 20
-        container.classList.add('h-20', 'border-gray-800');
+        // FECHA: Remove estado grande absoluto
+        container.classList.remove('absolute', 'top-0', 'right-0', 'h-full', 'w-1/2', 'z-[100]', 'border-l-2', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
+        // Volta para a barra que se estica perfeitamente até o canto (flex-1)
+        container.classList.add('h-20', 'flex-1', 'border-gray-800');
         arrow.classList.remove('rotate-180');
     }
 };
@@ -2004,76 +2001,14 @@ function atualizarContadoresLeads() {
     setLeadTab(currentLeadTab);
 }
 
-// --- VARIÁVEIS DE ORDENAÇÃO DE LEADS ---
-let leadSortColumn = 'data';
-let leadSortDirection = 'desc';
-
-// Função para dar "peso" ao faturamento, assim a ordenação entende qual valor é maior
-function getFaturamentoWeight(valor) {
-    if (!valor || valor === 'Não sei') return 0;
-    if (valor === 'Não tem faturamento') return 1;
-    if (valor === 'Menos de 1000') return 2;
-    if (valor === '1001 a 3000') return 3;
-    if (valor === '3001 a 7000') return 4;
-    if (valor === '7001 a 12000') return 5;
-    if (valor === '12001 a 20000') return 6;
-    if (valor === 'Acima de 20000') return 7;
-    return 0;
-}
-
-window.toggleLeadSort = (column) => {
-    if (leadSortColumn === column) {
-        // Se clicou na mesma coluna, inverte a ordem
-        leadSortDirection = leadSortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-        // Se clicou em outra coluna, define ela como nova e começa do maior pro menor
-        leadSortColumn = column;
-        leadSortDirection = 'desc';
-    }
-
-    // Atualiza o visual das setinhas
-    ['data', 'empresa', 'faturamento'].forEach(col => {
-        const icon = document.getElementById(`sort-icon-${col}`);
-        if (!icon) return;
-        
-        if (col === leadSortColumn) {
-            icon.className = leadSortDirection === 'desc' ? 'fas fa-sort-down text-blue-500' : 'fas fa-sort-up text-blue-500';
-        } else {
-            icon.className = 'fas fa-sort text-gray-600 group-hover:text-gray-400 transition';
-        }
-    });
-
-    renderLeads();
-};
-
 // Renderizar a Tabela com Coluna de Status e Cores nas Bordas
 function renderLeads() {
     const list = document.getElementById('leads-list');
     if (!list) return;
 
-    // Filtra pela Aba (Novo, Pendente, etc.)
-    let filtered = currentLeadTab === 'Todos' ? [...leadsData] : leadsData.filter(l => l.status === currentLeadTab);
+    // Se estiver no "Todos", exibe a lista inteira. Senão, filtra pelo status
+    const filtered = currentLeadTab === 'Todos' ? leadsData : leadsData.filter(l => l.status === currentLeadTab);
     
-    // ORDENAÇÃO DINÂMICA ANTES DE DESENHAR A LISTA
-    filtered.sort((a, b) => {
-        let valA, valB;
-
-        if (leadSortColumn === 'data') {
-            valA = a.dataCadastro ? new Date(a.dataCadastro).getTime() : 0;
-            valB = b.dataCadastro ? new Date(b.dataCadastro).getTime() : 0;
-        } else if (leadSortColumn === 'empresa') {
-            valA = (a.nomeLoja || '').toLowerCase();
-            valB = (b.nomeLoja || '').toLowerCase();
-        } else if (leadSortColumn === 'faturamento') {
-            valA = getFaturamentoWeight(a.faturamento);
-            valB = getFaturamentoWeight(b.faturamento);
-        }
-
-        if (valA < valB) return leadSortDirection === 'asc' ? -1 : 1;
-        if (valA > valB) return leadSortDirection === 'asc' ? 1 : -1;
-        return 0;
-    });
-
     if (filtered.length === 0) {
         list.innerHTML = `<div class="text-center py-10 text-gray-500 text-sm italic">Nenhum lead encontrado em "${currentLeadTab}"</div>`;
         return;
@@ -2084,12 +2019,14 @@ function renderLeads() {
         const dataStr = dataObj.toLocaleDateString('pt-BR');
         const horaStr = dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
+        // Cores Dinâmicas da Borda Lateral
         let borderStatusClass = 'border-l-4 border-l-transparent';
         if (lead.status === 'Novo') borderStatusClass = 'border-l-4 border-l-purple-500';
         if (lead.status === 'Pendente') borderStatusClass = 'border-l-4 border-l-orange-500';
         if (lead.status === 'Fechado') borderStatusClass = 'border-l-4 border-l-green-500';
         if (lead.status === 'NaoFechado') borderStatusClass = 'border-l-4 border-l-red-500';
 
+        // Badge Dinâmico da Coluna Status
         let badgeStatusHtml = '';
         if (lead.status === 'Novo') badgeStatusHtml = '<span class="bg-purple-900/30 border border-purple-500/50 text-purple-400 px-2 py-1.5 rounded text-[9px] font-bold uppercase w-full block text-center shadow-sm">Novo</span>';
         else if (lead.status === 'Pendente') badgeStatusHtml = '<span class="bg-orange-900/30 border border-orange-500/50 text-orange-400 px-2 py-1.5 rounded text-[9px] font-bold uppercase w-full block text-center shadow-sm">Pendente</span>';
@@ -2098,25 +2035,32 @@ function renderLeads() {
 
         return `
         <div onclick="abrirDetalheLead('${lead.id}')" class="grid grid-cols-12 gap-3 px-6 py-4 border-b border-gray-800/50 hover:bg-[#1e2029] transition cursor-pointer items-center group ${borderStatusClass}">
+            
             <div class="col-span-2">
                 <span class="block text-white font-bold text-xs">${dataStr}</span>
                 <span class="text-gray-500 text-[10px]">${horaStr}</span>
             </div>
+            
             <div class="col-span-3 pr-2 truncate">
                 <span class="block text-white font-bold text-sm truncate" title="${lead.nome}">${lead.nome}</span>
                 <span class="block text-gray-400 text-[11px] mt-0.5"><i class="fab fa-whatsapp text-green-500"></i> ${lead.whatsapp}</span>
                 ${lead.email ? `<span class="block text-gray-500 text-[10px] mt-0.5 truncate" title="${lead.email}"><i class="far fa-envelope"></i> ${lead.email}</span>` : ''}
             </div>
+            
             <div class="col-span-2 pr-2 truncate">
                 <span class="block text-yellow-500 font-bold text-sm truncate" title="${lead.nomeLoja}">${lead.nomeLoja}</span>
                 <span class="block text-gray-400 text-[10px] uppercase mt-1 tracking-wider">${lead.segmento || 'Não inf.'}</span>
             </div>
+            
             <div class="col-span-2">
                 <span class="text-white font-bold text-[11px] bg-gray-900 px-2 py-1.5 rounded border border-gray-700 whitespace-nowrap block text-center truncate">${lead.faturamento || 'Não inf.'}</span>
             </div>
+
+            <!-- NOVA COLUNA: STATUS -->
             <div class="col-span-2 flex justify-center items-center">
                 ${badgeStatusHtml}
             </div>
+            
             <div class="col-span-1 flex justify-center items-center">
                 <button onclick="event.stopPropagation(); excluirLead('${lead.id}')" class="text-gray-600 hover:text-red-500 transition opacity-0 group-hover:opacity-100 p-2" title="Excluir Lead">
                     <i class="fas fa-trash-alt text-lg"></i>

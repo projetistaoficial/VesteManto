@@ -1904,25 +1904,22 @@ let currentLeadTab = 'Todos';
 let leadsData = [];
 
 
-// Alternar entre Aberto e Fechado (Comportamento seguro Flexbox)
+// Alternar entre Aberto (Metade Direita Cheia) e Fechado (Barra)
 window.toggleLeadsBlock = () => {
     const container = document.getElementById('leads-container');
     const arrow = document.getElementById('leads-arrow');
     
     if (container.classList.contains('h-20')) {
-        // ABRIR: Remove a altura pequena
-        container.classList.remove('h-20', 'border-gray-800');
-        
-        // Adiciona altura total e borda iluminada. 
-        // Como o HTML já usa 'flex-1', ele preenche a largura magicamente sozinho.
-        container.classList.add('h-full', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
+        // ABRE: Remove estado pequeno
+        container.classList.remove('h-20', 'flex-1', 'border-gray-800');
+        // Adiciona estado GRANDE (absolute no canto direito ocupando metade)
+        container.classList.add('absolute', 'top-0', 'right-0', 'h-full', 'w-1/2', 'z-[100]', 'border-l-2', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
         arrow.classList.add('rotate-180');
     } else {
-        // FECHAR: Remove as características de tela aberta
-        container.classList.remove('h-full', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
-        
-        // Volta para a altura de 20
-        container.classList.add('h-20', 'border-gray-800');
+        // FECHA: Remove estado grande absoluto
+        container.classList.remove('absolute', 'top-0', 'right-0', 'h-full', 'w-1/2', 'z-[100]', 'border-l-2', 'border-yellow-500/50', 'shadow-[-15px_0_30px_rgba(0,0,0,0.6)]');
+        // Volta para a barra que se estica perfeitamente até o canto (flex-1)
+        container.classList.add('h-20', 'flex-1', 'border-gray-800');
         arrow.classList.remove('rotate-180');
     }
 };
