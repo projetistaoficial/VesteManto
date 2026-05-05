@@ -184,8 +184,8 @@
                 // No modo dev (VS Code), ignora o bloqueio para você conseguir trabalhar!
                 if (!isLocalhost) {
                     // ✅ Os seus returns aqui já garantem que o script vai parar pacificamente!
-                    if (data.status === 'pausado') { exibirTelaMorte(); return; }
-                    if (data.status === 'bloqueado' || data.active === false) { exibirTelaMorte(); return; }
+                    if (data.status === 'pausado') { exibirTelaMorte( return; }
+                    if (data.status === 'bloqueado' || data.active === false) { exibirTelaMorte() return; }
                 }
 
                 // ✅ TUDO OK: Define o ID global
