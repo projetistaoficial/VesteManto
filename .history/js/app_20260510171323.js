@@ -2305,41 +2305,39 @@ function renderProductsList(products, preCalcMetrics = null) {
                 <i class="fas fa-trash-alt text-white text-lg"></i>
             </div>
 
-            <div class="relative z-10 p-3 transition-transform duration-200 ease-out prod-swipe-content ${bgClass} h-full flex flex-col md:grid md:grid-cols-12 gap-2 md:items-center bg-[#151720]">
+            <div class="relative z-10 p-3 transition-transform duration-200 ease-out prod-swipe-content ${bgClass} h-full flex flex-col md:grid md:grid-cols-12 gap-2 items-center">
                 
-                <div class="flex items-center justify-between w-full md:contents">
-                    <div class="flex items-center gap-3 md:col-span-6 w-full flex-1 min-w-0">
+                <div class="flex md:contents items-center justify-between w-full">
+                    <div class="flex items-center gap-3 md:col-span-6 w-full">
                         
-                        <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center shrink-0">
+                        <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center">
                              <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" 
                                onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
                         </div>
 
-                        <div class="hidden md:flex ${state.isSelectionMode ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-center border-r border-gray-800 h-full shrink-0">
+                        <div class="hidden md:flex ${state.isSelectionMode ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-center border-r border-gray-800 h-full">
                             <span class="text-base font-bold text-white font-mono opacity-80">#${codeStr}</span>
                         </div>
 
-                        <div class="flex items-center gap-3 flex-1 min-w-0">
-                            <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0">
-                            <div class="flex flex-col flex-1 min-w-0 pr-2">
-                                <div class="flex items-center gap-2">
-                                    <span class="md:hidden shrink-0 text-[10px] bg-gray-700 text-white px-1.5 py-0.5 rounded font-bold">#${codeStr}</span>
+                        <div class="flex items-center gap-3 md:col-span-4 min-w-0 flex-1">
+                            <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black">
+                            <div class="flex flex-col min-w-0">
+                                <div class="flex items-center">
+                                    <span class="md:hidden text-xs bg-gray-700 text-white px-1.5 py-0.5 rounded mr-2 font-bold">#${codeStr}</span>
                                     <span class="text-gray-200 font-bold text-sm truncate group-hover:text-yellow-500 transition">${p.name}</span>
                                 </div>
-                                <span class="text-gray-500 text-[10px] truncate w-full block mt-0.5">${p.category || 'Geral'}</span>
+                                <span class="text-gray-500 text-[10px] truncate">${p.category || 'Geral'}</span>
                             </div>
                         </div>
                     </div>
 
-                    <div class="md:hidden flex flex-col justify-center items-end shrink-0 pl-2 ml-auto h-10">
+                    <div class="md:hidden flex flex-col items-end min-w-[80px]">
                         ${priceHtml}
-                        ${safeStockDisplay <= 0 
-                            ? '<span class="text-red-500 text-[10px] font-bold uppercase tracking-wider mt-0.5">Esgotado</span>' 
-                            : `<span class="text-gray-500 text-[10px] mt-0.5 whitespace-nowrap">Est.: <span class="font-bold text-gray-300">${safeStockDisplay}</span></span>`}
+                        ${safeStockDisplay <= 0 ? '<span class="text-red-500 text-[10px] font-bold">Esgotado</span>' : `<span class="text-gray-500 text-[10px]">Est.: ${safeStockDisplay}</span>`}
                     </div>
                 </div>
 
-                <div class="hidden md:block col-span-2 text-center text-gray-500 text-xs font-mono truncate">${lastMovStr}</div>
+                <div class="hidden md:block col-span-2 text-center text-gray-500 text-xs font-mono">${lastMovStr}</div>
                 <div class="hidden md:block col-span-1 text-center text-gray-400 text-xs">
                     ${metrics.qtd > 0 ? `<span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-bold">${metrics.qtd}</span>` : '-'}
                 </div>
