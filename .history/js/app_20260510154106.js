@@ -495,25 +495,30 @@ async function getNextProductCode(siteId) {
 // 1. CHAVE MESTRA DA MEMÓRIA (Impede vazamento de loja e fantasmas)
 // =================================================================
 const getSiteMemoryKey = () => {
-    return window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo';
+    const id = window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo';
+    return id;
 };
 
-// =================================================================
-// 2. ESTADO GLOBAL E DOM (BLINDADO POR LOJA)
-// =================================================================
+const currentSiteId = window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo';
+
 const state = {
-    siteId: getSiteMemoryKey(), // Usa a chave mestra (mantém a lógica da URL intacta)
+    siteId: window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo',
+    products: [],
     products: [],
     categories: [],
     coupons: [],
     orders: [], // Vendas do admin
 
-    // Carrinho e Usuário (Leitura Blindada - Sem o duplicado antigo)
-    cart: JSON.parse(localStorage.getItem(`cart_${getSiteMemoryKey()}`)) || [],
+    cart: JSON.parse(localStorage.getItem(`cart_${currentSiteId}`)) || [],
     user: null,
 
+    // Carrinho e Usuário
+    cart: JSON.parse(localStorage.getItem('cart')) || [],
+    user: null,
+
+    // Histórico de Pedidos do Cliente (Chave Corrigida)
     // Histórico de Pedidos do Cliente (Isolado por loja)
-    myOrders: JSON.parse(localStorage.getItem(`orders_${getSiteMemoryKey()}`)) || [],
+    myOrders: JSON.parse(localStorage.getItem(`orders_${currentSiteId}`)) || [],
     activeOrder: null, // Mantido apenas para compatibilidade de detalhes
 
     // Configurações e UI
@@ -547,13 +552,13 @@ const state = {
     focusedCouponIndex: -1,
     focusedProductId: null,
     selectedCategoryParent: null,
-    globalSettings: { allowNoStock: false }, 
+    globalSettings: { allowNoStock: false }, // <--- Mude para TRUE
     cardSelections: {},
 
-    // Configurações da aba PRODUTOS
-    isSelectionMode: false, // Controla se checkboxes aparecem
-    
-    // Configuração padrão de ordenação
+    //Configurações da aba PRODUTOS
+    isSelectionMode: false, // : Controla se checkboxes aparecem
+    selectedProducts: new Set(),
+    //Configuração padrão de ordenação
     sortConfig: { key: 'code', direction: 'desc' },
 };
 let originalTheme = null;

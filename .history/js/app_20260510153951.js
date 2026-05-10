@@ -491,29 +491,21 @@ async function getNextProductCode(siteId) {
 // =================================================================
 // 2. ESTADO GLOBAL E DOM
 // =================================================================
-// =================================================================
-// 1. CHAVE MESTRA DA MEMÓRIA (Impede vazamento de loja e fantasmas)
-// =================================================================
-const getSiteMemoryKey = () => {
-    return window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo';
-};
 
-// =================================================================
-// 2. ESTADO GLOBAL E DOM (BLINDADO POR LOJA)
-// =================================================================
 const state = {
-    siteId: getSiteMemoryKey(), // Usa a chave mestra (mantém a lógica da URL intacta)
+    siteId: window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo',
+    products: [],
     products: [],
     categories: [],
     coupons: [],
     orders: [], // Vendas do admin
 
-    // Carrinho e Usuário (Leitura Blindada - Sem o duplicado antigo)
-    cart: JSON.parse(localStorage.getItem(`cart_${getSiteMemoryKey()}`)) || [],
+    // Carrinho e Usuário
+    cart: JSON.parse(localStorage.getItem('cart')) || [],
     user: null,
 
-    // Histórico de Pedidos do Cliente (Isolado por loja)
-    myOrders: JSON.parse(localStorage.getItem(`orders_${getSiteMemoryKey()}`)) || [],
+    // Histórico de Pedidos do Cliente (Chave Corrigida)
+    myOrders: JSON.parse(localStorage.getItem('site_orders_history')) || [],
     activeOrder: null, // Mantido apenas para compatibilidade de detalhes
 
     // Configurações e UI
@@ -547,13 +539,13 @@ const state = {
     focusedCouponIndex: -1,
     focusedProductId: null,
     selectedCategoryParent: null,
-    globalSettings: { allowNoStock: false }, 
+    globalSettings: { allowNoStock: false }, // <--- Mude para TRUE
     cardSelections: {},
 
-    // Configurações da aba PRODUTOS
-    isSelectionMode: false, // Controla se checkboxes aparecem
-    
-    // Configuração padrão de ordenação
+    //Configurações da aba PRODUTOS
+    isSelectionMode: false, // : Controla se checkboxes aparecem
+    selectedProducts: new Set(),
+    //Configuração padrão de ordenação
     sortConfig: { key: 'code', direction: 'desc' },
 };
 let originalTheme = null;
@@ -991,8 +983,8 @@ async function initApp() {
             }
         }, 10000);
 
-        // Verifica Pedidos Ativos (Motoquinha) - Isolado por loja!
-        const savedHistory = localStorage.getItem(`orders_${state.siteId}`);
+        // Verifica Pedidos Ativos (Motoquinha)
+        const savedHistory = localStorage.getItem('site_orders_history');
         if (savedHistory) {
             state.myOrders = JSON.parse(savedHistory);
         }
@@ -3888,23 +3880,23 @@ function setupEventListeners() {
 // =====================================================================
 window.aplicarCoresCategorias = (catName) => {
     const todosBotoes = document.querySelectorAll('.categoria-btn');
-
+    
     // Arrays isolados com as classes exatas
     // INATIVA: Fundo de vidro branco 10% (transparente e limpo)
     const classesInativas = ['bg-white/10', 'text-[var(--txt-body)]', 'border-transparent'];
-
+    
     // ATIVA: Fundo preto 60% (bg-black/60) para dar o destaque escuro que você pediu!
     const classesAtivas = ['bg-black/60', 'text-[var(--clr-accent)]', 'border-[var(--clr-accent)]'];
-
+    
     todosBotoes.forEach(btn => {
         // Limpa qualquer estilo inline que as tentativas anteriores tenham deixado preso
         btn.removeAttribute('style');
-
+        
         // Remove todas as classes para evitar acúmulo e sujeira
         btn.classList.remove(...classesInativas, ...classesAtivas, 'bg-white/5', 'bg-white/20', 'bg-[#151720]', 'bg-black', 'text-white', 'text-gray-300');
 
         const isAtivo = btn.dataset.cat === catName || (catName !== '' && catName.startsWith(btn.dataset.cat + ' -'));
-
+        
         if (isAtivo) {
             btn.classList.add(...classesAtivas);
         } else {
@@ -3930,7 +3922,7 @@ window.filterByCat = (catName) => {
         });
         renderCatalog(filtered);
     }
-
+    
     if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     if (window.innerWidth < 1024) {
@@ -3958,12 +3950,12 @@ function renderCategories() {
         state.categories.forEach(c => el.innerHTML += `<option value="${c.name}">${c.name}</option>`);
         if (val) el.value = val;
     };
-    ['category-filter', 'admin-filter-cat', 'bulk-category-select', 'prod-cat-select', 'bulk-category-select-dynamic'].forEach(populateSelect);
+    ['category-filter','admin-filter-cat','bulk-category-select','prod-cat-select','bulk-category-select-dynamic'].forEach(populateSelect);
 
     const scrollContainer = document.getElementById('categorias-scroll');
     if (scrollContainer) {
         let activeCat = document.getElementById('category-filter')?.value || '';
-
+        
         if (activeCat !== '') {
             const catExists = state.categories.some(c => c.name === activeCat || activeCat.startsWith(c.name + ' -'));
             if (!catExists) { activeCat = ''; renderCatalog(state.products); }
@@ -3976,7 +3968,7 @@ function renderCategories() {
         categoriasParaMostrar.forEach(c => {
             const safeName = c.name.replace(/'/g, "\\'");
             const hasSubs = state.categories.some(sub => sub.name.startsWith(c.name + ' - '));
-
+            
             // 👉 ESTRUTURA BASE: Só estrutura e desfoque. As cores (bg-white/10) entram via JS.
             const classesEstrutura = "categoria-btn flex items-center h-full rounded-full transition-all shrink-0 border backdrop-blur-md font-['Nunito'] font-black tracking-wide text-xs outline-none";
 
@@ -4119,19 +4111,12 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// ===============================================
 // 5. CARROSSEL COM PING-PONG BLINDADO E PAUSA
-// ===============================================
 window.isCategorySelected = false;
 window.initCategoryCarousel = () => {
     const slider = document.getElementById('categorias-scroll');
     if (!slider) return;
 
-    // 🔥 A VACINA DO CELULAR: Remove o 'scroll-smooth' que causa o cabo de guerra
-    slider.classList.remove('scroll-smooth');
-    slider.style.scrollBehavior = 'auto';
-
-    // Mata animações velhas se atualizar a tela
     if (window.carouselAnimationId) {
         cancelAnimationFrame(window.carouselAnimationId);
     }
@@ -4140,59 +4125,45 @@ window.initCategoryCarousel = () => {
     let startX;
     let scrollLeft;
     let isAutoScrolling = true;
-    let scrollDirection = 1;
+    let scrollDirection = 1; 
 
     const playAutoScroll = () => {
         window.carouselAnimationId = requestAnimationFrame(playAutoScroll);
-
+        
+        // Verifica o select nativo para pausa 100% segura
         const selectEscondido = document.getElementById('category-filter');
         const temCategoriaAtiva = selectEscondido && selectEscondido.value !== '';
 
-        // Pausa se clicou em algo ou se o dedo estiver na tela
         if (!isAutoScrolling || temCategoriaAtiva) return;
 
         const maxScroll = slider.scrollWidth - slider.clientWidth;
         if (maxScroll <= 0) return;
 
-        if (slider.scrollLeft >= maxScroll - 2) scrollDirection = -1;
-        else if (slider.scrollLeft <= 0) scrollDirection = 1;
+        if (slider.scrollLeft >= maxScroll - 2) scrollDirection = -1; 
+        else if (slider.scrollLeft <= 0) scrollDirection = 1; 
 
-        // Roda fluido
         slider.scrollLeft += scrollDirection;
     };
 
     playAutoScroll();
 
-    // 📱 EVENTOS BLINDADOS (Usando on... para não duplicar lixo na memória)
-
-    // --- CONTROLES PC (MOUSE) ---
-    slider.onmousedown = (e) => {
-        isDown = true; isAutoScrolling = false; slider.style.cursor = 'grabbing';
-        startX = e.pageX - slider.offsetLeft; scrollLeft = slider.scrollLeft;
-    };
-    slider.onmouseleave = () => {
-        isDown = false; slider.style.cursor = 'grab'; isAutoScrolling = true;
-    };
-    slider.onmouseup = () => {
-        isDown = false; slider.style.cursor = 'grab';
-        setTimeout(() => { isAutoScrolling = true; }, 2000);
-    };
-    slider.onmousemove = (e) => {
-        if (!isDown) return; e.preventDefault();
-        const x = e.pageX - slider.offsetLeft; const walk = (x - startX) * 2;
-        slider.scrollLeft = scrollLeft - walk;
-    };
-
-    // --- CONTROLES CELULAR (DEDO) ---
-    slider.ontouchstart = () => {
-        // Pausa a animação assim que o dedo encosta
-        isAutoScrolling = false;
-    };
-    slider.ontouchend = () => {
-        // Quando tira o dedo, espera 2 segundos e volta a andar sozinho
-        setTimeout(() => { isAutoScrolling = true; }, 2000);
-    };
-};;
+    if (!slider.dataset.eventsSet) {
+        slider.dataset.eventsSet = "true";
+        slider.addEventListener('mousedown', (e) => {
+            isDown = true; isAutoScrolling = false; slider.style.cursor = 'grabbing';
+            startX = e.pageX - slider.offsetLeft; scrollLeft = slider.scrollLeft;
+        });
+        slider.addEventListener('mouseleave', () => { isDown = false; slider.style.cursor = 'grab'; isAutoScrolling = true; });
+        slider.addEventListener('mouseup', () => { isDown = false; slider.style.cursor = 'grab'; setTimeout(() => { isAutoScrolling = true; }, 2000); });
+        slider.addEventListener('mousemove', (e) => {
+            if (!isDown) return; e.preventDefault();
+            const x = e.pageX - slider.offsetLeft; const walk = (x - startX) * 2; 
+            slider.scrollLeft = scrollLeft - walk;
+        });
+        slider.addEventListener('touchstart', () => { isAutoScrolling = false; }, {passive: true});
+        slider.addEventListener('touchend', () => { setTimeout(() => { isAutoScrolling = true; }, 2000); });
+    }
+};
 
 // =================================================================
 // RECUPERAÇÃO DAS ABAS DO ADMIN (Produtos, Categoria, Stats, Config)
@@ -4373,7 +4344,7 @@ function showView(viewName) {
 }
 
 // Atualiza o texto do botão de ordenar e reordena a lista
-window.updateSortLabel = function (selectElement) {
+window.updateSortLabel = function(selectElement) {
     // 1. Atualiza o texto visual (Label)
     const label = document.getElementById('sort-label-display');
     if (label) {
@@ -4382,7 +4353,7 @@ window.updateSortLabel = function (selectElement) {
 
         // Remove qualquer cor fixa do Tailwind e aplica a cor de Destaque da Loja
         label.classList.remove('text-yellow-500', 'text-orange-500', 'text-gray-400');
-        label.style.color = 'var(--txt-body)';
+        label.style.color = 'var(text-[var(--txt-body)';
     }
 
     // 2. Chama a reordenação (usa a função existente)
@@ -5574,8 +5545,7 @@ function addToCart(product, size) {
 }
 
 function saveCart() {
-    // Agora ele salva numa gaveta exclusiva, ex: "cart_loja-do-joao"
-    localStorage.setItem(`cart_${state.siteId}`, JSON.stringify(state.cart));
+    localStorage.setItem('cart', JSON.stringify(state.cart));
     updateCartUI();
     renderCatalog(state.products);
 }
@@ -6813,15 +6783,10 @@ async function submitOrder() {
         const newOrderLocal = { id: docRef.id, ...order };
         if (!Array.isArray(state.myOrders)) state.myOrders = [];
         state.myOrders.push(newOrderLocal);
-        
-        // Salva o histórico isolado
-        localStorage.setItem(`orders_${state.siteId}`, JSON.stringify(state.myOrders));
+        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
 
         startBackgroundListeners(); checkActiveOrders(); state.cart = []; state.currentCoupon = null;
-        
-        // Esvazia o carrinho isolado
-        localStorage.setItem(`cart_${state.siteId}`, JSON.stringify([])); 
-        updateCartUI();
+        localStorage.setItem('cart', JSON.stringify([])); updateCartUI();
 
         if (payMode === 'online') {
             let msg = `*NOVO PEDIDO #${order.code}*\n--------------------------------\n`;

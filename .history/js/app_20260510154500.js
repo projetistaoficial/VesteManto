@@ -494,6 +494,9 @@ async function getNextProductCode(siteId) {
 // =================================================================
 // 1. CHAVE MESTRA DA MEMÓRIA (Impede vazamento de loja e fantasmas)
 // =================================================================
+// =================================================================
+// 1. CHAVE MESTRA DA MEMÓRIA (Impede vazamento de loja e fantasmas)
+// =================================================================
 const getSiteMemoryKey = () => {
     return window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo';
 };
