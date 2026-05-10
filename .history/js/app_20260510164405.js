@@ -3718,59 +3718,49 @@ function setupEventListeners() {
     };
 
     // 3. Abre o modal e liga o Cropper.js
-window.openCropModal = (imageSrc, type) => {
-    window.currentCropType = type;
-    const modal = document.getElementById('crop-modal');
-    const imageEl = document.getElementById('crop-image');
-    const title = document.getElementById('crop-title');
+    window.openCropModal = (imageSrc, type) => {
+        window.currentCropType = type;
+        const modal = document.getElementById('crop-modal');
+        const imageEl = document.getElementById('crop-image');
+        const title = document.getElementById('crop-title');
 
-    if (!modal || !imageEl) {
-        console.error("ERRO: HTML do modal de crop não encontrado.");
-        return;
-    }
+        // Troca o título baseado no que ele tá editando
+        title.innerHTML = type === 'logo'
+            ? '<i class="fas fa-store mr-2"></i> Recortar Logo (1:1)'
+            : '<i class="fas fa-image mr-2"></i> Recortar Banner (Largo)';
 
-    // ✨ A MÁGICA VISUAL: Se for logo, aplica a classe que deixa o corte redondo no CSS
-    if (type === 'logo') {
-        modal.classList.add('crop-modo-logo');
-        title.innerHTML = '<i class="fas fa-store mr-2"></i> Recortar Logo (Círculo)';
-    } else {
-        modal.classList.remove('crop-modo-logo');
-        title.innerHTML = '<i class="fas fa-image mr-2"></i> Recortar Banner (Retângulo)';
-    }
+        imageEl.src = imageSrc;
 
-    imageEl.src = imageSrc;
+        // Mostra o Modal com animação
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        setTimeout(() => modal.classList.remove('opacity-0'), 10);
 
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    setTimeout(() => modal.classList.remove('opacity-0'), 10);
-
-    if (window.cropper) {
-        window.cropper.destroy();
-    }
-
-    setTimeout(() => {
-        if (typeof Cropper === 'undefined') {
-            alert("ERRO: O Cropper.js não carregou! Verifique o link no index.html");
-            return;
+        // Destrói o cropper antigo se existir
+        if (window.cropper) {
+            window.cropper.destroy();
         }
 
-        const ratio = type === 'logo' ? 1 / 1 : 21 / 9;
+        // Cria o Cropper novo com as regras exatas (Tempo para a imagem carregar no HTML)
+        setTimeout(() => {
+            // Logo é quadrado (1/1). Banner é um retângulo largo (ex: 21/9 ou 16/9)
+            const ratio = type === 'logo' ? 1 / 1 : 21 / 9;
 
-        window.cropper = new Cropper(imageEl, {
-            aspectRatio: ratio,
-            viewMode: 2, 
-            dragMode: 'move', 
-            autoCropArea: 1, // <-- AJUSTE: Agora começa com o tamanho MÁXIMO da imagem (1 = 100%)
-            restore: false,
-            guides: type !== 'logo', // <-- AJUSTE: Mostra linhas de grade só no banner
-            center: type !== 'logo', // <-- AJUSTE: Mostra cruz central só no banner
-            highlight: false,
-            cropBoxMovable: true,
-            cropBoxResizable: true,
-            toggleDragModeOnDblclick: true,
-        });
-    }, 150);
-};
+            window.cropper = new Cropper(imageEl, {
+                aspectRatio: ratio,
+                viewMode: 2, // Impede que o corte saia para fora da imagem preta
+                dragMode: 'move', // Padrão: move a imagem ao arrastar (melhor pro celular)
+                autoCropArea: 0.9, // Começa pegando 90% da imagem
+                restore: false,
+                guides: true, // Mostra as linhas de grade de regra dos terços
+                center: true,
+                highlight: false,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: true,
+            });
+        }, 150);
+    };
 
     // 4. Fechar Modal
     window.closeCropModal = () => {

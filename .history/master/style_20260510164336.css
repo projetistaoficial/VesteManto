@@ -92,3 +92,14 @@ body {
     cursor: pointer;
 }
 
+
+/* Transforma a caixa de corte do Cropper em um círculo perfeito */
+    .crop-modo-logo .cropper-view-box,
+    .crop-modo-logo .cropper-face {
+        border-radius: 50%;
+    }
+    /* Opcional: Esconde as linhas e a cruz central, já que num círculo elas atrapalham a visão */
+    .crop-modo-logo .cropper-dashed,
+    .crop-modo-logo .cropper-center {
+        display: none;
+    }

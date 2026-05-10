@@ -3718,6 +3718,7 @@ function setupEventListeners() {
     };
 
     // 3. Abre o modal e liga o Cropper.js
+    // 3. Abre o modal e liga o Cropper.js
 window.openCropModal = (imageSrc, type) => {
     window.currentCropType = type;
     const modal = document.getElementById('crop-modal');

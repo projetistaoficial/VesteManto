@@ -10,7 +10,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
-
     <style>
         /* 🛡️ BLINDAGEM NÍVEL 1: Oculta tudo que não for o Loader até o JS autorizar */
         body:not(.loaded)> :not(#global-loader):not(noscript) {
@@ -43,16 +42,8 @@
             display: none;
         }
     </style>
-    <style id="dynamic-theme-style">
-        :root {
-            --bg-main: #050505;
-            --bg-header: #000000;
-            --bg-card: #151720;
-            --clr-accent: #EAB308;
-            --txt-body: #9ca3af;
-            --txt-title: #ffffff;
-        }
-    </style>
+
+
 
     <script>
         // Esse script roda antes de tudo para garantir que não haja versão velha salva
@@ -70,9 +61,21 @@
             });
         }
     </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
 
+    <style id="dynamic-theme-style">
+        :root {
+            --bg-main: #050505;
+            --bg-header: #000000;
+            --bg-card: #151720;
+            --clr-accent: #EAB308;
+            --txt-body: #9ca3af;
+            --txt-title: #ffffff;
+        }
+    </style>
 </head>
 
 <body class="bg-[var(--bg-main)] text-[var(--txt-body)] text-white font-sans antialiased">
