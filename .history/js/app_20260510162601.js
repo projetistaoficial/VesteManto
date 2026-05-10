@@ -3666,6 +3666,7 @@ function setupEventListeners() {
     validateSubOptions('sub-check-delivery');
     updatePaymentVisuals();
 
+
     const chkDisablePix = document.getElementById('conf-pix-disable-all');
     if (chkDisablePix) {
         const newDisable = chkDisablePix.cloneNode(true);

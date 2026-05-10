@@ -1241,11 +1241,8 @@
                                 </div>
                             </div>
 
-                            <input type="file" id="conf-banner-upload" accept="image/*" class="hidden"
-                                onchange="handleImageSelectForCrop(event, 'banner')">
-                            <input type="file" id="conf-logo-upload" accept="image/*" class="hidden"
-                                onchange="handleImageSelectForCrop(event, 'logo')">
-
+                            <input type="file" id="conf-banner-upload" accept="image/*" class="hidden">
+                            <input type="file" id="conf-logo-upload" accept="image/*" class="hidden">
                             <p class="text-[10px] text-gray-500 text-center">* Clique no círculo para alterar a Logo ou
                                 no fundo para o Banner.</p>
                         </div>
@@ -1267,6 +1264,7 @@
                                 <input type="text" id="conf-store-wpp" placeholder="5511999999999"
                                     class="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-500 outline-none transition">
 
+                                <!-- Mensagem de erro escondida -->
                                 <span id="erro-conf-wpp" class="text-red-500 text-[10px] font-bold mt-1 hidden block">
                                     ⚠️ Digite um número válido (ex: 11999999999).
                                 </span>
@@ -1345,6 +1343,7 @@
                         </div>
 
                         <div class="flex justify-end pt-4 border-t border-gray-800 gap-3">
+
                             <button type="button" onclick="cancelProfileEdit()"
                                 class="bg-transparent border border-gray-600 hover:bg-gray-800 text-gray-300 px-4 py-2 rounded font-bold transition flex items-center gap-2">
                                 Cancelar
@@ -2493,6 +2492,27 @@
         </div>
     </div>
 
+    <div id="image-viewer"
+        class="fixed inset-0 bg-black/95 z-[100] hidden items-center justify-center backdrop-blur-sm select-none">
+
+        <button onclick="closeImageViewer()" class="absolute top-4 right-4 text-gray-400 hover:text-white z-50 p-2">
+            <i class="fas fa-times fa-2x"></i>
+        </button>
+
+        <img id="image-viewer-src" src=""
+            class="max-h-screen max-w-full object-contain transition-transform duration-200 cursor-zoom-in">
+
+        <button id="viewer-prev" onclick="event.stopPropagation(); changeViewerImage(-1)"
+            class="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white p-4 hover:bg-white/10 rounded-full transition z-40">
+            <i class="fas fa-chevron-left fa-2x"></i>
+        </button>
+
+        <button id="viewer-next" onclick="event.stopPropagation(); changeViewerImage(1)"
+            class="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white p-4 hover:bg-white/10 rounded-full transition z-40">
+            <i class="fas fa-chevron-right fa-2x"></i>
+        </button>
+    </div>
+    
     <div id="crop-modal"
         class="fixed inset-0 bg-black/95 z-[99999] hidden flex-col items-center justify-center p-4 backdrop-blur-md opacity-0 transition-opacity duration-300">
         <div
@@ -2542,27 +2562,6 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <div id="image-viewer"
-        class="fixed inset-0 bg-black/95 z-[100] hidden items-center justify-center backdrop-blur-sm select-none">
-
-        <button onclick="closeImageViewer()" class="absolute top-4 right-4 text-gray-400 hover:text-white z-50 p-2">
-            <i class="fas fa-times fa-2x"></i>
-        </button>
-
-        <img id="image-viewer-src" src=""
-            class="max-h-screen max-w-full object-contain transition-transform duration-200 cursor-zoom-in">
-
-        <button id="viewer-prev" onclick="event.stopPropagation(); changeViewerImage(-1)"
-            class="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white p-4 hover:bg-white/10 rounded-full transition z-40">
-            <i class="fas fa-chevron-left fa-2x"></i>
-        </button>
-
-        <button id="viewer-next" onclick="event.stopPropagation(); changeViewerImage(1)"
-            class="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white p-4 hover:bg-white/10 rounded-full transition z-40">
-            <i class="fas fa-chevron-right fa-2x"></i>
-        </button>
     </div>
 
 
@@ -2700,7 +2699,6 @@
         </div>
     </footer>
 
-    <script src="js/utilitarios.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 </body>
 

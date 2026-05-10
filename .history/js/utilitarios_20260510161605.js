@@ -211,10 +211,10 @@ window.limparBusca = function() {
 //     botaoClicado.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 // };
 
+// =================================================================
+// 🖼️ SISTEMA PROFISSIONAL DE RECORTE DE IMAGEM (CROPPER.JS)
+// =================================================================
 
-// =================================================================
-// 🖼️ SISTEMA PROFISSIONAL DE RECORTE DE IMAGEM (CROPPER.JS) - CARREGAS AS IMAGENS E ABRE O MODAL DE CORTE (INICIO))
-// =================================================================
 // Variáveis globais para o Cropper
 window.cropper = null;
 window.currentCropType = ''; // Vai guardar se estamos cortando 'logo' ou 'banner'
@@ -365,6 +365,3 @@ window.confirmCrop = () => {
     closeCropModal();
     // Você não precisa salvar ainda, o botão verde "Salvar Perfil" que você já tem fará isso!
 };
-// =================================================================
-// 🖼️ SISTEMA PROFISSIONAL DE RECORTE DE IMAGEM (CROPPER.JS) - CARREGAS AS IMAGENS E ABRE O MODAL DE CORTE (FIM))
-// =================================================================

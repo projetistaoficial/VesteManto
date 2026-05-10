@@ -489,7 +489,7 @@ async function getNextProductCode(siteId) {
 }
 
 // =================================================================
-// 1. CHAVE MESTRA DA MEMÓRIA (Impede vazamento de loja e fantasmas) -ESTADO GLOBAL E DOM
+// 1. CHAVE MESTRA DA MEMÓRIA (Impede vazamento de loja e fantasmas)
 // =================================================================
 const getSiteMemoryKey = () => {
     return window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo';
@@ -3665,6 +3665,21 @@ function setupEventListeners() {
     validateSubOptions('sub-check-online');
     validateSubOptions('sub-check-delivery');
     updatePaymentVisuals();
+
+    const logoInput = getEl('conf-logo-upload');
+    if (logoInput) {
+        logoInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            try { const base64 = await processImageFile(file); state.tempLogo = base64; const preview = getEl('conf-logo-preview'); const placeholder = getEl('conf-logo-placeholder'); if (preview) { preview.src = base64; preview.classList.remove('hidden'); } if (placeholder) placeholder.classList.add('hidden'); } catch (err) { console.error("Erro logo:", err); }
+        });
+    }
+    const bannerInput = document.getElementById('conf-banner-upload');
+    if (bannerInput) {
+        bannerInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            try { const base64 = await processImageFile(file); state.tempBanner = base64; const preview = document.getElementById('conf-banner-preview'); if (preview) { preview.src = base64; preview.classList.remove('hidden'); } } catch (err) { console.error(err); }
+        });
+    }
 
     const chkDisablePix = document.getElementById('conf-pix-disable-all');
     if (chkDisablePix) {

@@ -366,5 +366,5 @@ window.confirmCrop = () => {
     // Você não precisa salvar ainda, o botão verde "Salvar Perfil" que você já tem fará isso!
 };
 // =================================================================
-// 🖼️ SISTEMA PROFISSIONAL DE RECORTE DE IMAGEM (CROPPER.JS) - CARREGAS AS IMAGENS E ABRE O MODAL DE CORTE (FIM))
+// 🖼️ SISTEMA PROFISSIONAL DE RECORTE DE IMAGEM (CROPPER.JS) - CARREGAS AS IMAGENS E ABRE O MODAL DE CORTE (INICIO))
 // =================================================================

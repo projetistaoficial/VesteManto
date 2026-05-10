@@ -211,9 +211,8 @@ window.limparBusca = function() {
 //     botaoClicado.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 // };
 
-
 // =================================================================
-// 🖼️ SISTEMA PROFISSIONAL DE RECORTE DE IMAGEM (CROPPER.JS) - CARREGAS AS IMAGENS E ABRE O MODAL DE CORTE (INICIO))
+// 🖼️ SISTEMA PROFISSIONAL DE RECORTE DE IMAGEM (CROPPER.JS)
 // =================================================================
 // Variáveis globais para o Cropper
 window.cropper = null;
@@ -365,6 +364,3 @@ window.confirmCrop = () => {
     closeCropModal();
     // Você não precisa salvar ainda, o botão verde "Salvar Perfil" que você já tem fará isso!
 };
-// =================================================================
-// 🖼️ SISTEMA PROFISSIONAL DE RECORTE DE IMAGEM (CROPPER.JS) - CARREGAS AS IMAGENS E ABRE O MODAL DE CORTE (FIM))
-// =================================================================
