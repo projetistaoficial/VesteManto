@@ -1782,7 +1782,179 @@ function renderCatalog(productsToRender) {
 
 
 // =======================================================================================================================//=======================================================================================================================
+//LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
+// =================================================================
+// ===============================================
+// 1. LÓGICA DE COR E FILTRO DAS PÍLULAS
+// ===============================================
+window.filterByCat = (catName) => {
+    // Aplica o filtro
+    if (els.pageTitle) els.pageTitle.innerText = catName ? catName.split(' - ').pop() : 'Vitrine';
+    if (els.catFilter) els.catFilter.value = catName;
 
+    if (!catName) renderCatalog(state.products);
+    else {
+        const term = catName.toLowerCase();
+        const filtered = state.products.filter(p => {
+            if (!p.category) return false;
+            const prodCat = p.category.toLowerCase();
+            return prodCat === term || prodCat.startsWith(term + ' -');
+        });
+        renderCatalog(filtered);
+    }
+    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // FECHA SIDEBAR NO MOBILE
+    if (window.innerWidth < 1024) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+            sidebar.classList.add('-translate-x-full');
+            if (overlay) overlay.classList.add('hidden');
+        }
+    }
+
+    // A MÁGICA DAS CORES E DA BORDA TRANSPARENTE
+    const todosBotoes = document.querySelectorAll('.categoria-btn');
+    
+    todosBotoes.forEach(btn => {
+        // Se este botão for a categoria clicada
+        if (btn.dataset.cat === catName || (catName !== '' && catName.startsWith(btn.dataset.cat + ' -'))) {
+            
+            // Fica Rosa e COM Borda
+            btn.classList.remove('bg-white/10', 'text-gray-300', 'border-transparent', 'hover:bg-white/20', 'hover:text-white');
+            btn.classList.add('bg-brand-pink/80', 'text-white', 'border-brand-pink/50');
+            
+            if (btn.dataset.cat !== '') {
+                btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        } else {
+            // Qualquer outro botão (incluindo o "Todas") fica Cinza e SEM Borda (border-transparent)
+            btn.classList.remove('bg-brand-pink/80', 'text-white', 'border-brand-pink/50');
+            btn.classList.add('bg-white/10', 'text-gray-300', 'border-transparent', 'hover:bg-white/20', 'hover:text-white');
+        }
+    });
+};
+
+// ===============================================
+// 2. RENDERIZAÇÃO DAS CATEGORIAS NO TOPO
+// ===============================================
+function renderCategories() {
+    // Selects Ocultos
+    const populateSelect = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const val = el.value;
+        el.innerHTML = `<option value="">Todas</option>`;
+        state.categories.forEach(c => el.innerHTML += `<option value="${c.name}">${c.name}</option>`);
+        if (val) el.value = val;
+    };
+    ['category-filter','admin-filter-cat','bulk-category-select','prod-cat-select','bulk-category-select-dynamic'].forEach(populateSelect);
+
+    // Carrossel de Pílulas
+    const scrollContainer = document.getElementById('categorias-scroll');
+    if (scrollContainer) {
+        const activeCat = document.getElementById('category-filter')?.value || '';
+        let pillsHtml = '';
+
+        const principais = state.categories.filter(c => !c.name.includes(' - '));
+        const categoriasParaMostrar = principais.length > 0 ? principais : state.categories;
+
+        categoriasParaMostrar.forEach(c => {
+            const safeName = c.name.replace(/'/g, "\\'");
+            const isAtivo = activeCat === c.name || activeCat.startsWith(c.name + ' -');
+            const hasSubs = state.categories.some(sub => sub.name.startsWith(c.name + ' - '));
+            
+            // Fundo Translúcido e Fontes Extrabold
+            const coresBase = isAtivo 
+                ? 'bg-brand-pink/80 text-white border border-brand-pink/50 backdrop-blur-md' 
+                : 'bg-white/10 text-gray-300 border border-transparent backdrop-blur-md hover:bg-white/20 hover:text-white';
+
+            if (hasSubs) {
+                pillsHtml += `
+                    <div class="categoria-btn flex items-center h-full rounded-full transition-all shrink-0 ${coresBase}" data-cat="${safeName}">
+                        <button onclick="filterByCat('${safeName}')" class="px-4 h-full font-extrabold tracking-wide text-xs rounded-l-full outline-none">
+                            ${c.name}
+                        </button>
+                        <button onclick="toggleCatDropdown('${safeName}', event)" class="px-3 h-full border-l border-white/10 flex items-center justify-center rounded-r-full hover:bg-white/20 outline-none">
+                            <i class="fas fa-chevron-down text-[10px]"></i>
+                        </button>
+                    </div>
+                `;
+            } else {
+                pillsHtml += `
+                    <button onclick="filterByCat('${safeName}')" data-cat="${safeName}" class="categoria-btn px-4 h-full rounded-full font-extrabold tracking-wide text-xs transition-all shrink-0 ${coresBase}">
+                        ${c.name}
+                    </button>
+                `;
+            }
+        });
+        scrollContainer.innerHTML = pillsHtml;
+        
+        // Inicia o autoscroll do carrossel (se a função existir no seu JS)
+        if (typeof initCategoryCarousel === 'function') initCategoryCarousel();
+    }
+
+    // Código do Menu Lateral (Mantém exatamente como estava no seu original)
+    const sidebarContainer = document.getElementById('sidebar-categories');
+    if (sidebarContainer) {
+        const tree = {};
+        state.categories.forEach(c => {
+            const parts = c.name.split(' - ');
+            let currentLevel = tree;
+            parts.forEach((part, index) => {
+                if (!currentLevel[part]) {
+                    const fullPath = parts.slice(0, index + 1).join(' - ');
+                    currentLevel[part] = { _path: fullPath, _children: {} };
+                }
+                currentLevel = currentLevel[part]._children;
+            });
+        });
+
+        const getOrder = (path) => {
+            const cat = state.categories.find(c => c.name === path);
+            return cat && cat.order !== undefined ? cat.order : 999;
+        };
+
+        const buildHtml = (node, level = 0) => {
+            let html = '';
+            const keys = Object.keys(node).sort((a, b) => {
+                const orderA = getOrder(node[a]._path);
+                const orderB = getOrder(node[b]._path);
+                if (orderA !== orderB) return orderA - orderB;
+                return a.localeCompare(b);
+            });
+
+            keys.forEach(key => {
+                const item = node[key];
+                const hasChildren = Object.keys(item._children).length > 0;
+                const safePath = item._path.replace(/'/g, "\\'");
+                const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
+                const textStyle = level === 0
+                    ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm"
+                    : "text-gray-300 font-medium text-sm hover:text-white";
+
+                if (hasChildren) {
+                    html += `
+                        <details class="group mb-1">
+                            <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
+                                <span class="${textStyle} flex-1" style="padding-left:${paddingLeft}px" onclick="event.preventDefault(); filterByCat('${safePath}')">${key}</span>
+                                <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">▲</span>
+                            </summary>
+                            <div class="border-l border-gray-800 ml-4">${buildHtml(item._children, level + 1)}</div>
+                        </details>`;
+                } else {
+                    html += `
+                        <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center" onclick="filterByCat('${safePath}')">
+                            <span class="${textStyle}" style="padding-left:${paddingLeft}px">${key}</span>
+                        </div>`;
+                }
+            });
+            return html;
+        };
+        sidebarContainer.innerHTML = `<div class="space-y-1 mt-2">${buildHtml(tree)}</div>`;
+    }
+}
 
 // Função Helper para selecionar o pai sem fechar o menu visualmente
 window.selectParentCategory = (id, name, event) => {
@@ -3370,10 +3542,10 @@ function setupEventListeners() {
     };
 
     if (els.searchInput) {
-        els.searchInput.addEventListener('input', (e) => {
-            const term = e.target.value.toLowerCase();
+        els.searchInput.addEventListener('input', (e) => { 
+            const term = e.target.value.toLowerCase(); 
             const clearSearchBtn = document.getElementById('clear-search-btn');
-
+            
             // Mostra ou esconde o X
             if (term.length > 0 && clearSearchBtn) {
                 clearSearchBtn.classList.remove('hidden');
@@ -3381,12 +3553,12 @@ function setupEventListeners() {
                 clearSearchBtn.classList.add('hidden');
             }
 
-            const filtered = state.products.filter(p =>
-                p.name.toLowerCase().includes(term) ||
+            const filtered = state.products.filter(p => 
+                p.name.toLowerCase().includes(term) || 
                 (p.description && p.description.toLowerCase().includes(term)) ||
                 (p.code && String(p.code).includes(term))
-            );
-            renderCatalog(filtered);
+            ); 
+            renderCatalog(filtered); 
         });
     }
     if (els.catFilter) els.catFilter.addEventListener('change', (e) => { const cat = e.target.value; if (!cat) return renderCatalog(state.products); const filtered = state.products.filter(p => p.category === cat || p.category.startsWith(cat + ' -')); renderCatalog(filtered); });
@@ -3875,298 +4047,11 @@ function setupEventListeners() {
     }
 }
 
-// =====================================================================
-// 🌟 SISTEMA DE CATEGORIAS PREMIUM (VIDRO, CORES DO PAINEL E CARROSSEL)
-// =====================================================================
-window.aplicarCoresCategorias = (catName) => {
-    const todosBotoes = document.querySelectorAll('.categoria-btn');
-    
-    // Arrays isolados com as classes exatas
-    // INATIVA: Fundo de vidro branco 10% (transparente e limpo)
-    const classesInativas = ['bg-white/10', 'text-[var(--txt-body)]', 'border-transparent'];
-    
-    // ATIVA: Fundo preto 60% (bg-black/60) para dar o destaque escuro que você pediu!
-    const classesAtivas = ['bg-black/60', 'text-[var(--clr-accent)]', 'border-[var(--clr-accent)]'];
-    
-    todosBotoes.forEach(btn => {
-        // Limpa qualquer estilo inline que as tentativas anteriores tenham deixado preso
-        btn.removeAttribute('style');
-        
-        // Remove todas as classes para evitar acúmulo e sujeira
-        btn.classList.remove(...classesInativas, ...classesAtivas, 'bg-white/5', 'bg-white/20', 'bg-[#151720]', 'bg-black', 'text-white', 'text-gray-300');
-
-        const isAtivo = btn.dataset.cat === catName || (catName !== '' && catName.startsWith(btn.dataset.cat + ' -'));
-        
-        if (isAtivo) {
-            btn.classList.add(...classesAtivas);
-        } else {
-            btn.classList.add(...classesInativas);
-        }
-    });
-};
-
-// 2. FUNÇÃO DO CLIQUE (Filtra e muda cor)
-window.filterByCat = (catName) => {
-    window.isCategorySelected = (catName !== ''); // Avisa o carrossel se deve pausar
-
-    if (els.pageTitle) els.pageTitle.innerText = catName ? catName.split(' - ').pop() : 'Vitrine';
-    if (els.catFilter) els.catFilter.value = catName;
-
-    if (!catName) renderCatalog(state.products);
-    else {
-        const term = catName.toLowerCase();
-        const filtered = state.products.filter(p => {
-            if (!p.category) return false;
-            const prodCat = p.category.toLowerCase();
-            return prodCat === term || prodCat.startsWith(term + ' -');
-        });
-        renderCatalog(filtered);
-    }
-    
-    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    if (window.innerWidth < 1024) {
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('sidebar-overlay');
-        if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
-            sidebar.classList.add('-translate-x-full');
-            if (overlay) overlay.classList.add('hidden');
-        }
-    }
-
-    // ✨ AQUI: Fecha qualquer opção/dropdown da BARRA SUPERIOR que esteja aberto
-    if (typeof fecharCatDropdown === 'function') fecharCatDropdown();
-
-    window.aplicarCoresCategorias(catName);
-};
-
-// 3. RENDERIZADOR (Cria os botões na tela)
-function renderCategories() {
-    const populateSelect = (id) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const val = el.value;
-        el.innerHTML = `<option value="">Todas</option>`;
-        state.categories.forEach(c => el.innerHTML += `<option value="${c.name}">${c.name}</option>`);
-        if (val) el.value = val;
-    };
-    ['category-filter','admin-filter-cat','bulk-category-select','prod-cat-select','bulk-category-select-dynamic'].forEach(populateSelect);
-
-    const scrollContainer = document.getElementById('categorias-scroll');
-    if (scrollContainer) {
-        let activeCat = document.getElementById('category-filter')?.value || '';
-        
-        if (activeCat !== '') {
-            const catExists = state.categories.some(c => c.name === activeCat || activeCat.startsWith(c.name + ' -'));
-            if (!catExists) { activeCat = ''; renderCatalog(state.products); }
-        }
-
-        let pillsHtml = '';
-        const principais = state.categories.filter(c => !c.name.includes(' - '));
-        const categoriasParaMostrar = principais.length > 0 ? principais : state.categories;
-
-        categoriasParaMostrar.forEach(c => {
-            const safeName = c.name.replace(/'/g, "\\'");
-            const hasSubs = state.categories.some(sub => sub.name.startsWith(c.name + ' - '));
-            
-            // 👉 ESTRUTURA BASE: Só estrutura e desfoque. As cores (bg-white/10) entram via JS.
-            const classesEstrutura = "categoria-btn flex items-center h-full rounded-full transition-all shrink-0 border backdrop-blur-md font-['Nunito'] font-black tracking-wide text-xs outline-none";
-
-            if (hasSubs) {
-                pillsHtml += `
-                    <div class="${classesEstrutura}" data-cat="${safeName}">
-                        <button onclick="filterByCat('${safeName}')" class="px-4 h-full rounded-l-full outline-none">
-                            ${c.name}
-                        </button>
-                        <button onclick="toggleCatDropdown('${safeName}', event)" class="px-3 h-full border-l border-white/20 flex items-center justify-center rounded-r-full hover:bg-black/30 outline-none transition-colors">
-                            <i class="fas fa-chevron-down text-[10px]"></i>
-                        </button>
-                    </div>
-                `;
-            } else {
-                pillsHtml += `
-                    <button onclick="filterByCat('${safeName}')" data-cat="${safeName}" class="${classesEstrutura} px-5 outline-none">
-                        ${c.name}
-                    </button>
-                `;
-            }
-        });
-
-        scrollContainer.innerHTML = pillsHtml;
-
-        // Ao terminar de desenhar, o JS pinta quem é quem
-        setTimeout(() => { window.aplicarCoresCategorias(activeCat); }, 10);
-
-        if (typeof initCategoryCarousel === 'function') initCategoryCarousel();
-    }
-
-    // --- SIDEBAR (MANTENHA A SUA CÓPIA AQUI) ---
-    const sidebarContainer = document.getElementById('sidebar-categories');
-    if (sidebarContainer) {
-        const tree = {};
-        state.categories.forEach(c => {
-            const parts = c.name.split(' - ');
-            let currentLevel = tree;
-            parts.forEach((part, index) => {
-                if (!currentLevel[part]) {
-                    const fullPath = parts.slice(0, index + 1).join(' - ');
-                    currentLevel[part] = { _path: fullPath, _children: {} };
-                }
-                currentLevel = currentLevel[part]._children;
-            });
-        });
-
-        const getOrder = (path) => {
-            const cat = state.categories.find(c => c.name === path);
-            return cat && cat.order !== undefined ? cat.order : 999;
-        };
-
-        const buildHtml = (node, level = 0) => {
-            let html = '';
-            const keys = Object.keys(node).sort((a, b) => {
-                const orderA = getOrder(node[a]._path);
-                const orderB = getOrder(node[b]._path);
-                if (orderA !== orderB) return orderA - orderB;
-                return a.localeCompare(b);
-            });
-
-            keys.forEach(key => {
-                const item = node[key];
-                const hasChildren = Object.keys(item._children).length > 0;
-                const safePath = item._path.replace(/'/g, "\\'");
-                const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
-                const textStyle = level === 0 ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm" : "text-gray-300 font-medium text-sm hover:text-white";
-
-                if (hasChildren) {
-                    html += `
-                        <details class="group mb-1">
-                            <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
-                                <span class="${textStyle} flex-1" style="padding-left:${paddingLeft}px" onclick="event.preventDefault(); filterByCat('${safePath}')">${key}</span>
-                                <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">▲</span>
-                            </summary>
-                            <div class="border-l border-gray-800 ml-4">${buildHtml(item._children, level + 1)}</div>
-                        </details>`;
-                } else {
-                    html += `
-                        <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center" onclick="filterByCat('${safePath}')">
-                            <span class="${textStyle}" style="padding-left:${paddingLeft}px">${key}</span>
-                        </div>`;
-                }
-            });
-            return html;
-        };
-        sidebarContainer.innerHTML = `<div class="space-y-1 mt-2">${buildHtml(tree)}</div>`;
-    }
-}
-
-// 4. DROPDOWN DE SUBCATEGORIAS
-window.toggleCatDropdown = (parentName, event) => {
-    event.stopPropagation();
-    const dropdown = document.getElementById('global-cat-dropdown');
-    if (!dropdown.classList.contains('hidden') && dropdown.dataset.current === parentName) {
-        fecharCatDropdown();
-        return;
-    }
-    const subs = state.categories.filter(c => c.name.startsWith(parentName + ' - ') && c.name.split(' - ').length === parentName.split(' - ').length + 1);
-    dropdown.innerHTML = subs.map(sub => {
-        const safeSubName = sub.name.replace(/'/g, "\\'");
-        const shortName = sub.name.replace(parentName + ' - ', '');
-        return `
-            <button onclick="filterByCat('${safeSubName}'); fecharCatDropdown()" class="block w-full text-left px-5 py-2.5 text-xs font-bold text-gray-400 hover:bg-white/10 hover:text-white transition-colors outline-none">
-                ${shortName}
-            </button>
-        `;
-    }).join('');
-    const btnRect = event.currentTarget.getBoundingClientRect();
-    dropdown.style.top = `${btnRect.bottom + 8}px`;
-    const spaceRight = window.innerWidth - btnRect.right;
-    if (spaceRight < 150) {
-        dropdown.style.right = `${window.innerWidth - btnRect.right}px`;
-        dropdown.style.left = 'auto';
-    } else {
-        dropdown.style.left = `${btnRect.left - 50}px`;
-        dropdown.style.right = 'auto';
-    }
-    dropdown.dataset.current = parentName;
-    dropdown.classList.remove('hidden');
-    setTimeout(() => {
-        dropdown.classList.remove('opacity-0', 'scale-95');
-        dropdown.classList.add('opacity-100', 'scale-100');
-    }, 10);
-};
-
-window.fecharCatDropdown = () => {
-    const dropdown = document.getElementById('global-cat-dropdown');
-    if (dropdown && !dropdown.classList.contains('hidden')) {
-        dropdown.classList.remove('opacity-100', 'scale-100');
-        dropdown.classList.add('opacity-0', 'scale-95');
-        setTimeout(() => dropdown.classList.add('hidden'), 200);
-        dropdown.dataset.current = "";
-    }
-};
-
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('#global-cat-dropdown') && !e.target.closest('.categoria-btn')) {
-        fecharCatDropdown();
-    }
-});
-
-// 5. CARROSSEL COM PING-PONG BLINDADO E PAUSA
-window.isCategorySelected = false;
-window.initCategoryCarousel = () => {
-    const slider = document.getElementById('categorias-scroll');
-    if (!slider) return;
-
-    if (window.carouselAnimationId) {
-        cancelAnimationFrame(window.carouselAnimationId);
-    }
-
-    let isDown = false;
-    let startX;
-    let scrollLeft;
-    let isAutoScrolling = true;
-    let scrollDirection = 1; 
-
-    const playAutoScroll = () => {
-        window.carouselAnimationId = requestAnimationFrame(playAutoScroll);
-        
-        // Verifica o select nativo para pausa 100% segura
-        const selectEscondido = document.getElementById('category-filter');
-        const temCategoriaAtiva = selectEscondido && selectEscondido.value !== '';
-
-        if (!isAutoScrolling || temCategoriaAtiva) return;
-
-        const maxScroll = slider.scrollWidth - slider.clientWidth;
-        if (maxScroll <= 0) return;
-
-        if (slider.scrollLeft >= maxScroll - 2) scrollDirection = -1; 
-        else if (slider.scrollLeft <= 0) scrollDirection = 1; 
-
-        slider.scrollLeft += scrollDirection;
-    };
-
-    playAutoScroll();
-
-    if (!slider.dataset.eventsSet) {
-        slider.dataset.eventsSet = "true";
-        slider.addEventListener('mousedown', (e) => {
-            isDown = true; isAutoScrolling = false; slider.style.cursor = 'grabbing';
-            startX = e.pageX - slider.offsetLeft; scrollLeft = slider.scrollLeft;
-        });
-        slider.addEventListener('mouseleave', () => { isDown = false; slider.style.cursor = 'grab'; isAutoScrolling = true; });
-        slider.addEventListener('mouseup', () => { isDown = false; slider.style.cursor = 'grab'; setTimeout(() => { isAutoScrolling = true; }, 2000); });
-        slider.addEventListener('mousemove', (e) => {
-            if (!isDown) return; e.preventDefault();
-            const x = e.pageX - slider.offsetLeft; const walk = (x - startX) * 2; 
-            slider.scrollLeft = scrollLeft - walk;
-        });
-        slider.addEventListener('touchstart', () => { isAutoScrolling = false; }, {passive: true});
-        slider.addEventListener('touchend', () => { setTimeout(() => { isAutoScrolling = true; }, 2000); });
-    }
-};
-
 // =================================================================
 // RECUPERAÇÃO DAS ABAS DO ADMIN (Produtos, Categoria, Stats, Config)
+// =================================================================
+// =================================================================
+// RECUPERAÇÃO DAS ABAS DO ADMIN (Blindado e Sempre Ativo)
 // =================================================================
 document.addEventListener('click', (e) => {
     const btn = e.target.closest('.tab-btn');
@@ -4344,22 +4229,19 @@ function showView(viewName) {
 }
 
 // Atualiza o texto do botão de ordenar e reordena a lista
-window.updateSortLabel = function(selectElement) {
+function updateSortLabel(selectElement) {
     // 1. Atualiza o texto visual (Label)
     const label = document.getElementById('sort-label-display');
     if (label) {
         // Pega o texto da opção selecionada (ex: "Menor Preço")
         label.innerText = selectElement.options[selectElement.selectedIndex].text;
 
-        // Remove qualquer cor fixa do Tailwind e aplica a cor de Destaque da Loja
-        label.classList.remove('text-yellow-500', 'text-orange-500', 'text-gray-400');
-        label.style.color = 'var(--txt-body)';
+        // Muda a cor para amarelo para indicar que está ativo
+        label.classList.add('text-yellow-500');
     }
 
     // 2. Chama a reordenação (usa a função existente)
-    if (typeof renderCatalog === 'function') {
-        renderCatalog(state.products);
-    }
+    renderCatalog(state.products);
 };
 
 // OBRIGATÓRIO: EXPOR PARA O HTML
@@ -4478,7 +4360,6 @@ function setupKeyboardListeners() {
 //         els.bulkActionsBar.classList.remove('flex');
 //     }
 // }
-
 
 function setupSwipe(element) {
     if (!element) return;
@@ -4823,10 +4704,10 @@ window.openProductModal = (productId) => {
 
             if (isOut) {
                 btnSingle.className = `px-4 h-10 rounded border border-gray-700 bg-gray-800/50 text-gray-500 font-bold flex items-center justify-center text-sm cursor-not-allowed relative overflow-hidden`;
-                btnSingle.innerHTML = `<span class="opacity-50">Único</span><div class="absolute inset-0 w-[140%] h-[1px] bg-red-500/70 transform origin-top-left rotate-6"></div>`;
+                btnSingle.innerHTML = `<span class="opacity-50">Tamanho Único</span><div class="absolute inset-0 w-[140%] h-[1px] bg-red-500/70 transform origin-top-left rotate-6"></div>`;
             } else {
                 btnSingle.className = `px-4 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold flex items-center justify-center text-sm select-none`;
-                btnSingle.innerHTML = `<span>Único</span>`;
+                btnSingle.innerHTML = `<span>Tamanho Único</span>`;
             }
             sizesDiv.appendChild(btnSingle);
         }
@@ -5405,14 +5286,14 @@ window.deleteCoupon = async (id) => {
 // ===============================================
 // LÓGICA DO CAMPO DE BUSCA E BOTÃO "X"
 // ===============================================
-window.limparBusca = function () {
+window.limparBusca = function() {
     const searchInput = document.getElementById('search-input');
     const clearSearchBtn = document.getElementById('clear-search-btn');
-
+    
     if (searchInput) {
         searchInput.value = '';
         if (clearSearchBtn) clearSearchBtn.classList.add('hidden');
-        searchInput.focus();
+        searchInput.focus(); 
         // Reseta o catálogo
         filterByCat(document.getElementById('category-filter')?.value || '');
     }
@@ -5421,11 +5302,11 @@ window.limparBusca = function () {
 document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            const term = e.target.value.toLowerCase();
+        searchInput.addEventListener('input', (e) => { 
+            const term = e.target.value.toLowerCase(); 
             const clearSearchBtn = document.getElementById('clear-search-btn');
             const currentCat = document.getElementById('category-filter')?.value || '';
-
+            
             // Aparece o botão de (X)
             if (term.length > 0 && clearSearchBtn) {
                 clearSearchBtn.classList.remove('hidden');
@@ -5439,12 +5320,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 filtered = filtered.filter(p => p.category === currentCat || p.category.startsWith(currentCat + ' -'));
             }
 
-            filtered = filtered.filter(p =>
-                p.name.toLowerCase().includes(term) ||
+            filtered = filtered.filter(p => 
+                p.name.toLowerCase().includes(term) || 
                 (p.description && p.description.toLowerCase().includes(term)) ||
                 (p.code && String(p.code).includes(term))
-            );
-            renderCatalog(filtered);
+            ); 
+            renderCatalog(filtered); 
         });
     }
 });
@@ -9577,8 +9458,6 @@ if (state.user && typeof loadAdminSales === 'function') {
 };
 
 
-
-
 // =================================================================
 // 📢 RADAR DE AVISOS EM TEMPO REAL (PROJETISTA -> LOJA)
 // =================================================================
@@ -9659,6 +9538,8 @@ window.loadAvisos = () => {
         console.log("🔒 Coleção de Avisos trancada aguardando senha.");
     });
 };
+
+
 
 
 // =================================================================
@@ -9792,6 +9673,66 @@ window.printOrder = (orderId) => {
     }, 300);
 };
 
+// ===============================================
+// LÓGICA: DROPDOWN DE SUBCATEGORIAS
+// ===============================================
+window.toggleCatDropdown = (parentName, event) => {
+    event.stopPropagation();
+    const dropdown = document.getElementById('global-cat-dropdown');
+    
+    // Se clicar na mesma seta que já tá aberta, fecha
+    if (!dropdown.classList.contains('hidden') && dropdown.dataset.current === parentName) {
+        fecharCatDropdown();
+        return;
+    }
+
+    // Acha as subcategorias desse pai
+    const subs = state.categories.filter(c => c.name.startsWith(parentName + ' - ') && c.name.split(' - ').length === parentName.split(' - ').length + 1);
+    
+    // Constrói a lista
+    dropdown.innerHTML = subs.map(sub => {
+        const safeSubName = sub.name.replace(/'/g, "\\'");
+        const shortName = sub.name.replace(parentName + ' - ', '');
+        return `
+            <button onclick="filterByCat('${safeSubName}'); fecharCatDropdown()" class="block w-full text-left px-5 py-2.5 text-xs font-bold text-gray-400 hover:bg-[#252836] hover:text-white transition-colors">
+                ${shortName}
+            </button>
+        `;
+    }).join('');
+
+    // Posiciona flutuando embaixo da seta clicada
+    const btnRect = event.currentTarget.getBoundingClientRect();
+    dropdown.style.top = `${btnRect.bottom + 8}px`;
+    
+    // Garante que o menu não vaze pra fora da tela na direita
+    const spaceRight = window.innerWidth - btnRect.right;
+    if (spaceRight < 150) {
+        dropdown.style.right = `${window.innerWidth - btnRect.right}px`;
+        dropdown.style.left = 'auto';
+    } else {
+        dropdown.style.left = `${btnRect.left - 50}px`;
+        dropdown.style.right = 'auto';
+    }
+
+    dropdown.dataset.current = parentName;
+    dropdown.classList.remove('hidden');
+    
+    // Animação de entrada
+    setTimeout(() => {
+        dropdown.classList.remove('opacity-0', 'scale-95');
+        dropdown.classList.add('opacity-100', 'scale-100');
+    }, 10);
+};
+
+window.fecharCatDropdown = () => {
+    const dropdown = document.getElementById('global-cat-dropdown');
+    if (dropdown && !dropdown.classList.contains('hidden')) {
+        dropdown.classList.remove('opacity-100', 'scale-100');
+        dropdown.classList.add('opacity-0', 'scale-95');
+        setTimeout(() => dropdown.classList.add('hidden'), 200);
+        dropdown.dataset.current = "";
+    }
+};
 
 // Clicar em qualquer lugar da tela fecha o Dropdown
 document.addEventListener('click', (e) => {
@@ -9799,3 +9740,115 @@ document.addEventListener('click', (e) => {
         fecharCatDropdown();
     }
 });
+
+// ===============================================
+// LÓGICA: MUDANÇA DE COR DA PÍLULA AO CLICAR
+// ===============================================
+window.filterByCat = (catName) => {
+    // 1. Suas regras normais de filtro (título, lógica)
+    if (els.pageTitle) els.pageTitle.innerText = catName ? catName.split(' - ').pop() : 'Vitrine';
+    if (els.catFilter) els.catFilter.value = catName;
+
+    if (!catName) renderCatalog(state.products);
+    else {
+        const term = catName.toLowerCase();
+        const filtered = state.products.filter(p => {
+            if (!p.category) return false;
+            const prodCat = p.category.toLowerCase();
+            return prodCat === term || prodCat.startsWith(term + ' -');
+        });
+        renderCatalog(filtered);
+    }
+    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // 2. Muda a cor visualmente na hora
+    const todosBotoes = document.querySelectorAll('.categoria-btn');
+    todosBotoes.forEach(btn => {
+        // Se a categoria clicada for o pai do botão, ou a exata categoria
+        if (btn.dataset.cat === catName || catName.startsWith(btn.dataset.cat + ' -')) {
+            btn.classList.remove('bg-[#1a1c23]', 'text-gray-400');
+            btn.classList.add('bg-brand-pink', 'text-white', 'shadow-lg');
+            
+            // Só dá scroll se não for o botão principal vazio
+            if (btn.dataset.cat !== '') {
+                btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        } else if (btn.dataset.cat !== '') {
+            btn.classList.add('bg-[#1a1c23]', 'text-gray-400');
+            btn.classList.remove('bg-brand-pink', 'text-white', 'shadow-lg');
+        } else {
+            // Regra do botão "Todas"
+            if (catName === '') {
+                btn.classList.add('bg-brand-pink', 'text-white', 'shadow-lg');
+            } else {
+                btn.classList.remove('bg-brand-pink', 'shadow-lg');
+                btn.classList.add('bg-[#1a1c23]', 'text-gray-400');
+            }
+        }
+    });
+};
+
+// ===============================================
+// LÓGICA: CARROSSEL COM AUTOSCROLL E ARRASTE
+// ===============================================
+window.initCategoryCarousel = () => {
+    const slider = document.getElementById('categorias-scroll');
+    if (!slider) return;
+
+    let isDown = false;
+    let startX;
+    let scrollLeft;
+    let autoScrollInterval;
+    let isAutoScrolling = true;
+
+    // Função de mover sozinho
+    const playAutoScroll = () => {
+        if (!isAutoScrolling) return;
+        autoScrollInterval = setInterval(() => {
+            if(slider.scrollWidth - slider.clientWidth <= slider.scrollLeft + 1) {
+                // Chegou no final, volta pro começo devagar
+                slider.scrollTo({ left: 0, behavior: 'smooth' });
+            } else {
+                slider.scrollLeft += 1; // Velocidade lenta
+            }
+        }, 30); // 30ms para ficar fluido
+    };
+
+    const stopAutoScroll = () => { clearInterval(autoScrollInterval); };
+
+    playAutoScroll(); // Inicia logo de cara
+
+    // Lógica para MOUSE
+    slider.addEventListener('mousedown', (e) => {
+        isDown = true;
+        isAutoScrolling = false;
+        stopAutoScroll();
+        slider.style.cursor = 'grabbing';
+        startX = e.pageX - slider.offsetLeft;
+        scrollLeft = slider.scrollLeft;
+    });
+    slider.addEventListener('mouseleave', () => {
+        isDown = false;
+        slider.style.cursor = 'grab';
+        isAutoScrolling = true;
+        playAutoScroll();
+    });
+    slider.addEventListener('mouseup', () => {
+        isDown = false;
+        slider.style.cursor = 'grab';
+        setTimeout(() => { isAutoScrolling = true; playAutoScroll(); }, 2000); // Demora 2 seg pra voltar a rolar sozinho
+    });
+    slider.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - slider.offsetLeft;
+        const walk = (x - startX) * 2; // Multiplicador de velocidade do mouse
+        slider.scrollLeft = scrollLeft - walk;
+    });
+
+    // Lógica para DEDO (Touch)
+    slider.addEventListener('touchstart', () => { isAutoScrolling = false; stopAutoScroll(); }, {passive: true});
+    slider.addEventListener('touchend', () => { 
+        setTimeout(() => { isAutoScrolling = true; playAutoScroll(); }, 2000);
+    });
+};

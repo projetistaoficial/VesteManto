@@ -189,25 +189,25 @@ window.limparBusca = function() {
     }
 };
 
-// // Faz a troca de cores do botão arredondado e aciona o filtro
-// window.selecionarCategoria = function(botaoClicado, valorCategoria) {
-//     // A função filterByCat já altera o valor do select escondido e chama o renderCatalog!
-//     if (typeof filterByCat === 'function') {
-//         filterByCat(valorCategoria);
-//     }
+// Faz a troca de cores do botão arredondado e aciona o filtro
+window.selecionarCategoria = function(botaoClicado, valorCategoria) {
+    // A função filterByCat já altera o valor do select escondido e chama o renderCatalog!
+    if (typeof filterByCat === 'function') {
+        filterByCat(valorCategoria);
+    }
 
-//     // A mágica de mudar a cor agora é feita automaticamente 
-//     // toda vez que a função renderCategories() é chamada pelo Firebase,
-//     // mas para dar feedback instantâneo ao usuário:
-//     const todosBotoes = document.querySelectorAll('.categoria-btn');
-//     todosBotoes.forEach(btn => {
-//         btn.classList.remove('bg-brand-pink', 'text-white', 'border-brand-pink');
-//         btn.classList.add('bg-white/5', 'text-gray-400', 'border-gray-800');
-//     });
+    // A mágica de mudar a cor agora é feita automaticamente 
+    // toda vez que a função renderCategories() é chamada pelo Firebase,
+    // mas para dar feedback instantâneo ao usuário:
+    const todosBotoes = document.querySelectorAll('.categoria-btn');
+    todosBotoes.forEach(btn => {
+        btn.classList.remove('bg-brand-pink', 'text-white', 'border-brand-pink');
+        btn.classList.add('bg-white/5', 'text-gray-400', 'border-gray-800');
+    });
 
-//     botaoClicado.classList.remove('bg-white/5', 'text-gray-400', 'border-gray-800');
-//     botaoClicado.classList.add('bg-brand-pink', 'text-white', 'border-brand-pink');
+    botaoClicado.classList.remove('bg-white/5', 'text-gray-400', 'border-gray-800');
+    botaoClicado.classList.add('bg-brand-pink', 'text-white', 'border-brand-pink');
     
-//     botaoClicado.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-// };
+    botaoClicado.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+};
 

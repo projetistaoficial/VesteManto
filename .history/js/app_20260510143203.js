@@ -4353,7 +4353,7 @@ window.updateSortLabel = function(selectElement) {
 
         // Remove qualquer cor fixa do Tailwind e aplica a cor de Destaque da Loja
         label.classList.remove('text-yellow-500', 'text-orange-500', 'text-gray-400');
-        label.style.color = 'var(--txt-body)';
+        label.style.color = 'var(text-[var(--txt-body)';
     }
 
     // 2. Chama a reordenação (usa a função existente)

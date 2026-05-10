@@ -1782,7 +1782,204 @@ function renderCatalog(productsToRender) {
 
 
 // =======================================================================================================================//=======================================================================================================================
+//LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
+// =================================================================
+window.filterByCat = (catName) => {
+    window.isCategorySelected = (catName !== '');
 
+    // Aplica o filtro na tela
+    if (els.pageTitle) els.pageTitle.innerText = catName ? catName.split(' - ').pop() : 'Vitrine';
+    if (els.catFilter) els.catFilter.value = catName;
+
+    if (!catName) renderCatalog(state.products);
+    else {
+        const term = catName.toLowerCase();
+        const filtered = state.products.filter(p => {
+            if (!p.category) return false;
+            const prodCat = p.category.toLowerCase();
+            return prodCat === term || prodCat.startsWith(term + ' -');
+        });
+        renderCatalog(filtered);
+    }
+    
+    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // FECHA SIDEBAR NO MOBILE
+    if (window.innerWidth < 1024) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+            sidebar.classList.add('-translate-x-full');
+            if (overlay) overlay.classList.add('hidden');
+        }
+    }
+
+    // A MÁGICA DAS CORES E DA BORDA TRANSPARENTE
+    const todosBotoes = document.querySelectorAll('.categoria-btn');
+    
+    todosBotoes.forEach(btn => {
+        // Se este botão for a categoria clicada
+        if (btn.dataset.cat === catName || (catName !== '' && catName.startsWith(btn.dataset.cat + ' -'))) {
+            // Fica Rosa e COM Borda
+            btn.classList.remove('bg-white/10', 'text-gray-300', 'border-transparent', 'hover:bg-white/20', 'hover:text-white');
+            btn.classList.add('bg-brand-pink/80', 'text-white', 'border-brand-pink/50');
+            
+            if (btn.dataset.cat !== '') {
+                btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        } else {
+            // Fica Cinza e SEM Borda (Aplica inclusive no "Todas")
+            btn.classList.remove('bg-brand-pink/80', 'text-white', 'border-brand-pink/50');
+            btn.classList.add('bg-white/10', 'text-gray-300', 'border-transparent', 'hover:bg-white/20', 'hover:text-white');
+        }
+    });
+};
+
+// ===============================================
+// 2. RENDERIZAÇÃO DAS CATEGORIAS NO TOPO
+// ===============================================
+
+window.aplicarCoresCategorias = (catName) => {
+    const todosBotoes = document.querySelectorAll('.categoria-btn');
+    
+    todosBotoes.forEach(btn => {
+        const isAtivo = btn.dataset.cat === catName || (catName !== '' && catName.startsWith(btn.dataset.cat + ' -'));
+        
+        if (isAtivo) {
+            // ATIVO: Usa a cor de destaque do painel (--clr-accent) e texto escuro
+            btn.classList.remove('bg-[var(--bg-main)]', 'opacity-90', 'text-[var(--txt-body)]', 'border-transparent');
+            btn.classList.add('bg-[var(--clr-accent)]', 'text-[#0a0a0a]', 'border-[var(--clr-accent)]');
+        } else {
+            // INATIVO: Usa a cor de fundo do painel e remove a borda
+            btn.classList.remove('bg-[var(--clr-accent)]', 'text-[#0a0a0a]', 'border-[var(--clr-accent)]');
+            btn.classList.add('bg-[var(--bg-main)]', 'opacity-90', 'text-[var(--txt-body)]', 'border-transparent');
+        }
+    });
+};
+function renderCategories() {
+    const populateSelect = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const val = el.value;
+        el.innerHTML = `<option value="">Todas</option>`;
+        state.categories.forEach(c => el.innerHTML += `<option value="${c.name}">${c.name}</option>`);
+        if (val) el.value = val;
+    };
+    ['category-filter','admin-filter-cat','bulk-category-select','prod-cat-select','bulk-category-select-dynamic'].forEach(populateSelect);
+
+    const scrollContainer = document.getElementById('categorias-scroll');
+    if (scrollContainer) {
+        let activeCat = document.getElementById('category-filter')?.value || '';
+        
+        // Segurança anti-fantasma
+        if (activeCat !== '') {
+            const catExists = state.categories.some(c => c.name === activeCat || activeCat.startsWith(c.name + ' -'));
+            if (!catExists) {
+                activeCat = '';
+                if (document.getElementById('category-filter')) document.getElementById('category-filter').value = '';
+                renderCatalog(state.products);
+            }
+        }
+
+        let pillsHtml = '';
+        const principais = state.categories.filter(c => !c.name.includes(' - '));
+        const categoriasParaMostrar = principais.length > 0 ? principais : state.categories;
+
+        // Desenha usando bg-[var(--bg-main)] e text-[var(--txt-body)] 
+        categoriasParaMostrar.forEach(c => {
+            const safeName = c.name.replace(/'/g, "\\'");
+            const hasSubs = state.categories.some(sub => sub.name.startsWith(c.name + ' - '));
+            
+            // Classes com variáveis do painel (Inativo por padrão, depois a função pinta de ativo)
+            const coresBase = 'bg-[var(--bg-main)] opacity-90 text-[var(--txt-body)] border border-transparent transition-all shadow-sm';
+
+            if (hasSubs) {
+                pillsHtml += `
+                    <div class="categoria-btn flex items-center h-full rounded-full transition-all shrink-0 ${coresBase}" data-cat="${safeName}">
+                        <button onclick="filterByCat('${safeName}')" class="px-4 h-full font-black tracking-wide text-xs rounded-l-full outline-none">
+                            ${c.name}
+                        </button>
+                        <button onclick="toggleCatDropdown('${safeName}', event)" class="px-3 h-full border-l border-gray-700 flex items-center justify-center rounded-r-full hover:opacity-80 outline-none">
+                            <i class="fas fa-chevron-down text-[10px]"></i>
+                        </button>
+                    </div>
+                `;
+            } else {
+                pillsHtml += `
+                    <button onclick="filterByCat('${safeName}')" data-cat="${safeName}" class="categoria-btn px-4 h-full rounded-full font-black tracking-wide text-xs transition-all shrink-0 ${coresBase} outline-none">
+                        ${c.name}
+                    </button>
+                `;
+            }
+        });
+        scrollContainer.innerHTML = pillsHtml;
+
+        // Aplica a cor de destaque (se for o caso)
+        window.aplicarCoresCategorias(activeCat);
+
+        if (typeof initCategoryCarousel === 'function') initCategoryCarousel();
+    }
+
+    // Código do Menu Lateral (Mantém exatamente como estava no seu original)
+    const sidebarContainer = document.getElementById('sidebar-categories');
+    if (sidebarContainer) {
+        const tree = {};
+        state.categories.forEach(c => {
+            const parts = c.name.split(' - ');
+            let currentLevel = tree;
+            parts.forEach((part, index) => {
+                if (!currentLevel[part]) {
+                    const fullPath = parts.slice(0, index + 1).join(' - ');
+                    currentLevel[part] = { _path: fullPath, _children: {} };
+                }
+                currentLevel = currentLevel[part]._children;
+            });
+        });
+
+        const getOrder = (path) => {
+            const cat = state.categories.find(c => c.name === path);
+            return cat && cat.order !== undefined ? cat.order : 999;
+        };
+
+        const buildHtml = (node, level = 0) => {
+            let html = '';
+            const keys = Object.keys(node).sort((a, b) => {
+                const orderA = getOrder(node[a]._path);
+                const orderB = getOrder(node[b]._path);
+                if (orderA !== orderB) return orderA - orderB;
+                return a.localeCompare(b);
+            });
+
+            keys.forEach(key => {
+                const item = node[key];
+                const hasChildren = Object.keys(item._children).length > 0;
+                const safePath = item._path.replace(/'/g, "\\'");
+                const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
+                const textStyle = level === 0
+                    ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm"
+                    : "text-gray-300 font-medium text-sm hover:text-white";
+
+                if (hasChildren) {
+                    html += `
+                        <details class="group mb-1">
+                            <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
+                                <span class="${textStyle} flex-1" style="padding-left:${paddingLeft}px" onclick="event.preventDefault(); filterByCat('${safePath}')">${key}</span>
+                                <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">▲</span>
+                            </summary>
+                            <div class="border-l border-gray-800 ml-4">${buildHtml(item._children, level + 1)}</div>
+                        </details>`;
+                } else {
+                    html += `
+                        <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center" onclick="filterByCat('${safePath}')">
+                            <span class="${textStyle}" style="padding-left:${paddingLeft}px">${key}</span>
+                        </div>`;
+                }
+            });
+            return html;
+        };
+        sidebarContainer.innerHTML = `<div class="space-y-1 mt-2">${buildHtml(tree)}</div>`;
+    }
+}
 
 // Função Helper para selecionar o pai sem fechar o menu visualmente
 window.selectParentCategory = (id, name, event) => {
@@ -3875,298 +4072,11 @@ function setupEventListeners() {
     }
 }
 
-// =====================================================================
-// 🌟 SISTEMA DE CATEGORIAS PREMIUM (VIDRO, CORES DO PAINEL E CARROSSEL)
-// =====================================================================
-window.aplicarCoresCategorias = (catName) => {
-    const todosBotoes = document.querySelectorAll('.categoria-btn');
-    
-    // Arrays isolados com as classes exatas
-    // INATIVA: Fundo de vidro branco 10% (transparente e limpo)
-    const classesInativas = ['bg-white/10', 'text-[var(--txt-body)]', 'border-transparent'];
-    
-    // ATIVA: Fundo preto 60% (bg-black/60) para dar o destaque escuro que você pediu!
-    const classesAtivas = ['bg-black/60', 'text-[var(--clr-accent)]', 'border-[var(--clr-accent)]'];
-    
-    todosBotoes.forEach(btn => {
-        // Limpa qualquer estilo inline que as tentativas anteriores tenham deixado preso
-        btn.removeAttribute('style');
-        
-        // Remove todas as classes para evitar acúmulo e sujeira
-        btn.classList.remove(...classesInativas, ...classesAtivas, 'bg-white/5', 'bg-white/20', 'bg-[#151720]', 'bg-black', 'text-white', 'text-gray-300');
-
-        const isAtivo = btn.dataset.cat === catName || (catName !== '' && catName.startsWith(btn.dataset.cat + ' -'));
-        
-        if (isAtivo) {
-            btn.classList.add(...classesAtivas);
-        } else {
-            btn.classList.add(...classesInativas);
-        }
-    });
-};
-
-// 2. FUNÇÃO DO CLIQUE (Filtra e muda cor)
-window.filterByCat = (catName) => {
-    window.isCategorySelected = (catName !== ''); // Avisa o carrossel se deve pausar
-
-    if (els.pageTitle) els.pageTitle.innerText = catName ? catName.split(' - ').pop() : 'Vitrine';
-    if (els.catFilter) els.catFilter.value = catName;
-
-    if (!catName) renderCatalog(state.products);
-    else {
-        const term = catName.toLowerCase();
-        const filtered = state.products.filter(p => {
-            if (!p.category) return false;
-            const prodCat = p.category.toLowerCase();
-            return prodCat === term || prodCat.startsWith(term + ' -');
-        });
-        renderCatalog(filtered);
-    }
-    
-    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    if (window.innerWidth < 1024) {
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('sidebar-overlay');
-        if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
-            sidebar.classList.add('-translate-x-full');
-            if (overlay) overlay.classList.add('hidden');
-        }
-    }
-
-    // ✨ AQUI: Fecha qualquer opção/dropdown da BARRA SUPERIOR que esteja aberto
-    if (typeof fecharCatDropdown === 'function') fecharCatDropdown();
-
-    window.aplicarCoresCategorias(catName);
-};
-
-// 3. RENDERIZADOR (Cria os botões na tela)
-function renderCategories() {
-    const populateSelect = (id) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const val = el.value;
-        el.innerHTML = `<option value="">Todas</option>`;
-        state.categories.forEach(c => el.innerHTML += `<option value="${c.name}">${c.name}</option>`);
-        if (val) el.value = val;
-    };
-    ['category-filter','admin-filter-cat','bulk-category-select','prod-cat-select','bulk-category-select-dynamic'].forEach(populateSelect);
-
-    const scrollContainer = document.getElementById('categorias-scroll');
-    if (scrollContainer) {
-        let activeCat = document.getElementById('category-filter')?.value || '';
-        
-        if (activeCat !== '') {
-            const catExists = state.categories.some(c => c.name === activeCat || activeCat.startsWith(c.name + ' -'));
-            if (!catExists) { activeCat = ''; renderCatalog(state.products); }
-        }
-
-        let pillsHtml = '';
-        const principais = state.categories.filter(c => !c.name.includes(' - '));
-        const categoriasParaMostrar = principais.length > 0 ? principais : state.categories;
-
-        categoriasParaMostrar.forEach(c => {
-            const safeName = c.name.replace(/'/g, "\\'");
-            const hasSubs = state.categories.some(sub => sub.name.startsWith(c.name + ' - '));
-            
-            // 👉 ESTRUTURA BASE: Só estrutura e desfoque. As cores (bg-white/10) entram via JS.
-            const classesEstrutura = "categoria-btn flex items-center h-full rounded-full transition-all shrink-0 border backdrop-blur-md font-['Nunito'] font-black tracking-wide text-xs outline-none";
-
-            if (hasSubs) {
-                pillsHtml += `
-                    <div class="${classesEstrutura}" data-cat="${safeName}">
-                        <button onclick="filterByCat('${safeName}')" class="px-4 h-full rounded-l-full outline-none">
-                            ${c.name}
-                        </button>
-                        <button onclick="toggleCatDropdown('${safeName}', event)" class="px-3 h-full border-l border-white/20 flex items-center justify-center rounded-r-full hover:bg-black/30 outline-none transition-colors">
-                            <i class="fas fa-chevron-down text-[10px]"></i>
-                        </button>
-                    </div>
-                `;
-            } else {
-                pillsHtml += `
-                    <button onclick="filterByCat('${safeName}')" data-cat="${safeName}" class="${classesEstrutura} px-5 outline-none">
-                        ${c.name}
-                    </button>
-                `;
-            }
-        });
-
-        scrollContainer.innerHTML = pillsHtml;
-
-        // Ao terminar de desenhar, o JS pinta quem é quem
-        setTimeout(() => { window.aplicarCoresCategorias(activeCat); }, 10);
-
-        if (typeof initCategoryCarousel === 'function') initCategoryCarousel();
-    }
-
-    // --- SIDEBAR (MANTENHA A SUA CÓPIA AQUI) ---
-    const sidebarContainer = document.getElementById('sidebar-categories');
-    if (sidebarContainer) {
-        const tree = {};
-        state.categories.forEach(c => {
-            const parts = c.name.split(' - ');
-            let currentLevel = tree;
-            parts.forEach((part, index) => {
-                if (!currentLevel[part]) {
-                    const fullPath = parts.slice(0, index + 1).join(' - ');
-                    currentLevel[part] = { _path: fullPath, _children: {} };
-                }
-                currentLevel = currentLevel[part]._children;
-            });
-        });
-
-        const getOrder = (path) => {
-            const cat = state.categories.find(c => c.name === path);
-            return cat && cat.order !== undefined ? cat.order : 999;
-        };
-
-        const buildHtml = (node, level = 0) => {
-            let html = '';
-            const keys = Object.keys(node).sort((a, b) => {
-                const orderA = getOrder(node[a]._path);
-                const orderB = getOrder(node[b]._path);
-                if (orderA !== orderB) return orderA - orderB;
-                return a.localeCompare(b);
-            });
-
-            keys.forEach(key => {
-                const item = node[key];
-                const hasChildren = Object.keys(item._children).length > 0;
-                const safePath = item._path.replace(/'/g, "\\'");
-                const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
-                const textStyle = level === 0 ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm" : "text-gray-300 font-medium text-sm hover:text-white";
-
-                if (hasChildren) {
-                    html += `
-                        <details class="group mb-1">
-                            <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
-                                <span class="${textStyle} flex-1" style="padding-left:${paddingLeft}px" onclick="event.preventDefault(); filterByCat('${safePath}')">${key}</span>
-                                <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">▲</span>
-                            </summary>
-                            <div class="border-l border-gray-800 ml-4">${buildHtml(item._children, level + 1)}</div>
-                        </details>`;
-                } else {
-                    html += `
-                        <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center" onclick="filterByCat('${safePath}')">
-                            <span class="${textStyle}" style="padding-left:${paddingLeft}px">${key}</span>
-                        </div>`;
-                }
-            });
-            return html;
-        };
-        sidebarContainer.innerHTML = `<div class="space-y-1 mt-2">${buildHtml(tree)}</div>`;
-    }
-}
-
-// 4. DROPDOWN DE SUBCATEGORIAS
-window.toggleCatDropdown = (parentName, event) => {
-    event.stopPropagation();
-    const dropdown = document.getElementById('global-cat-dropdown');
-    if (!dropdown.classList.contains('hidden') && dropdown.dataset.current === parentName) {
-        fecharCatDropdown();
-        return;
-    }
-    const subs = state.categories.filter(c => c.name.startsWith(parentName + ' - ') && c.name.split(' - ').length === parentName.split(' - ').length + 1);
-    dropdown.innerHTML = subs.map(sub => {
-        const safeSubName = sub.name.replace(/'/g, "\\'");
-        const shortName = sub.name.replace(parentName + ' - ', '');
-        return `
-            <button onclick="filterByCat('${safeSubName}'); fecharCatDropdown()" class="block w-full text-left px-5 py-2.5 text-xs font-bold text-gray-400 hover:bg-white/10 hover:text-white transition-colors outline-none">
-                ${shortName}
-            </button>
-        `;
-    }).join('');
-    const btnRect = event.currentTarget.getBoundingClientRect();
-    dropdown.style.top = `${btnRect.bottom + 8}px`;
-    const spaceRight = window.innerWidth - btnRect.right;
-    if (spaceRight < 150) {
-        dropdown.style.right = `${window.innerWidth - btnRect.right}px`;
-        dropdown.style.left = 'auto';
-    } else {
-        dropdown.style.left = `${btnRect.left - 50}px`;
-        dropdown.style.right = 'auto';
-    }
-    dropdown.dataset.current = parentName;
-    dropdown.classList.remove('hidden');
-    setTimeout(() => {
-        dropdown.classList.remove('opacity-0', 'scale-95');
-        dropdown.classList.add('opacity-100', 'scale-100');
-    }, 10);
-};
-
-window.fecharCatDropdown = () => {
-    const dropdown = document.getElementById('global-cat-dropdown');
-    if (dropdown && !dropdown.classList.contains('hidden')) {
-        dropdown.classList.remove('opacity-100', 'scale-100');
-        dropdown.classList.add('opacity-0', 'scale-95');
-        setTimeout(() => dropdown.classList.add('hidden'), 200);
-        dropdown.dataset.current = "";
-    }
-};
-
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('#global-cat-dropdown') && !e.target.closest('.categoria-btn')) {
-        fecharCatDropdown();
-    }
-});
-
-// 5. CARROSSEL COM PING-PONG BLINDADO E PAUSA
-window.isCategorySelected = false;
-window.initCategoryCarousel = () => {
-    const slider = document.getElementById('categorias-scroll');
-    if (!slider) return;
-
-    if (window.carouselAnimationId) {
-        cancelAnimationFrame(window.carouselAnimationId);
-    }
-
-    let isDown = false;
-    let startX;
-    let scrollLeft;
-    let isAutoScrolling = true;
-    let scrollDirection = 1; 
-
-    const playAutoScroll = () => {
-        window.carouselAnimationId = requestAnimationFrame(playAutoScroll);
-        
-        // Verifica o select nativo para pausa 100% segura
-        const selectEscondido = document.getElementById('category-filter');
-        const temCategoriaAtiva = selectEscondido && selectEscondido.value !== '';
-
-        if (!isAutoScrolling || temCategoriaAtiva) return;
-
-        const maxScroll = slider.scrollWidth - slider.clientWidth;
-        if (maxScroll <= 0) return;
-
-        if (slider.scrollLeft >= maxScroll - 2) scrollDirection = -1; 
-        else if (slider.scrollLeft <= 0) scrollDirection = 1; 
-
-        slider.scrollLeft += scrollDirection;
-    };
-
-    playAutoScroll();
-
-    if (!slider.dataset.eventsSet) {
-        slider.dataset.eventsSet = "true";
-        slider.addEventListener('mousedown', (e) => {
-            isDown = true; isAutoScrolling = false; slider.style.cursor = 'grabbing';
-            startX = e.pageX - slider.offsetLeft; scrollLeft = slider.scrollLeft;
-        });
-        slider.addEventListener('mouseleave', () => { isDown = false; slider.style.cursor = 'grab'; isAutoScrolling = true; });
-        slider.addEventListener('mouseup', () => { isDown = false; slider.style.cursor = 'grab'; setTimeout(() => { isAutoScrolling = true; }, 2000); });
-        slider.addEventListener('mousemove', (e) => {
-            if (!isDown) return; e.preventDefault();
-            const x = e.pageX - slider.offsetLeft; const walk = (x - startX) * 2; 
-            slider.scrollLeft = scrollLeft - walk;
-        });
-        slider.addEventListener('touchstart', () => { isAutoScrolling = false; }, {passive: true});
-        slider.addEventListener('touchend', () => { setTimeout(() => { isAutoScrolling = true; }, 2000); });
-    }
-};
-
 // =================================================================
 // RECUPERAÇÃO DAS ABAS DO ADMIN (Produtos, Categoria, Stats, Config)
+// =================================================================
+// =================================================================
+// RECUPERAÇÃO DAS ABAS DO ADMIN (Blindado e Sempre Ativo)
 // =================================================================
 document.addEventListener('click', (e) => {
     const btn = e.target.closest('.tab-btn');
@@ -4344,22 +4254,19 @@ function showView(viewName) {
 }
 
 // Atualiza o texto do botão de ordenar e reordena a lista
-window.updateSortLabel = function(selectElement) {
+function updateSortLabel(selectElement) {
     // 1. Atualiza o texto visual (Label)
     const label = document.getElementById('sort-label-display');
     if (label) {
         // Pega o texto da opção selecionada (ex: "Menor Preço")
         label.innerText = selectElement.options[selectElement.selectedIndex].text;
 
-        // Remove qualquer cor fixa do Tailwind e aplica a cor de Destaque da Loja
-        label.classList.remove('text-yellow-500', 'text-orange-500', 'text-gray-400');
-        label.style.color = 'var(--txt-body)';
+        // Muda a cor para amarelo para indicar que está ativo
+        label.classList.add('text-yellow-500');
     }
 
     // 2. Chama a reordenação (usa a função existente)
-    if (typeof renderCatalog === 'function') {
-        renderCatalog(state.products);
-    }
+    renderCatalog(state.products);
 };
 
 // OBRIGATÓRIO: EXPOR PARA O HTML
@@ -4478,7 +4385,6 @@ function setupKeyboardListeners() {
 //         els.bulkActionsBar.classList.remove('flex');
 //     }
 // }
-
 
 function setupSwipe(element) {
     if (!element) return;
@@ -9577,8 +9483,6 @@ if (state.user && typeof loadAdminSales === 'function') {
 };
 
 
-
-
 // =================================================================
 // 📢 RADAR DE AVISOS EM TEMPO REAL (PROJETISTA -> LOJA)
 // =================================================================
@@ -9659,6 +9563,8 @@ window.loadAvisos = () => {
         console.log("🔒 Coleção de Avisos trancada aguardando senha.");
     });
 };
+
+
 
 
 // =================================================================
@@ -9792,6 +9698,66 @@ window.printOrder = (orderId) => {
     }, 300);
 };
 
+// ===============================================
+// LÓGICA: DROPDOWN DE SUBCATEGORIAS
+// ===============================================
+window.toggleCatDropdown = (parentName, event) => {
+    event.stopPropagation();
+    const dropdown = document.getElementById('global-cat-dropdown');
+
+    // Se clicar na mesma seta que já tá aberta, fecha
+    if (!dropdown.classList.contains('hidden') && dropdown.dataset.current === parentName) {
+        fecharCatDropdown();
+        return;
+    }
+
+    // Acha as subcategorias desse pai
+    const subs = state.categories.filter(c => c.name.startsWith(parentName + ' - ') && c.name.split(' - ').length === parentName.split(' - ').length + 1);
+
+    // Constrói a lista
+    dropdown.innerHTML = subs.map(sub => {
+        const safeSubName = sub.name.replace(/'/g, "\\'");
+        const shortName = sub.name.replace(parentName + ' - ', '');
+        return `
+            <button onclick="filterByCat('${safeSubName}'); fecharCatDropdown()" class="block w-full text-left px-5 py-2.5 text-xs font-bold text-gray-400 hover:bg-[#252836] hover:text-white transition-colors">
+                ${shortName}
+            </button>
+        `;
+    }).join('');
+
+    // Posiciona flutuando embaixo da seta clicada
+    const btnRect = event.currentTarget.getBoundingClientRect();
+    dropdown.style.top = `${btnRect.bottom + 8}px`;
+
+    // Garante que o menu não vaze pra fora da tela na direita
+    const spaceRight = window.innerWidth - btnRect.right;
+    if (spaceRight < 150) {
+        dropdown.style.right = `${window.innerWidth - btnRect.right}px`;
+        dropdown.style.left = 'auto';
+    } else {
+        dropdown.style.left = `${btnRect.left - 50}px`;
+        dropdown.style.right = 'auto';
+    }
+
+    dropdown.dataset.current = parentName;
+    dropdown.classList.remove('hidden');
+
+    // Animação de entrada
+    setTimeout(() => {
+        dropdown.classList.remove('opacity-0', 'scale-95');
+        dropdown.classList.add('opacity-100', 'scale-100');
+    }, 10);
+};
+
+window.fecharCatDropdown = () => {
+    const dropdown = document.getElementById('global-cat-dropdown');
+    if (dropdown && !dropdown.classList.contains('hidden')) {
+        dropdown.classList.remove('opacity-100', 'scale-100');
+        dropdown.classList.add('opacity-0', 'scale-95');
+        setTimeout(() => dropdown.classList.add('hidden'), 200);
+        dropdown.dataset.current = "";
+    }
+};
 
 // Clicar em qualquer lugar da tela fecha o Dropdown
 document.addEventListener('click', (e) => {
@@ -9799,3 +9765,147 @@ document.addEventListener('click', (e) => {
         fecharCatDropdown();
     }
 });
+
+// ===============================================
+// LÓGICA: MUDANÇA DE COR DA PÍLULA AO CLICAR
+// ===============================================
+window.filterByCat = (catName) => {
+    // 1. Suas regras normais de filtro (título, lógica)
+    if (els.pageTitle) els.pageTitle.innerText = catName ? catName.split(' - ').pop() : 'Vitrine';
+    if (els.catFilter) els.catFilter.value = catName;
+
+    if (!catName) renderCatalog(state.products);
+    else {
+        const term = catName.toLowerCase();
+        const filtered = state.products.filter(p => {
+            if (!p.category) return false;
+            const prodCat = p.category.toLowerCase();
+            return prodCat === term || prodCat.startsWith(term + ' -');
+        });
+        renderCatalog(filtered);
+    }
+    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // 2. Muda a cor visualmente na hora
+    const todosBotoes = document.querySelectorAll('.categoria-btn');
+    todosBotoes.forEach(btn => {
+        // Se a categoria clicada for o pai do botão, ou a exata categoria
+        if (btn.dataset.cat === catName || catName.startsWith(btn.dataset.cat + ' -')) {
+            btn.classList.remove('bg-[#1a1c23]', 'text-gray-400');
+            btn.classList.add('bg-brand-pink', 'text-white', 'shadow-lg');
+
+            // Só dá scroll se não for o botão principal vazio
+            if (btn.dataset.cat !== '') {
+                btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        } else if (btn.dataset.cat !== '') {
+            btn.classList.add('bg-[#1a1c23]', 'text-gray-400');
+            btn.classList.remove('bg-brand-pink', 'text-white', 'shadow-lg');
+        } else {
+            // Regra do botão "Todas"
+            if (catName === '') {
+                btn.classList.add('bg-brand-pink', 'text-white', 'shadow-lg');
+            } else {
+                btn.classList.remove('bg-brand-pink', 'shadow-lg');
+                btn.classList.add('bg-[#1a1c23]', 'text-gray-400');
+            }
+        }
+    });
+};
+
+// ===============================================
+// LÓGICA: CARROSSEL COM AUTOSCROLL E ARRASTE
+// ===============================================
+// Variável global para avisar o carrossel se há algo filtrado
+window.isCategorySelected = false;
+
+// ===============================================
+// LÓGICA: CARROSSEL COM PING-PONG BLINDADO
+// ===============================================
+// ===============================================
+// LÓGICA: CARROSSEL COM PING-PONG BLINDADO E PAUSA
+// ===============================================
+window.initCategoryCarousel = () => {
+    const slider = document.getElementById('categorias-scroll');
+    if (!slider) return;
+
+    // 1. MATA QUALQUER ANIMAÇÃO ANTERIOR
+    if (window.carouselAnimationId) {
+        cancelAnimationFrame(window.carouselAnimationId);
+    }
+
+    let isDown = false;
+    let startX;
+    let scrollLeft;
+    let isAutoScrolling = true;
+    let scrollDirection = 1; 
+
+    const playAutoScroll = () => {
+        window.carouselAnimationId = requestAnimationFrame(playAutoScroll);
+
+        // =============================================================
+        // A MÁGICA INFALÍVEL: Olha direto para o HTML do seu site!
+        // Se o Select escondido tiver qualquer texto, a categoria está ativa.
+        // =============================================================
+        const selectEscondido = document.getElementById('category-filter');
+        const temCategoriaAtiva = selectEscondido && selectEscondido.value !== '';
+
+        // Se tiver categoria ativa, ou o cliente botou o dedo/mouse -> PAUSA!
+        if (!isAutoScrolling || temCategoriaAtiva) {
+            return;
+        }
+
+        const maxScroll = slider.scrollWidth - slider.clientWidth;
+        if (maxScroll <= 0) return;
+
+        if (slider.scrollLeft >= maxScroll - 2) {
+            scrollDirection = -1; // Volta
+        } 
+        else if (slider.scrollLeft <= 0) {
+            scrollDirection = 1; // Vai
+        }
+
+        slider.scrollLeft += scrollDirection;
+    };
+
+    // Dá o pontapé inicial
+    playAutoScroll();
+
+    // 2. GARANTE EVENTOS DE MOUSE/DEDO APENAS 1 VEZ
+    if (!slider.dataset.eventsSet) {
+        slider.dataset.eventsSet = "true";
+
+        slider.addEventListener('mousedown', (e) => {
+            isDown = true;
+            isAutoScrolling = false;
+            slider.style.cursor = 'grabbing';
+            startX = e.pageX - slider.offsetLeft;
+            scrollLeft = slider.scrollLeft;
+        });
+        slider.addEventListener('mouseleave', () => {
+            isDown = false;
+            slider.style.cursor = 'grab';
+            isAutoScrolling = true;
+        });
+        slider.addEventListener('mouseup', () => {
+            isDown = false;
+            slider.style.cursor = 'grab';
+            setTimeout(() => { isAutoScrolling = true; }, 2000); 
+        });
+        slider.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - slider.offsetLeft;
+            const walk = (x - startX) * 2; 
+            slider.scrollLeft = scrollLeft - walk;
+        });
+
+        slider.addEventListener('touchstart', () => { 
+            isAutoScrolling = false; 
+        }, {passive: true});
+        
+        slider.addEventListener('touchend', () => { 
+            setTimeout(() => { isAutoScrolling = true; }, 2000);
+        });
+    }
+};

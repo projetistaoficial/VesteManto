@@ -4059,6 +4059,25 @@ function renderCategories() {
     }
 }
 
+// Atualiza o texto do botão de ordenar e reordena a lista
+window.updateSortLabel = function(selectElement) {
+    // 1. Atualiza o texto visual (Label)
+    const label = document.getElementById('sort-label-display');
+    if (label) {
+        // Pega o texto da opção selecionada (ex: "Menor Preço")
+        label.innerText = selectElement.options[selectElement.selectedIndex].text;
+
+        // Remove qualquer cor fixa do Tailwind e aplica a cor de Destaque da Loja
+        label.classList.remove('text-yellow-500', 'text-orange-500', 'text-gray-400');
+        label.style.color = 'var(--clr-accent)';
+    }
+
+    // 2. Chama a reordenação (usa a função existente)
+    if (typeof renderCatalog === 'function') {
+        renderCatalog(state.products);
+    }
+};
+
 // 4. DROPDOWN DE SUBCATEGORIAS
 window.toggleCatDropdown = (parentName, event) => {
     event.stopPropagation();
@@ -4344,22 +4363,19 @@ function showView(viewName) {
 }
 
 // Atualiza o texto do botão de ordenar e reordena a lista
-window.updateSortLabel = function(selectElement) {
+function updateSortLabel(selectElement) {
     // 1. Atualiza o texto visual (Label)
     const label = document.getElementById('sort-label-display');
     if (label) {
         // Pega o texto da opção selecionada (ex: "Menor Preço")
         label.innerText = selectElement.options[selectElement.selectedIndex].text;
 
-        // Remove qualquer cor fixa do Tailwind e aplica a cor de Destaque da Loja
-        label.classList.remove('text-yellow-500', 'text-orange-500', 'text-gray-400');
-        label.style.color = 'var(--txt-body)';
+        // Muda a cor para amarelo para indicar que está ativo
+        label.classList.add('text-yellow-500');
     }
 
     // 2. Chama a reordenação (usa a função existente)
-    if (typeof renderCatalog === 'function') {
-        renderCatalog(state.products);
-    }
+    renderCatalog(state.products);
 };
 
 // OBRIGATÓRIO: EXPOR PARA O HTML

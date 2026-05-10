@@ -3878,34 +3878,41 @@ function setupEventListeners() {
 // =====================================================================
 // 🌟 SISTEMA DE CATEGORIAS PREMIUM (VIDRO, CORES DO PAINEL E CARROSSEL)
 // =====================================================================
+// ===============================================
+// 1. SINCRONIZADOR VISUAL (Fundo mais escuro na ativa)
+// ===============================================
 window.aplicarCoresCategorias = (catName) => {
     const todosBotoes = document.querySelectorAll('.categoria-btn');
     
-    // Arrays isolados com as classes exatas
-    // INATIVA: Fundo de vidro branco 10% (transparente e limpo)
-    const classesInativas = ['bg-white/10', 'text-[var(--txt-body)]', 'border-transparent'];
-    
-    // ATIVA: Fundo preto 60% (bg-black/60) para dar o destaque escuro que você pediu!
-    const classesAtivas = ['bg-black/60', 'text-[var(--clr-accent)]', 'border-[var(--clr-accent)]'];
-    
     todosBotoes.forEach(btn => {
-        // Limpa qualquer estilo inline que as tentativas anteriores tenham deixado preso
-        btn.removeAttribute('style');
-        
-        // Remove todas as classes para evitar acúmulo e sujeira
-        btn.classList.remove(...classesInativas, ...classesAtivas, 'bg-white/5', 'bg-white/20', 'bg-[#151720]', 'bg-black', 'text-white', 'text-gray-300');
+        // Limpa classes velhas
+        btn.classList.remove('bg-white/10', 'bg-white/20', 'text-white', 'text-gray-300', 'bg-[#151720]', 'bg-black');
 
         const isAtivo = btn.dataset.cat === catName || (catName !== '' && catName.startsWith(btn.dataset.cat + ' -'));
         
         if (isAtivo) {
-            btn.classList.add(...classesAtivas);
+            // ESTADO: SELECIONADA
+            // Fundo: Bem mais escuro (0.7) para criar contraste forte
+            btn.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            btn.style.borderColor = 'var(--clr-accent)';
+            btn.style.color = 'var(--clr-accent)';
+            btn.style.opacity = '1';
+            btn.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)'; // Sombra um pouco mais forte
         } else {
-            btn.classList.add(...classesInativas);
+            // ESTADO: INATIVA (As outras)
+            // Fundo: Vidro levemente escurecido
+            btn.style.backgroundColor = 'rgba(0, 0, 0, 0.15)';
+            btn.style.borderColor = 'transparent';
+            btn.style.color = 'var(--txt-body)';
+            btn.style.opacity = '0.7';
+            btn.style.boxShadow = 'none';
         }
     });
 };
 
-// 2. FUNÇÃO DO CLIQUE (Filtra e muda cor)
+// ===============================================
+// 2. FUNÇÃO DO CLIQUE (Filtra, muda cor e fecha menu)
+// ===============================================
 window.filterByCat = (catName) => {
     window.isCategorySelected = (catName !== ''); // Avisa o carrossel se deve pausar
 
@@ -3934,13 +3941,15 @@ window.filterByCat = (catName) => {
         }
     }
 
-    // ✨ AQUI: Fecha qualquer opção/dropdown da BARRA SUPERIOR que esteja aberto
+    // Fecha o dropdown flutuante (se estiver aberto no PC) ao clicar no nome
     if (typeof fecharCatDropdown === 'function') fecharCatDropdown();
 
-    window.aplicarCoresCategorias(catName);
+    window.aplicarCoresCategorias(catName); // Atualiza a cor visualmente na hora
 };
 
-// 3. RENDERIZADOR (Cria os botões na tela)
+// ===============================================
+// 3. RENDERIZADOR (Menu Exclusivo e Botões)
+// ===============================================
 function renderCategories() {
     const populateSelect = (id) => {
         const el = document.getElementById(id);
@@ -3969,23 +3978,23 @@ function renderCategories() {
             const safeName = c.name.replace(/'/g, "\\'");
             const hasSubs = state.categories.some(sub => sub.name.startsWith(c.name + ' - '));
             
-            // 👉 ESTRUTURA BASE: Só estrutura e desfoque. As cores (bg-white/10) entram via JS.
-            const classesEstrutura = "categoria-btn flex items-center h-full rounded-full transition-all shrink-0 border backdrop-blur-md font-['Nunito'] font-black tracking-wide text-xs outline-none";
+            // Estrutura Base IMUTÁVEL (Já nasce inativo com bg-white/10)
+            const classesBase = "categoria-btn flex items-center h-full rounded-full transition-all shrink-0 border backdrop-blur-md font-['Nunito'] font-black tracking-wide text-xs outline-none bg-white/10 border-transparent text-[var(--txt-body)]";
 
             if (hasSubs) {
                 pillsHtml += `
-                    <div class="${classesEstrutura}" data-cat="${safeName}">
+                    <div class="${classesBase}" data-cat="${safeName}">
                         <button onclick="filterByCat('${safeName}')" class="px-4 h-full rounded-l-full outline-none">
                             ${c.name}
                         </button>
-                        <button onclick="toggleCatDropdown('${safeName}', event)" class="px-3 h-full border-l border-white/20 flex items-center justify-center rounded-r-full hover:bg-black/30 outline-none transition-colors">
+                        <button onclick="toggleCatDropdown('${safeName}', event)" class="px-3 h-full border-l border-white/10 flex items-center justify-center rounded-r-full hover:bg-white/20 outline-none transition-colors">
                             <i class="fas fa-chevron-down text-[10px]"></i>
                         </button>
                     </div>
                 `;
             } else {
                 pillsHtml += `
-                    <button onclick="filterByCat('${safeName}')" data-cat="${safeName}" class="${classesEstrutura} px-5 outline-none">
+                    <button onclick="filterByCat('${safeName}')" data-cat="${safeName}" class="${classesBase} px-5 outline-none">
                         ${c.name}
                     </button>
                 `;
@@ -3994,7 +4003,7 @@ function renderCategories() {
 
         scrollContainer.innerHTML = pillsHtml;
 
-        // Ao terminar de desenhar, o JS pinta quem é quem
+        // Pinta a cor correta baseada na seleção
         setTimeout(() => { window.aplicarCoresCategorias(activeCat); }, 10);
 
         if (typeof initCategoryCarousel === 'function') initCategoryCarousel();
@@ -4038,8 +4047,10 @@ function renderCategories() {
                 const textStyle = level === 0 ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm" : "text-gray-300 font-medium text-sm hover:text-white";
 
                 if (hasChildren) {
+                    // ✨ TRUQUE AQUI: name="menu-nivel-${level}" transforma as details em um Accordion Nativo!
+                    // Isso força o navegador a fechar a anterior automaticamente.
                     html += `
-                        <details class="group mb-1">
+                        <details name="menu-nivel-${level}" class="group mb-1">
                             <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
                                 <span class="${textStyle} flex-1" style="padding-left:${paddingLeft}px" onclick="event.preventDefault(); filterByCat('${safePath}')">${key}</span>
                                 <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">▲</span>
@@ -4344,22 +4355,19 @@ function showView(viewName) {
 }
 
 // Atualiza o texto do botão de ordenar e reordena a lista
-window.updateSortLabel = function(selectElement) {
+function updateSortLabel(selectElement) {
     // 1. Atualiza o texto visual (Label)
     const label = document.getElementById('sort-label-display');
     if (label) {
         // Pega o texto da opção selecionada (ex: "Menor Preço")
         label.innerText = selectElement.options[selectElement.selectedIndex].text;
 
-        // Remove qualquer cor fixa do Tailwind e aplica a cor de Destaque da Loja
-        label.classList.remove('text-yellow-500', 'text-orange-500', 'text-gray-400');
-        label.style.color = 'var(--txt-body)';
+        // Muda a cor para amarelo para indicar que está ativo
+        label.classList.add('text-yellow-500');
     }
 
     // 2. Chama a reordenação (usa a função existente)
-    if (typeof renderCatalog === 'function') {
-        renderCatalog(state.products);
-    }
+    renderCatalog(state.products);
 };
 
 // OBRIGATÓRIO: EXPOR PARA O HTML
@@ -9661,6 +9669,8 @@ window.loadAvisos = () => {
 };
 
 
+
+
 // =================================================================
 // 🖨️ MÓDULO DE IMPRESSÃO TÉRMICA - LOGO CENTRALIZADA E AVISO FISCAL
 // =================================================================
@@ -9799,3 +9809,50 @@ document.addEventListener('click', (e) => {
         fecharCatDropdown();
     }
 });
+
+// ===============================================
+// LÓGICA: MUDANÇA DE COR DA PÍLULA AO CLICAR
+// ===============================================
+window.filterByCat = (catName) => {
+    // 1. Suas regras normais de filtro (título, lógica)
+    if (els.pageTitle) els.pageTitle.innerText = catName ? catName.split(' - ').pop() : 'Vitrine';
+    if (els.catFilter) els.catFilter.value = catName;
+
+    if (!catName) renderCatalog(state.products);
+    else {
+        const term = catName.toLowerCase();
+        const filtered = state.products.filter(p => {
+            if (!p.category) return false;
+            const prodCat = p.category.toLowerCase();
+            return prodCat === term || prodCat.startsWith(term + ' -');
+        });
+        renderCatalog(filtered);
+    }
+    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // 2. Muda a cor visualmente na hora
+    const todosBotoes = document.querySelectorAll('.categoria-btn');
+    todosBotoes.forEach(btn => {
+        // Se a categoria clicada for o pai do botão, ou a exata categoria
+        if (btn.dataset.cat === catName || catName.startsWith(btn.dataset.cat + ' -')) {
+            btn.classList.remove('bg-[#1a1c23]', 'text-gray-400');
+            btn.classList.add('bg-brand-pink', 'text-white', 'shadow-lg');
+
+            // Só dá scroll se não for o botão principal vazio
+            if (btn.dataset.cat !== '') {
+                btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        } else if (btn.dataset.cat !== '') {
+            btn.classList.add('bg-[#1a1c23]', 'text-gray-400');
+            btn.classList.remove('bg-brand-pink', 'text-white', 'shadow-lg');
+        } else {
+            // Regra do botão "Todas"
+            if (catName === '') {
+                btn.classList.add('bg-brand-pink', 'text-white', 'shadow-lg');
+            } else {
+                btn.classList.remove('bg-brand-pink', 'shadow-lg');
+                btn.classList.add('bg-[#1a1c23]', 'text-gray-400');
+            }
+        }
+    });
+};

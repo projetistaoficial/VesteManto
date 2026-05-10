@@ -189,25 +189,204 @@ window.limparBusca = function() {
     }
 };
 
-// // Faz a troca de cores do botão arredondado e aciona o filtro
-// window.selecionarCategoria = function(botaoClicado, valorCategoria) {
-//     // A função filterByCat já altera o valor do select escondido e chama o renderCatalog!
-//     if (typeof filterByCat === 'function') {
-//         filterByCat(valorCategoria);
-//     }
+// Faz a troca de cores do botão arredondado e aciona o filtro
+window.selecionarCategoria = function(botaoClicado, valorCategoria) {
+    // A função filterByCat já altera o valor do select escondido e chama o renderCatalog!
+    if (typeof filterByCat === 'function') {
+        filterByCat(valorCategoria);
+    }
 
-//     // A mágica de mudar a cor agora é feita automaticamente 
-//     // toda vez que a função renderCategories() é chamada pelo Firebase,
-//     // mas para dar feedback instantâneo ao usuário:
-//     const todosBotoes = document.querySelectorAll('.categoria-btn');
-//     todosBotoes.forEach(btn => {
-//         btn.classList.remove('bg-brand-pink', 'text-white', 'border-brand-pink');
-//         btn.classList.add('bg-white/5', 'text-gray-400', 'border-gray-800');
-//     });
+    // A mágica de mudar a cor agora é feita automaticamente 
+    // toda vez que a função renderCategories() é chamada pelo Firebase,
+    // mas para dar feedback instantâneo ao usuário:
+    const todosBotoes = document.querySelectorAll('.categoria-btn');
+    todosBotoes.forEach(btn => {
+        btn.classList.remove('bg-brand-pink', 'text-white', 'border-brand-pink');
+        btn.classList.add('bg-white/5', 'text-gray-400', 'border-gray-800');
+    });
 
-//     botaoClicado.classList.remove('bg-white/5', 'text-gray-400', 'border-gray-800');
-//     botaoClicado.classList.add('bg-brand-pink', 'text-white', 'border-brand-pink');
+    botaoClicado.classList.remove('bg-white/5', 'text-gray-400', 'border-gray-800');
+    botaoClicado.classList.add('bg-brand-pink', 'text-white', 'border-brand-pink');
     
-//     botaoClicado.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-// };
+    botaoClicado.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+};
 
+// ===============================================
+// LÓGICA: DROPDOWN DE SUBCATEGORIAS
+// ===============================================
+window.toggleCatDropdown = (parentName, event) => {
+    event.stopPropagation();
+    const dropdown = document.getElementById('global-cat-dropdown');
+    
+    // Se clicar na mesma seta que já tá aberta, fecha
+    if (!dropdown.classList.contains('hidden') && dropdown.dataset.current === parentName) {
+        fecharCatDropdown();
+        return;
+    }
+
+    // Acha as subcategorias desse pai
+    const subs = state.categories.filter(c => c.name.startsWith(parentName + ' - ') && c.name.split(' - ').length === parentName.split(' - ').length + 1);
+    
+    // Constrói a lista
+    dropdown.innerHTML = subs.map(sub => {
+        const safeSubName = sub.name.replace(/'/g, "\\'");
+        const shortName = sub.name.replace(parentName + ' - ', '');
+        return `
+            <button onclick="filterByCat('${safeSubName}'); fecharCatDropdown()" class="block w-full text-left px-5 py-2.5 text-xs font-bold text-gray-400 hover:bg-[#252836] hover:text-white transition-colors">
+                ${shortName}
+            </button>
+        `;
+    }).join('');
+
+    // Posiciona flutuando embaixo da seta clicada
+    const btnRect = event.currentTarget.getBoundingClientRect();
+    dropdown.style.top = `${btnRect.bottom + 8}px`;
+    
+    // Garante que o menu não vaze pra fora da tela na direita
+    const spaceRight = window.innerWidth - btnRect.right;
+    if (spaceRight < 150) {
+        dropdown.style.right = `${window.innerWidth - btnRect.right}px`;
+        dropdown.style.left = 'auto';
+    } else {
+        dropdown.style.left = `${btnRect.left - 50}px`;
+        dropdown.style.right = 'auto';
+    }
+
+    dropdown.dataset.current = parentName;
+    dropdown.classList.remove('hidden');
+    
+    // Animação de entrada
+    setTimeout(() => {
+        dropdown.classList.remove('opacity-0', 'scale-95');
+        dropdown.classList.add('opacity-100', 'scale-100');
+    }, 10);
+};
+
+window.fecharCatDropdown = () => {
+    const dropdown = document.getElementById('global-cat-dropdown');
+    if (dropdown && !dropdown.classList.contains('hidden')) {
+        dropdown.classList.remove('opacity-100', 'scale-100');
+        dropdown.classList.add('opacity-0', 'scale-95');
+        setTimeout(() => dropdown.classList.add('hidden'), 200);
+        dropdown.dataset.current = "";
+    }
+};
+
+// Clicar em qualquer lugar da tela fecha o Dropdown
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#global-cat-dropdown') && !e.target.closest('.categoria-btn')) {
+        fecharCatDropdown();
+    }
+});
+
+// ===============================================
+// LÓGICA: MUDANÇA DE COR DA PÍLULA AO CLICAR
+// ===============================================
+window.filterByCat = (catName) => {
+    // 1. Suas regras normais de filtro (título, lógica)
+    if (els.pageTitle) els.pageTitle.innerText = catName ? catName.split(' - ').pop() : 'Vitrine';
+    if (els.catFilter) els.catFilter.value = catName;
+
+    if (!catName) renderCatalog(state.products);
+    else {
+        const term = catName.toLowerCase();
+        const filtered = state.products.filter(p => {
+            if (!p.category) return false;
+            const prodCat = p.category.toLowerCase();
+            return prodCat === term || prodCat.startsWith(term + ' -');
+        });
+        renderCatalog(filtered);
+    }
+    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // 2. Muda a cor visualmente na hora
+    const todosBotoes = document.querySelectorAll('.categoria-btn');
+    todosBotoes.forEach(btn => {
+        // Se a categoria clicada for o pai do botão, ou a exata categoria
+        if (btn.dataset.cat === catName || catName.startsWith(btn.dataset.cat + ' -')) {
+            btn.classList.remove('bg-[#1a1c23]', 'text-gray-400');
+            btn.classList.add('bg-brand-pink', 'text-white', 'shadow-lg');
+            
+            // Só dá scroll se não for o botão principal vazio
+            if (btn.dataset.cat !== '') {
+                btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        } else if (btn.dataset.cat !== '') {
+            btn.classList.add('bg-[#1a1c23]', 'text-gray-400');
+            btn.classList.remove('bg-brand-pink', 'text-white', 'shadow-lg');
+        } else {
+            // Regra do botão "Todas"
+            if (catName === '') {
+                btn.classList.add('bg-brand-pink', 'text-white', 'shadow-lg');
+            } else {
+                btn.classList.remove('bg-brand-pink', 'shadow-lg');
+                btn.classList.add('bg-[#1a1c23]', 'text-gray-400');
+            }
+        }
+    });
+};
+
+// ===============================================
+// LÓGICA: CARROSSEL COM AUTOSCROLL E ARRASTE
+// ===============================================
+window.initCategoryCarousel = () => {
+    const slider = document.getElementById('categorias-scroll');
+    if (!slider) return;
+
+    let isDown = false;
+    let startX;
+    let scrollLeft;
+    let autoScrollInterval;
+    let isAutoScrolling = true;
+
+    // Função de mover sozinho
+    const playAutoScroll = () => {
+        if (!isAutoScrolling) return;
+        autoScrollInterval = setInterval(() => {
+            if(slider.scrollWidth - slider.clientWidth <= slider.scrollLeft + 1) {
+                // Chegou no final, volta pro começo devagar
+                slider.scrollTo({ left: 0, behavior: 'smooth' });
+            } else {
+                slider.scrollLeft += 1; // Velocidade lenta
+            }
+        }, 30); // 30ms para ficar fluido
+    };
+
+    const stopAutoScroll = () => { clearInterval(autoScrollInterval); };
+
+    playAutoScroll(); // Inicia logo de cara
+
+    // Lógica para MOUSE
+    slider.addEventListener('mousedown', (e) => {
+        isDown = true;
+        isAutoScrolling = false;
+        stopAutoScroll();
+        slider.style.cursor = 'grabbing';
+        startX = e.pageX - slider.offsetLeft;
+        scrollLeft = slider.scrollLeft;
+    });
+    slider.addEventListener('mouseleave', () => {
+        isDown = false;
+        slider.style.cursor = 'grab';
+        isAutoScrolling = true;
+        playAutoScroll();
+    });
+    slider.addEventListener('mouseup', () => {
+        isDown = false;
+        slider.style.cursor = 'grab';
+        setTimeout(() => { isAutoScrolling = true; playAutoScroll(); }, 2000); // Demora 2 seg pra voltar a rolar sozinho
+    });
+    slider.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - slider.offsetLeft;
+        const walk = (x - startX) * 2; // Multiplicador de velocidade do mouse
+        slider.scrollLeft = scrollLeft - walk;
+    });
+
+    // Lógica para DEDO (Touch)
+    slider.addEventListener('touchstart', () => { isAutoScrolling = false; stopAutoScroll(); }, {passive: true});
+    slider.addEventListener('touchend', () => { 
+        setTimeout(() => { isAutoScrolling = true; playAutoScroll(); }, 2000);
+    });
+};
