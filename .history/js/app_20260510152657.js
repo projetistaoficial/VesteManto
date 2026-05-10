@@ -509,8 +509,7 @@ const state = {
     user: null,
 
     // Histórico de Pedidos do Cliente (Chave Corrigida)
-    // Histórico de Pedidos do Cliente (Isolado por loja)
-    myOrders: JSON.parse(localStorage.getItem(`orders_${currentSiteId}`)) || [],
+    myOrders: JSON.parse(localStorage.getItem('site_orders_history')) || [],
     activeOrder: null, // Mantido apenas para compatibilidade de detalhes
 
     // Configurações e UI
@@ -988,8 +987,8 @@ async function initApp() {
             }
         }, 10000);
 
-        // Verifica Pedidos Ativos (Motoquinha) - Isolado por loja!
-        const savedHistory = localStorage.getItem(`orders_${state.siteId}`);
+        // Verifica Pedidos Ativos (Motoquinha)
+        const savedHistory = localStorage.getItem('site_orders_history');
         if (savedHistory) {
             state.myOrders = JSON.parse(savedHistory);
         }
@@ -5571,8 +5570,7 @@ function addToCart(product, size) {
 }
 
 function saveCart() {
-    // Agora ele salva numa gaveta exclusiva, ex: "cart_loja-do-joao"
-    localStorage.setItem(`cart_${state.siteId}`, JSON.stringify(state.cart));
+    localStorage.setItem('cart', JSON.stringify(state.cart));
     updateCartUI();
     renderCatalog(state.products);
 }
@@ -6810,15 +6808,10 @@ async function submitOrder() {
         const newOrderLocal = { id: docRef.id, ...order };
         if (!Array.isArray(state.myOrders)) state.myOrders = [];
         state.myOrders.push(newOrderLocal);
-        
-        // Salva o histórico isolado
-        localStorage.setItem(`orders_${state.siteId}`, JSON.stringify(state.myOrders));
+        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
 
         startBackgroundListeners(); checkActiveOrders(); state.cart = []; state.currentCoupon = null;
-        
-        // Esvazia o carrinho isolado
-        localStorage.setItem(`cart_${state.siteId}`, JSON.stringify([])); 
-        updateCartUI();
+        localStorage.setItem('cart', JSON.stringify([])); updateCartUI();
 
         if (payMode === 'online') {
             let msg = `*NOVO PEDIDO #${order.code}*\n--------------------------------\n`;

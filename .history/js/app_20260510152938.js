@@ -6810,15 +6810,10 @@ async function submitOrder() {
         const newOrderLocal = { id: docRef.id, ...order };
         if (!Array.isArray(state.myOrders)) state.myOrders = [];
         state.myOrders.push(newOrderLocal);
-        
-        // Salva o histórico isolado
-        localStorage.setItem(`orders_${state.siteId}`, JSON.stringify(state.myOrders));
+        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
 
         startBackgroundListeners(); checkActiveOrders(); state.cart = []; state.currentCoupon = null;
-        
-        // Esvazia o carrinho isolado
-        localStorage.setItem(`cart_${state.siteId}`, JSON.stringify([])); 
-        updateCartUI();
+        localStorage.setItem('cart', JSON.stringify([])); updateCartUI();
 
         if (payMode === 'online') {
             let msg = `*NOVO PEDIDO #${order.code}*\n--------------------------------\n`;
