@@ -905,7 +905,7 @@ async function initApp() {
                     window.location.reload();
                 }
             } catch (e) { }
-        }, 60000);
+        }, 15000);
 
         // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);
@@ -1174,23 +1174,18 @@ function loadSettings() {
     });
 }
 
-async function loadProducts() {
-    // Tenta cache de 5 minutos para produtos para evitar leituras no F5 frenético
-    const cacheKey = `prods_${state.siteId}`;
-    const cached = getCachedData(cacheKey, 5); 
-
-    if (cached) {
-        state.products = cached;
-        renderCatalog(state.products);
-        return;
-    }
-
+function loadProducts() {
     const q = query(collection(db, `sites/${state.siteId}/products`));
-    const snapshot = await getDocs(q); // getDocs = 1 leitura por produto, uma única vez.
-    state.products = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    
-    setCachedData(cacheKey, state.products, 5);
-    renderCatalog(state.products);
+    onSnapshot(q, (snapshot) => {
+        state.products = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderCatalog(state.products);
+        if (state.user) filterAndRenderProducts();
+
+        // Recalcula Capital de Giro sempre que produtos mudarem
+        calculateStatsMetrics();
+        renderAdminCategoryList();
+        updateStatsData(state.orders, state.products, state.siteStats);
+    });
 }
 
 // --- FUNÇÃO AUXILIAR DE CACHE ---

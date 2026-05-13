@@ -905,7 +905,7 @@ async function initApp() {
                     window.location.reload();
                 }
             } catch (e) { }
-        }, 60000);
+        }, 15000);
 
         // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);

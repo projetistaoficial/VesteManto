@@ -489,28 +489,28 @@ async function getNextProductCode(siteId) {
 }
 
 // =================================================================
-// 1. CHAVE MESTRA DA MEMÓRIA (Impede vazamento de loja e fantasmas) -ESTADO GLOBAL E DOM
+// 2. ESTADO GLOBAL E DOM
 // =================================================================
-const getSiteMemoryKey = () => {
-    return window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo';
-};
+const currentSiteId = window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo';
 
-// =================================================================
-// 2. ESTADO GLOBAL E DOM (BLINDADO POR LOJA)
-// =================================================================
 const state = {
-    siteId: getSiteMemoryKey(), // Usa a chave mestra (mantém a lógica da URL intacta)
+    siteId: window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo',
+    products: [],
     products: [],
     categories: [],
     coupons: [],
     orders: [], // Vendas do admin
 
-    // Carrinho e Usuário (Leitura Blindada - Sem o duplicado antigo)
-    cart: JSON.parse(localStorage.getItem(`cart_${getSiteMemoryKey()}`)) || [],
+    cart: JSON.parse(localStorage.getItem(`cart_${currentSiteId}`)) || [],
     user: null,
 
+    // Carrinho e Usuário
+    cart: JSON.parse(localStorage.getItem('cart')) || [],
+    user: null,
+
+    // Histórico de Pedidos do Cliente (Chave Corrigida)
     // Histórico de Pedidos do Cliente (Isolado por loja)
-    myOrders: JSON.parse(localStorage.getItem(`orders_${getSiteMemoryKey()}`)) || [],
+    myOrders: JSON.parse(localStorage.getItem(`orders_${currentSiteId}`)) || [],
     activeOrder: null, // Mantido apenas para compatibilidade de detalhes
 
     // Configurações e UI
@@ -544,13 +544,13 @@ const state = {
     focusedCouponIndex: -1,
     focusedProductId: null,
     selectedCategoryParent: null,
-    globalSettings: { allowNoStock: false },
+    globalSettings: { allowNoStock: false }, // <--- Mude para TRUE
     cardSelections: {},
 
-    // Configurações da aba PRODUTOS
-    isSelectionMode: false, // Controla se checkboxes aparecem
-
-    // Configuração padrão de ordenação
+    //Configurações da aba PRODUTOS
+    isSelectionMode: false, // : Controla se checkboxes aparecem
+    selectedProducts: new Set(),
+    //Configuração padrão de ordenação
     sortConfig: { key: 'code', direction: 'desc' },
 };
 let originalTheme = null;
@@ -905,7 +905,7 @@ async function initApp() {
                     window.location.reload();
                 }
             } catch (e) { }
-        }, 60000);
+        }, 15000);
 
         // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);
@@ -1174,66 +1174,37 @@ function loadSettings() {
     });
 }
 
-async function loadProducts() {
-    // Tenta cache de 5 minutos para produtos para evitar leituras no F5 frenético
-    const cacheKey = `prods_${state.siteId}`;
-    const cached = getCachedData(cacheKey, 5); 
-
-    if (cached) {
-        state.products = cached;
-        renderCatalog(state.products);
-        return;
-    }
-
+function loadProducts() {
     const q = query(collection(db, `sites/${state.siteId}/products`));
-    const snapshot = await getDocs(q); // getDocs = 1 leitura por produto, uma única vez.
-    state.products = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    
-    setCachedData(cacheKey, state.products, 5);
-    renderCatalog(state.products);
+    onSnapshot(q, (snapshot) => {
+        state.products = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderCatalog(state.products);
+        if (state.user) filterAndRenderProducts();
+
+        // Recalcula Capital de Giro sempre que produtos mudarem
+        calculateStatsMetrics();
+        renderAdminCategoryList();
+        updateStatsData(state.orders, state.products, state.siteStats);
+    });
 }
 
-// --- FUNÇÃO AUXILIAR DE CACHE ---
-const getCachedData = (key, minutes = 30) => {
-    const cached = localStorage.getItem(key);
-    if (!cached) return null;
-    const data = JSON.parse(cached);
-    const now = new Date().getTime();
-    // Se o tempo atual for menor que o tempo de expiração, retorna o dado
-    if (now < data.expiry) return data.value;
-    return null;
-};
-
-const setCachedData = (key, value, minutes = 30) => {
-    const now = new Date().getTime();
-    const item = {
-        value: value,
-        expiry: now + (minutes * 60 * 1000)
-    };
-    localStorage.setItem(key, JSON.stringify(item));
-};
-
-// --- CARREGAMENTO DE CATEGORIAS COM ECONOMIA ---
-async function loadCategories() {
-    const cacheKey = `cats_${state.siteId}`;
-    const cached = getCachedData(cacheKey);
-
-    if (cached) {
-        console.log("📦 Categorias carregadas do Cache");
-        state.categories = cached;
-        renderCategories();
-        return;
-    }
-
-    // Se não tem cache, faz a leitura ÚNICA (getDocs em vez de onSnapshot)
-    console.log("🔥 Lendo Categorias do Firebase (Gasto: 1 leitura por cat)");
+function loadCategories() {
+    // Carrega sem forçar ordem alfabética no banco
     const q = query(collection(db, `sites/${state.siteId}/categories`));
-    const snap = await getDocs(q);
-    const cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    
-    state.categories = cats;
-    setCachedData(cacheKey, cats);
-    renderCategories();
+
+    onSnapshot(q, (snapshot) => {
+        let cats = snapshot.docs.map(d => ({ id: d.id, order: 999, ...d.data() }));
+
+        // Ordena primeiro pela numeração 'order', se empatar, vai por ordem alfabética
+        cats.sort((a, b) => {
+            if (a.order !== b.order) return a.order - b.order;
+            return a.name.localeCompare(b.name);
+        });
+
+        state.categories = cats;
+        renderCategories();
+        renderAdminCategoryList();
+    });
 }
 
 // ✨ NOVA FUNÇÃO: Move a categoria para cima ou para baixo
@@ -2334,41 +2305,39 @@ function renderProductsList(products, preCalcMetrics = null) {
                 <i class="fas fa-trash-alt text-white text-lg"></i>
             </div>
 
-            <div class="relative z-10 p-3 transition-transform duration-200 ease-out prod-swipe-content ${bgClass} h-full flex flex-col md:grid md:grid-cols-12 gap-2 md:items-center bg-[#151720]">
+            <div class="relative z-10 p-3 transition-transform duration-200 ease-out prod-swipe-content ${bgClass} h-full flex flex-col md:grid md:grid-cols-12 gap-2 items-center">
                 
-                <div class="flex items-center justify-between w-full md:contents">
-                    <div class="flex items-center gap-3 md:col-span-6 w-full flex-1 min-w-0">
+                <div class="flex md:contents items-center justify-between w-full">
+                    <div class="flex items-center gap-3 md:col-span-6 w-full">
                         
-                        <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center shrink-0">
+                        <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center">
                              <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" 
                                onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
                         </div>
 
-                        <div class="hidden md:flex ${state.isSelectionMode ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-center border-r border-gray-800 h-full shrink-0">
+                        <div class="hidden md:flex ${state.isSelectionMode ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-center border-r border-gray-800 h-full">
                             <span class="text-base font-bold text-white font-mono opacity-80">#${codeStr}</span>
                         </div>
 
-                        <div class="flex items-center gap-3 flex-1 min-w-0">
-                            <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0">
-                            <div class="flex flex-col flex-1 min-w-0 pr-2">
-                                <div class="flex items-center gap-2">
-                                    <span class="md:hidden shrink-0 text-[10px] bg-gray-700 text-white px-1.5 py-0.5 rounded font-bold">#${codeStr}</span>
+                        <div class="flex items-center gap-3 md:col-span-4 min-w-0 flex-1">
+                            <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black">
+                            <div class="flex flex-col min-w-0">
+                                <div class="flex items-center">
+                                    <span class="md:hidden text-xs bg-gray-700 text-white px-1.5 py-0.5 rounded mr-2 font-bold">#${codeStr}</span>
                                     <span class="text-gray-200 font-bold text-sm truncate group-hover:text-yellow-500 transition">${p.name}</span>
                                 </div>
-                                <span class="text-gray-500 text-[10px] truncate w-full block mt-0.5">${p.category || 'Geral'}</span>
+                                <span class="text-gray-500 text-[10px] truncate">${p.category || 'Geral'}</span>
                             </div>
                         </div>
                     </div>
 
-                    <div class="md:hidden flex flex-col justify-center items-end shrink-0 pl-2 ml-auto h-10">
+                    <div class="md:hidden flex flex-col items-end min-w-[80px]">
                         ${priceHtml}
-                        ${safeStockDisplay <= 0 
-                            ? '<span class="text-red-500 text-[10px] font-bold uppercase tracking-wider mt-0.5">Esgotado</span>' 
-                            : `<span class="text-gray-500 text-[10px] mt-0.5 whitespace-nowrap">Est.: <span class="font-bold text-gray-300">${safeStockDisplay}</span></span>`}
+                        ${safeStockDisplay <= 0 ? '<span class="text-red-500 text-[10px] font-bold">Esgotado</span>' : `<span class="text-gray-500 text-[10px]">Est.: ${safeStockDisplay}</span>`}
                     </div>
                 </div>
 
-                <div class="hidden md:block col-span-2 text-center text-gray-500 text-xs font-mono truncate">${lastMovStr}</div>
+                <div class="hidden md:block col-span-2 text-center text-gray-500 text-xs font-mono">${lastMovStr}</div>
                 <div class="hidden md:block col-span-1 text-center text-gray-400 text-xs">
                     ${metrics.qtd > 0 ? `<span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-bold">${metrics.qtd}</span>` : '-'}
                 </div>
@@ -3697,172 +3666,20 @@ function setupEventListeners() {
     validateSubOptions('sub-check-delivery');
     updatePaymentVisuals();
 
-    // =================================================================
-    // 🖼️ SISTEMA PROFISSIONAL DE RECORTE DE IMAGEM (CROPPER.JS) - CARREGAS AS IMAGENS E ABRE O MODAL DE CORTE (INICIO))
-    // =================================================================
-    // Variáveis globais para o Cropper
-    window.cropper = null;
-    window.currentCropType = ''; // Vai guardar se estamos cortando 'logo' ou 'banner'
-
-    // 1. Escuta quando o usuário escolhe um arquivo
-    const setupImageUploads = () => {
-        const logoInput = document.getElementById('conf-logo-upload');
-        const bannerInput = document.getElementById('conf-banner-upload');
-
-        if (logoInput) {
-            // Remove listeners antigos (prevenção de bugs)
-            const newLogoInput = logoInput.cloneNode(true);
-            logoInput.parentNode.replaceChild(newLogoInput, logoInput);
-            newLogoInput.addEventListener('change', (e) => handleImageSelectForCrop(e, 'logo'));
-        }
-
-        if (bannerInput) {
-            // Remove listeners antigos
-            const newBannerInput = bannerInput.cloneNode(true);
-            bannerInput.parentNode.replaceChild(newBannerInput, bannerInput);
-            newBannerInput.addEventListener('change', (e) => handleImageSelectForCrop(e, 'banner'));
-        }
-    };
-
-    // Ativa os ouvintes assim que carregar a página
-    document.addEventListener('DOMContentLoaded', setupImageUploads);
-
-    // 2. Pega a foto do celular/PC e joga pro Modal
-    window.handleImageSelectForCrop = (event, type) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        if (!file.type.startsWith('image/')) {
-            showToast("Por favor, selecione uma imagem válida (JPG, PNG).", "error");
-            event.target.value = '';
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            openCropModal(e.target.result, type);
-        };
-        reader.readAsDataURL(file);
-
-        // Reseta o input para o usuário poder selecionar a mesma foto se cancelar sem querer
-        event.target.value = '';
-    };
-
-    // 3. Abre o modal e liga o Cropper.js
-    window.openCropModal = (imageSrc, type) => {
-        window.currentCropType = type;
-        const modal = document.getElementById('crop-modal');
-        const imageEl = document.getElementById('crop-image');
-        const title = document.getElementById('crop-title');
-
-        if (!modal || !imageEl) {
-            console.error("ERRO: HTML do modal de crop não encontrado.");
-            return;
-        }
-
-        // ✨ A MÁGICA VISUAL: Se for logo, aplica a classe que deixa o corte redondo no CSS
-        if (type === 'logo') {
-            modal.classList.add('crop-modo-logo');
-            title.innerHTML = '<i class="fas fa-store mr-2"></i> Recortar Logo (Círculo)';
-        } else {
-            modal.classList.remove('crop-modo-logo');
-            title.innerHTML = '<i class="fas fa-image mr-2"></i> Recortar Banner (Retângulo)';
-        }
-
-        imageEl.src = imageSrc;
-
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        setTimeout(() => modal.classList.remove('opacity-0'), 10);
-
-        if (window.cropper) {
-            window.cropper.destroy();
-        }
-
-        setTimeout(() => {
-            if (typeof Cropper === 'undefined') {
-                alert("ERRO: O Cropper.js não carregou! Verifique o link no index.html");
-                return;
-            }
-
-            const ratio = type === 'logo' ? 1 / 1 : 21 / 9;
-
-            window.cropper = new Cropper(imageEl, {
-                aspectRatio: ratio,
-                viewMode: 2,
-                dragMode: 'move',
-                autoCropArea: 1, // <-- AJUSTE: Agora começa com o tamanho MÁXIMO da imagem (1 = 100%)
-                restore: false,
-                guides: type !== 'logo', // <-- AJUSTE: Mostra linhas de grade só no banner
-                center: type !== 'logo', // <-- AJUSTE: Mostra cruz central só no banner
-                highlight: false,
-                cropBoxMovable: true,
-                cropBoxResizable: true,
-                toggleDragModeOnDblclick: true,
-            });
-        }, 150);
-    };
-
-    // 4. Fechar Modal
-    window.closeCropModal = () => {
-        const modal = document.getElementById('crop-modal');
-        modal.classList.add('opacity-0');
-
-        setTimeout(() => {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-            if (window.cropper) {
-                window.cropper.destroy();
-                window.cropper = null;
-            }
-            document.getElementById('crop-image').src = ''; // Limpa memória
-        }, 300);
-    };
-
-    // 5. MÁGICA: Confirma e comprime a imagem final
-    window.confirmCrop = () => {
-        if (!window.cropper) return;
-
-        // O Cropper faz a compressão e define o tamanho máximo aqui!
-        const canvas = window.cropper.getCroppedCanvas({
-            // Se for logo, 500px tá ótimo. Banner pode ser maior (1200px)
-            maxWidth: window.currentCropType === 'logo' ? 500 : 1200,
-            maxHeight: window.currentCropType === 'logo' ? 500 : 1200,
-            imageSmoothingEnabled: true,
-            imageSmoothingQuality: 'high',
+    const logoInput = getEl('conf-logo-upload');
+    if (logoInput) {
+        logoInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            try { const base64 = await processImageFile(file); state.tempLogo = base64; const preview = getEl('conf-logo-preview'); const placeholder = getEl('conf-logo-placeholder'); if (preview) { preview.src = base64; preview.classList.remove('hidden'); } if (placeholder) placeholder.classList.add('hidden'); } catch (err) { console.error("Erro logo:", err); }
         });
-
-        // Converte pra Base64 JPEG (Qualidade de 80% = Leve e bonito)
-        const base64Image = canvas.toDataURL('image/jpeg', 0.8);
-
-        // Joga a imagem comprimida de volta pra tela e pra memória do seu Painel
-        if (window.currentCropType === 'logo') {
-            state.tempLogo = base64Image;
-            const preview = document.getElementById('conf-logo-preview');
-            const placeholder = document.getElementById('conf-logo-placeholder');
-
-            if (preview) {
-                preview.src = base64Image;
-                preview.classList.remove('hidden');
-            }
-            if (placeholder) placeholder.classList.add('hidden');
-
-        } else if (window.currentCropType === 'banner') {
-            state.tempBanner = base64Image;
-            const preview = document.getElementById('conf-banner-preview');
-
-            if (preview) {
-                preview.src = base64Image;
-                preview.classList.remove('hidden');
-            }
-        }
-
-        closeCropModal();
-        // Você não precisa salvar ainda, o botão verde "Salvar Perfil" que você já tem fará isso!
-    };
-    // =================================================================
-    // 🖼️ SISTEMA PROFISSIONAL DE RECORTE DE IMAGEM (CROPPER.JS) - CARREGAS AS IMAGENS E ABRE O MODAL DE CORTE (FIM))
-    // =================================================================
+    }
+    const bannerInput = document.getElementById('conf-banner-upload');
+    if (bannerInput) {
+        bannerInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            try { const base64 = await processImageFile(file); state.tempBanner = base64; const preview = document.getElementById('conf-banner-preview'); if (preview) { preview.src = base64; preview.classList.remove('hidden'); } } catch (err) { console.error(err); }
+        });
+    }
 
     const chkDisablePix = document.getElementById('conf-pix-disable-all');
     if (chkDisablePix) {
@@ -6993,15 +6810,10 @@ async function submitOrder() {
         const newOrderLocal = { id: docRef.id, ...order };
         if (!Array.isArray(state.myOrders)) state.myOrders = [];
         state.myOrders.push(newOrderLocal);
-
-        // Salva o histórico isolado
-        localStorage.setItem(`orders_${state.siteId}`, JSON.stringify(state.myOrders));
+        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
 
         startBackgroundListeners(); checkActiveOrders(); state.cart = []; state.currentCoupon = null;
-
-        // Esvazia o carrinho isolado
-        localStorage.setItem(`cart_${state.siteId}`, JSON.stringify([]));
-        updateCartUI();
+        localStorage.setItem('cart', JSON.stringify([])); updateCartUI();
 
         if (payMode === 'online') {
             let msg = `*NOVO PEDIDO #${order.code}*\n--------------------------------\n`;

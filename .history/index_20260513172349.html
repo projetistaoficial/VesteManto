@@ -601,50 +601,20 @@
 
         <div id="view-catalog">
 
-            <div class="flex flex-col items-center justify-center py-0 -mt-3">
+            <div class="flex flex-col items-center justify-center py-0">
                 <h1 id="home-screen-title"
                     class="text-3xl md:text-4xl font-extrabold text-white tracking-tighter text-center hidden">
                     <span id="home-store-name-text">NOME DA LOJA</span>
                 </h1>
             </div>
 
-            <!-- Container Flex para alinhar o Título e o Botão em lados opostos -->
-            <div class="flex items-center justify-between px-4 mt-2 mb-3">
-
-                <!-- Título com a fonte Nunito adicionada -->
-                <h2 id="page-title"
-                    class="text-2xl font-bold text-[var(--txt-title)] border-l-4 border-yellow-500 pl-3 font-['Nunito']">
-                    Vitrine
-                </h2>
-
-                <!-- Botão de Ordenar (Adicionado h-10 na div principal para manter o formato) -->
-                <div class="relative w-[120px] sm:w-[150px] shrink-0 z-30 h-10">
-                    <div
-                        class="flex items-center justify-between bg-[var(--bg-main)] opacity-95 border border-transparent rounded-full text-[var(--txt-body)] font-black uppercase tracking-wider transition-all duration-300 hover:border-[var(--clr-accent)] w-full text-[10px] sm:text-xs px-3 sm:px-4 h-full shadow-xl hover:shadow-2xl">
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <i
-                                class="fas fa-sort-amount-down text-[var(--txt-body)] text-[10px] sm:text-xs shrink-0"></i>
-                            <span id="sort-label-display"
-                                class="truncate text-[var(--txt-body)] pt-0.5 font-black">Ordenar</span>
-                        </div>
-                        <i class="fas fa-chevron-down text-[var(--txt-body)] text-[8px] sm:text-[10px] shrink-0"></i>
-                    </div>
-
-                    <select id="sort-filter" onchange="updateSortLabel(this)"
-                        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-gray-500 font-black uppercase tracking-wider">
-                        <option class="bg-[#0a0a0a] text-[var(--txt-body)]" value="vitrine">Vitrine</option>
-                        <option class="bg-[#0a0a0a] text-[var(--txt-body)]" value="newest">Lançamentos</option>
-                        <option class="bg-[#0a0a0a] text-[var(--txt-body)]" value="price-asc">Menor Preço</option>
-                        <option class="bg-[#0a0a0a] text-[var(--txt-body)]" value="price-desc">Maior Preço</option>
-                        <option class="bg-[#0a0a0a] text-[var(--txt-body)]" value="name-asc">Nome (A-Z)</option>
-                    </select>
-                </div>
-
-            </div>
+            <h2 id="page-title"
+                class="text-2xl font-bold text-[var(--txt-title)] mb-3 px-4 border-l-4 border-yellow-500 mt-2">
+                Vitrine
+            </h2>
 
             <div id="product-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-4">
             </div>
-
         </div>
 
         <div id="view-admin" class="hidden px-4">
