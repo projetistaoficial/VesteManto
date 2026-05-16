@@ -10422,7 +10422,7 @@ window.renderSidebarTopics = () => {
 
                 sidebarContainer.innerHTML += `
                     <button onclick="openClientTopic(${originalIndex})"text-[var(--txt-body)] class="w-full text-left py-2.5 px-4 text-sm font-bold hover:text-white hover:bg-gray-800 rounded transition flex items-center gap-3">
-                        <i class="fas ${iconClass} w-5 text-center text-[var(--txt-body)] opacity-70"></i> ${topic.title}
+                        <i class="fas ${iconClass} w-5 text-center text-gray-500 opacity-70"></i> ${topic.title}
                     </button>
                 `;
             });

@@ -109,35 +109,3 @@
 }
 
 
-/* 📝 Estilos OBRIGATÓRIOS para o Editor de Tópicos (Rich Text) */
-        .rich-text-content {
-            white-space: pre-wrap;
-            line-height: 1.6;
-        }
-        .rich-text-content[placeholder]:empty:before {
-            content: attr(placeholder);
-            color: #6b7280;
-            pointer-events: none;
-            display: block; 
-        }
-        .rich-text-content ul {
-            list-style-type: disc !important;
-            padding-left: 1.5rem !important;
-            margin-top: 0.5rem;
-            margin-bottom: 0.5rem;
-        }
-        .rich-text-content ol {
-            list-style-type: decimal !important;
-            padding-left: 1.5rem !important;
-            margin-top: 0.5rem;
-            margin-bottom: 0.5rem;
-        }
-        .rich-text-content b, .rich-text-content strong {
-            font-weight: 900 !important;
-        }
-        .rich-text-content i, .rich-text-content em {
-            font-style: italic !important;
-        }
-        .rich-text-content u {
-            text-decoration: underline !important;
-        }

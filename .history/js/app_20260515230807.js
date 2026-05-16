@@ -1182,9 +1182,6 @@ async function loadProducts() {
     if (cached) {
         state.products = cached;
         renderCatalog(state.products);
-        
-        // ✨ CORREÇÃO: Pede para as categorias se redesenharem agora que os produtos chegaram do cache!
-        if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
         return;
     }
 
@@ -1194,9 +1191,6 @@ async function loadProducts() {
 
     setCachedData(cacheKey, state.products, 5);
     renderCatalog(state.products);
-    
-    // ✨ CORREÇÃO: Pede para as categorias se redesenharem agora que os produtos chegaram do banco!
-    if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
 }
 
 // --- FUNÇÃO AUXILIAR DE CACHE ---
@@ -1255,12 +1249,10 @@ async function loadCategories() {
 
 // ✨ NOVA FUNÇÃO: Move a categoria para cima ou para baixo
 window.moveCategory = async (id, fullPath, direction) => {
-    // 1. Descobre quem é o "Pai" desta categoria para mexer apenas nas irmãs dela
     const parts = fullPath.split(' - ');
     parts.pop(); 
     const parentPath = parts.length > 0 ? parts.join(' - ') : null;
 
-    // 2. Filtra as categorias que estão no mesmo nível (mesmo pai)
     const siblings = state.categories.filter(c => {
         const cParts = c.name.split(' - ');
         cParts.pop();
@@ -1268,40 +1260,26 @@ window.moveCategory = async (id, fullPath, direction) => {
         return cParentPath === parentPath;
     });
 
-    // 🔥 A CORREÇÃO RIGOROSA: Ordena o array antes de descobrir o índice!
-    // Isto sincroniza o código de forma milimétrica com o que está a ver no ecrã.
-    siblings.sort((a, b) => {
-        const orderA = a.order !== undefined ? a.order : 999;
-        const orderB = b.order !== undefined ? b.order : 999;
-        if (orderA !== orderB) return orderA - orderB;
-        return a.name.localeCompare(b.name);
-    });
-
-    // 3. Agora sim, acha a posição atual correta com base na ordem visual
     const currentIndex = siblings.findIndex(s => s.id === id);
     if (currentIndex === -1) return;
 
-    // 4. Calcula a nova posição de destino
     const targetIndex = currentIndex + direction;
-    if (targetIndex < 0 || targetIndex >= siblings.length) return; // Trava se bater no teto ou no chão
+    if (targetIndex < 0 || targetIndex >= siblings.length) return; 
 
-    // 5. Troca as duas de lugar no array ordenado
     const temp = siblings[currentIndex];
     siblings[currentIndex] = siblings[targetIndex];
     siblings[targetIndex] = temp;
 
-    // 6. Salva a nova sequência no Firebase redistribuindo os pesos de 10 em 10
     try {
         const promises = siblings.map((sib, index) => {
             return updateDoc(doc(db, `sites/${state.siteId}/categories`, sib.id), { order: index * 10 });
         });
         await Promise.all(promises);
 
-        // Limpa o cache e recarrega a tela instantaneamente com os dados novos
+        // ✨ CORREÇÃO: Limpa o cache e recarrega a tela instantaneamente
         localStorage.removeItem(`cats_${state.siteId}`);
         await loadCategories();
         renderAdminCategoryList();
-        showToast("Ordem atualizada!");
 
     } catch (e) {
         console.error("Erro ao reordenar:", e);
@@ -4237,7 +4215,6 @@ function renderCategories() {
         let pillsHtml = '';
         const principais = state.categories.filter(c => !c.name.includes(' - '));
         const categoriasParaMostrar = principais.length > 0 ? principais : state.categories;
-        categoriasParaMostrar.sort((a, b) => (a.order || 0) - (b.order || 0));
 
         categoriasParaMostrar.forEach(c => {
             const safeName = c.name.replace(/'/g, "\\'");
@@ -6071,15 +6048,20 @@ window.removeCoupon = () => {
 
 
 window.deleteCategory = async (id, name) => {
+    // 1. VERIFICAÇÃO DE PRODUTOS VINCULADOS
+    // Filtra produtos que são desta categoria exata OU de subcategorias
     const linkedProducts = state.products.filter(p =>
         p.category === name || (p.category && p.category.startsWith(name + ' - '))
     );
 
+    // Se encontrar produtos, bloqueia para evitar produtos órfãos
     if (linkedProducts.length > 0) {
         alert(`❌ AÇÃO BLOQUEADA\n\nNão é possível excluir a categoria "${name}".\n\nExistem ${linkedProducts.length} produto(s) vinculados a ela ou às suas subcategorias.\nPor favor, mova ou exclua esses produtos antes de apagar a categoria.`);
         return;
     }
 
+    // 2. VERIFICAÇÃO DE SUBCATEGORIAS (EXCLUSÃO EM CASCATA)
+    // Busca todas as categorias que começam com o nome desta categoria (são filhas dela)
     const linkedSubCats = state.categories.filter(c =>
         c.id !== id && c.name.startsWith(name + ' - ')
     );
@@ -6093,25 +6075,23 @@ window.deleteCategory = async (id, name) => {
     if (!confirm(msgConfirmacao)) return;
 
     try {
+        // 3. Exclui a Categoria Principal
         await deleteDoc(doc(db, `sites/${state.siteId}/categories`, id));
 
+        // 4. Exclui todas as Subcategorias dela (Cascata)
         if (linkedSubCats.length > 0) {
             const batchPromises = linkedSubCats.map(sub =>
                 deleteDoc(doc(db, `sites/${state.siteId}/categories`, sub.id))
             );
-            await Promise.all(batchPromises); 
+            await Promise.all(batchPromises); // Espera apagar todas
         }
 
+        // Limpa a seleção do painel de cima se ela (ou uma filha dela) estava selecionada
         if (state.selectedCategoryParent === name || (state.selectedCategoryParent && state.selectedCategoryParent.startsWith(name + ' - '))) {
             state.selectedCategoryParent = null;
             const newCatNameEl = document.getElementById('new-cat-name');
             if (newCatNameEl) newCatNameEl.placeholder = "Nome da Categoria Principal...";
         }
-
-        // ✨ CORREÇÃO: Limpa o cache e recarrega a tela instantaneamente
-        localStorage.removeItem(`cats_${state.siteId}`);
-        await loadCategories();
-        renderAdminCategoryList();
 
         showToast('Categoria excluída com sucesso!', 'success');
     } catch (error) {
@@ -10415,14 +10395,14 @@ window.renderSidebarTopics = () => {
     if (sidebarContainer) {
         sidebarContainer.innerHTML = '';
         if (activeTopics.length > 0) {
-            sidebarContainer.innerHTML += `<div class="border-t border-gray-800 mx-2 pt-2 mb-2 "></div>`;
+            sidebarContainer.innerHTML += `<div class="border-t border-gray-800 mx-2 pt-2 mb-2"></div>`;
             activeTopics.forEach((topic) => {
                 const originalIndex = state.storeProfile.customTopics.findIndex(t => t.title === topic.title);
                 const iconClass = topic.icon || 'fa-file-alt';
 
                 sidebarContainer.innerHTML += `
-                    <button onclick="openClientTopic(${originalIndex})"text-[var(--txt-body)] class="w-full text-left py-2.5 px-4 text-sm font-bold hover:text-white hover:bg-gray-800 rounded transition flex items-center gap-3">
-                        <i class="fas ${iconClass} w-5 text-center text-[var(--txt-body)] opacity-70"></i> ${topic.title}
+                    <button onclick="openClientTopic(${originalIndex})" class="w-full text-left py-2.5 px-4 text-sm font-bold text-gray-400 hover:text-white hover:bg-gray-800 rounded transition flex items-center gap-3">
+                        <i class="fas ${iconClass} w-5 text-center text-gray-500 opacity-70"></i> ${topic.title}
                     </button>
                 `;
             });

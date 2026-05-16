@@ -1,0 +1,416 @@
+    /* Regra para impedir zoom em inputs no mobile */
+    @media screen and (max-width: 768px) {
+
+        input,
+        select,
+        textarea {
+            font-size: 16px !important;
+        }
+    }
+
+    /* Custom scrollbar para ficar dark */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #111;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #444;
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #fbbf24;
+        /* yellow-500 */
+    }
+
+    .card-hover:hover {
+        transform: translateY(-5px);
+        transition: transform 0.2s ease;
+        box-shadow: 0 10px 15px -3px rgba(255, 255, 255, 0.1);
+    }
+
+    /* Esconder inputs number arrows */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    /* Animação para DESKTOP (Deslizar da direita) */
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    /* Animação para MOBILE (Zoom suave/Fade) */
+    @keyframes zoomIn {
+        from {
+            transform: scale(0.95);
+            opacity: 0;
+        }
+
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    /* Classes utilitárias para aplicar a animação */
+    .animate-drawer-desktop {
+        animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* No mobile usa animação de zoom, no desktop usa slide */
+    .responsive-animation {
+        animation: zoomIn 0.2s ease-out forwards;
+    }
+
+    @media (min-width: 768px) {
+        .responsive-animation {
+            animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    }
+
+
+    /* Remove a seta padrão do elemento <details>/<summary> */
+    details>summary {
+        list-style: none;
+        /* Padrão para a maioria dos navegadores */
+    }
+
+    /* Específico para Safari/iOS e Chrome (Webkit) */
+    details>summary::-webkit-details-marker {
+        display: none;
+    }
+
+    /* ========================================= */
+/* DESBLOQUEIO DE SEGURANÇA                  */
+/* ========================================= */
+
+/* Se o CSS carregou, apaga a tela de erro da existência */
+#css-falhou-aviso {
+    display: none !important;
+}
+
+/* E mostra o site de volta */
+#app-conteudo {
+    display: block !important;
+}
+
+
+// =================================================================
+// 📄 GERENCIADOR DE TÓPICOS INSTITUCIONAIS (RICH TEXT)
+// =================================================================
+
+state.editingTopicIndex = -1;
+state.originalTopicState = ""; // Usado para saber se o lojista alterou algo
+
+const availableIcons = [
+    'fa-file-alt', 'fa-info-circle', 'fa-undo', 'fa-shield-alt', 
+    'fa-truck', 'fa-star', 'fa-question-circle', 'fa-handshake', 'fa-gem', 'fa-heart'
+];
+
+// Função auxiliar para formatar texto no Rich Text
+window.formatText = (command, value = null) => {
+    document.execCommand(command, false, value);
+    document.getElementById('topico-descricao-rich').focus();
+    checkTopicChanges(); // Verifica se mudou algo
+};
+
+// 1. CARREGAR E RENDERIZAR NO ADMIN
+window.renderAdminTopics = () => {
+    const listContainer = document.getElementById('lista-topicos');
+    const chkMaster = document.getElementById('ativar-topicos-geral');
+    const formArea = document.getElementById('box-form-topico');
+
+    if (!listContainer || !chkMaster) return;
+
+    if (!state.storeProfile.customTopics) state.storeProfile.customTopics = [];
+    const isEnabled = !!state.storeProfile.enableCustomTopics;
+    chkMaster.checked = isEnabled;
+
+    if (formArea) {
+        if (isEnabled) formArea.classList.remove('opacity-50', 'pointer-events-none');
+        else formArea.classList.add('opacity-50', 'pointer-events-none');
+    }
+
+    listContainer.innerHTML = '';
+
+    if (state.storeProfile.customTopics.length === 0) {
+        listContainer.innerHTML = '<p class="text-gray-500 text-xs text-center py-4 italic border border-gray-800 rounded">Nenhum tópico criado ainda.</p>';
+        return;
+    }
+
+    state.storeProfile.customTopics.forEach((topic, index) => {
+        const isActive = topic.active !== false;
+        const bgClass = index === state.editingTopicIndex ? 'bg-blue-900/20 border-blue-500/50' : 'bg-black border-gray-700 hover:border-gray-500';
+        
+        const isFirst = index === 0;
+        const isLast = index === state.storeProfile.customTopics.length - 1;
+
+        listContainer.innerHTML += `
+            <div class="flex items-center justify-between border rounded-md px-4 py-3 ${bgClass} transition-colors cursor-pointer group" ondblclick="editTopic(${index})">
+                <div class="flex items-center gap-3 flex-1 min-w-0">
+                    <i class="fas ${topic.icon || 'fa-file-alt'} text-gray-500 group-hover:text-yellow-500 transition"></i>
+                    <span class="text-white font-bold text-sm truncate pr-4">${topic.title}</span>
+                </div>
+                
+                <div class="flex items-center gap-2 shrink-0 pl-2 border-l border-gray-800">
+                    <button onclick="event.stopPropagation(); moveTopic(${index}, -1)" class="w-6 h-6 rounded bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center transition disabled:opacity-30" title="Mover para cima" ${isFirst ? 'disabled' : ''}>
+                        <i class="fas fa-arrow-up text-[10px]"></i>
+                    </button>
+                    <button onclick="event.stopPropagation(); moveTopic(${index}, 1)" class="w-6 h-6 rounded bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center transition disabled:opacity-30 mr-2" title="Mover para baixo" ${isLast ? 'disabled' : ''}>
+                        <i class="fas fa-arrow-down text-[10px]"></i>
+                    </button>
+
+                    <button onclick="event.stopPropagation(); deleteTopic(${index})" class="text-gray-600 hover:text-red-500 transition-colors p-1" title="Excluir">
+                        <i class="far fa-trash-alt text-base"></i>
+                    </button>
+                    
+                    <label class="relative inline-flex items-center cursor-pointer ml-2" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="sr-only peer" ${isActive ? 'checked' : ''} onchange="toggleTopicStatus(${index})">
+                        <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#10b981]"></div>
+                    </label>
+                </div>
+            </div>
+        `;
+    });
+};
+
+// Gera os botões de ícone
+window.renderIconSelector = (selectedIcon = 'fa-file-alt') => {
+    const container = document.getElementById('icon-selector');
+    if (!container) return;
+    
+    container.innerHTML = availableIcons.map(icon => {
+        const isSelected = icon === selectedIcon;
+        const color = isSelected ? 'text-yellow-500 bg-yellow-500/10 border-yellow-500' : 'text-gray-500 border-transparent hover:bg-gray-800';
+        return `
+            <button type="button" onclick="selectTopicIcon('${icon}')" class="w-8 h-8 rounded border flex items-center justify-center transition ${color}">
+                <i class="fas ${icon}"></i>
+            </button>
+        `;
+    }).join('');
+    document.getElementById('topico-icone').value = selectedIcon;
+};
+
+window.selectTopicIcon = (icon) => {
+    renderIconSelector(icon);
+    checkTopicChanges();
+};
+
+// Verifica mudanças para mudar o botão de Cancelar para Salvar
+window.checkTopicChanges = () => {
+    const title = document.getElementById('topico-titulo').value.trim();
+    const content = document.getElementById('topico-descricao-rich').innerHTML.trim();
+    const icon = document.getElementById('topico-icone').value;
+    const btnAcao = document.getElementById('btn-topico-acao');
+
+    const currentState = `${title}|${content}|${icon}`;
+    
+    if (currentState !== state.originalTopicState && (title !== '' || content !== '')) {
+        btnAcao.innerText = state.editingTopicIndex >= 0 ? "Salvar Alteração" : "Criar Tópico";
+        btnAcao.className = "w-full md:w-auto px-8 py-2.5 bg-green-600 hover:bg-green-500 text-white font-bold rounded-md transition-colors shadow-md shadow-green-900/50 uppercase text-xs tracking-wide";
+        document.getElementById('topico-descricao-container').classList.remove('hidden');
+    } else {
+        btnAcao.innerText = "Cancelar";
+        btnAcao.className = "w-full md:w-auto px-8 py-2.5 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-md transition-colors shadow-md uppercase text-xs tracking-wide";
+    }
+};
+
+window.handleTopicAction = async () => {
+    const btnAcao = document.getElementById('btn-topico-acao');
+    
+    if (btnAcao.innerText === "Cancelar") {
+        resetTopicForm();
+        return;
+    }
+
+    const title = document.getElementById('topico-titulo').value.trim();
+    const content = document.getElementById('topico-descricao-rich').innerHTML;
+    const icon = document.getElementById('topico-icone').value;
+
+    if (!title) return showToast("Digite um título.", "error");
+    if (!content || content === '<br>') return showToast("A descrição não pode ficar vazia.", "error");
+
+    if (!state.storeProfile.customTopics) state.storeProfile.customTopics = [];
+
+    btnAcao.innerText = "Salvando...";
+    btnAcao.disabled = true;
+
+    try {
+        if (state.editingTopicIndex >= 0) {
+            state.storeProfile.customTopics[state.editingTopicIndex] = { ...state.storeProfile.customTopics[state.editingTopicIndex], title, content, icon };
+        } else {
+            state.storeProfile.customTopics.push({ title, content, icon, active: true });
+        }
+
+        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { customTopics: state.storeProfile.customTopics }, { merge: true });
+
+        showToast("Tópico salvo!", "success");
+        resetTopicForm();
+        renderAdminTopics();
+        renderSidebarTopics();
+    } catch (error) {
+        showToast("Erro ao salvar.", "error");
+    } finally {
+        btnAcao.disabled = false;
+    }
+};
+
+window.editTopic = (index) => {
+    const topic = state.storeProfile.customTopics[index];
+    if (!topic) return;
+
+    state.editingTopicIndex = index;
+    
+    document.getElementById('topico-titulo').value = topic.title;
+    document.getElementById('topico-descricao-rich').innerHTML = topic.content;
+    renderIconSelector(topic.icon || 'fa-file-alt');
+    
+    document.getElementById('topico-descricao-container').classList.remove('hidden');
+
+    state.originalTopicState = `${topic.title}|${topic.content}|${topic.icon || 'fa-file-alt'}`;
+    checkTopicChanges(); // Força o botão para "Cancelar" até ele digitar algo
+
+    renderAdminTopics();
+    document.getElementById('topico-titulo').focus();
+    document.getElementById('topico-titulo').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+window.resetTopicForm = () => {
+    state.editingTopicIndex = -1;
+    document.getElementById('topico-titulo').value = '';
+    document.getElementById('topico-descricao-rich').innerHTML = '';
+    document.getElementById('topico-descricao-container').classList.add('hidden');
+    renderIconSelector('fa-file-alt');
+    
+    state.originalTopicState = "||fa-file-alt";
+    checkTopicChanges();
+    renderAdminTopics();
+};
+
+window.deleteTopic = async (index) => {
+    if (!confirm("Excluir este tópico definitivamente?")) return;
+    state.storeProfile.customTopics.splice(index, 1);
+    try {
+        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { customTopics: state.storeProfile.customTopics }, { merge: true });
+        if (state.editingTopicIndex === index) resetTopicForm();
+        renderAdminTopics();
+        renderSidebarTopics();
+    } catch (e) { showToast("Erro ao excluir.", "error"); }
+};
+
+window.toggleTopicStatus = async (index) => {
+    state.storeProfile.customTopics[index].active = !state.storeProfile.customTopics[index].active;
+    try {
+        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { customTopics: state.storeProfile.customTopics }, { merge: true });
+        renderSidebarTopics();
+    } catch (e) {}
+};
+
+window.moveTopic = async (index, direction) => {
+    const target = index + direction;
+    if (target < 0 || target >= state.storeProfile.customTopics.length) return;
+
+    const temp = state.storeProfile.customTopics[index];
+    state.storeProfile.customTopics[index] = state.storeProfile.customTopics[target];
+    state.storeProfile.customTopics[target] = temp;
+
+    renderAdminTopics(); // Atualiza tela rápido
+
+    try {
+        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { customTopics: state.storeProfile.customTopics }, { merge: true });
+        renderSidebarTopics();
+    } catch (e) { showToast("Erro ao mover.", "error"); }
+};
+
+// Event Listeners base
+document.addEventListener('DOMContentLoaded', () => {
+    const titleInput = document.getElementById('topico-titulo');
+    const richDesc = document.getElementById('topico-descricao-rich');
+    
+    if (titleInput) titleInput.addEventListener('input', checkTopicChanges);
+    if (richDesc) richDesc.addEventListener('input', checkTopicChanges);
+
+    // Inicializa o seletor de ícones
+    renderIconSelector();
+    state.originalTopicState = "||fa-file-alt";
+});
+
+// =================================================================
+// RENDERIZAÇÃO NA LOJA (CLIENTE)
+// =================================================================
+
+window.renderSidebarTopics = () => {
+    // 💡 INJEÇÃO NO LUGAR CORRETO (Fixo na parte inferior do Menu Lateral)
+    let container = document.getElementById('sidebar-custom-topics');
+    
+    if (!container) {
+        // Encontra a div flex-1 que empurra as coisas pra baixo
+        const flexSpacer = document.querySelector('#sidebar .flex-1');
+        if (flexSpacer) {
+            container = document.createElement('div');
+            container.id = 'sidebar-custom-topics';
+            container.className = 'w-full pb-4 px-2 space-y-1';
+            // Insere LOGO APÓS o flex-1 (ou seja, vai ficar colado no fundo, acima das informações da loja)
+            flexSpacer.parentNode.insertBefore(container, flexSpacer.nextSibling);
+        } else {
+            return;
+        }
+    }
+
+    container.innerHTML = '';
+
+    if (!state.storeProfile.enableCustomTopics || !state.storeProfile.customTopics) return;
+
+    const activeTopics = state.storeProfile.customTopics.filter(t => t.active !== false);
+
+    if (activeTopics.length > 0) {
+        // Adiciona uma linhazinha discreta e os botões
+        container.innerHTML += `<div class="border-t border-gray-800 mx-2 pt-2 mb-2"></div>`;
+        
+        activeTopics.forEach((topic) => {
+            const originalIndex = state.storeProfile.customTopics.findIndex(t => t.title === topic.title);
+            const iconClass = topic.icon || 'fa-file-alt';
+
+            container.innerHTML += `
+                <button onclick="openClientTopic(${originalIndex})" class="w-full text-left py-2.5 px-4 text-sm font-bold text-gray-400 hover:text-white hover:bg-gray-800 rounded transition flex items-center gap-3">
+                    <i class="fas ${iconClass} w-5 text-center text-gray-500"></i> ${topic.title}
+                </button>
+            `;
+        });
+    }
+};
+
+window.openClientTopic = (index) => {
+    const topic = state.storeProfile.customTopics[index];
+    if (!topic) return;
+
+    const elTitle = document.getElementById('topic-display-title');
+    const elContent = document.getElementById('topic-display-content');
+
+    if (elTitle) elTitle.textContent = topic.title;
+    
+    // Como é Rich Text (HTML gerado pelo execCommand), usamos innerHTML!
+    // A classe .rich-text-content do CSS vai formatar as listas corretamente.
+    if (elContent) {
+        elContent.innerHTML = topic.content;
+        elContent.classList.add('rich-text-content'); // Garante que a classe está lá
+    }
+
+    showView('topic');
+    toggleSidebar(); 
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};

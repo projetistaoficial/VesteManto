@@ -434,7 +434,7 @@
 
         <div class="flex-1"></div>
 
-        <div id="sidebar-custom-topics" class="w-full pb-4 px-2 space-y-1 text-[var(--txt-body)]"></div>
+        <div id="sidebar-custom-topics" class="w-full pb-4 px-2 space-y-1"></div>
 
         <!-- <div class="bg-gray-900 border-t border-gray-800 p-4"> -->
 
@@ -1368,20 +1368,17 @@
 
                                 <div class="flex flex-col md:flex-row gap-4 mb-3">
 
-                                    <div class="w-full md:w-3/5 flex flex-col justify-end">
-                                        <label class="text-gray-400 font-bold text-xs uppercase mb-1 block">Título da
-                                            Página (e Cor)</label>
-                                        <div
-                                            class="flex items-center bg-black border border-gray-700 rounded-md focus-within:border-yellow-500 transition-colors h-[42px] px-3 overflow-hidden">
-                                            <input type="color" id="topico-cor-titulo" value="#ffffff"
-                                                class="w-6 h-6 p-0 border-none bg-transparent cursor-pointer shrink-0"
-                                                title="Cor do Título"
-                                                onchange="document.getElementById('topico-titulo').style.color = this.value; checkTopicChanges();">
-                                            <div class="w-px h-5 bg-gray-700 mx-3"></div>
-                                            <input type="text" id="topico-titulo" placeholder="Ex: Trocas e Devoluções"
-                                                class="w-full bg-transparent text-white font-bold outline-none h-full">
-                                        </div>
-                                    </div>
+                                   <div class="w-full md:w-3/5 flex flex-col justify-end">
+                                                <label class="text-gray-400 font-bold text-xs uppercase mb-1 block">Título da Página (e Cor)</label>
+                                                <div class="flex items-center bg-black border border-gray-700 rounded-md focus-within:border-yellow-500 transition-colors h-[42px] px-3 overflow-hidden">
+                                                    <input type="color" id="topico-cor-titulo" value="#ffffff" 
+                                                        class="w-6 h-6 p-0 border-none bg-transparent cursor-pointer shrink-0" title="Cor do Título" 
+                                                        onchange="document.getElementById('topico-titulo').style.color = this.value; checkTopicChanges();">
+                                                    <div class="w-px h-5 bg-gray-700 mx-3"></div>
+                                                    <input type="text" id="topico-titulo" placeholder="Ex: Trocas e Devoluções" 
+                                                        class="w-full bg-transparent text-white font-bold outline-none h-full">
+                                                </div>
+                                            </div>
 
                                     <div class="w-full md:w-2/5">
                                         <label
@@ -1439,15 +1436,13 @@
                                 </div>
 
                                 <p class="text-[10px] text-gray-500 text-center mt-3">
-                                    <i class="fas fa-info-circle"></i> Dê um duplo clique em um tópico abaixo para
-                                    editá-lo.
-                                </p>
+                                            <i class="fas fa-info-circle"></i> Dê um duplo clique em um tópico abaixo para editá-lo.
+                                        </p>
 
-                            </div>
-                            <div id="lista-topicos" class="flex flex-col gap-2 mt-6">
-                            </div>
+                                    </div> <div id="lista-topicos" class="flex flex-col gap-2 mt-6">
+                                    </div>
 
-                        </div>
+                                </div>
 
                         <div class="bg-black border border-gray-700 p-4 rounded-lg mt-2">
                             <div class="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
@@ -2824,9 +2819,6 @@
                     class="text-gray-400 text-sm md:text-base font-medium max-w-xl mx-auto leading-relaxed">
                 </p>
             </div>
-
-            <div id="footer-custom-topics" class="flex flex-wrap justify-center gap-x-6 gap-y-4 w-full max-w-4xl">
-                </div>
 
             <div class="w-16 h-1 bg-gradient-to-r from-gray-800 via-gray-600 to-gray-800 rounded-full"></div>
 

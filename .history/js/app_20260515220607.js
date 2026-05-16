@@ -1182,9 +1182,6 @@ async function loadProducts() {
     if (cached) {
         state.products = cached;
         renderCatalog(state.products);
-        
-        // ✨ CORREÇÃO: Pede para as categorias se redesenharem agora que os produtos chegaram do cache!
-        if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
         return;
     }
 
@@ -1194,9 +1191,6 @@ async function loadProducts() {
 
     setCachedData(cacheKey, state.products, 5);
     renderCatalog(state.products);
-    
-    // ✨ CORREÇÃO: Pede para as categorias se redesenharem agora que os produtos chegaram do banco!
-    if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
 }
 
 // --- FUNÇÃO AUXILIAR DE CACHE ---
@@ -1216,18 +1210,7 @@ const setCachedData = (key, value, minutes = 30) => {
         value: value,
         expiry: now + (minutes * 60 * 1000)
     };
-    
-    try {
-        // Tenta salvar no cache do navegador
-        localStorage.setItem(key, JSON.stringify(item));
-    } catch (error) {
-        // Se o cache encher (geralmente por causa do peso das imagens Base64), 
-        // ele ignora o erro pacificamente para não travar o site do cliente.
-        console.warn(`⚠️ Cache ignorado para '${key}': Limite de 5MB do navegador atingido.`);
-        
-        // Remove a chave para não deixar lixo corrompido na memória
-        try { localStorage.removeItem(key); } catch(e){}
-    }
+    localStorage.setItem(key, JSON.stringify(item));
 };
 
 // --- CARREGAMENTO DE CATEGORIAS COM ECONOMIA ---
@@ -1255,9 +1238,9 @@ async function loadCategories() {
 
 // ✨ NOVA FUNÇÃO: Move a categoria para cima ou para baixo
 window.moveCategory = async (id, fullPath, direction) => {
-    // 1. Descobre quem é o "Pai" desta categoria para mexer apenas nas irmãs dela
+    // 1. Descobre quem é o "Pai" desta categoria para mexer só nas irmãs dela
     const parts = fullPath.split(' - ');
-    parts.pop(); 
+    parts.pop(); // Remove o nome dela, sobra só o caminho do pai
     const parentPath = parts.length > 0 ? parts.join(' - ') : null;
 
     // 2. Filtra as categorias que estão no mesmo nível (mesmo pai)
@@ -1268,41 +1251,26 @@ window.moveCategory = async (id, fullPath, direction) => {
         return cParentPath === parentPath;
     });
 
-    // 🔥 A CORREÇÃO RIGOROSA: Ordena o array antes de descobrir o índice!
-    // Isto sincroniza o código de forma milimétrica com o que está a ver no ecrã.
-    siblings.sort((a, b) => {
-        const orderA = a.order !== undefined ? a.order : 999;
-        const orderB = b.order !== undefined ? b.order : 999;
-        if (orderA !== orderB) return orderA - orderB;
-        return a.name.localeCompare(b.name);
-    });
-
-    // 3. Agora sim, acha a posição atual correta com base na ordem visual
+    // 3. Acha a posição atual
     const currentIndex = siblings.findIndex(s => s.id === id);
     if (currentIndex === -1) return;
 
-    // 4. Calcula a nova posição de destino
+    // 4. Calcula a nova posição
     const targetIndex = currentIndex + direction;
-    if (targetIndex < 0 || targetIndex >= siblings.length) return; // Trava se bater no teto ou no chão
+    if (targetIndex < 0 || targetIndex >= siblings.length) return; // Bateu no teto ou chão
 
-    // 5. Troca as duas de lugar no array ordenado
+    // 5. Troca as duas de lugar na lista temporária
     const temp = siblings[currentIndex];
     siblings[currentIndex] = siblings[targetIndex];
     siblings[targetIndex] = temp;
 
-    // 6. Salva a nova sequência no Firebase redistribuindo os pesos de 10 em 10
+    // 6. Salva a nova ordem de todo o grupo no Firebase
     try {
         const promises = siblings.map((sib, index) => {
+            // Multiplica por 10 para dar espaço a inserções futuras se necessário
             return updateDoc(doc(db, `sites/${state.siteId}/categories`, sib.id), { order: index * 10 });
         });
         await Promise.all(promises);
-
-        // Limpa o cache e recarrega a tela instantaneamente com os dados novos
-        localStorage.removeItem(`cats_${state.siteId}`);
-        await loadCategories();
-        renderAdminCategoryList();
-        showToast("Ordem atualizada!");
-
     } catch (e) {
         console.error("Erro ao reordenar:", e);
         showToast("Erro ao reordenar categoria.", "error");
@@ -2007,9 +1975,10 @@ window.renameCategory = async (id, oldFullName) => {
 
     if (!newNameShort || newNameShort.trim() === "") return;
 
+    // Reconstrói o nome completo mantendo o pai (se houver)
     const parts = oldFullName.split(' - ');
-    parts.pop(); 
-    parts.push(newNameShort.trim()); 
+    parts.pop(); // Remove o nome antigo
+    parts.push(newNameShort.trim()); // Adiciona o novo
     const newFullName = parts.join(' - ');
 
     if (newFullName === oldFullName) return;
@@ -2017,18 +1986,27 @@ window.renameCategory = async (id, oldFullName) => {
     if (!confirm(`Renomear "${oldFullName}" para "${newFullName}"?\nIsso atualizará produtos e subcategorias vinculados.`)) return;
 
     try {
+        // 1. Atualiza a Categoria em si
         await updateDoc(doc(db, `sites/${state.siteId}/categories`, id), { name: newFullName });
 
+        // 2. ATUALIZAÇÃO EM CASCATA (Cascading Update)
+        // Precisamos encontrar produtos e subcategorias que dependem desse nome
+
+        // A. Produtos
         const productsToUpdate = state.products.filter(p => p.category === oldFullName || p.category.startsWith(oldFullName + ' - '));
+
+        // B. Subcategorias (ex: se mudei "Roupas", tenho que mudar "Roupas - Calças")
         const catsToUpdate = state.categories.filter(c => c.id !== id && c.name.startsWith(oldFullName + ' - '));
 
         const batchPromises = [];
 
+        // Atualiza Produtos
         productsToUpdate.forEach(p => {
             const newCatName = p.category.replace(oldFullName, newFullName);
             batchPromises.push(updateDoc(doc(db, `sites/${state.siteId}/products`, p.id), { category: newCatName }));
         });
 
+        // Atualiza Subcategorias
         catsToUpdate.forEach(c => {
             const newCatName = c.name.replace(oldFullName, newFullName);
             batchPromises.push(updateDoc(doc(db, `sites/${state.siteId}/categories`, c.id), { name: newCatName }));
@@ -2036,16 +2014,12 @@ window.renameCategory = async (id, oldFullName) => {
 
         await Promise.all(batchPromises);
 
+        showToast(`Categoria renomeada! (${batchPromises.length} vínculos atualizados)`);
+
+        // Limpa seleção se estava nela
         if (state.selectedCategoryParent === oldFullName) {
             state.selectedCategoryParent = null;
         }
-
-        // ✨ CORREÇÃO: Limpa o cache e recarrega a tela instantaneamente
-        localStorage.removeItem(`cats_${state.siteId}`);
-        await loadCategories();
-        renderAdminCategoryList();
-
-        showToast(`Categoria renomeada! (${batchPromises.length} vínculos atualizados)`);
 
     } catch (error) {
         console.error("Erro ao renomear:", error);
@@ -3543,14 +3517,7 @@ function setupEventListeners() {
             if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
             try {
                 await addDoc(collection(db, `sites/${state.siteId}/categories`), { name: finalName, order: Date.now() });
-                els.newCatName.value = ''; state.selectedCategoryParent = null; 
-                
-                // ✨ CORREÇÃO: Limpa o cache e recarrega a tela instantaneamente
-                localStorage.removeItem(`cats_${state.siteId}`);
-                await loadCategories();
-                renderAdminCategoryList();
-                showToast("Categoria criada com sucesso!", "success");
-                
+                els.newCatName.value = ''; state.selectedCategoryParent = null; renderAdminCategoryList();
             } catch (error) { alert("Erro: " + error.message); }
         };
 
@@ -4237,7 +4204,6 @@ function renderCategories() {
         let pillsHtml = '';
         const principais = state.categories.filter(c => !c.name.includes(' - '));
         const categoriasParaMostrar = principais.length > 0 ? principais : state.categories;
-        categoriasParaMostrar.sort((a, b) => (a.order || 0) - (b.order || 0));
 
         categoriasParaMostrar.forEach(c => {
             const safeName = c.name.replace(/'/g, "\\'");
@@ -6071,15 +6037,20 @@ window.removeCoupon = () => {
 
 
 window.deleteCategory = async (id, name) => {
+    // 1. VERIFICAÇÃO DE PRODUTOS VINCULADOS
+    // Filtra produtos que são desta categoria exata OU de subcategorias
     const linkedProducts = state.products.filter(p =>
         p.category === name || (p.category && p.category.startsWith(name + ' - '))
     );
 
+    // Se encontrar produtos, bloqueia para evitar produtos órfãos
     if (linkedProducts.length > 0) {
         alert(`❌ AÇÃO BLOQUEADA\n\nNão é possível excluir a categoria "${name}".\n\nExistem ${linkedProducts.length} produto(s) vinculados a ela ou às suas subcategorias.\nPor favor, mova ou exclua esses produtos antes de apagar a categoria.`);
         return;
     }
 
+    // 2. VERIFICAÇÃO DE SUBCATEGORIAS (EXCLUSÃO EM CASCATA)
+    // Busca todas as categorias que começam com o nome desta categoria (são filhas dela)
     const linkedSubCats = state.categories.filter(c =>
         c.id !== id && c.name.startsWith(name + ' - ')
     );
@@ -6093,25 +6064,23 @@ window.deleteCategory = async (id, name) => {
     if (!confirm(msgConfirmacao)) return;
 
     try {
+        // 3. Exclui a Categoria Principal
         await deleteDoc(doc(db, `sites/${state.siteId}/categories`, id));
 
+        // 4. Exclui todas as Subcategorias dela (Cascata)
         if (linkedSubCats.length > 0) {
             const batchPromises = linkedSubCats.map(sub =>
                 deleteDoc(doc(db, `sites/${state.siteId}/categories`, sub.id))
             );
-            await Promise.all(batchPromises); 
+            await Promise.all(batchPromises); // Espera apagar todas
         }
 
+        // Limpa a seleção do painel de cima se ela (ou uma filha dela) estava selecionada
         if (state.selectedCategoryParent === name || (state.selectedCategoryParent && state.selectedCategoryParent.startsWith(name + ' - '))) {
             state.selectedCategoryParent = null;
             const newCatNameEl = document.getElementById('new-cat-name');
             if (newCatNameEl) newCatNameEl.placeholder = "Nome da Categoria Principal...";
         }
-
-        // ✨ CORREÇÃO: Limpa o cache e recarrega a tela instantaneamente
-        localStorage.removeItem(`cats_${state.siteId}`);
-        await loadCategories();
-        renderAdminCategoryList();
 
         showToast('Categoria excluída com sucesso!', 'success');
     } catch (error) {
@@ -10109,366 +10078,73 @@ document.addEventListener('click', (e) => {
 });
 
 
-// =================================================================
-// 📄 GERENCIADOR DE TÓPICOS INSTITUCIONAIS (RICH TEXT)
-// =================================================================
-
-state.editingTopicIndex = -1;
-state.originalTopicState = "";
-
-const availableIcons = [
-    'fa-info-circle', 'fa-undo', 'fa-shield-alt',
-    'fa-truck', 'fa-star', 'fa-question-circle', 'fa-handshake', 'fa-gem', 'fa-heart',
-    'fa-money-bill-wave', 'fa-motorcycle', 'fa-shopping-cart', 'fa-box-open'
-];
-
-window.formatText = (command, value = null) => {
-    const editor = document.getElementById('topico-descricao-rich');
-    if (editor) {
-        editor.focus(); // 🔥 CORREÇÃO: Devolve o foco ao campo primeiro para reativar a seleção do texto
-    }
-    document.execCommand(command, false, value);
-    checkTopicChanges();
-};
-
-window.renderAdminTopics = () => {
-    const listContainer = document.getElementById('lista-topicos');
-    const chkMaster = document.getElementById('ativar-topicos-geral');
-    const formArea = document.getElementById('box-form-topico');
-
-    if (!listContainer || !chkMaster) return;
-
-    if (!state.storeProfile.customTopics) state.storeProfile.customTopics = [];
-    const isEnabled = !!state.storeProfile.enableCustomTopics;
-    chkMaster.checked = isEnabled;
-
-    if (formArea) {
-        if (isEnabled) formArea.classList.remove('opacity-50', 'pointer-events-none');
-        else formArea.classList.add('opacity-50', 'pointer-events-none');
-    }
-
-    listContainer.innerHTML = '';
-
-    if (state.storeProfile.customTopics.length === 0) {
-        listContainer.innerHTML = '<p class="text-gray-500 text-xs text-center py-4 italic border border-gray-800 rounded">Nenhum tópico criado ainda.</p>';
-        return;
-    }
-
-    state.storeProfile.customTopics.forEach((topic, index) => {
-        const isActive = topic.active !== false;
-        const bgClass = index === state.editingTopicIndex ? 'bg-blue-900/20 border-blue-500/50' : 'bg-black border-gray-700 hover:border-gray-500';
-
-        const isFirst = index === 0;
-        const isLast = index === state.storeProfile.customTopics.length - 1;
-
-        // ✨ ALTERAÇÃO: Removida a cor inline aqui. A lista do admin fica com texto branco padrão.
-        listContainer.innerHTML += `
-            <div class="flex items-center justify-between border rounded-md px-4 py-3 ${bgClass} transition-colors cursor-pointer group" ondblclick="editTopic(${index})">
-                <div class="flex items-center gap-3 flex-1 min-w-0">
-                    <i class="fas ${topic.icon || 'fa-file-alt'} text-gray-500 group-hover:text-yellow-500 transition"></i>
-                    <span class="text-white font-bold text-sm truncate pr-2">${topic.title}</span>
-                    <span class="text-[10px] text-gray-600 italic opacity-0 group-hover:opacity-100 transition md:inline hidden">(Duplo clique p/ editar)</span>
-                </div>
-                
-                <div class="flex items-center gap-2 shrink-0 pl-2 border-l border-gray-800">
-                    <button type="button" onclick="event.stopPropagation(); moveTopic(${index}, -1)" class="w-6 h-6 rounded bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center transition disabled:opacity-30" title="Mover para cima" ${isFirst ? 'disabled' : ''}>
-                        <i class="fas fa-arrow-up text-[10px]"></i>
-                    </button>
-                    <button type="button" onclick="event.stopPropagation(); moveTopic(${index}, 1)" class="w-6 h-6 rounded bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center transition disabled:opacity-30 mr-2" title="Mover para baixo" ${isLast ? 'disabled' : ''}>
-                        <i class="fas fa-arrow-down text-[10px]"></i>
-                    </button>
-
-                    <button type="button" onclick="event.stopPropagation(); deleteTopic(${index})" class="text-gray-600 hover:text-red-500 transition-colors p-1" title="Excluir">
-                        <i class="far fa-trash-alt text-base"></i>
-                    </button>
-                    
-                    <label class="relative inline-flex items-center cursor-pointer ml-2" onclick="event.stopPropagation()">
-                        <input type="checkbox" class="sr-only peer" ${isActive ? 'checked' : ''} onchange="toggleTopicStatus(${index})">
-                        <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#10b981]"></div>
-                    </label>
-                </div>
-            </div>
-        `;
-    });
-};
-
-window.renderIconSelector = (selectedIcon = 'fa-file-alt') => {
-    const container = document.getElementById('icon-selector');
-    if (!container) return;
-
-    container.className = "flex flex-nowrap overflow-x-auto gap-1 bg-[#151720] p-1 rounded-md border border-gray-700 items-center hide-scroll h-9";
-
-    container.innerHTML = availableIcons.map(icon => {
-        const isSelected = icon === selectedIcon;
-        const color = isSelected ? 'text-yellow-500 bg-yellow-500/10 border-yellow-500' : 'text-gray-500 border-transparent hover:bg-gray-800';
-        return `
-            <button type="button" onclick="selectTopicIcon('${icon}')" class="shrink-0 w-7 h-7 rounded flex items-center justify-center transition ${color} text-[11px] outline-none">
-                <i class="fas ${icon}"></i>
-            </button>
-        `;
-    }).join('');
-
-    document.getElementById('topico-icone').value = selectedIcon;
-};
-
-window.selectTopicIcon = (icon) => {
-    renderIconSelector(icon);
-    checkTopicChanges();
-};
-
-window.checkTopicChanges = () => {
-    const title = document.getElementById('topico-titulo').value.trim();
-    let content = document.getElementById('topico-descricao-rich').innerHTML.trim();
-    const icon = document.getElementById('topico-icone').value;
-    const titleColor = document.getElementById('topico-cor-titulo').value;
-
-    const btnAcao = document.getElementById('btn-topico-acao');
-    const btnCancelar = document.getElementById('btn-cancelar-topico');
-    const descContainer = document.getElementById('topico-descricao-container');
-
-    if (btnAcao) btnAcao.disabled = false;
-    if (btnCancelar) btnCancelar.disabled = false;
-
-    if (content === '<br>') content = '';
-
-    const currentState = `${title}|${content}|${icon}|${titleColor}`;
-    const isEditing = state.editingTopicIndex >= 0;
-    const hasText = title !== '' || content !== '';
-    const hasChanged = currentState !== state.originalTopicState;
-
-    if (isEditing) {
-        descContainer.classList.remove('hidden');
-        btnCancelar.classList.remove('hidden');
-
-        if (hasChanged && hasText) {
-            btnAcao.classList.remove('hidden');
-            btnAcao.innerText = "Salvar Alterações";
-            btnAcao.className = "w-full md:w-auto px-8 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-md transition-colors shadow-md uppercase text-xs tracking-wide";
-        } else {
-            btnAcao.classList.add('hidden');
-        }
-    } else {
-        if (hasText) {
-            btnCancelar.classList.remove('hidden');
-            btnAcao.classList.remove('hidden');
-            btnAcao.innerText = "Criar Tópico";
-            btnAcao.className = "w-full md:w-auto px-8 py-2.5 bg-[#10b981] hover:bg-[#059669] text-white font-bold rounded-md transition-colors shadow-md uppercase text-xs tracking-wide";
-            descContainer.classList.remove('hidden');
-        } else {
-            btnCancelar.classList.add('hidden');
-            btnAcao.classList.remove('hidden');
-            btnAcao.innerText = "Novo";
-            btnAcao.className = "w-full md:w-auto px-8 py-2.5 bg-[#10b981] hover:bg-[#059669] text-white font-bold rounded-md transition-colors shadow-md uppercase text-xs tracking-wide";
-            descContainer.classList.add('hidden');
-        }
-    }
-};
-
-window.handleTopicAction = async () => {
-    const btnAcao = document.getElementById('btn-topico-acao');
-    const acaoTexto = btnAcao.innerText.trim().toUpperCase();
-
-    if (acaoTexto === "NOVO") {
-        document.getElementById('topico-descricao-container').classList.remove('hidden');
-        document.getElementById('topico-titulo').focus();
-        document.getElementById('btn-cancelar-topico').classList.remove('hidden');
-        btnAcao.innerText = "Criar Tópico";
-        return;
-    }
-
-    const title = document.getElementById('topico-titulo').value.trim();
-    const content = document.getElementById('topico-descricao-rich').innerHTML.trim();
-    const icon = document.getElementById('topico-icone').value;
-    const titleColor = document.getElementById('topico-cor-titulo').value;
-
-    if (!title) return showToast("Digite um título.", "error");
-    if (!content || content === '<br>') return showToast("A descrição não pode ficar vazia.", "error");
-
-    if (!state.storeProfile.customTopics) state.storeProfile.customTopics = [];
-
-    const originalText = btnAcao.innerText;
-
-    btnAcao.innerText = "Salvando...";
-    btnAcao.disabled = true;
-    document.getElementById('btn-cancelar-topico').disabled = true;
-
-    try {
-        if (state.editingTopicIndex >= 0) {
-            state.storeProfile.customTopics[state.editingTopicIndex] = {
-                ...state.storeProfile.customTopics[state.editingTopicIndex],
-                title,
-                content,
-                icon,
-                titleColor
-            };
-        } else {
-            state.storeProfile.customTopics.push({ title, content, icon, titleColor, active: true });
-        }
-
-        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { customTopics: state.storeProfile.customTopics }, { merge: true });
-
-        showToast("Tópico salvo!", "success");
-        resetTopicForm();
-        renderAdminTopics();
-        renderSidebarTopics();
-    } catch (error) {
-        showToast("Erro ao salvar.", "error");
-        btnAcao.innerText = originalText;
-    } finally {
-        if (btnAcao) btnAcao.disabled = false;
-        if (document.getElementById('btn-cancelar-topico')) document.getElementById('btn-cancelar-topico').disabled = false;
-    }
-};
-
-window.resetTopicForm = () => {
-    state.editingTopicIndex = -1;
-    document.getElementById('topico-titulo').value = '';
-
-    document.getElementById('topico-cor-titulo').value = '#ffffff';
-    document.getElementById('topico-titulo').style.color = '#ffffff';
-
-    document.getElementById('topico-descricao-rich').innerHTML = '';
-    document.getElementById('topico-descricao-container').classList.add('hidden');
-
-    const btnCancel = document.getElementById('btn-cancelar-topico');
-    if (btnCancel) {
-        btnCancel.classList.add('hidden');
-        btnCancel.disabled = false;
-    }
-
-    const btnAcao = document.getElementById('btn-topico-acao');
-    if (btnAcao) btnAcao.disabled = false;
-
-    renderIconSelector('fa-file-alt');
-    state.originalTopicState = "||fa-file-alt|#ffffff";
-
-    checkTopicChanges();
-    renderAdminTopics();
-};
-
-window.editTopic = (index) => {
-    const topic = state.storeProfile.customTopics[index];
-    if (!topic) return;
-
-    state.editingTopicIndex = index;
-
-    document.getElementById('topico-titulo').value = topic.title;
-    const tColor = topic.titleColor || '#ffffff';
-    document.getElementById('topico-cor-titulo').value = tColor;
-    document.getElementById('topico-titulo').style.color = tColor;
-
-    document.getElementById('topico-descricao-rich').innerHTML = topic.content;
-    renderIconSelector(topic.icon || 'fa-file-alt');
-
-    document.getElementById('topico-descricao-container').classList.remove('hidden');
-
-    state.originalTopicState = `${topic.title}|${topic.content}|${topic.icon || 'fa-file-alt'}|${tColor}`;
-    checkTopicChanges();
-
-    renderAdminTopics();
-    document.getElementById('topico-titulo').focus();
-    document.getElementById('topico-titulo').scrollIntoView({ behavior: 'smooth', block: 'center' });
-};
-
-window.deleteTopic = async (index) => {
-    if (!confirm("Excluir este tópico definitivamente?")) return;
-    state.storeProfile.customTopics.splice(index, 1);
-    try {
-        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { customTopics: state.storeProfile.customTopics }, { merge: true });
-        if (state.editingTopicIndex === index) resetTopicForm();
-        renderAdminTopics();
-        renderSidebarTopics();
-    } catch (e) { showToast("Erro ao excluir.", "error"); }
-};
-
-window.toggleTopicStatus = async (index) => {
-    state.storeProfile.customTopics[index].active = !state.storeProfile.customTopics[index].active;
-    try {
-        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { customTopics: state.storeProfile.customTopics }, { merge: true });
-        renderSidebarTopics();
-    } catch (e) { }
-};
-
-window.moveTopic = async (index, direction) => {
-    const target = index + direction;
-    if (target < 0 || target >= state.storeProfile.customTopics.length) return;
-
-    const temp = state.storeProfile.customTopics[index];
-    state.storeProfile.customTopics[index] = state.storeProfile.customTopics[target];
-    state.storeProfile.customTopics[target] = temp;
-
-    renderAdminTopics();
-
-    try {
-        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { customTopics: state.storeProfile.customTopics }, { merge: true });
-        renderSidebarTopics();
-    } catch (e) { showToast("Erro ao mover.", "error"); }
-};
-
-window.renderSidebarTopics = () => {
-    const activeTopics = state.storeProfile.enableCustomTopics && state.storeProfile.customTopics 
-        ? state.storeProfile.customTopics.filter(t => t.active !== false) 
-        : [];
-
-    // --- 1. RENDERIZA NO MENU LATERAL (SIDEBAR) ---
-    let sidebarContainer = document.getElementById('sidebar-custom-topics');
-    if (sidebarContainer) {
-        sidebarContainer.innerHTML = '';
-        if (activeTopics.length > 0) {
-            sidebarContainer.innerHTML += `<div class="border-t border-gray-800 mx-2 pt-2 mb-2 "></div>`;
-            activeTopics.forEach((topic) => {
-                const originalIndex = state.storeProfile.customTopics.findIndex(t => t.title === topic.title);
-                const iconClass = topic.icon || 'fa-file-alt';
-
-                sidebarContainer.innerHTML += `
-                    <button onclick="openClientTopic(${originalIndex})"text-[var(--txt-body)] class="w-full text-left py-2.5 px-4 text-sm font-bold hover:text-white hover:bg-gray-800 rounded transition flex items-center gap-3">
-                        <i class="fas ${iconClass} w-5 text-center text-[var(--txt-body)] opacity-70"></i> ${topic.title}
-                    </button>
-                `;
-            });
-        }
-    }
-
-    // --- 2. RENDERIZA NO RODAPÉ (FOOTER) ---
-    let footerContainer = document.getElementById('footer-custom-topics');
-    if (footerContainer) {
-        footerContainer.innerHTML = '';
-        if (activeTopics.length > 0) {
-            activeTopics.forEach((topic) => {
-                const originalIndex = state.storeProfile.customTopics.findIndex(t => t.title === topic.title);
-
-                // Design profissional: link cinza que fica branco e com underline animado ao passar o mouse
-                footerContainer.innerHTML += `
-                    <button onclick="openClientTopic(${originalIndex})" class="text-xs md:text-sm font-bold text-gray-400 hover:text-white transition-colors duration-200 uppercase tracking-widest relative group outline-none">
-                        ${topic.title}
-                        <span class="absolute -bottom-1 left-1/2 w-0 h-px bg-yellow-500 group-hover:w-full group-hover:left-0 transition-all duration-300"></span>
-                    </button>
-                `;
-            });
-        }
-    }
-};
-
-window.openClientTopic = (index) => {
-    const topic = state.storeProfile.customTopics[index];
-    if (!topic) return;
-
-    const elTitle = document.getElementById('topic-display-title');
-    const elContent = document.getElementById('topic-display-content');
-
-    if (elTitle) {
-        elTitle.textContent = topic.title;
-        elTitle.classList.remove('text-transparent', 'bg-clip-text', 'bg-gradient-to-r', 'from-brand-pink', 'to-brand-blue');
-        // ✨ AQUI: A cor definida entra em ação exclusivamente na tela de exibição do tópico!
-        elTitle.style.color = topic.titleColor || '#ffffff';
-    }
-
-    if (elContent) {
-        elContent.innerHTML = topic.content;
-        elContent.classList.add('rich-text-content');
-    }
-
-    showView('topic');
-    toggleSidebar();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-};
+<div class="border border-gray-600 rounded-lg p-3 bg-[#0a0a0a] transition-all"
+                                        id="box-form-topico">
+
+                                        <div class="flex flex-col md:flex-row gap-4 mb-3">
+                                            
+                                            <div class="w-full md:w-3/5 flex flex-col justify-end">
+                                                <label class="text-gray-400 font-bold text-xs uppercase mb-1 block">Título do Tópico</label>
+                                                <input type="text" id="topico-titulo"
+                                                    placeholder="Ex: Política de Reembolso"
+                                                    class="w-full bg-black border border-gray-700 text-white px-4 py-2 rounded-md focus:border-yellow-500 outline-none transition-colors h-[42px]">
+                                            </div>
+
+                                            <div class="w-full md:w-2/5">
+                                                <label class="text-gray-400 font-bold text-xs uppercase mb-1 block">Ícone</label>
+                                                <div class="flex flex-wrap gap-2 bg-[#151720] p-2 rounded-md border border-gray-700 min-h-[42px]"
+                                                    id="icon-selector">
+                                                    </div>
+                                                <input type="hidden" id="topico-icone" value="fa-file-alt">
+                                            </div>
+                                        </div>
+
+                                        <div id="topico-descricao-container"
+                                            class="border border-gray-700 rounded-md overflow-hidden flex flex-col hidden bg-[#151720]">
+                                            <div
+                                                class="bg-gray-800 border-b border-gray-700 p-2 flex flex-wrap gap-2 items-center">
+                                                <button type="button" onclick="formatText('bold')"
+                                                    class="w-8 h-8 rounded hover:bg-gray-700 text-white font-bold transition"><i
+                                                        class="fas fa-bold"></i></button>
+                                                <button type="button" onclick="formatText('italic')"
+                                                    class="w-8 h-8 rounded hover:bg-gray-700 text-white font-italic transition"><i
+                                                        class="fas fa-italic"></i></button>
+                                                <button type="button" onclick="formatText('underline')"
+                                                    class="w-8 h-8 rounded hover:bg-gray-700 text-white transition"><i
+                                                        class="fas fa-underline"></i></button>
+                                                <div class="w-px h-5 bg-gray-600 mx-1"></div>
+                                                <button type="button" onclick="formatText('insertUnorderedList')"
+                                                    class="w-8 h-8 rounded hover:bg-gray-700 text-white transition"><i
+                                                        class="fas fa-list-ul"></i></button>
+                                                <button type="button" onclick="formatText('insertOrderedList')"
+                                                    class="w-8 h-8 rounded hover:bg-gray-700 text-white transition"><i
+                                                        class="fas fa-list-ol"></i></button>
+                                                <div class="w-px h-5 bg-gray-600 mx-1"></div>
+                                                <div class="flex items-center gap-2 px-2">
+                                                    <i class="fas fa-palette text-gray-400 text-sm"></i>
+                                                    <input type="color" id="topico-cor-texto"
+                                                        onchange="formatText('foreColor', this.value)"
+                                                        class="w-6 h-6 p-0 border-none bg-transparent cursor-pointer"
+                                                        title="Cor do Texto">
+                                                </div>
+                                            </div>
+                                            <div id="topico-descricao-rich" contenteditable="true"
+                                                class="w-full min-h-[150px] max-h-[300px] overflow-y-auto p-4 text-white outline-none custom-scrollbar rich-text-content"
+                                                placeholder="Escreva o conteúdo aqui..."></div>
+                                        </div>
+
+                                        <div class="flex justify-end gap-3 mt-4">
+                                            <button type="button" id="btn-cancelar-topico" onclick="resetTopicForm()"
+                                                class="hidden w-full md:w-auto px-6 py-2.5 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-md transition-colors shadow-md uppercase text-xs tracking-wide">
+                                                Cancelar
+                                            </button>
+                                            <button type="button" id="btn-topico-acao" onclick="handleTopicAction()"
+                                                class="w-full md:w-auto px-8 py-2.5 bg-[#10b981] hover:bg-[#059669] text-white font-bold rounded-md transition-colors shadow-md uppercase text-xs tracking-wide">
+                                                Novo
+                                            </button>
+                                        </div>
+
+                                        <p class="text-[10px] text-gray-500 text-center mt-3"><i
+                                                class="fas fa-info-circle"></i> Dê um duplo clique em um tópico abaixo para
+                                            editá-lo.</p>
+                                    </div>
