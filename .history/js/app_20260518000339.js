@@ -2102,9 +2102,7 @@ window.renameCategory = async (id, oldFullName) => {
 // 1. Filtra e Ordena (Substitui a lógica antiga)
 function filterAndRenderProducts() {
     // 1. Filtra
-    updateProductCountsUI();
     let filtered = getCurrentFilteredProducts();
-    
 
     // 2. Prepara Métricas (Para poder ordenar por elas)
     // Precisamos saber as vendas de cada produto ANTES de ordenar
@@ -2288,29 +2286,15 @@ function renderProductsList(products, preCalcMetrics = null) {
     let bulkActionsHTML = '';
     if (state.isSelectionMode && state.selectedProducts.size > 0) {
         bulkActionsHTML = `
-            <div class="flex items-center gap-2 animate-fade-in bg-[#151720] border border-gray-700 rounded p-1 shadow-lg flex-1 justify-end overflow-x-auto custom-scrollbar">
-                <span class="text-white text-[10px] font-bold bg-blue-600 px-2 py-1 rounded ml-1 whitespace-nowrap shrink-0">${state.selectedProducts.size} <span class="hidden sm:inline">item(s)</span></span>
-                
-                <button onclick="bulkChangeProductStatus(true)" class="bg-green-600 hover:bg-green-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0" title="Ativar">
-                    <i class="fas fa-eye"></i> <span class="hidden sm:inline">Ativar</span>
-                </button>
-                <button onclick="bulkChangeProductStatus(false)" class="bg-orange-600 hover:bg-orange-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0" title="Inativar">
-                    <i class="fas fa-eye-slash"></i> <span class="hidden sm:inline">Inativar</span>
-                </button>
-                
-                <div class="w-px bg-gray-600 h-4 mx-1 shrink-0"></div>
-
-                <select id="bulk-category-select-dynamic" class="bg-black text-white text-[10px] border border-gray-600 rounded px-1 h-7 outline-none w-24 sm:w-auto shrink-0">
+            <div class="flex items-center gap-2 animate-fade-in bg-[#151720] border border-gray-700 rounded p-1 shadow-lg flex-1 justify-end">
+                <span class="text-white text-[10px] font-bold bg-blue-600 px-2 py-1 rounded ml-1 whitespace-nowrap">${state.selectedProducts.size} <span class="hidden sm:inline">item(s)</span></span>
+                <select id="bulk-category-select-dynamic" class="bg-black text-white text-[10px] border border-gray-600 rounded px-1 h-7 outline-none w-24 sm:w-auto">
                     <option value="">Mover...</option>${state.categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
                 </select>
-                
-                <button onclick="bulkMoveDynamic()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0">
+                <button onclick="bulkMoveDynamic()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition">
                     <i class="fas fa-exchange-alt sm:hidden"></i> <span class="hidden sm:inline">Mover</span>
                 </button>
-                
-                <div class="w-px bg-gray-600 h-4 mx-1 shrink-0"></div>
-                
-                <button onclick="document.getElementById('btn-bulk-delete').click()" class="bg-red-600 hover:bg-red-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0">
+                <button onclick="document.getElementById('btn-bulk-delete').click()" class="bg-red-600 hover:bg-red-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition">
                     <i class="fas fa-trash-alt sm:hidden"></i> <span class="hidden sm:inline">Excluir</span>
                 </button>
             </div>
@@ -3435,9 +3419,6 @@ function setupEventListeners() {
     if (els.adminSearchProd) els.adminSearchProd.addEventListener('input', filterAndRenderProducts);
     if (els.adminFilterCat) els.adminFilterCat.addEventListener('change', filterAndRenderProducts);
     if (els.adminSortProd) els.adminSortProd.addEventListener('change', filterAndRenderProducts);
-
-    const adminFilterStatus = getEl('admin-filter-status');
-    if (adminFilterStatus) adminFilterStatus.addEventListener('change', filterAndRenderProducts);
 
     if (els.confCardActive) {
         els.confCardActive.addEventListener('change', (e) => {
@@ -9962,185 +9943,10 @@ setTimeout(() => {
     }
 }, 1000);
 
-
-// =================================================================
-// 📊 GERADOR DE RELATÓRIOS PERSONALIZADOS
-// =================================================================
-
-window.openReportModal = () => {
-    const modal = document.getElementById('modal-report-config');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    setTimeout(() => {
-        modal.classList.remove('opacity-0');
-        document.getElementById('report-card').classList.remove('scale-95');
-    }, 10);
-};
-
-window.closeReportModal = () => {
-    const modal = document.getElementById('modal-report-config');
-    modal.classList.add('opacity-0');
-    document.getElementById('report-card').classList.add('scale-95');
-    setTimeout(() => {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }, 300);
-};
-
-window.executeCustomReport = () => {
-    // 1. CAPTURA CONFIGURAÇÕES DO MODAL
-    const format = document.querySelector('input[name="rep-format"]:checked').value;
-    const statusFiltro = document.querySelector('input[name="rep-status"]:checked').value;
-    const sortType = document.getElementById('rep-sort').value;
-
-    const config = {
-        format: format,
-        showCat: document.getElementById('rep-col-cat').checked,
-        showStock: document.getElementById('rep-col-stock').checked,
-        showPrice: document.getElementById('rep-col-price').checked,
-        showPromo: document.getElementById('rep-col-promo').checked,
-        showCost: document.getElementById('rep-col-cost').checked
-    };
-
-    // 2. FILTRAGEM DE DADOS
-    let productsToExport = [...state.products];
-
-    if (statusFiltro === 'ativos') {
-        productsToExport = productsToExport.filter(p => p.active !== false);
-    } else if (statusFiltro === 'inativos') {
-        productsToExport = productsToExport.filter(p => p.active === false);
-    }
-
-    if (productsToExport.length === 0) {
-        showToast("Nenhum produto atende a este filtro.", "error");
-        return;
-    }
-
-    // 3. PREPARAÇÃO DE MÉTRICAS (Para ordenação de Vendas/Estoque)
-    const metricsMap = {};
-    const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
-    if (state.orders && (sortType === 'sales_desc' || sortType === 'sales_asc')) {
-        state.orders.forEach(order => {
-            if (validStatuses.includes(order.status)) {
-                order.items.forEach(item => {
-                    if (!metricsMap[item.id]) metricsMap[item.id] = 0;
-                    metricsMap[item.id] += (parseInt(item.qty) || 0);
-                });
-            }
-        });
-    }
-
-    // 4. ORDENAÇÃO DINÂMICA
-    productsToExport.sort((a, b) => {
-        const getStock = (p) => p.hasVariations && p.sizes ? p.sizes.reduce((acc, s) => acc + (parseInt(s.stock)||0), 0) : (parseInt(p.stock) || parseInt(p.generalStock) || 0);
-        
-        const codeA = parseInt(a.code) || 0; const codeB = parseInt(b.code) || 0;
-        const nameA = a.name.toLowerCase();  const nameB = b.name.toLowerCase();
-        const priceA = parseFloat(a.price) || 0; const priceB = parseFloat(b.price) || 0;
-        const stockA = getStock(a); const stockB = getStock(b);
-        const salesA = metricsMap[a.id] || 0; const salesB = metricsMap[b.id] || 0;
-
-        switch (sortType) {
-            case 'code_asc': return codeA - codeB;
-            case 'code_desc': return codeB - codeA;
-            case 'name_asc': return nameA.localeCompare(nameB);
-            case 'sales_desc': return salesB - salesA;
-            case 'sales_asc': return salesA - salesB;
-            case 'stock_desc': return stockB - stockA;
-            case 'stock_asc': return stockA - stockB;
-            case 'price_desc': return priceB - priceA;
-            case 'price_asc': return priceA - priceB;
-            default: return 0;
-        }
-    });
-
-    // 5. ENVIA PARA O UTILITÁRIOS FINALIZAR
-    if (typeof window.gerarRelatorioAvancado === 'function') {
-        window.gerarRelatorioAvancado(productsToExport, config);
-        closeReportModal();
-    } else {
-        alert("Erro: O arquivo utilitarios.js não carregou corretamente. Recarregue a página (Ctrl+F5).");
-    }
-};
-
-
-// =================================================================
-// 🚀 ATUALIZAÇÃO EM LOTE DE STATUS (ATIVO/INATIVO) COM FILTRO INTELIGENTE
-// =================================================================
-window.bulkChangeProductStatus = async (isActive) => {
-    // 1. Filtra apenas os produtos que REALMENTE precisam ser alterados
-    const productsToUpdate = [];
-    
-    state.selectedProducts.forEach(id => {
-        const prod = state.products.find(p => p.id === id);
-        if (prod) {
-            // No sistema, se não tiver a tag "active", ele é considerado ativo por padrão
-            const isCurrentlyActive = prod.active !== false; 
-            
-            // Só adiciona na fila de atualização se o status atual for DIFERENTE do desejado
-            if (isCurrentlyActive !== isActive) {
-                productsToUpdate.push(id);
-            }
-        }
-    });
-
-    const countTotal = state.selectedProducts.size;
-    const countToUpdate = productsToUpdate.length;
-    const actionText = isActive ? 'ATIVAR' : 'INATIVAR';
-    const statusText = isActive ? 'ativos' : 'inativos';
-
-    // 2. Se nenhum produto precisar de mudança, avisa e cancela a ação
-    if (countToUpdate === 0) {
-        alert(`Todos os ${countTotal} itens selecionados já estão ${statusText}. Nenhuma alteração foi necessária.`);
-        state.selectedProducts.clear();
-        filterAndRenderProducts(); // Tira a seleção da tela
-        return;
-    }
-
-    // 3. Monta a mensagem de confirmação inteligente
-    let confirmMsg = `Tem certeza que deseja ${actionText} ${countToUpdate} produto(s)?`;
-    
-    if (countTotal > countToUpdate) {
-        const ignorados = countTotal - countToUpdate;
-        confirmMsg = `Dos ${countTotal} itens selecionados, ${ignorados} já estavam ${statusText} e serão ignorados.\n\nDeseja ${actionText} os ${countToUpdate} produto(s) restantes?`;
-    }
-
-    if (!confirm(confirmMsg)) return;
-
-    // 4. Executa a atualização apenas nos que precisam
-    try {
-        document.body.style.cursor = 'wait';
-        
-        const promises = productsToUpdate.map(id => {
-            return updateDoc(doc(db, `sites/${state.siteId}/products`, id), { active: isActive });
-        });
-        
-        await Promise.all(promises);
-        
-        // 5. Atualiza a memória RAM local instantaneamente
-        productsToUpdate.forEach(id => {
-            const idx = state.products.findIndex(p => p.id === id);
-            if(idx !== -1) state.products[idx].active = isActive;
-        });
-
-        // 6. Limpa a seleção e redesenha a tela
-        state.selectedProducts.clear();
-        setCachedData(`prods_${state.siteId}`, state.products, 60);
-        filterAndRenderProducts(); 
-        
-        showToast(`${countToUpdate} produto(s) atualizado(s) com sucesso!`, 'success');
-        
-    } catch (error) { 
-        alert("Erro ao atualizar os produtos: " + error.message); 
-    } finally {
-        document.body.style.cursor = 'default';
-    }
-};
-
-
 // ============================================================
 // CONECTOR GLOBAL FINAL (ÚNICO E OBRIGATÓRIO)
 // ============================================================
+
 // 1. Navegação e UI
 window.openCart = openCart;
 window.closeCartModal = closeCartModal;

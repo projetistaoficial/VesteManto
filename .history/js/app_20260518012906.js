@@ -549,6 +549,8 @@ const state = {
 
     // Configurações da aba PRODUTOS
     isSelectionMode: false, // Controla se checkboxes aparecem
+    // Cole dentro do seu objeto "state"
+    isReorderMode: false,
 
     // Configuração padrão de ordenação
     sortConfig: { key: 'code', direction: 'desc' },
@@ -1781,6 +1783,12 @@ function renderCatalog(productsToRender) {
 
         switch (sortMode) {
             case 'vitrine':
+                // Primeiro critério: Ordem manual definida pelo Admin
+                const orderA = a.order !== undefined ? parseFloat(a.order) : 99999;
+                const orderB = b.order !== undefined ? parseFloat(b.order) : 99999;
+                if (orderA !== orderB) return orderA - orderB;
+
+                // Fallback caso não tenham ordem definida (mantém o seu filtro antigo)
                 if (a.highlight === true && b.highlight !== true) return -1;
                 if (a.highlight !== true && b.highlight === true) return 1;
                 const hasOfferA = (a.promoPrice && parseFloat(a.promoPrice) > 0);
@@ -1788,10 +1796,6 @@ function renderCatalog(productsToRender) {
                 if (hasOfferA && !hasOfferB) return -1;
                 if (!hasOfferA && hasOfferB) return 1;
                 return codeB - codeA;
-            case 'price-asc': return priceA - priceB;
-            case 'price-desc': return priceB - priceA;
-            case 'name-asc': return (a.name || '').localeCompare(b.name || '');
-            default: return codeB - codeA;
         }
     });
 
@@ -2105,7 +2109,6 @@ function filterAndRenderProducts() {
     updateProductCountsUI();
     let filtered = getCurrentFilteredProducts();
     
-
     // 2. Prepara Métricas (Para poder ordenar por elas)
     // Precisamos saber as vendas de cada produto ANTES de ordenar
     const metricsMap = {};
@@ -2127,45 +2130,56 @@ function filterAndRenderProducts() {
     }
 
     // 3. Ordena
-    const { key, direction } = state.sortConfig;
+    if (state.isReorderMode) {
+        // SE estiver no modo de reordenação, ignora o clique das colunas e força a ordem manual
+        filtered.sort((a, b) => {
+            const orderA = a.order !== undefined ? parseFloat(a.order) : 99999;
+            const orderB = b.order !== undefined ? parseFloat(b.order) : 99999;
+            if (orderA !== orderB) return orderA - orderB;
+            return (parseInt(b.code) || 0) - (parseInt(a.code) || 0);
+        });
+    } else {
+        // SE NÃO, faz a ordenação normal por clique nas colunas
+        const { key, direction } = state.sortConfig;
 
-    filtered.sort((a, b) => {
-        let valA, valB;
+        filtered.sort((a, b) => {
+            let valA, valB;
 
-        // Define os valores baseados na coluna clicada
-        switch (key) {
-            case 'code':
-                valA = a.code ? parseInt(a.code) : 0;
-                valB = b.code ? parseInt(b.code) : 0;
-                break;
-            case 'product':
-                valA = a.name.toLowerCase();
-                valB = b.name.toLowerCase();
-                break;
-            case 'stock':
-                valA = parseInt(a.stock) || 0;
-                valB = parseInt(b.stock) || 0;
-                break;
-            case 'price':
-                valA = parseFloat(a.price) || 0;
-                valB = parseFloat(b.price) || 0;
-                break;
-            case 'sales': // Ordenar por vendas
-                valA = metricsMap[a.id]?.qtd || 0;
-                valB = metricsMap[b.id]?.qtd || 0;
-                break;
-            case 'lastmov': // Ordenar por data
-                valA = metricsMap[a.id]?.lastDate || 0;
-                valB = metricsMap[b.id]?.lastDate || 0;
-                break;
-            default: return 0;
-        }
+            // Define os valores baseados na coluna clicada
+            switch (key) {
+                case 'code':
+                    valA = a.code ? parseInt(a.code) : 0;
+                    valB = b.code ? parseInt(b.code) : 0;
+                    break;
+                case 'product':
+                    valA = a.name.toLowerCase();
+                    valB = b.name.toLowerCase();
+                    break;
+                case 'stock':
+                    valA = parseInt(a.stock) || 0;
+                    valB = parseInt(b.stock) || 0;
+                    break;
+                case 'price':
+                    valA = parseFloat(a.price) || 0;
+                    valB = parseFloat(b.price) || 0;
+                    break;
+                case 'sales': // Ordenar por vendas
+                    valA = metricsMap[a.id]?.qtd || 0;
+                    valB = metricsMap[b.id]?.qtd || 0;
+                    break;
+                case 'lastmov': // Ordenar por data
+                    valA = metricsMap[a.id]?.lastDate || 0;
+                    valB = metricsMap[b.id]?.lastDate || 0;
+                    break;
+                default: return 0;
+            }
 
-        // Lógica Asc/Desc
-        if (valA < valB) return direction === 'asc' ? -1 : 1;
-        if (valA > valB) return direction === 'asc' ? 1 : -1;
-        return 0;
-    });
+            // Lógica Asc/Desc
+            if (valA < valB) return direction === 'asc' ? -1 : 1;
+            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
 
     // 4. Renderiza passando as métricas calculadas (para não calcular de novo)
     renderProductsList(filtered, metricsMap);
@@ -9997,6 +10011,7 @@ window.executeCustomReport = () => {
         format: format,
         showCat: document.getElementById('rep-col-cat').checked,
         showStock: document.getElementById('rep-col-stock').checked,
+        showSales: document.getElementById('rep-col-sales').checked,
         showPrice: document.getElementById('rep-col-price').checked,
         showPromo: document.getElementById('rep-col-promo').checked,
         showCost: document.getElementById('rep-col-cost').checked
@@ -10019,7 +10034,7 @@ window.executeCustomReport = () => {
     // 3. PREPARAÇÃO DE MÉTRICAS (Para ordenação de Vendas/Estoque)
     const metricsMap = {};
     const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
-    if (state.orders && (sortType === 'sales_desc' || sortType === 'sales_asc')) {
+    if (state.orders && (sortType === 'sales_desc' || sortType === 'sales_asc' || config.showSales)) {
         state.orders.forEach(order => {
             if (validStatuses.includes(order.status)) {
                 order.items.forEach(item => {
@@ -10056,7 +10071,7 @@ window.executeCustomReport = () => {
 
     // 5. ENVIA PARA O UTILITÁRIOS FINALIZAR
     if (typeof window.gerarRelatorioAvancado === 'function') {
-        window.gerarRelatorioAvancado(productsToExport, config);
+        window.gerarRelatorioAvancado(productsToExport, config, metricsMap);
         closeReportModal();
     } else {
         alert("Erro: O arquivo utilitarios.js não carregou corretamente. Recarregue a página (Ctrl+F5).");

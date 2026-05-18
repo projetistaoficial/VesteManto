@@ -549,6 +549,8 @@ const state = {
 
     // Configurações da aba PRODUTOS
     isSelectionMode: false, // Controla se checkboxes aparecem
+    // Cole dentro do seu objeto "state"
+    isReorderMode: false,
 
     // Configuração padrão de ordenação
     sortConfig: { key: 'code', direction: 'desc' },
@@ -1781,6 +1783,12 @@ function renderCatalog(productsToRender) {
 
         switch (sortMode) {
             case 'vitrine':
+                // Primeiro critério: Ordem manual definida pelo Admin
+                const orderA = a.order !== undefined ? parseFloat(a.order) : 99999;
+                const orderB = b.order !== undefined ? parseFloat(b.order) : 99999;
+                if (orderA !== orderB) return orderA - orderB;
+
+                // Fallback caso não tenham ordem definida (mantém o seu filtro antigo)
                 if (a.highlight === true && b.highlight !== true) return -1;
                 if (a.highlight !== true && b.highlight === true) return 1;
                 const hasOfferA = (a.promoPrice && parseFloat(a.promoPrice) > 0);
@@ -1788,10 +1796,6 @@ function renderCatalog(productsToRender) {
                 if (hasOfferA && !hasOfferB) return -1;
                 if (!hasOfferA && hasOfferB) return 1;
                 return codeB - codeA;
-            case 'price-asc': return priceA - priceB;
-            case 'price-desc': return priceB - priceA;
-            case 'name-asc': return (a.name || '').localeCompare(b.name || '');
-            default: return codeB - codeA;
         }
     });
 
@@ -2105,7 +2109,6 @@ function filterAndRenderProducts() {
     updateProductCountsUI();
     let filtered = getCurrentFilteredProducts();
     
-
     // 2. Prepara Métricas (Para poder ordenar por elas)
     // Precisamos saber as vendas de cada produto ANTES de ordenar
     const metricsMap = {};
@@ -2127,45 +2130,56 @@ function filterAndRenderProducts() {
     }
 
     // 3. Ordena
-    const { key, direction } = state.sortConfig;
+    if (state.isReorderMode) {
+        // SE estiver no modo de reordenação, ignora o clique das colunas e força a ordem manual
+        filtered.sort((a, b) => {
+            const orderA = a.order !== undefined ? parseFloat(a.order) : 99999;
+            const orderB = b.order !== undefined ? parseFloat(b.order) : 99999;
+            if (orderA !== orderB) return orderA - orderB;
+            return (parseInt(b.code) || 0) - (parseInt(a.code) || 0);
+        });
+    } else {
+        // SE NÃO, faz a ordenação normal por clique nas colunas
+        const { key, direction } = state.sortConfig;
 
-    filtered.sort((a, b) => {
-        let valA, valB;
+        filtered.sort((a, b) => {
+            let valA, valB;
 
-        // Define os valores baseados na coluna clicada
-        switch (key) {
-            case 'code':
-                valA = a.code ? parseInt(a.code) : 0;
-                valB = b.code ? parseInt(b.code) : 0;
-                break;
-            case 'product':
-                valA = a.name.toLowerCase();
-                valB = b.name.toLowerCase();
-                break;
-            case 'stock':
-                valA = parseInt(a.stock) || 0;
-                valB = parseInt(b.stock) || 0;
-                break;
-            case 'price':
-                valA = parseFloat(a.price) || 0;
-                valB = parseFloat(b.price) || 0;
-                break;
-            case 'sales': // Ordenar por vendas
-                valA = metricsMap[a.id]?.qtd || 0;
-                valB = metricsMap[b.id]?.qtd || 0;
-                break;
-            case 'lastmov': // Ordenar por data
-                valA = metricsMap[a.id]?.lastDate || 0;
-                valB = metricsMap[b.id]?.lastDate || 0;
-                break;
-            default: return 0;
-        }
+            // Define os valores baseados na coluna clicada
+            switch (key) {
+                case 'code':
+                    valA = a.code ? parseInt(a.code) : 0;
+                    valB = b.code ? parseInt(b.code) : 0;
+                    break;
+                case 'product':
+                    valA = a.name.toLowerCase();
+                    valB = b.name.toLowerCase();
+                    break;
+                case 'stock':
+                    valA = parseInt(a.stock) || 0;
+                    valB = parseInt(b.stock) || 0;
+                    break;
+                case 'price':
+                    valA = parseFloat(a.price) || 0;
+                    valB = parseFloat(b.price) || 0;
+                    break;
+                case 'sales': // Ordenar por vendas
+                    valA = metricsMap[a.id]?.qtd || 0;
+                    valB = metricsMap[b.id]?.qtd || 0;
+                    break;
+                case 'lastmov': // Ordenar por data
+                    valA = metricsMap[a.id]?.lastDate || 0;
+                    valB = metricsMap[b.id]?.lastDate || 0;
+                    break;
+                default: return 0;
+            }
 
-        // Lógica Asc/Desc
-        if (valA < valB) return direction === 'asc' ? -1 : 1;
-        if (valA > valB) return direction === 'asc' ? 1 : -1;
-        return 0;
-    });
+            // Lógica Asc/Desc
+            if (valA < valB) return direction === 'asc' ? -1 : 1;
+            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
 
     // 4. Renderiza passando as métricas calculadas (para não calcular de novo)
     renderProductsList(filtered, metricsMap);
@@ -2388,12 +2402,11 @@ function renderProductsList(products, preCalcMetrics = null) {
         const isInactive = p.active === false;
         const isChecked = state.selectedProducts.has(p.id) ? 'checked' : '';
         
-        // ✨ CORREÇÃO: Cores hexadecimais SÓLIDAS para esconder o que tem atrás
         let bgClass = isChecked ? 'bg-[#1a233a] border-blue-500/30' : 'bg-[#151720] border-gray-800 hover:bg-[#1c1f2b]';
         let imgOpacityClass = '';
         
         if (isInactive && !isChecked) {
-            bgClass = 'bg-[#2a1313] border-red-900/50 hover:bg-[#351818]'; // Fundo escuro avermelhado sólido
+            bgClass = 'bg-[#2a1313] border-red-900/50 hover:bg-[#351818]'; 
             imgOpacityClass = 'opacity-30 grayscale';
         }
 
@@ -2402,6 +2415,38 @@ function renderProductsList(products, preCalcMetrics = null) {
         const safeStockDisplay = isNaN(parseInt(p.stock)) ? 0 : parseInt(p.stock);
 
         const deleteBgClass = state.isSelectionMode ? 'hidden' : 'absolute inset-y-0 right-0 w-24 bg-red-600 flex items-center justify-center cursor-pointer z-0';
+
+        // LÓGICA DAS SETAS (Reordenar) ou CAIXAS (Selecionar)
+        const isFirstProd = products.findIndex(item => item.id === p.id) === 0;
+        const isLastProd = products.findIndex(item => item.id === p.id) === products.length - 1;
+
+        let selectionOrReorderHTML = '';
+        if (state.isReorderMode) {
+            selectionOrReorderHTML = `
+                <div class="md:col-span-2 flex items-center justify-center gap-1 shrink-0 border-r border-gray-800 h-full">
+                    <button type="button" onclick="event.stopPropagation(); moveProductOrder('${p.id}', -1)" 
+                        class="w-6 h-7 rounded bg-gray-800 text-gray-400 hover:bg-gray-600 hover:text-white flex items-center justify-center transition disabled:opacity-20" 
+                        ${isFirstProd ? 'disabled' : ''}>
+                        <i class="fas fa-arrow-up text-[9px]"></i>
+                    </button>
+                    <button type="button" onclick="event.stopPropagation(); moveProductOrder('${p.id}', 1)" 
+                        class="w-6 h-7 rounded bg-gray-800 text-gray-400 hover:bg-gray-600 hover:text-white flex items-center justify-center transition disabled:opacity-20" 
+                        ${isLastProd ? 'disabled' : ''}>
+                        <i class="fas fa-arrow-down text-[9px]"></i>
+                    </button>
+                </div>
+            `;
+        } else {
+            selectionOrReorderHTML = `
+                <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center shrink-0">
+                     <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
+                </div>
+                <div class="hidden md:flex flex-col ${state.isSelectionMode ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-center border-r border-gray-800 h-full shrink-0">
+                    <span class="text-base font-bold text-white font-mono opacity-80">#${codeStr}</span>
+                    ${isInactive ? '<span class="text-[9px] bg-red-600 text-white px-1 mt-1 rounded uppercase font-bold tracking-widest">Inativo</span>' : ''}
+                </div>
+            `;
+        }
 
         const row = document.createElement('div');
         row.className = `relative overflow-hidden border-b border-gray-800 last:border-0 select-none group`;
@@ -2414,13 +2459,9 @@ function renderProductsList(products, preCalcMetrics = null) {
             <div class="relative z-10 p-3 transition-transform duration-200 ease-out prod-swipe-content ${bgClass} h-full flex flex-col md:grid md:grid-cols-12 gap-2 md:items-center">
                 <div class="flex items-center justify-between w-full md:contents">
                     <div class="flex items-center gap-3 md:col-span-6 w-full flex-1 min-w-0">
-                        <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center shrink-0">
-                             <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
-                        </div>
-                        <div class="hidden md:flex flex-col ${state.isSelectionMode ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-center border-r border-gray-800 h-full shrink-0">
-                            <span class="text-base font-bold text-white font-mono opacity-80">#${codeStr}</span>
-                            ${isInactive ? '<span class="text-[9px] bg-red-600 text-white px-1 mt-1 rounded uppercase font-bold tracking-widest">Inativo</span>' : ''}
-                        </div>
+                        
+                        ${selectionOrReorderHTML}
+
                         <div class="flex items-center gap-3 flex-1 min-w-0">
                             <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0 ${imgOpacityClass}">
                             <div class="flex flex-col flex-1 min-w-0 pr-2">
@@ -2442,7 +2483,7 @@ function renderProductsList(products, preCalcMetrics = null) {
                 <div class="hidden md:block col-span-1 text-center text-gray-400 text-xs">${metrics.qtd > 0 ? `<span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-bold">${metrics.qtd}</span>` : '-'}</div>
                 <div class="hidden md:block col-span-1 text-center">${safeStockDisplay <= 0 ? '<span class="text-red-500 text-xs font-bold">0</span>' : `<span class="text-gray-400 text-xs font-bold">${safeStockDisplay}</span>`}</div>
                 <div class="hidden md:block col-span-1 text-right pr-4">${priceHtml}</div>
-                <div class="hidden ${state.isSelectionMode ? 'hidden' : 'md:flex'} col-span-1 justify-center items-center">
+                <div class="hidden ${state.isSelectionMode || state.isReorderMode ? 'hidden' : 'md:flex'} col-span-1 justify-center items-center">
                      <button onclick="event.stopPropagation(); confirmDeleteProduct('${p.id}')" class="text-gray-600 hover:text-red-500 transition p-2 rounded-full hover:bg-red-500/10" title="Excluir">
                         <i class="fas fa-trash-alt"></i>
                     </button>
@@ -2453,6 +2494,151 @@ function renderProductsList(products, preCalcMetrics = null) {
         scrollContainer.appendChild(row);
     });
 }
+
+// =================================================================
+// 👑 SISTEMA DE ORDENAÇÃO MANUAL DE PRODUTOS (COM CANCELAR E PADRÃO)
+// =================================================================
+
+window.toggleProductReorderMode = async () => {
+    const btn = document.getElementById('btn-reorder-mode');
+    const textBtn = document.getElementById('text-reorder-btn');
+    const btnAdd = document.getElementById('btn-add-product');
+
+    if (!state.isReorderMode) {
+        // --- ENTRA NO MODO DE REORDENAÇÃO ---
+        state.isReorderMode = true;
+        
+        // Salva um backup exato da ordem atual na memória RAM (para poder cancelar)
+        state.originalProductsOrder = [...state.products];
+        
+        // Altera o visual do botão principal para modo de salvamento
+        btn.className = "bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold h-10 shadow-lg transition flex items-center gap-2 text-xs uppercase tracking-wider animate-pulse shrink-0";
+        textBtn.innerText = "Salvar Posições";
+        if (btnAdd) btnAdd.classList.add('hidden');
+        
+        // Cria e injeta os botões de Cancelar e Padrão dinamicamente na tela
+        let controlsContainer = document.getElementById('reorder-controls-container');
+        if (!controlsContainer) {
+            controlsContainer = document.createElement('div');
+            controlsContainer.id = 'reorder-controls-container';
+            controlsContainer.className = "flex gap-2 shrink-0 animate-fade-in";
+            controlsContainer.innerHTML = `
+                <button onclick="resetProductOrder()" class="bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 hover:border-gray-500 px-3 py-2 rounded font-bold h-10 shadow-lg transition flex items-center gap-2 text-xs uppercase tracking-wider shrink-0" title="Voltar ao padrão de fábrica (por código)">
+                    <i class="fas fa-sort-numeric-down"></i> <span class="hidden sm:inline">Padrão</span>
+                </button>
+                <button onclick="cancelProductReorder()" class="bg-red-900/20 text-red-500 hover:bg-red-600 hover:text-white border border-red-900/50 px-3 py-2 rounded font-bold h-10 shadow-lg transition flex items-center gap-2 text-xs uppercase tracking-wider shrink-0" title="Descartar mudanças">
+                    <i class="fas fa-times"></i> <span class="hidden sm:inline">Cancelar</span>
+                </button>
+            `;
+            // Insere os novos botões antes do botão de Salvar
+            btn.parentNode.insertBefore(controlsContainer, btn);
+        }
+        controlsContainer.classList.remove('hidden');
+        controlsContainer.classList.add('flex');
+        
+        // Garante que o modo de seleção em massa saia para não chocar as telas
+        state.isSelectionMode = false;
+        state.selectedProducts.clear();
+        
+        filterAndRenderProducts();
+        showToast("Modo de ordenação ativo. Use as setas para mover.", "info");
+    } else {
+        // --- SALVA A NOVA ORDEM NO BANCO ---
+        textBtn.innerText = "⏳ Gravando...";
+        btn.disabled = true;
+
+        try {
+            // Importa o comando writeBatch do pacote firebase para salvar em lote
+            const { writeBatch } = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+            const batch = writeBatch(db);
+
+            // Redistribui os pesos de 10 em 10 na sequência atual da memória
+            state.products.forEach((prod, index) => {
+                const novoPeso = index * 10;
+                prod.order = novoPeso; 
+                
+                const docRef = doc(db, `sites/${state.siteId}/products`, prod.id);
+                batch.update(docRef, { order: novoPeso });
+            });
+
+            // Envia o malote inteiro de uma única vez para o Google
+            await batch.commit();
+
+            // Desliga a interface de reordenação
+            exitReorderModeUI();
+
+            setCachedData(`prods_${state.siteId}`, state.products, 60);
+            renderCatalog(state.products);
+            filterAndRenderProducts();
+            
+            showToast("Nova ordem da vitrine salva com sucesso!", "success");
+        } catch (error) {
+            alert("Erro ao salvar ordenação: " + error.message);
+            textBtn.innerText = "Salvar Posições";
+            btn.disabled = false;
+        }
+    }
+};
+
+window.cancelProductReorder = () => {
+    // Restaura a memória para o estado que estava antes de clicar em reordenar
+    if (state.originalProductsOrder) {
+        state.products = [...state.originalProductsOrder];
+    }
+    exitReorderModeUI();
+    filterAndRenderProducts();
+    showToast("Alterações de ordem descartadas.", "info");
+};
+
+window.resetProductOrder = () => {
+    if (!confirm("Isso organizará os produtos pela ordem padrão de cadastro (Mais recentes primeiro). Deseja continuar?")) return;
+    
+    // Ordena na memória pelo código decrescente (o mais novo primeiro)
+    state.products.sort((a, b) => {
+        const codeA = parseInt(a.code) || 0;
+        const codeB = parseInt(b.code) || 0;
+        return codeB - codeA;
+    });
+    
+    filterAndRenderProducts();
+    showToast("Ordem padrão aplicada! Clique em 'Salvar Posições' para gravar no banco.", "info");
+};
+
+function exitReorderModeUI() {
+    state.isReorderMode = false;
+    const btn = document.getElementById('btn-reorder-mode');
+    const textBtn = document.getElementById('text-reorder-btn');
+    const btnAdd = document.getElementById('btn-add-product');
+    const controlsContainer = document.getElementById('reorder-controls-container');
+    
+    // Esconde os botões de Cancelar/Padrão
+    if (controlsContainer) {
+        controlsContainer.classList.add('hidden');
+        controlsContainer.classList.remove('flex');
+    }
+
+    // Volta o botão de salvar para o estilo normal
+    if (btn) {
+        btn.className = "bg-gray-800 hover:bg-gray-700 text-yellow-500 border border-gray-700 hover:border-yellow-500 px-4 py-2 rounded font-bold h-10 shadow-lg transition flex items-center gap-2 text-xs uppercase tracking-wider shrink-0";
+        btn.disabled = false;
+    }
+    if (textBtn) textBtn.innerText = "Reordenar";
+    if (btnAdd) btnAdd.classList.remove('hidden');
+}
+
+window.moveProductOrder = (id, direction) => {
+    const currentIndex = state.products.findIndex(p => p.id === id);
+    if (currentIndex === -1) return;
+
+    const targetIndex = currentIndex + direction;
+    if (targetIndex < 0 || targetIndex >= state.products.length) return;
+
+    const temp = state.products[currentIndex];
+    state.products[currentIndex] = state.products[targetIndex];
+    state.products[targetIndex] = temp;
+
+    filterAndRenderProducts();
+};
 
 // 3. Funções Auxiliares de Seleção
 window.toggleProductSelection = (id) => {
@@ -2736,33 +2922,28 @@ function filterAndRenderSales() {
     const sortVal = document.getElementById('filter-sort-order') ? document.getElementById('filter-sort-order').value : 'date_desc';
 
     filtered.sort((a, b) => {
-        // A. Se usuário digitou número, prioriza a proximidade (Lógica anterior mantida)
-        if (termCode) {
-            const target = parseInt(termCode);
-            const codeA = parseInt(a.code) || 0;
-            const codeB = parseInt(b.code) || 0;
-            const distA = Math.abs(codeA - target);
-            const distB = Math.abs(codeB - target);
-            if (distA !== distB) return distA - distB;
-        }
+        // 1. PRIORIDADE MÁXIMA: Ordem Manual (Se definida pelo Admin)
+        const orderA = a.order !== undefined ? parseFloat(a.order) : 999999;
+        const orderB = b.order !== undefined ? parseFloat(b.order) : 999999;
 
-        // B. Ordenação pelo Select (Data ou Valor)
-        const dateA = new Date(a.date).getTime();
-        const dateB = new Date(b.date).getTime();
-        const valA = parseFloat(a.total) || 0;
-        const valB = parseFloat(b.total) || 0;
+        // Se as ordens manuais forem diferentes, manda quem tem o menor número (10 vem antes de 20)
+        if (orderA !== orderB) return orderA - orderB;
 
-        switch (sortVal) {
-            case 'val_desc': // Maior Valor
-                return valB - valA;
-            case 'val_asc':  // Menor Valor
-                return valA - valB;
-            case 'date_asc': // Mais Antigo
-                return dateA - dateB;
-            case 'date_desc': // Mais Recente (Padrão)
-            default:
-                return dateB - dateA;
-        }
+        // 2. SEGUNDA PRIORIDADE: Destaques (Se a ordem manual for igual ou inexistente)
+        const isHighlightA = a.highlight === true ? 1 : 0;
+        const isHighlightB = b.highlight === true ? 1 : 0;
+        if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA; // 1 (sim) vem antes de 0 (não)
+
+        // 3. TERCEIRA PRIORIDADE: Ofertas (Preço promocional ativo)
+        // Convertemos para número e checamos se é maior que zero
+        const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
+        const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
+        if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
+
+        // 4. QUARTA PRIORIDADE (DESEMPATE FINAL): Código/ID (Mais novo primeiro)
+        const codeA = parseInt(a.code) || 0;
+        const codeB = parseInt(b.code) || 0;
+        return codeB - codeA;
     });
 
     // 4. CÁLCULO DO TOTAL FILTRADO (NOVO)
@@ -9997,6 +10178,7 @@ window.executeCustomReport = () => {
         format: format,
         showCat: document.getElementById('rep-col-cat').checked,
         showStock: document.getElementById('rep-col-stock').checked,
+        showSales: document.getElementById('rep-col-sales').checked,
         showPrice: document.getElementById('rep-col-price').checked,
         showPromo: document.getElementById('rep-col-promo').checked,
         showCost: document.getElementById('rep-col-cost').checked
@@ -10019,7 +10201,7 @@ window.executeCustomReport = () => {
     // 3. PREPARAÇÃO DE MÉTRICAS (Para ordenação de Vendas/Estoque)
     const metricsMap = {};
     const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
-    if (state.orders && (sortType === 'sales_desc' || sortType === 'sales_asc')) {
+    if (state.orders && (sortType === 'sales_desc' || sortType === 'sales_asc' || config.showSales)) {
         state.orders.forEach(order => {
             if (validStatuses.includes(order.status)) {
                 order.items.forEach(item => {
@@ -10056,7 +10238,7 @@ window.executeCustomReport = () => {
 
     // 5. ENVIA PARA O UTILITÁRIOS FINALIZAR
     if (typeof window.gerarRelatorioAvancado === 'function') {
-        window.gerarRelatorioAvancado(productsToExport, config);
+        window.gerarRelatorioAvancado(productsToExport, config, metricsMap);
         closeReportModal();
     } else {
         alert("Erro: O arquivo utilitarios.js não carregou corretamente. Recarregue a página (Ctrl+F5).");

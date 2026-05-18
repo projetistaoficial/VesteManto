@@ -213,152 +213,175 @@ window.limparBusca = function() {
 
 
 // =================================================================
-// 🖨️ MÓDULO DE EXPORTAÇÃO DINÂMICA (PDF & EXCEL)
+// 🖨️ MÓDULO DE EXPORTAÇÃO DE DADOS (PDF & EXCEL)
 // =================================================================
 
-const formatMoney = (val) => parseFloat(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-window.gerarRelatorioAvancado = (products, config, metricsMap = {}) => {
+window.gerarPlanilhaEstoque = (products) => {
     let rowsHtml = '';
-    let headersHtml = `
-        <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; width: 10%; text-align: center;">CÓDIGO</th>
-        <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: left;">PRODUTO</th>
-    `;
-    
-    // Constrói Cabeçalhos Dinâmicos
-    if (config.showCat) headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: left;">CATEGORIA</th>`;
-    headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: center;">STATUS</th>`;
-    
-    if (config.showStock) headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: center;">ESTOQUE</th>`;
-    if (config.showSales) headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: center;">QTD VENDIDA</th>`; // <--- CABEÇALHO DINÂMICO
-    if (config.showCost) headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: right;">CUSTO UN.</th>`;
-    if (config.showPrice) headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: right;">PREÇO VENDA</th>`;
-    if (config.showPromo) headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: right;">PREÇO PROMO</th>`;
-
     let totalStock = 0;
-    let totalSales = 0;
     let totalCostValue = 0;
     let totalSaleValue = 0;
 
-    // Constrói Linhas
+    products.forEach(p => {
+        const isInactive = p.active === false;
+        const statusStr = isInactive ? 'Inativo' : 'Ativo';
+        const code = p.code || '-';
+        const cat = p.category || 'Geral';
+        const price = parseFloat(p.promoPrice || p.price || 0);
+        const cost = parseFloat(p.cost || 0);
+        
+        let stock = 0;
+        if (p.hasVariations && p.sizes) {
+            stock = p.sizes.reduce((acc, s) => acc + (parseInt(s.stock) || 0), 0);
+        } else {
+            stock = parseInt(p.stock) || parseInt(p.generalStock) || 0;
+        }
+
+        totalStock += stock;
+        totalCostValue += (cost * stock);
+        totalSaleValue += (price * stock);
+
+        rowsHtml += `
+            <tr>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center;">${code}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px;">${p.name}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px;">${cat}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; color: ${isInactive ? '#dc2626' : '#16a34a'}; font-weight: bold;">${statusStr}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; font-weight: bold;">${stock}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #64748b;">R$ ${cost.toFixed(2).replace('.', ',')}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #2563eb;">R$ ${price.toFixed(2).replace('.', ',')}</td>
+            </tr>
+        `;
+    });
+
+    const tableHtml = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head><meta charset="utf-8"></head>
+        <body>
+            <table>
+                <tr><td colspan="7" style="text-align: center; font-size: 20px; font-weight: bold; background-color: #f1f5f9; padding: 10px;">RELATÓRIO DE ESTOQUE - PRODUTOS</td></tr>
+                <tr><td colspan="7" style="text-align: right; font-size: 12px; font-style: italic;">Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</td></tr>
+                <tr><td colspan="7"></td></tr>
+                <tr>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">CÓDIGO</th>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">PRODUTO</th>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">CATEGORIA</th>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">STATUS</th>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">ESTOQUE (QTD)</th>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">CUSTO UN.</th>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">VENDA UN.</th>
+                </tr>
+                ${rowsHtml}
+                <tr><td colspan="7"></td></tr>
+                <tr style="background-color: #f8fafc;">
+                    <td colspan="4" style="text-align: right; padding: 10px; font-weight: bold; border: 1px solid #cbd5e1;">TOTAIS FILTRADOS:</td>
+                    <td style="text-align: center; padding: 10px; font-weight: bold; border: 1px solid #cbd5e1; font-size: 16px;">${totalStock} un.</td>
+                    <td style="text-align: right; padding: 10px; font-weight: bold; border: 1px solid #cbd5e1; color: #dc2626;">R$ ${totalCostValue.toFixed(2).replace('.', ',')}</td>
+                    <td style="text-align: right; padding: 10px; font-weight: bold; border: 1px solid #cbd5e1; color: #16a34a;">R$ ${totalSaleValue.toFixed(2).replace('.', ',')}</td>
+                </tr>
+            </table>
+        </body>
+        </html>
+    `;
+
+    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Relatorio_Estoque_${new Date().getTime()}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+};
+
+window.gerarPDFEstoque = (products) => {
+    let rowsHtml = '';
+    let totalStock = 0;
+
     products.forEach(p => {
         const isInactive = p.active === false;
         const statusStr = isInactive ? '<span style="color: #dc2626; font-weight:bold;">Inativo</span>' : '<span style="color: #16a34a; font-weight:bold;">Ativo</span>';
+        const code = p.code || '-';
+        const price = parseFloat(p.promoPrice || p.price || 0);
         
-        let stock = p.hasVariations && p.sizes ? p.sizes.reduce((acc, s) => acc + (parseInt(s.stock) || 0), 0) : (parseInt(p.stock) || parseInt(p.generalStock) || 0);
-        const qtySales = metricsMap[p.id] || 0; // Pega do mapa reativo passado pelo app.js
-        
-        const cost = parseFloat(p.cost || 0);
-        const price = parseFloat(p.price || 0);
-        const promo = parseFloat(p.promoPrice || 0);
-
+        let stock = 0;
+        if (p.hasVariations && p.sizes) {
+            stock = p.sizes.reduce((acc, s) => acc + (parseInt(s.stock) || 0), 0);
+        } else {
+            stock = parseInt(p.stock) || parseInt(p.generalStock) || 0;
+        }
         totalStock += stock;
-        totalSales += qtySales;
-        totalCostValue += (cost * stock);
-        totalSaleValue += (promo > 0 ? promo * stock : price * stock);
 
-        rowsHtml += `<tr>`;
-        rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center;">${p.code || '-'}</td>`;
-        rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold;">${p.name}</td>`;
-        if (config.showCat) rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; color: #475569;">${p.category || 'Geral'}</td>`;
-        
-        rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center;">${statusStr}</td>`;
-        
-        if (config.showStock) rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; font-weight: bold;">${stock}</td>`;
-        if (config.showSales) rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; font-weight: bold; color: #1e40af;">${qtySales || '-'}</td>`; // <--- COLUNA DINÂMICA
-        if (config.showCost) rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #64748b;">${formatMoney(cost)}</td>`;
-        if (config.showPrice) rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #1e40af;">${formatMoney(price)}</td>`;
-        if (config.showPromo) rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #16a34a;">${promo > 0 ? formatMoney(promo) : '-'}</td>`;
-        rowsHtml += `</tr>`;
+        const precoFormatado = price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        rowsHtml += `
+            <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">${code}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 13px;">${p.name} <br> <span style="font-size: 10px; color: #64748b;">${p.category || 'Geral'}</span></td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">${statusStr}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: bold;">${stock}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: right;">${precoFormatado}</td>
+            </tr>
+        `;
     });
 
-    // Constrói Rodapé de Totais
-    let colSpanTotais = 2; // Cód + Nome + Status base
-    if (config.showCat) colSpanTotais += 1;
-    
-    let totaisHtml = `<tr style="background-color: #f8fafc;">`;
-    totaisHtml += `<td colspan="${colSpanTotais}" style="text-align: right; padding: 12px; font-weight: bold; border: 1px solid #cbd5e1;">TOTAIS FILTRADOS (${products.length} itens):</td>`;
-    
-    if (config.showStock) totaisHtml += `<td style="text-align: center; padding: 12px; font-weight: bold; border: 1px solid #cbd5e1; font-size: 13px; color: #1e3a8a;">${totalStock} pçs</td>`;
-    if (config.showSales) totaisHtml += `<td style="text-align: center; padding: 12px; font-weight: bold; border: 1px solid #cbd5e1; font-size: 13px; color: #1e40af;">${totalSales} vend.</td>`; // <--- TOTAL DE VENDAS NO RODAPÉ
-    if (config.showCost) totaisHtml += `<td style="text-align: right; padding: 12px; font-weight: bold; border: 1px solid #cbd5e1; color: #dc2626;">Custo:<br>${formatMoney(totalCostValue)}</td>`;
-    
-    if (config.showPrice || config.showPromo) {
-        let extraSpan = (config.showPrice && config.showPromo) ? 2 : 1;
-        totaisHtml += `<td colspan="${extraSpan}" style="text-align: right; padding: 12px; font-weight: bold; border: 1px solid #cbd5e1; color: #16a34a;">Venda Est.:<br>${formatMoney(totalSaleValue)}</td>`;
-    }
-    totaisHtml += `</tr>`;
-
-    // GERA O ARQUIVO ESCOLHIDO
-    if (config.format === 'excel') {
-        const tableHtml = `
-            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-            <head><meta charset="utf-8"></head>
-            <body>
-                <table style="font-family: Arial, sans-serif; border-collapse: collapse;">
-                    <tr><td colspan="${colSpanTotais + 5}" style="text-align: center; font-size: 20px; font-weight: bold; background-color: #f1f5f9; padding: 15px;">RELATÓRIO GERENCIAL DE ESTOQUE</td></tr>
-                    <tr><td colspan="${colSpanTotais + 5}" style="text-align: right; font-size: 11px; font-style: italic;">Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</td></tr>
-                    <tr><td colspan="${colSpanTotais + 5}"></td></tr>
-                    <tr>${headersHtml}</tr>
-                    ${rowsHtml}
-                    <tr><td colspan="${colSpanTotais + 5}"></td></tr>
-                    ${totaisHtml}
-                </table>
-            </body>
-            </html>
-        `;
-
-        const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Relatorio_Personalizado_${new Date().getTime()}.xls`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    } 
-    else {
-        // GERA PDF
-        const printWindow = window.open('', '_blank', 'width=900,height=600');
-        printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Relatório de Estoque</title>
-                <style>
-                    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #0f172a; }
-                    .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #3b82f6; padding-bottom: 15px; }
-                    h2 { margin: 0; color: #1e3a8a; text-transform: uppercase; font-size: 22px; }
-                    .meta-info { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-top: 10px; }
-                    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
-                    th { background-color: #f8fafc; padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; text-transform: uppercase; color: #475569; }
-                    td { border: 1px solid #e2e8f0; padding: 8px; }
-                    .totais td { background-color: #f1f5f9; padding: 12px; font-size: 13px; border-top: 2px solid #94a3b8; }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <h2>Relatório Gerencial</h2>
-                    <div class="meta-info">
-                        <span><strong>Total de Itens:</strong> ${products.length}</span>
-                        <span><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</span>
-                    </div>
+    const printWindow = window.open('', '_blank', 'width=900,height=600');
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Relatório de Estoque</title>
+            <style>
+                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #0f172a; }
+                .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #3b82f6; padding-bottom: 15px; }
+                h2 { margin: 0; color: #1e3a8a; text-transform: uppercase; font-size: 22px; }
+                .meta-info { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-top: 10px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+                th { background-color: #f8fafc; padding: 12px; text-align: left; border-bottom: 2px solid #cbd5e1; text-transform: uppercase; color: #475569; }
+                th.center { text-align: center; }
+                th.right { text-align: right; }
+                .totais { background-color: #f1f5f9; font-size: 14px; }
+                .totais td { padding: 15px; border-top: 2px solid #cbd5e1; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2>Relatório de Estoque / Produtos</h2>
+                <div class="meta-info">
+                    <span><strong>Filtro aplicado:</strong> Lista Atual (${products.length} itens)</span>
+                    <span><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</span>
                 </div>
-                <table>
-                    <thead><tr>${headersHtml}</tr></thead>
-                    <tbody>${rowsHtml}${totaisHtml}</tbody>
-                </table>
-            </body>
-            </html>
-        `);
-        
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => {
-            printWindow.print();
-            printWindow.close();
-        }, 500);
-    }
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th class="center" style="width: 10%;">Cód</th>
+                        <th style="width: 45%;">Produto e Categoria</th>
+                        <th class="center" style="width: 15%;">Status</th>
+                        <th class="center" style="width: 15%;">Estoque Total</th>
+                        <th class="right" style="width: 15%;">Venda Un.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                    <tr class="totais">
+                        <td colspan="3" style="text-align: right;">TOTAIS NA LISTA:</td>
+                        <td style="text-align: center; color: #1e3a8a;">${totalStock} peças</td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.focus();
+    
+    setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+    }, 500);
 };
 
 // =================================================================
@@ -433,5 +456,3 @@ window.bulkChangeProductStatus = async (isActive) => {
         document.body.style.cursor = 'default';
     }
 };
-
-

@@ -549,6 +549,8 @@ const state = {
 
     // Configurações da aba PRODUTOS
     isSelectionMode: false, // Controla se checkboxes aparecem
+    // Cole dentro do seu objeto "state"
+    isReorderMode: false,
 
     // Configuração padrão de ordenação
     sortConfig: { key: 'code', direction: 'desc' },
@@ -9997,6 +9999,7 @@ window.executeCustomReport = () => {
         format: format,
         showCat: document.getElementById('rep-col-cat').checked,
         showStock: document.getElementById('rep-col-stock').checked,
+        showSales: document.getElementById('rep-col-sales').checked,
         showPrice: document.getElementById('rep-col-price').checked,
         showPromo: document.getElementById('rep-col-promo').checked,
         showCost: document.getElementById('rep-col-cost').checked
@@ -10019,7 +10022,7 @@ window.executeCustomReport = () => {
     // 3. PREPARAÇÃO DE MÉTRICAS (Para ordenação de Vendas/Estoque)
     const metricsMap = {};
     const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
-    if (state.orders && (sortType === 'sales_desc' || sortType === 'sales_asc')) {
+    if (state.orders && (sortType === 'sales_desc' || sortType === 'sales_asc' || config.showSales)) {
         state.orders.forEach(order => {
             if (validStatuses.includes(order.status)) {
                 order.items.forEach(item => {
@@ -10056,7 +10059,7 @@ window.executeCustomReport = () => {
 
     // 5. ENVIA PARA O UTILITÁRIOS FINALIZAR
     if (typeof window.gerarRelatorioAvancado === 'function') {
-        window.gerarRelatorioAvancado(productsToExport, config);
+        window.gerarRelatorioAvancado(productsToExport, config, metricsMap);
         closeReportModal();
     } else {
         alert("Erro: O arquivo utilitarios.js não carregou corretamente. Recarregue a página (Ctrl+F5).");

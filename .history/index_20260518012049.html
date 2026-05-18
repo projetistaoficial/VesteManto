@@ -887,10 +887,17 @@
                         </select>
                     </div>
 
-                    <button id="btn-add-product"
-                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold h-10 shadow-lg shrink-0">
-                        + Novo
-                    </button>
+                    <div class="flex gap-2 shrink-0">
+                        <button id="btn-reorder-mode" onclick="toggleProductReorderMode()"
+                            class="bg-gray-800 hover:bg-gray-700 text-yellow-500 border border-gray-700 hover:border-yellow-500 px-4 py-2 rounded font-bold h-10 shadow-lg transition flex items-center gap-2 text-xs uppercase tracking-wider">
+                            <i class="fas fa-arrows-alt-v"></i> <span id="text-reorder-btn">Reordenar</span>
+                        </button>
+                        
+                        <button id="btn-add-product"
+                            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold h-10 shadow-lg">
+                            + Novo
+                        </button>
+                    </div>
                 </div>
 
                 <div id="bulk-actions-bar"

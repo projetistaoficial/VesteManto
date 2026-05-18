@@ -218,7 +218,7 @@ window.limparBusca = function() {
 
 const formatMoney = (val) => parseFloat(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-window.gerarRelatorioAvancado = (products, config, metricsMap = {}) => {
+window.gerarRelatorioAvancado = (products, config) => {
     let rowsHtml = '';
     let headersHtml = `
         <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; width: 10%; text-align: center;">CÓDIGO</th>
@@ -230,13 +230,11 @@ window.gerarRelatorioAvancado = (products, config, metricsMap = {}) => {
     headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: center;">STATUS</th>`;
     
     if (config.showStock) headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: center;">ESTOQUE</th>`;
-    if (config.showSales) headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: center;">QTD VENDIDA</th>`; // <--- CABEÇALHO DINÂMICO
     if (config.showCost) headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: right;">CUSTO UN.</th>`;
     if (config.showPrice) headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: right;">PREÇO VENDA</th>`;
     if (config.showPromo) headersHtml += `<th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a; text-align: right;">PREÇO PROMO</th>`;
 
     let totalStock = 0;
-    let totalSales = 0;
     let totalCostValue = 0;
     let totalSaleValue = 0;
 
@@ -246,14 +244,11 @@ window.gerarRelatorioAvancado = (products, config, metricsMap = {}) => {
         const statusStr = isInactive ? '<span style="color: #dc2626; font-weight:bold;">Inativo</span>' : '<span style="color: #16a34a; font-weight:bold;">Ativo</span>';
         
         let stock = p.hasVariations && p.sizes ? p.sizes.reduce((acc, s) => acc + (parseInt(s.stock) || 0), 0) : (parseInt(p.stock) || parseInt(p.generalStock) || 0);
-        const qtySales = metricsMap[p.id] || 0; // Pega do mapa reativo passado pelo app.js
-        
         const cost = parseFloat(p.cost || 0);
         const price = parseFloat(p.price || 0);
         const promo = parseFloat(p.promoPrice || 0);
 
         totalStock += stock;
-        totalSales += qtySales;
         totalCostValue += (cost * stock);
         totalSaleValue += (promo > 0 ? promo * stock : price * stock);
 
@@ -265,7 +260,6 @@ window.gerarRelatorioAvancado = (products, config, metricsMap = {}) => {
         rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center;">${statusStr}</td>`;
         
         if (config.showStock) rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; font-weight: bold;">${stock}</td>`;
-        if (config.showSales) rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; font-weight: bold; color: #1e40af;">${qtySales || '-'}</td>`; // <--- COLUNA DINÂMICA
         if (config.showCost) rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #64748b;">${formatMoney(cost)}</td>`;
         if (config.showPrice) rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #1e40af;">${formatMoney(price)}</td>`;
         if (config.showPromo) rowsHtml += `<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #16a34a;">${promo > 0 ? formatMoney(promo) : '-'}</td>`;
@@ -273,35 +267,36 @@ window.gerarRelatorioAvancado = (products, config, metricsMap = {}) => {
     });
 
     // Constrói Rodapé de Totais
-    let colSpanTotais = 2; // Cód + Nome + Status base
+    let colSpanTotais = 2; // Cód + Nome + Status (já calculados base)
     if (config.showCat) colSpanTotais += 1;
     
     let totaisHtml = `<tr style="background-color: #f8fafc;">`;
-    totaisHtml += `<td colspan="${colSpanTotais}" style="text-align: right; padding: 12px; font-weight: bold; border: 1px solid #cbd5e1;">TOTAIS FILTRADOS (${products.length} itens):</td>`;
+    totaisHtml += `<td colspan="${colSpanTotais}" style="text-align: right; padding: 12px; font-weight: bold; border: 1px solid #cbd5e1;">TOTAIS DA LISTA GERADA (${products.length} itens):</td>`;
     
-    if (config.showStock) totaisHtml += `<td style="text-align: center; padding: 12px; font-weight: bold; border: 1px solid #cbd5e1; font-size: 13px; color: #1e3a8a;">${totalStock} pçs</td>`;
-    if (config.showSales) totaisHtml += `<td style="text-align: center; padding: 12px; font-weight: bold; border: 1px solid #cbd5e1; font-size: 13px; color: #1e40af;">${totalSales} vend.</td>`; // <--- TOTAL DE VENDAS NO RODAPÉ
+    if (config.showStock) totaisHtml += `<td style="text-align: center; padding: 12px; font-weight: bold; border: 1px solid #cbd5e1; font-size: 14px; color: #1e3a8a;">${totalStock} pçs</td>`;
     if (config.showCost) totaisHtml += `<td style="text-align: right; padding: 12px; font-weight: bold; border: 1px solid #cbd5e1; color: #dc2626;">Custo:<br>${formatMoney(totalCostValue)}</td>`;
-    
     if (config.showPrice || config.showPromo) {
+        // Usa o espaço restante para mostrar a Venda
         let extraSpan = (config.showPrice && config.showPromo) ? 2 : 1;
         totaisHtml += `<td colspan="${extraSpan}" style="text-align: right; padding: 12px; font-weight: bold; border: 1px solid #cbd5e1; color: #16a34a;">Venda Est.:<br>${formatMoney(totalSaleValue)}</td>`;
     }
     totaisHtml += `</tr>`;
 
+    // -------------------------------------------------------------
     // GERA O ARQUIVO ESCOLHIDO
+    // -------------------------------------------------------------
     if (config.format === 'excel') {
         const tableHtml = `
             <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
             <head><meta charset="utf-8"></head>
             <body>
                 <table style="font-family: Arial, sans-serif; border-collapse: collapse;">
-                    <tr><td colspan="${colSpanTotais + 5}" style="text-align: center; font-size: 20px; font-weight: bold; background-color: #f1f5f9; padding: 15px;">RELATÓRIO GERENCIAL DE ESTOQUE</td></tr>
-                    <tr><td colspan="${colSpanTotais + 5}" style="text-align: right; font-size: 11px; font-style: italic;">Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</td></tr>
-                    <tr><td colspan="${colSpanTotais + 5}"></td></tr>
+                    <tr><td colspan="${colSpanTotais + 3}" style="text-align: center; font-size: 20px; font-weight: bold; background-color: #f1f5f9; padding: 15px;">RELATÓRIO GERENCIAL DE ESTOQUE</td></tr>
+                    <tr><td colspan="${colSpanTotais + 3}" style="text-align: right; font-size: 11px; font-style: italic;">Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</td></tr>
+                    <tr><td colspan="${colSpanTotais + 3}"></td></tr>
                     <tr>${headersHtml}</tr>
                     ${rowsHtml}
-                    <tr><td colspan="${colSpanTotais + 5}"></td></tr>
+                    <tr><td colspan="${colSpanTotais + 3}"></td></tr>
                     ${totaisHtml}
                 </table>
             </body>
@@ -433,5 +428,3 @@ window.bulkChangeProductStatus = async (isActive) => {
         document.body.style.cursor = 'default';
     }
 };
-
-

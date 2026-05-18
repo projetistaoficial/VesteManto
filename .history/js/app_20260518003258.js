@@ -9964,107 +9964,6 @@ setTimeout(() => {
 
 
 // =================================================================
-// 📊 GERADOR DE RELATÓRIOS PERSONALIZADOS
-// =================================================================
-
-window.openReportModal = () => {
-    const modal = document.getElementById('modal-report-config');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    setTimeout(() => {
-        modal.classList.remove('opacity-0');
-        document.getElementById('report-card').classList.remove('scale-95');
-    }, 10);
-};
-
-window.closeReportModal = () => {
-    const modal = document.getElementById('modal-report-config');
-    modal.classList.add('opacity-0');
-    document.getElementById('report-card').classList.add('scale-95');
-    setTimeout(() => {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }, 300);
-};
-
-window.executeCustomReport = () => {
-    // 1. CAPTURA CONFIGURAÇÕES DO MODAL
-    const format = document.querySelector('input[name="rep-format"]:checked').value;
-    const statusFiltro = document.querySelector('input[name="rep-status"]:checked').value;
-    const sortType = document.getElementById('rep-sort').value;
-
-    const config = {
-        format: format,
-        showCat: document.getElementById('rep-col-cat').checked,
-        showStock: document.getElementById('rep-col-stock').checked,
-        showPrice: document.getElementById('rep-col-price').checked,
-        showPromo: document.getElementById('rep-col-promo').checked,
-        showCost: document.getElementById('rep-col-cost').checked
-    };
-
-    // 2. FILTRAGEM DE DADOS
-    let productsToExport = [...state.products];
-
-    if (statusFiltro === 'ativos') {
-        productsToExport = productsToExport.filter(p => p.active !== false);
-    } else if (statusFiltro === 'inativos') {
-        productsToExport = productsToExport.filter(p => p.active === false);
-    }
-
-    if (productsToExport.length === 0) {
-        showToast("Nenhum produto atende a este filtro.", "error");
-        return;
-    }
-
-    // 3. PREPARAÇÃO DE MÉTRICAS (Para ordenação de Vendas/Estoque)
-    const metricsMap = {};
-    const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
-    if (state.orders && (sortType === 'sales_desc' || sortType === 'sales_asc')) {
-        state.orders.forEach(order => {
-            if (validStatuses.includes(order.status)) {
-                order.items.forEach(item => {
-                    if (!metricsMap[item.id]) metricsMap[item.id] = 0;
-                    metricsMap[item.id] += (parseInt(item.qty) || 0);
-                });
-            }
-        });
-    }
-
-    // 4. ORDENAÇÃO DINÂMICA
-    productsToExport.sort((a, b) => {
-        const getStock = (p) => p.hasVariations && p.sizes ? p.sizes.reduce((acc, s) => acc + (parseInt(s.stock)||0), 0) : (parseInt(p.stock) || parseInt(p.generalStock) || 0);
-        
-        const codeA = parseInt(a.code) || 0; const codeB = parseInt(b.code) || 0;
-        const nameA = a.name.toLowerCase();  const nameB = b.name.toLowerCase();
-        const priceA = parseFloat(a.price) || 0; const priceB = parseFloat(b.price) || 0;
-        const stockA = getStock(a); const stockB = getStock(b);
-        const salesA = metricsMap[a.id] || 0; const salesB = metricsMap[b.id] || 0;
-
-        switch (sortType) {
-            case 'code_asc': return codeA - codeB;
-            case 'code_desc': return codeB - codeA;
-            case 'name_asc': return nameA.localeCompare(nameB);
-            case 'sales_desc': return salesB - salesA;
-            case 'sales_asc': return salesA - salesB;
-            case 'stock_desc': return stockB - stockA;
-            case 'stock_asc': return stockA - stockB;
-            case 'price_desc': return priceB - priceA;
-            case 'price_asc': return priceA - priceB;
-            default: return 0;
-        }
-    });
-
-    // 5. ENVIA PARA O UTILITÁRIOS FINALIZAR
-    if (typeof window.gerarRelatorioAvancado === 'function') {
-        window.gerarRelatorioAvancado(productsToExport, config);
-        closeReportModal();
-    } else {
-        alert("Erro: O arquivo utilitarios.js não carregou corretamente. Recarregue a página (Ctrl+F5).");
-    }
-};
-
-
-// =================================================================
 // 🚀 ATUALIZAÇÃO EM LOTE DE STATUS (ATIVO/INATIVO) COM FILTRO INTELIGENTE
 // =================================================================
 window.bulkChangeProductStatus = async (isActive) => {
@@ -10137,7 +10036,186 @@ window.bulkChangeProductStatus = async (isActive) => {
     }
 };
 
+// =================================================================
+// 🖨️ EXPORTAÇÃO DE PRODUTOS (EXCEL & PDF) BASEADO NOS FILTROS
+// =================================================================
 
+window.exportProductsExcel = () => {
+    // Pega exatamente a lista que está passando pelos filtros da tela
+    const products = typeof getCurrentFilteredProducts === 'function' ? getCurrentFilteredProducts() : state.products;
+    
+    if (products.length === 0) return showToast("Nenhum produto para exportar.", "error");
+
+    let rowsHtml = '';
+    let totalStock = 0;
+    let totalCostValue = 0;
+    let totalSaleValue = 0;
+
+    products.forEach(p => {
+        const isInactive = p.active === false;
+        const statusStr = isInactive ? 'Inativo' : 'Ativo';
+        const code = p.code || '-';
+        const cat = p.category || 'Geral';
+        const price = parseFloat(p.promoPrice || p.price || 0);
+        const cost = parseFloat(p.cost || 0);
+        
+        // Pega o estoque real independentemente se é gradeado ou geral
+        let stock = 0;
+        if (p.hasVariations && p.sizes) {
+            stock = p.sizes.reduce((acc, s) => acc + (parseInt(s.stock) || 0), 0);
+        } else {
+            stock = parseInt(p.stock) || parseInt(p.generalStock) || 0;
+        }
+
+        totalStock += stock;
+        totalCostValue += (cost * stock);
+        totalSaleValue += (price * stock);
+
+        rowsHtml += `
+            <tr>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center;">${code}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px;">${p.name}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px;">${cat}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; color: ${isInactive ? '#dc2626' : '#16a34a'}; font-weight: bold;">${statusStr}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; font-weight: bold;">${stock}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #64748b;">R$ ${cost.toFixed(2).replace('.', ',')}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #2563eb;">R$ ${price.toFixed(2).replace('.', ',')}</td>
+            </tr>
+        `;
+    });
+
+    const tableHtml = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head><meta charset="utf-8"></head>
+        <body>
+            <table>
+                <tr><td colspan="7" style="text-align: center; font-size: 20px; font-weight: bold; background-color: #f1f5f9; padding: 10px;">RELATÓRIO DE ESTOQUE - PRODUTOS</td></tr>
+                <tr><td colspan="7" style="text-align: right; font-size: 12px; font-style: italic;">Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</td></tr>
+                <tr><td colspan="7"></td></tr>
+                <tr>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">CÓDIGO</th>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">PRODUTO</th>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">CATEGORIA</th>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">STATUS</th>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">ESTOQUE (QTD)</th>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">CUSTO UN.</th>
+                    <th style="background-color: #1e3a8a; color: white; padding: 10px; border: 1px solid #1e3a8a;">VENDA UN.</th>
+                </tr>
+                ${rowsHtml}
+                <tr><td colspan="7"></td></tr>
+                <tr style="background-color: #f8fafc;">
+                    <td colspan="4" style="text-align: right; padding: 10px; font-weight: bold; border: 1px solid #cbd5e1;">TOTAIS FILTRADOS:</td>
+                    <td style="text-align: center; padding: 10px; font-weight: bold; border: 1px solid #cbd5e1; font-size: 16px;">${totalStock} un.</td>
+                    <td style="text-align: right; padding: 10px; font-weight: bold; border: 1px solid #cbd5e1; color: #dc2626;">R$ ${totalCostValue.toFixed(2).replace('.', ',')}</td>
+                    <td style="text-align: right; padding: 10px; font-weight: bold; border: 1px solid #cbd5e1; color: #16a34a;">R$ ${totalSaleValue.toFixed(2).replace('.', ',')}</td>
+                </tr>
+            </table>
+        </body>
+        </html>
+    `;
+
+    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Relatorio_Estoque_${new Date().getTime()}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast("Planilha gerada com sucesso!", "success");
+};
+
+window.exportProductsPDF = () => {
+    const products = typeof getCurrentFilteredProducts === 'function' ? getCurrentFilteredProducts() : state.products;
+    if (products.length === 0) return showToast("Nenhum produto para exportar.", "error");
+
+    let rowsHtml = '';
+    let totalStock = 0;
+
+    products.forEach(p => {
+        const isInactive = p.active === false;
+        const statusStr = isInactive ? '<span style="color: #dc2626; font-weight:bold;">Inativo</span>' : '<span style="color: #16a34a; font-weight:bold;">Ativo</span>';
+        const code = p.code || '-';
+        const price = parseFloat(p.promoPrice || p.price || 0);
+        
+        let stock = 0;
+        if (p.hasVariations && p.sizes) {
+            stock = p.sizes.reduce((acc, s) => acc + (parseInt(s.stock) || 0), 0);
+        } else {
+            stock = parseInt(p.stock) || parseInt(p.generalStock) || 0;
+        }
+        totalStock += stock;
+
+        rowsHtml += `
+            <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">${code}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 13px;">${p.name} <br> <span style="font-size: 10px; color: #64748b;">${p.category || 'Geral'}</span></td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">${statusStr}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: bold;">${stock}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: right;">${formatCurrency(price)}</td>
+            </tr>
+        `;
+    });
+
+    const printWindow = window.open('', '_blank', 'width=900,height=600');
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Relatório de Estoque</title>
+            <style>
+                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #0f172a; }
+                .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #3b82f6; padding-bottom: 15px; }
+                h2 { margin: 0; color: #1e3a8a; text-transform: uppercase; font-size: 22px; }
+                .meta-info { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-top: 10px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+                th { background-color: #f8fafc; padding: 12px; text-align: left; border-bottom: 2px solid #cbd5e1; text-transform: uppercase; color: #475569; }
+                th.center { text-align: center; }
+                th.right { text-align: right; }
+                .totais { background-color: #f1f5f9; font-size: 14px; }
+                .totais td { padding: 15px; border-top: 2px solid #cbd5e1; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2>Relatório de Estoque / Produtos</h2>
+                <div class="meta-info">
+                    <span><strong>Filtro aplicado:</strong> Lista Atual (${products.length} itens)</span>
+                    <span><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</span>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th class="center" style="width: 10%;">Cód</th>
+                        <th style="width: 45%;">Produto e Categoria</th>
+                        <th class="center" style="width: 15%;">Status</th>
+                        <th class="center" style="width: 15%;">Estoque Total</th>
+                        <th class="right" style="width: 15%;">Venda Un.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                    <tr class="totais">
+                        <td colspan="3" style="text-align: right;">TOTAIS NA LISTA:</td>
+                        <td style="text-align: center; color: #1e3a8a;">${totalStock} peças</td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.focus();
+    
+    // Aguarda o render e abre o pop-up de impressão nativo
+    setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+    }, 500);
+};
 // ============================================================
 // CONECTOR GLOBAL FINAL (ÚNICO E OBRIGATÓRIO)
 // ============================================================

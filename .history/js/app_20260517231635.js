@@ -1746,7 +1746,7 @@ function renderCatalog(productsToRender) {
     if (!els.grid) return;
     els.grid.innerHTML = '';
 
-    let filtered = [...productsToRender].filter(p => p.active !== false);
+    let filtered = [...productsToRender];
     const searchTerm = document.getElementById('search-input')?.value.toLowerCase();
     const catTerm = document.getElementById('category-filter')?.value;
 
@@ -2102,9 +2102,7 @@ window.renameCategory = async (id, oldFullName) => {
 // 1. Filtra e Ordena (Substitui a lógica antiga)
 function filterAndRenderProducts() {
     // 1. Filtra
-    updateProductCountsUI();
     let filtered = getCurrentFilteredProducts();
-    
 
     // 2. Prepara Métricas (Para poder ordenar por elas)
     // Precisamos saber as vendas de cada produto ANTES de ordenar
@@ -2173,50 +2171,19 @@ function filterAndRenderProducts() {
 
 
 
-// --- LÓGICA DE ORDENAÇÃO E FILTRAGEM ---
+// --- LÓGICA DE ORDENAÇÃO ---
 function getCurrentFilteredProducts() {
     const searchInput = els.adminSearchProd || getEl('admin-search-prod');
     const categoryInput = els.adminFilterCat || getEl('admin-filter-cat');
-    const statusInput = getEl('admin-filter-status'); // <--- NOVO FILTRO
-
     const term = searchInput ? searchInput.value.toLowerCase().trim() : '';
     const catFilter = categoryInput ? categoryInput.value : '';
-    const statusFilter = statusInput ? statusInput.value : ''; // <--- NOVO VALOR
 
     return state.products.filter(p => {
         const codeStr = p.code ? String(p.code) : '';
         const matchText = p.name.toLowerCase().includes(term) || codeStr.includes(term);
         const matchCat = catFilter ? p.category === catFilter : true;
-        
-        // NOVO: Lógica do filtro de Status
-        let matchStatus = true;
-        if (statusFilter === 'true') matchStatus = p.active !== false; // Ativos
-        if (statusFilter === 'false') matchStatus = p.active === false; // Inativos
-        
-        return matchText && matchCat && matchStatus;
+        return matchText && matchCat;
     });
-}
-
-function updateProductCountsUI() {
-    const total = state.products.length;
-    
-    // Conta quantos têm a tag de inativo
-    const inativos = state.products.filter(p => p.active === false).length;
-    const ativos = total - inativos;
-
-    // Atualiza o Topo
-    const elTotal = document.getElementById('total-produtos-count');
-    if (elTotal) elTotal.innerText = total;
-
-    // Atualiza os textos de dentro do Dropdown de Status
-    const optTodos = document.getElementById('opt-status-todos');
-    if (optTodos) optTodos.innerText = `Todos (${total})`;
-
-    const optAtivos = document.getElementById('opt-status-ativos');
-    if (optAtivos) optAtivos.innerText = `Ativos (${ativos})`;
-
-    const optInativos = document.getElementById('opt-status-inativos');
-    if (optInativos) optInativos.innerText = `Inativos (${inativos})`;
 }
 
 
@@ -2270,54 +2237,57 @@ function renderProductsList(products, preCalcMetrics = null) {
     const listEl = els.productListAdmin || getEl('admin-product-list');
     if (!listEl) return;
 
+    // --- CORREÇÃO: REMOVE A BARRA AMARELA ANTIGA À FORÇA ---
     const oldBar = document.getElementById('bulk-actions-bar');
     if (oldBar) {
-        oldBar.classList.add('hidden');
-        oldBar.style.display = 'none';
+        oldBar.classList.add('hidden'); // Esconde via classe
+        oldBar.style.display = 'none';  // Garante via CSS inline
     }
+    // --------------------------------------------------------
 
     listEl.innerHTML = '';
 
-    // --- 1. BARRA DE CONTROLES NOVA ---
+    // --- 1. BARRA DE CONTROLES NOVA (Azul/Escura) ---
     const controlsBar = document.createElement('div');
     controlsBar.className = "flex flex-wrap justify-between items-center mb-2 px-1 gap-2 min-h-[40px]";
 
-    const selectBtnText = state.isSelectionMode ? '<i class="fas fa-times mr-2"></i> Cancelar' : '<i class="fas fa-check-square mr-2"></i> Selecionar';
-    const selectBtnClass = state.isSelectionMode ? "text-red-400 hover:text-red-300 text-xs font-bold uppercase cursor-pointer py-2 px-2 bg-red-900/20 rounded border border-red-900/50" : "text-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase cursor-pointer py-2 px-2 hover:bg-yellow-900/20 rounded transition";
+    // Botão Selecionar
+    const selectBtnText = state.isSelectionMode ?
+        '<i class="fas fa-times mr-2"></i> Cancelar' :
+        '<i class="fas fa-check-square mr-2"></i> Selecionar';
+
+    const selectBtnClass = state.isSelectionMode ?
+        "text-red-400 hover:text-red-300 text-xs font-bold uppercase cursor-pointer py-2 px-2 bg-red-900/20 rounded border border-red-900/50" :
+        "text-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase cursor-pointer py-2 px-2 hover:bg-yellow-900/20 rounded transition";
 
     let bulkActionsHTML = '';
+    // Só mostra os botões se tiver itens selecionados
     if (state.isSelectionMode && state.selectedProducts.size > 0) {
         bulkActionsHTML = `
-            <div class="flex items-center gap-2 animate-fade-in bg-[#151720] border border-gray-700 rounded p-1 shadow-lg flex-1 justify-end overflow-x-auto custom-scrollbar">
-                <span class="text-white text-[10px] font-bold bg-blue-600 px-2 py-1 rounded ml-1 whitespace-nowrap shrink-0">${state.selectedProducts.size} <span class="hidden sm:inline">item(s)</span></span>
+            <div class="flex items-center gap-2 animate-fade-in bg-[#151720] border border-gray-700 rounded p-1 shadow-lg flex-1 justify-end">
+                <span class="text-white text-[10px] font-bold bg-blue-600 px-2 py-1 rounded ml-1 whitespace-nowrap">${state.selectedProducts.size} <span class="hidden sm:inline">item(s)</span></span>
                 
-                <button onclick="bulkChangeProductStatus(true)" class="bg-green-600 hover:bg-green-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0" title="Ativar">
-                    <i class="fas fa-eye"></i> <span class="hidden sm:inline">Ativar</span>
-                </button>
-                <button onclick="bulkChangeProductStatus(false)" class="bg-orange-600 hover:bg-orange-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0" title="Inativar">
-                    <i class="fas fa-eye-slash"></i> <span class="hidden sm:inline">Inativar</span>
-                </button>
-                
-                <div class="w-px bg-gray-600 h-4 mx-1 shrink-0"></div>
-
-                <select id="bulk-category-select-dynamic" class="bg-black text-white text-[10px] border border-gray-600 rounded px-1 h-7 outline-none w-24 sm:w-auto shrink-0">
+                <select id="bulk-category-select-dynamic" class="bg-black text-white text-[10px] border border-gray-600 rounded px-1 h-7 outline-none w-24 sm:w-auto">
                     <option value="">Mover...</option>${state.categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
                 </select>
                 
-                <button onclick="bulkMoveDynamic()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0">
+                <button onclick="bulkMoveDynamic()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition">
                     <i class="fas fa-exchange-alt sm:hidden"></i> <span class="hidden sm:inline">Mover</span>
                 </button>
                 
-                <div class="w-px bg-gray-600 h-4 mx-1 shrink-0"></div>
-                
-                <button onclick="document.getElementById('btn-bulk-delete').click()" class="bg-red-600 hover:bg-red-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0">
+                <button onclick="document.getElementById('btn-bulk-delete').click()" class="bg-red-600 hover:bg-red-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition">
                     <i class="fas fa-trash-alt sm:hidden"></i> <span class="hidden sm:inline">Excluir</span>
                 </button>
             </div>
         `;
     }
 
-    controlsBar.innerHTML = `<button onclick="toggleSelectionMode()" class="${selectBtnClass}">${selectBtnText}</button>${bulkActionsHTML}`;
+    controlsBar.innerHTML = `
+        <button onclick="toggleSelectionMode()" class="${selectBtnClass}">
+            ${selectBtnText}
+        </button>
+        ${bulkActionsHTML}
+    `;
     listEl.appendChild(controlsBar);
 
     if (products.length === 0) {
@@ -2328,29 +2298,56 @@ function renderProductsList(products, preCalcMetrics = null) {
     // --- 2. HEADER ---
     const allSelected = products.length > 0 && products.every(p => state.selectedProducts.has(p.id));
     const masterCheckAttr = allSelected ? 'checked' : '';
-    const getSortIcon = (key) => state.sortConfig.key !== key ? '<i class="fas fa-sort text-gray-700 ml-1 opacity-30"></i>' : (state.sortConfig.direction === 'asc' ? '<i class="fas fa-sort-up text-yellow-500 ml-1 mt-1"></i>' : '<i class="fas fa-sort-down text-yellow-500 ml-1 -mt-1"></i>');
 
-    const checkColContent = state.isSelectionMode ? `<input type="checkbox" onchange="toggleSelectAll(this)" ${masterCheckAttr} class="cursor-pointer rounded border-gray-600 bg-gray-800 text-yellow-500 focus:ring-0 w-4 h-4" title="Selecionar Todos">` : ``;
+    const getSortIcon = (key) => {
+        if (state.sortConfig.key !== key) return '<i class="fas fa-sort text-gray-700 ml-1 opacity-30"></i>';
+        return state.sortConfig.direction === 'asc'
+            ? '<i class="fas fa-sort-up text-yellow-500 ml-1 mt-1"></i>'
+            : '<i class="fas fa-sort-down text-yellow-500 ml-1 -mt-1"></i>';
+    };
+
+    const checkColContent = state.isSelectionMode
+        ? `<input type="checkbox" onchange="toggleSelectAll(this)" ${masterCheckAttr} class="cursor-pointer rounded border-gray-600 bg-gray-800 text-yellow-500 focus:ring-0 w-4 h-4" title="Selecionar Todos">`
+        : ``;
 
     const headerHTML = `
         <div class="hidden md:grid grid-cols-12 gap-2 bg-[#1f1f1f] text-gray-400 font-bold p-3 rounded-t-xl text-[10px] uppercase tracking-wider border-b border-gray-800 sticky top-0 z-20 select-none items-center shadow-lg">
-            <div class="${state.isSelectionMode ? 'col-span-1 block' : 'hidden'} text-center flex items-center justify-center">${checkColContent}</div>
-            <div class="${state.isSelectionMode ? 'col-span-1' : 'col-span-1'} text-center border-r border-gray-700 cursor-pointer hover:text-white flex items-center justify-left h-full" onclick="sortProducts('code')">Cód ${getSortIcon('code')}</div>
-            <div class="col-span-5 pl-2 cursor-pointer hover:text-white flex items-center" onclick="sortProducts('product')">Produto ${getSortIcon('product')}</div>
-            <div class="col-span-2 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('lastmov')">Última Mov. ${getSortIcon('lastmov')}</div>
-            <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('sales')">Qtd Vendidas ${getSortIcon('sales')}</div>
-            <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('stock')">Estoque ${getSortIcon('stock')}</div>
-            <div class="col-span-1 text-right pr-4 cursor-pointer hover:text-white flex items-center justify-end" onclick="sortProducts('price')">Valor ${getSortIcon('price')}</div>
+            <div class="${state.isSelectionMode ? 'col-span-1 block' : 'hidden'} text-center flex items-center justify-center">
+                ${checkColContent}
+            </div>
+            <div class="${state.isSelectionMode ? 'col-span-1' : 'col-span-1'} text-center border-r border-gray-700 cursor-pointer hover:text-white flex items-center justify-left h-full" onclick="sortProducts('code')">
+                Cód ${getSortIcon('code')}
+            </div>
+            <div class="col-span-5 pl-2 cursor-pointer hover:text-white flex items-center" onclick="sortProducts('product')">
+                Produto ${getSortIcon('product')}
+            </div>
+            <div class="col-span-2 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('lastmov')">
+                Última Mov. ${getSortIcon('lastmov')}
+            </div>
+            <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('sales')">
+                Qtd Vendidas ${getSortIcon('sales')}
+            </div>
+            <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('stock')">
+                Estoque ${getSortIcon('stock')}
+            </div>
+            <div class="col-span-1 text-right pr-4 cursor-pointer hover:text-white flex items-center justify-end" onclick="sortProducts('price')">
+                Valor ${getSortIcon('price')}
+            </div>
             <div class="col-span-1"></div>
         </div>
+        
         <div class="md:hidden flex items-center justify-between px-4 py-2 text-gray-400 text-xs uppercase font-bold bg-[#1f1f1f] rounded-t-lg border-b border-gray-800">
-            <div class="flex items-center gap-2">${state.isSelectionMode ? checkColContent : ''}<span>Produto</span></div>
+            <div class="flex items-center gap-2">
+                ${state.isSelectionMode ? checkColContent : ''}
+                <span>Produto</span>
+            </div>
             <span>Estoque / Valor</span>
         </div>
     `;
 
     const scrollContainer = document.createElement('div');
     scrollContainer.className = "max-h-[65vh] overflow-y-auto overflow-x-hidden border-x border-b border-gray-800 rounded-b-xl bg-[#0f111a] custom-scrollbar relative";
+
     listEl.insertAdjacentHTML('beforeend', headerHTML);
     listEl.appendChild(scrollContainer);
 
@@ -2385,22 +2382,13 @@ function renderProductsList(products, preCalcMetrics = null) {
             ? `<div class="flex flex-col items-end"><span class="text-green-400 font-bold text-xs">${formatCurrency(p.promoPrice)}</span><span class="text-gray-600 text-[10px] line-through">${formatCurrency(p.price)}</span></div>`
             : `<span class="text-gray-200 font-bold text-xs">${formatCurrency(p.price)}</span>`;
 
-        const isInactive = p.active === false;
         const isChecked = state.selectedProducts.has(p.id) ? 'checked' : '';
-        
-        // ✨ CORREÇÃO: Cores hexadecimais SÓLIDAS para esconder o que tem atrás
-        let bgClass = isChecked ? 'bg-[#1a233a] border-blue-500/30' : 'bg-[#151720] border-gray-800 hover:bg-[#1c1f2b]';
-        let imgOpacityClass = '';
-        
-        if (isInactive && !isChecked) {
-            bgClass = 'bg-[#2a1313] border-red-900/50 hover:bg-[#351818]'; // Fundo escuro avermelhado sólido
-            imgOpacityClass = 'opacity-30 grayscale';
-        }
-
+        const bgClass = isChecked ? 'bg-blue-900/10 border-blue-500/30' : 'bg-[#151720] border-gray-800 hover:bg-[#1c1f2b]';
         const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://placehold.co/100?text=Sem+Foto';
         const codeStr = p.code ? p.code : '-';
         const safeStockDisplay = isNaN(parseInt(p.stock)) ? 0 : parseInt(p.stock);
 
+        // Esconde o fundo vermelho se estiver selecionando
         const deleteBgClass = state.isSelectionMode ? 'hidden' : 'absolute inset-y-0 right-0 w-24 bg-red-600 flex items-center justify-center cursor-pointer z-0';
 
         const row = document.createElement('div');
@@ -2411,37 +2399,50 @@ function renderProductsList(products, preCalcMetrics = null) {
             <div class="${deleteBgClass}" onclick="confirmDeleteProduct('${p.id}')">
                 <i class="fas fa-trash-alt text-white text-lg"></i>
             </div>
-            <div class="relative z-10 p-3 transition-transform duration-200 ease-out prod-swipe-content ${bgClass} h-full flex flex-col md:grid md:grid-cols-12 gap-2 md:items-center">
+
+            <div class="relative z-10 p-3 transition-transform duration-200 ease-out prod-swipe-content ${bgClass} h-full flex flex-col md:grid md:grid-cols-12 gap-2 md:items-center bg-[#151720]">
+                
                 <div class="flex items-center justify-between w-full md:contents">
                     <div class="flex items-center gap-3 md:col-span-6 w-full flex-1 min-w-0">
+                        
                         <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center shrink-0">
-                             <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
+                             <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" 
+                               onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
                         </div>
-                        <div class="hidden md:flex flex-col ${state.isSelectionMode ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-center border-r border-gray-800 h-full shrink-0">
+
+                        <div class="hidden md:flex ${state.isSelectionMode ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-center border-r border-gray-800 h-full shrink-0">
                             <span class="text-base font-bold text-white font-mono opacity-80">#${codeStr}</span>
-                            ${isInactive ? '<span class="text-[9px] bg-red-600 text-white px-1 mt-1 rounded uppercase font-bold tracking-widest">Inativo</span>' : ''}
                         </div>
+
                         <div class="flex items-center gap-3 flex-1 min-w-0">
-                            <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0 ${imgOpacityClass}">
+                            <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0">
                             <div class="flex flex-col flex-1 min-w-0 pr-2">
                                 <div class="flex items-center gap-2">
                                     <span class="md:hidden shrink-0 text-[10px] bg-gray-700 text-white px-1.5 py-0.5 rounded font-bold">#${codeStr}</span>
-                                    ${isInactive ? '<span class="md:hidden shrink-0 text-[9px] bg-red-600 text-white px-1 rounded uppercase font-bold tracking-widest">Inativo</span>' : ''}
                                     <span class="text-gray-200 font-bold text-sm truncate group-hover:text-yellow-500 transition">${p.name}</span>
                                 </div>
                                 <span class="text-gray-500 text-[10px] truncate w-full block mt-0.5">${p.category || 'Geral'}</span>
                             </div>
                         </div>
                     </div>
+
                     <div class="md:hidden flex flex-col justify-center items-end shrink-0 pl-2 ml-auto h-10">
                         ${priceHtml}
-                        ${safeStockDisplay <= 0 ? '<span class="text-red-500 text-[10px] font-bold uppercase tracking-wider mt-0.5">Esgotado</span>' : `<span class="text-gray-500 text-[10px] mt-0.5 whitespace-nowrap">Est.: <span class="font-bold text-gray-300">${safeStockDisplay}</span></span>`}
+                        ${safeStockDisplay <= 0
+                ? '<span class="text-red-500 text-[10px] font-bold uppercase tracking-wider mt-0.5">Esgotado</span>'
+                : `<span class="text-gray-500 text-[10px] mt-0.5 whitespace-nowrap">Est.: <span class="font-bold text-gray-300">${safeStockDisplay}</span></span>`}
                     </div>
                 </div>
+
                 <div class="hidden md:block col-span-2 text-center text-gray-500 text-xs font-mono truncate">${lastMovStr}</div>
-                <div class="hidden md:block col-span-1 text-center text-gray-400 text-xs">${metrics.qtd > 0 ? `<span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-bold">${metrics.qtd}</span>` : '-'}</div>
-                <div class="hidden md:block col-span-1 text-center">${safeStockDisplay <= 0 ? '<span class="text-red-500 text-xs font-bold">0</span>' : `<span class="text-gray-400 text-xs font-bold">${safeStockDisplay}</span>`}</div>
+                <div class="hidden md:block col-span-1 text-center text-gray-400 text-xs">
+                    ${metrics.qtd > 0 ? `<span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-bold">${metrics.qtd}</span>` : '-'}
+                </div>
+                <div class="hidden md:block col-span-1 text-center">
+                        ${safeStockDisplay <= 0 ? '<span class="text-red-500 text-xs font-bold">0</span>' : `<span class="text-gray-400 text-xs font-bold">${safeStockDisplay}</span>`}
+                </div>
                 <div class="hidden md:block col-span-1 text-right pr-4">${priceHtml}</div>
+                
                 <div class="hidden ${state.isSelectionMode ? 'hidden' : 'md:flex'} col-span-1 justify-center items-center">
                      <button onclick="event.stopPropagation(); confirmDeleteProduct('${p.id}')" class="text-gray-600 hover:text-red-500 transition p-2 rounded-full hover:bg-red-500/10" title="Excluir">
                         <i class="fas fa-trash-alt"></i>
@@ -2449,6 +2450,7 @@ function renderProductsList(products, preCalcMetrics = null) {
                 </div>
             </div>
         `;
+
         setupSwipe(row.querySelector('.prod-swipe-content'));
         scrollContainer.appendChild(row);
     });
@@ -3435,9 +3437,6 @@ function setupEventListeners() {
     if (els.adminSearchProd) els.adminSearchProd.addEventListener('input', filterAndRenderProducts);
     if (els.adminFilterCat) els.adminFilterCat.addEventListener('change', filterAndRenderProducts);
     if (els.adminSortProd) els.adminSortProd.addEventListener('change', filterAndRenderProducts);
-
-    const adminFilterStatus = getEl('admin-filter-status');
-    if (adminFilterStatus) adminFilterStatus.addEventListener('change', filterAndRenderProducts);
 
     if (els.confCardActive) {
         els.confCardActive.addEventListener('change', (e) => {
@@ -5581,23 +5580,26 @@ window.saveProduct = async (e) => {
         if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
 
         const isGraded = document.getElementById('prod-has-variations').checked;
-        
-        // Blindagem de Segurança
-        const statusActive = document.getElementById('prod-status-active');
-        const isActive = statusActive ? statusActive.checked : true;
+        const isActive = document.getElementById('prod-status-active').checked;
 
+        // ✨ O SEGREDO ESTÁ AQUI: Captura o Estoque Geral que o usuário digitou
+        // E garante que ele NUNCA se misture com a grade!
         const inputGeneralStock = parseInt(document.getElementById('prod-stock').value) || 0;
-        let finalStock = 0; 
+
+        let finalStock = 0; // O Estoque que os clientes vão ver na vitrine
         let finalSizes = state.tempVariations ? [...state.tempVariations] : [];
 
         if (isGraded) {
+            // TRAVA: Não deixa salvar grade ligada se não tiver caixinhas
             if (finalSizes.length === 0) {
                 showToast("Adicione pelo menos um tamanho no estoque gradeado.", "error");
                 if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
                 return;
             }
+            // Vitrine usa a soma dos tamanhos
             finalStock = finalSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0);
         } else {
+            // Vitrine usa o que foi digitado no estoque geral
             finalStock = inputGeneralStock;
         }
 
@@ -5615,13 +5617,13 @@ window.saveProduct = async (e) => {
             promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
             cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
             hasVariations: isGraded,
-            stock: finalStock,               
-            generalStock: inputGeneralStock, 
+            stock: finalStock,               // 👉 Vai para a vitrine
+            generalStock: inputGeneralStock, // 👉 Fica guardado na memória do Painel
             sizes: finalSizes,
             images: state.tempImages || [],
             allowNoStock: document.getElementById('prod-allow-no-stock').checked,
-            active: isActive,
             highlight: document.getElementById('prod-highlight').checked,
+            
             paymentOptions: {
                 pix: {
                     active: document.getElementById('prod-pix-active').checked,
@@ -5639,14 +5641,20 @@ window.saveProduct = async (e) => {
             productData.createdAt = new Date().toISOString();
 
             const docRef = await addDoc(collection(db, `sites/${state.siteId}/products`), productData);
+
+            // 🔥 MÁGICA 1: Injeta o produto novo direto na memória do site na mesma hora
             productData.id = docRef.id;
             state.products.push(productData);
 
             showToast(`Produto #${nextCode} criado com sucesso!`, 'success');
         } else {
             await updateDoc(doc(db, `sites/${state.siteId}/products`, id), productData);
+
+            // 🔥 MÁGICA 2: Atualiza o produto existente na memória do site na mesma hora
             const idx = state.products.findIndex(p => p.id === id);
-            if (idx !== -1) state.products[idx] = { ...state.products[idx], ...productData };
+            if (idx !== -1) {
+                state.products[idx] = { ...state.products[idx], ...productData };
+            }
 
             showToast('Produto atualizado com sucesso!', 'success');
         }
@@ -5659,6 +5667,7 @@ window.saveProduct = async (e) => {
         const formEl = document.getElementById('form-product');
         if (formEl) formEl.onsubmit = window.saveProduct;
 
+        // 🔥 MÁGICA 3: Salva no cache do navegador e redesenha as tabelas imediatamente!
         setCachedData(`prods_${state.siteId}`, state.products, 5);
         renderCatalog(state.products);
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
@@ -5688,6 +5697,9 @@ window.editProduct = (id) => {
     document.getElementById('prod-allow-no-stock').checked = p.allowNoStock || false;
     document.getElementById('prod-highlight').checked = p.highlight || false;
 
+    // ✨ CORREÇÃO SUPREMA: 
+    // Se existir a memória de "generalStock", puxa ela. 
+    // Se for um produto antigo que ainda não tem isso, não mistura as coisas.
     if (p.generalStock !== undefined) {
         document.getElementById('prod-stock').value = p.generalStock;
     } else {
@@ -5703,16 +5715,10 @@ window.editProduct = (id) => {
     }
 
     const chkVar = document.getElementById('prod-has-variations');
-    if (p.hasVariations) chkVar.checked = true;
-    else chkVar.checked = false;
-
-    // Blindagem de Segurança
-    const statusInactive = document.getElementById('prod-status-inactive');
-    const statusActive = document.getElementById('prod-status-active');
-    
-    if (statusInactive && statusActive) {
-        if (p.active === false) statusInactive.checked = true;
-        else statusActive.checked = true;
+    if (p.hasVariations) {
+        chkVar.checked = true;
+    } else {
+        chkVar.checked = false;
     }
 
     toggleStockMode();
@@ -5730,18 +5736,14 @@ window.editProduct = (id) => {
 
 // ✨ IMPORTANTE: Zera o formulário caso o usuário vá criar um NOVO produto
 window.openNewProductModal = () => {
-    // Blindagem de Segurança
-    const statusActive = document.getElementById('prod-status-active');
-    if (statusActive) statusActive.checked = true;
-
     const form = document.getElementById('form-product');
     if (form) form.reset();
 
     document.getElementById('edit-prod-id').value = '';
     state.tempImages = [];
-    state.tempVariations = [];
+    state.tempVariations = []; // Limpa tamanhos de edições anteriores
 
-    document.getElementById('prod-has-variations').checked = false; 
+    document.getElementById('prod-has-variations').checked = false; // Desativa a grade por padrão
     toggleStockMode();
 
     if (typeof renderImagePreviews === 'function') renderImagePreviews();
@@ -9962,185 +9964,10 @@ setTimeout(() => {
     }
 }, 1000);
 
-
-// =================================================================
-// 📊 GERADOR DE RELATÓRIOS PERSONALIZADOS
-// =================================================================
-
-window.openReportModal = () => {
-    const modal = document.getElementById('modal-report-config');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    setTimeout(() => {
-        modal.classList.remove('opacity-0');
-        document.getElementById('report-card').classList.remove('scale-95');
-    }, 10);
-};
-
-window.closeReportModal = () => {
-    const modal = document.getElementById('modal-report-config');
-    modal.classList.add('opacity-0');
-    document.getElementById('report-card').classList.add('scale-95');
-    setTimeout(() => {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }, 300);
-};
-
-window.executeCustomReport = () => {
-    // 1. CAPTURA CONFIGURAÇÕES DO MODAL
-    const format = document.querySelector('input[name="rep-format"]:checked').value;
-    const statusFiltro = document.querySelector('input[name="rep-status"]:checked').value;
-    const sortType = document.getElementById('rep-sort').value;
-
-    const config = {
-        format: format,
-        showCat: document.getElementById('rep-col-cat').checked,
-        showStock: document.getElementById('rep-col-stock').checked,
-        showPrice: document.getElementById('rep-col-price').checked,
-        showPromo: document.getElementById('rep-col-promo').checked,
-        showCost: document.getElementById('rep-col-cost').checked
-    };
-
-    // 2. FILTRAGEM DE DADOS
-    let productsToExport = [...state.products];
-
-    if (statusFiltro === 'ativos') {
-        productsToExport = productsToExport.filter(p => p.active !== false);
-    } else if (statusFiltro === 'inativos') {
-        productsToExport = productsToExport.filter(p => p.active === false);
-    }
-
-    if (productsToExport.length === 0) {
-        showToast("Nenhum produto atende a este filtro.", "error");
-        return;
-    }
-
-    // 3. PREPARAÇÃO DE MÉTRICAS (Para ordenação de Vendas/Estoque)
-    const metricsMap = {};
-    const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
-    if (state.orders && (sortType === 'sales_desc' || sortType === 'sales_asc')) {
-        state.orders.forEach(order => {
-            if (validStatuses.includes(order.status)) {
-                order.items.forEach(item => {
-                    if (!metricsMap[item.id]) metricsMap[item.id] = 0;
-                    metricsMap[item.id] += (parseInt(item.qty) || 0);
-                });
-            }
-        });
-    }
-
-    // 4. ORDENAÇÃO DINÂMICA
-    productsToExport.sort((a, b) => {
-        const getStock = (p) => p.hasVariations && p.sizes ? p.sizes.reduce((acc, s) => acc + (parseInt(s.stock)||0), 0) : (parseInt(p.stock) || parseInt(p.generalStock) || 0);
-        
-        const codeA = parseInt(a.code) || 0; const codeB = parseInt(b.code) || 0;
-        const nameA = a.name.toLowerCase();  const nameB = b.name.toLowerCase();
-        const priceA = parseFloat(a.price) || 0; const priceB = parseFloat(b.price) || 0;
-        const stockA = getStock(a); const stockB = getStock(b);
-        const salesA = metricsMap[a.id] || 0; const salesB = metricsMap[b.id] || 0;
-
-        switch (sortType) {
-            case 'code_asc': return codeA - codeB;
-            case 'code_desc': return codeB - codeA;
-            case 'name_asc': return nameA.localeCompare(nameB);
-            case 'sales_desc': return salesB - salesA;
-            case 'sales_asc': return salesA - salesB;
-            case 'stock_desc': return stockB - stockA;
-            case 'stock_asc': return stockA - stockB;
-            case 'price_desc': return priceB - priceA;
-            case 'price_asc': return priceA - priceB;
-            default: return 0;
-        }
-    });
-
-    // 5. ENVIA PARA O UTILITÁRIOS FINALIZAR
-    if (typeof window.gerarRelatorioAvancado === 'function') {
-        window.gerarRelatorioAvancado(productsToExport, config);
-        closeReportModal();
-    } else {
-        alert("Erro: O arquivo utilitarios.js não carregou corretamente. Recarregue a página (Ctrl+F5).");
-    }
-};
-
-
-// =================================================================
-// 🚀 ATUALIZAÇÃO EM LOTE DE STATUS (ATIVO/INATIVO) COM FILTRO INTELIGENTE
-// =================================================================
-window.bulkChangeProductStatus = async (isActive) => {
-    // 1. Filtra apenas os produtos que REALMENTE precisam ser alterados
-    const productsToUpdate = [];
-    
-    state.selectedProducts.forEach(id => {
-        const prod = state.products.find(p => p.id === id);
-        if (prod) {
-            // No sistema, se não tiver a tag "active", ele é considerado ativo por padrão
-            const isCurrentlyActive = prod.active !== false; 
-            
-            // Só adiciona na fila de atualização se o status atual for DIFERENTE do desejado
-            if (isCurrentlyActive !== isActive) {
-                productsToUpdate.push(id);
-            }
-        }
-    });
-
-    const countTotal = state.selectedProducts.size;
-    const countToUpdate = productsToUpdate.length;
-    const actionText = isActive ? 'ATIVAR' : 'INATIVAR';
-    const statusText = isActive ? 'ativos' : 'inativos';
-
-    // 2. Se nenhum produto precisar de mudança, avisa e cancela a ação
-    if (countToUpdate === 0) {
-        alert(`Todos os ${countTotal} itens selecionados já estão ${statusText}. Nenhuma alteração foi necessária.`);
-        state.selectedProducts.clear();
-        filterAndRenderProducts(); // Tira a seleção da tela
-        return;
-    }
-
-    // 3. Monta a mensagem de confirmação inteligente
-    let confirmMsg = `Tem certeza que deseja ${actionText} ${countToUpdate} produto(s)?`;
-    
-    if (countTotal > countToUpdate) {
-        const ignorados = countTotal - countToUpdate;
-        confirmMsg = `Dos ${countTotal} itens selecionados, ${ignorados} já estavam ${statusText} e serão ignorados.\n\nDeseja ${actionText} os ${countToUpdate} produto(s) restantes?`;
-    }
-
-    if (!confirm(confirmMsg)) return;
-
-    // 4. Executa a atualização apenas nos que precisam
-    try {
-        document.body.style.cursor = 'wait';
-        
-        const promises = productsToUpdate.map(id => {
-            return updateDoc(doc(db, `sites/${state.siteId}/products`, id), { active: isActive });
-        });
-        
-        await Promise.all(promises);
-        
-        // 5. Atualiza a memória RAM local instantaneamente
-        productsToUpdate.forEach(id => {
-            const idx = state.products.findIndex(p => p.id === id);
-            if(idx !== -1) state.products[idx].active = isActive;
-        });
-
-        // 6. Limpa a seleção e redesenha a tela
-        state.selectedProducts.clear();
-        setCachedData(`prods_${state.siteId}`, state.products, 60);
-        filterAndRenderProducts(); 
-        
-        showToast(`${countToUpdate} produto(s) atualizado(s) com sucesso!`, 'success');
-        
-    } catch (error) { 
-        alert("Erro ao atualizar os produtos: " + error.message); 
-    } finally {
-        document.body.style.cursor = 'default';
-    }
-};
-
-
 // ============================================================
 // CONECTOR GLOBAL FINAL (ÚNICO E OBRIGATÓRIO)
 // ============================================================
+
 // 1. Navegação e UI
 window.openCart = openCart;
 window.closeCartModal = closeCartModal;

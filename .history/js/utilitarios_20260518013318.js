@@ -435,3 +435,80 @@ window.bulkChangeProductStatus = async (isActive) => {
 };
 
 
+// =================================================================
+// 👑 SISTEMA DE ORDENAÇÃO MANUAL DE PRODUTOS (BATCH EM LOTE)
+// =================================================================
+
+window.toggleProductReorderMode = async () => {
+    state.isReorderMode = !state.isReorderMode;
+    
+    const btn = document.getElementById('btn-reorder-mode');
+    const textBtn = document.getElementById('text-reorder-btn');
+
+    if (state.isReorderMode) {
+        // Altera o visual do botão para modo de salvamento
+        btn.className = "bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold h-10 shadow-lg transition flex items-center gap-2 text-xs uppercase tracking-wider animate-pulse";
+        textBtn.innerText = "Salvar Posições";
+        
+        // Garante que o modo de seleção em massa saia para não chocar as telas
+        state.isSelectionMode = false;
+        state.selectedProducts.clear();
+        
+        filterAndRenderProducts();
+        showToast("Modo de ordenação ativo. Use as setas para mover.", "info");
+    } else {
+        // Se o usuário clicou para SALVAR as posições
+        textBtn.innerText = "⏳ Gravando...";
+        btn.disabled = true;
+
+        try {
+            // Importa o comando writeBatch do pacote firebase para salvar em lote
+            const { writeBatch } = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+            const batch = writeBatch(db);
+
+            // Redistribui os pesos de 10 em 10 na sequência atual da memória RAM
+            state.products.forEach((prod, index) => {
+                const novoPeso = index * 10;
+                prod.order = novoPeso; // Atualiza local
+                
+                const docRef = doc(db, `sites/${state.siteId}/products`, prod.id);
+                batch.update(docRef, { order: novoPeso });
+            });
+
+            // Envia o malote inteiro de uma única vez para o Google
+            await batch.commit();
+
+            btn.className = "bg-gray-800 hover:bg-gray-700 text-yellow-500 border border-gray-700 hover:border-yellow-500 px-4 py-2 rounded font-bold h-10 shadow-lg transition flex items-center gap-2 text-xs uppercase tracking-wider";
+            textBtn.innerText = "Reordenar";
+            btn.disabled = false;
+
+            setCachedData(`prods_${state.siteId}`, state.products, 60);
+            renderCatalog(state.products);
+            filterAndRenderProducts();
+            
+            showToast("Nova ordem da vitrine salva com sucesso!", "success");
+        } catch (error) {
+            alert("Erro ao salvar ordenação: " + error.message);
+            textBtn.innerText = "Salvar Posições";
+            btn.disabled = false;
+        }
+    }
+};
+
+window.moveProductOrder = (id, direction) => {
+    // Acha a posição atual do produto dentro do array global ordenado
+    const currentIndex = state.products.findIndex(p => p.id === id);
+    if (currentIndex === -1) return;
+
+    // Calcula o destino
+    const targetIndex = currentIndex + direction;
+    if (targetIndex < 0 || targetIndex >= state.products.length) return; // Trava nas bordas
+
+    // Troca os dois de lugar no array local na memória do navegador
+    const temp = state.products[currentIndex];
+    state.products[currentIndex] = state.products[targetIndex];
+    state.products[targetIndex] = temp;
+
+    // Redesenha a lista do admin na hora (efeito visual instantâneo)
+    filterAndRenderProducts();
+};

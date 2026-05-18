@@ -433,5 +433,3 @@ window.bulkChangeProductStatus = async (isActive) => {
         document.body.style.cursor = 'default';
     }
 };
-
-

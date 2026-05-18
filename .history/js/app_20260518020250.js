@@ -9997,6 +9997,7 @@ window.executeCustomReport = () => {
         format: format,
         showCat: document.getElementById('rep-col-cat').checked,
         showStock: document.getElementById('rep-col-stock').checked,
+        
         showPrice: document.getElementById('rep-col-price').checked,
         showPromo: document.getElementById('rep-col-promo').checked,
         showCost: document.getElementById('rep-col-cost').checked
