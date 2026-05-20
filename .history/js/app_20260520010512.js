@@ -2345,7 +2345,7 @@ function renderProductsList(products, preCalcMetrics = null) {
         controlsBar.innerHTML = `
             <div class="flex gap-2 shrink-0">
                 <button onclick="toggleSelectionMode()" class="${selectBtnClass}">${selectBtnText}</button>
-                <button onclick="startReorderMode()" class="text-yellow-500 px-3 py-2 rounded text-xs font-bold uppercase transition flex items-center gap-2"><i class="fas fa-sort-amount-down"></i> Reorganizar</button>
+                <button onclick="startReorderMode()" class="bg-gray-800 hover:bg-gray-700 text-yellow-500 border border-gray-700 px-3 py-2 rounded text-xs font-bold uppercase transition flex items-center gap-2"><i class="fas fa-sort-amount-down"></i> Reorganizar</button>
             </div>
             ${bulkActionsHTML}
         `;
@@ -10319,12 +10319,7 @@ window.reorderProductsArray = (fromIndex, toIndex) => {
 };
 
 window.cancelReorder = () => {
-    // CORREÇÃO: Destrói o Arrastar ANTES de reconstruir a tela
-    if (window.productSortable) {
-        try { window.productSortable.destroy(); } catch(e){}
-        window.productSortable = null;
-    }
-
+    if (window.productSortable) window.productSortable.destroy();
     if (state.backupProductsStr) state.products = JSON.parse(state.backupProductsStr);
     state.isReorderMode = false;
     
@@ -10332,15 +10327,17 @@ window.cancelReorder = () => {
     showToast("Reorganização Cancelada.", "info");
 };
 
+window.resetReorderToDefault = () => {
+    state.products.sort(defaultProductSort);
+    state.products.forEach((p, index) => p.order = (index + 1) * 10);
+    renderProductsList(state.products);
+    window.startReorderMode(); 
+    showToast("Ordem padrão calculada! Destaque > Oferta > Novo.", "info");
+};
+
 window.saveReorder = async () => {
     const btn = document.querySelector('button[onclick="saveReorder()"]');
     if(btn) { btn.innerText = "⏳ Salvando..."; btn.disabled = true; }
-
-    // ✨ CORREÇÃO CRÍTICA: Destrói a biblioteca ANTES do Firebase começar a alterar a tela
-    if (window.productSortable) {
-        try { window.productSortable.destroy(); } catch(e){}
-        window.productSortable = null;
-    }
 
     try {
         const promises = state.products.map((p) => {
@@ -10350,6 +10347,7 @@ window.saveReorder = async () => {
         });
         await Promise.all(promises);
 
+        if (window.productSortable) window.productSortable.destroy();
         state.isReorderMode = false;
         state.backupProductsStr = null;
         
@@ -10364,15 +10362,6 @@ window.saveReorder = async () => {
         if(btn) { btn.innerText = "Salvar"; btn.disabled = false; }
     }
 };
-
-window.resetReorderToDefault = () => {
-    state.products.sort(defaultProductSort);
-    state.products.forEach((p, index) => p.order = (index + 1) * 10);
-    renderProductsList(state.products);
-    window.startReorderMode(); 
-    showToast("Ordem padrão calculada! Destaque > Oferta > Novo.", "info");
-};
-
 
 window.moveProductInReorder = (id, direction) => {
     // Como os produtos estão listados por 'order', podemos apenas achar o index e trocar os valores

@@ -2291,63 +2291,67 @@ function renderProductsList(products, preCalcMetrics = null) {
 
     listEl.innerHTML = '';
 
-    // --- 1. BARRA DE CONTROLES NOVA ---
+    // --- 1. BARRA DE CONTROLES NOVA (COM REORGANIZAR E ARRASTAR) ---
     const controlsBar = document.createElement('div');
     controlsBar.className = "flex flex-wrap justify-between items-center mb-2 px-1 gap-2 min-h-[40px] w-full";
 
-    const selectBtnText = state.isSelectionMode ? '<i class="fas fa-times mr-2"></i> Cancelar' : '<i class="fas fa-check-square mr-2"></i> Selecionar';
-    const selectBtnClass = state.isSelectionMode ? "text-red-400 hover:text-red-300 text-xs font-bold uppercase cursor-pointer py-2 px-2 bg-red-900/20 rounded border border-red-900/50" : "text-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase cursor-pointer py-2 px-2 hover:bg-yellow-900/20 rounded transition";
-
-    let bulkActionsHTML = '';
-    if (state.isSelectionMode && state.selectedProducts.size > 0) {
-        bulkActionsHTML = `
-            <div class="flex items-center gap-2 animate-fade-in bg-[#151720] border border-gray-700 rounded p-1 shadow-lg flex-1 justify-end overflow-x-auto custom-scrollbar">
-                <span class="text-white text-[10px] font-bold bg-blue-600 px-2 py-1 rounded ml-1 whitespace-nowrap shrink-0">${state.selectedProducts.size} <span class="hidden sm:inline">item(s)</span></span>
-                
-                <button onclick="bulkChangeProductStatus(true)" class="bg-green-600 hover:bg-green-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0" title="Ativar">
-                    <i class="fas fa-eye"></i> <span class="hidden sm:inline">Ativar</span>
-                </button>
-                <button onclick="bulkChangeProductStatus(false)" class="bg-orange-600 hover:bg-orange-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0" title="Inativar">
-                    <i class="fas fa-eye-slash"></i> <span class="hidden sm:inline">Inativar</span>
-                </button>
-                
-                <div class="w-px bg-gray-600 h-4 mx-1 shrink-0"></div>
-
-                <select id="bulk-category-select-dynamic" class="bg-black text-white text-[10px] border border-gray-600 rounded px-1 h-7 outline-none w-24 sm:w-auto shrink-0">
-                    <option value="">Mover...</option>${state.categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
-                </select>
-                
-                <button onclick="bulkMoveDynamic()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0">
-                    <i class="fas fa-exchange-alt sm:hidden"></i> <span class="hidden sm:inline">Mover</span>
-                </button>
-                
-                <div class="w-px bg-gray-600 h-4 mx-1 shrink-0"></div>
-                
-                <button onclick="document.getElementById('btn-bulk-delete').click()" class="bg-red-600 hover:bg-red-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0">
-                    <i class="fas fa-trash-alt sm:hidden"></i> <span class="hidden sm:inline">Excluir</span>
-                </button>
-            </div>
-        `;
-    }
-
     if (state.isReorderMode) {
+        // BARRA QUANDO ESTÁ REORGANIZANDO
         controlsBar.innerHTML = `
             <div class="flex w-full justify-between items-center bg-blue-900/20 border border-blue-500/50 p-2 rounded-lg animate-fade-in shadow-sm">
                 <span class="text-blue-400 font-bold text-xs uppercase tracking-wider"><i class="fas fa-arrows-alt-v mr-1"></i> Arraste para Reordenar</span>
                 <div class="flex gap-2">
-                    <button onclick="resetReorderToDefault()" class="bg-gray-800 hover:bg-gray-700 text-white px-3 h-8 rounded text-xs font-bold transition flex items-center gap-2"><i class="fas fa-magic"></i> Padrão</button>
+                    <button onclick="resetReorderToDefault()" class="bg-gray-800 hover:bg-gray-700 text-white px-3 h-8 rounded text-xs font-bold transition flex items-center gap-2" title="Destaque > Oferta > Novos"><i class="fas fa-magic"></i> Padrão</button>
                     <button onclick="cancelReorder()" class="bg-red-900/50 hover:bg-red-600 text-red-400 hover:text-white px-3 h-8 rounded text-xs font-bold transition">Cancelar</button>
                     <button onclick="saveReorder()" class="bg-green-600 hover:bg-green-500 text-white px-4 h-8 rounded text-xs font-bold transition flex items-center gap-2 shadow-lg"><i class="fas fa-save"></i> Salvar</button>
                 </div>
             </div>
         `;
     } else {
+        // BARRA NORMAL
+        const selectBtnText = state.isSelectionMode ? '<i class="fas fa-times mr-2"></i> Cancelar' : '<i class="fas fa-check-square mr-2"></i> Selecionar';
+        const selectBtnClass = state.isSelectionMode ? "text-red-400 hover:text-red-300 text-xs font-bold uppercase cursor-pointer py-2 px-2 bg-red-900/20 rounded border border-red-900/50" : "text-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase cursor-pointer py-2 px-2 hover:bg-yellow-900/20 rounded transition";
+
+        let bulkActionsHTML = '';
+        if (state.isSelectionMode && state.selectedProducts.size > 0) {
+            bulkActionsHTML = `
+                <div class="flex items-center gap-2 animate-fade-in bg-[#151720] border border-gray-700 rounded p-1 shadow-lg flex-1 justify-end overflow-x-auto custom-scrollbar">
+                    <span class="text-white text-[10px] font-bold bg-blue-600 px-2 py-1 rounded ml-1 whitespace-nowrap shrink-0">${state.selectedProducts.size} <span class="hidden sm:inline">item(s)</span></span>
+                    
+                    <button onclick="bulkChangeProductStatus(true)" class="bg-green-600 hover:bg-green-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0" title="Ativar">
+                        <i class="fas fa-eye"></i> <span class="hidden sm:inline">Ativar</span>
+                    </button>
+                    <button onclick="bulkChangeProductStatus(false)" class="bg-orange-600 hover:bg-orange-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0" title="Inativar">
+                        <i class="fas fa-eye-slash"></i> <span class="hidden sm:inline">Inativar</span>
+                    </button>
+                    
+                    <div class="w-px bg-gray-600 h-4 mx-1 shrink-0"></div>
+
+                    <select id="bulk-category-select-dynamic" class="bg-black text-white text-[10px] border border-gray-600 rounded px-1 h-7 outline-none w-24 sm:w-auto shrink-0">
+                        <option value="">Mover...</option>${state.categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+                    </select>
+                    
+                    <button onclick="bulkMoveDynamic()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0">
+                        <i class="fas fa-exchange-alt sm:hidden"></i> <span class="hidden sm:inline">Mover</span>
+                    </button>
+                    
+                    <div class="w-px bg-gray-600 h-4 mx-1 shrink-0"></div>
+                    
+                    <button onclick="document.getElementById('btn-bulk-delete').click()" class="bg-red-600 hover:bg-red-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0">
+                        <i class="fas fa-trash-alt sm:hidden"></i> <span class="hidden sm:inline">Excluir</span>
+                    </button>
+                </div>
+            `;
+        }
+
         controlsBar.innerHTML = `
-            <div class="flex gap-2 shrink-0">
-                <button onclick="toggleSelectionMode()" class="${selectBtnClass}">${selectBtnText}</button>
-                <button onclick="startReorderMode()" class="text-yellow-500 px-3 py-2 rounded text-xs font-bold uppercase transition flex items-center gap-2"><i class="fas fa-sort-amount-down"></i> Reorganizar</button>
+            <div class="flex flex-wrap items-center justify-between w-full gap-2">
+                <div class="flex gap-2 shrink-0">
+                    <button onclick="toggleSelectionMode()" class="${selectBtnClass}">${selectBtnText}</button>
+                    <button onclick="startReorderMode()" class="bg-gray-800 hover:bg-gray-700 text-yellow-500 border border-gray-700 px-3 py-2 rounded text-xs font-bold uppercase transition flex items-center gap-2"><i class="fas fa-sort-amount-down"></i> Reorganizar</button>
+                </div>
+                ${bulkActionsHTML}
             </div>
-            ${bulkActionsHTML}
         `;
     }
 
@@ -2368,7 +2372,7 @@ function renderProductsList(products, preCalcMetrics = null) {
     const headerHTML = `
         <div class="hidden md:grid grid-cols-12 gap-2 bg-[#1f1f1f] text-gray-400 font-bold p-3 rounded-t-xl text-[10px] uppercase tracking-wider border-b border-gray-800 sticky top-0 z-20 select-none items-center shadow-lg">
             ${state.isReorderMode ? `
-                <div class="col-span-2 text-center border-r border-gray-700 text-yellow-500">Mover / Nº</div>
+                <div class="col-span-2 text-center border-r border-gray-700 text-yellow-500">Nº e Cód</div>
             ` : `
                 <div class="${state.isSelectionMode ? 'col-span-1 block' : 'hidden'} text-center flex items-center justify-center">${checkColContent}</div>
                 <div class="${state.isSelectionMode ? 'col-span-1' : 'col-span-1'} text-center border-r border-gray-700 cursor-pointer hover:text-white flex items-center justify-left h-full" onclick="sortProducts('code')">Cód ${getSortIcon('code')}</div>
@@ -2387,7 +2391,6 @@ function renderProductsList(products, preCalcMetrics = null) {
     `;
 
     const scrollContainer = document.createElement('div');
-    scrollContainer.id = 'admin-product-scroll-container'; // ID Adicionado para o arrastar
     scrollContainer.className = "max-h-[65vh] overflow-y-auto overflow-x-hidden border-x border-b border-gray-800 rounded-b-xl bg-[#0f111a] custom-scrollbar relative";
     listEl.insertAdjacentHTML('beforeend', headerHTML);
     listEl.appendChild(scrollContainer);
@@ -2440,19 +2443,20 @@ function renderProductsList(products, preCalcMetrics = null) {
 
         const deleteBgClass = state.isSelectionMode || state.isReorderMode ? 'hidden' : 'absolute inset-y-0 right-0 w-24 bg-red-600 flex items-center justify-center cursor-pointer z-0';
 
-        // MUDANÇA: Verifica se é modo reorganizar para exibir as barras de arrasto
         let selectionOrReorderHTML = '';
         if (state.isReorderMode) {
+            // MODO DE REORDENAÇÃO: Ícone de Arrasto + Numeração
             selectionOrReorderHTML = `
-                <div class="md:col-span-1 flex items-center justify-center shrink-0 border-r border-gray-800 h-full drag-handle cursor-grab text-gray-500 hover:text-yellow-500 transition px-3">
-                    <i class="fas fa-grip-lines text-xl pointer-events-none"></i>
+                <div class="flex items-center justify-center md:col-span-1 shrink-0 px-2 text-gray-500 hover:text-yellow-500 transition cursor-move" title="Arraste para reordenar">
+                     <i class="fas fa-grip-lines text-xl"></i>
                 </div>
                 <div class="hidden md:flex flex-col md:col-span-1 items-center justify-center border-r border-gray-800 h-full shrink-0">
-                    <span class="text-[11px] font-bold text-yellow-500 mb-0.5">Nº ${index + 1}</span>
-                    <span class="text-[9px] font-bold text-white opacity-50">#${codeStr}</span>
+                    <span class="text-xs text-yellow-500 font-bold mb-0.5">Nº ${index + 1}</span>
+                    <span class="text-[10px] font-bold text-white opacity-50">#${codeStr}</span>
                 </div>
             `;
         } else {
+            // MODO NORMAL (Checkbox)
             selectionOrReorderHTML = `
                 <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center shrink-0">
                      <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
@@ -2466,7 +2470,6 @@ function renderProductsList(products, preCalcMetrics = null) {
 
         const row = document.createElement('div');
         row.className = `relative overflow-hidden border-b border-gray-800 last:border-0 select-none group`;
-        if (state.isReorderMode) row.dataset.id = p.id; // Permite identificar quem está sendo arrastado
         row.ondblclick = () => editProduct(p.id);
 
         row.innerHTML = `
@@ -2508,10 +2511,78 @@ function renderProductsList(products, preCalcMetrics = null) {
             </div>
         `;
         
-        // Desativa a funcionalidade de escorregar para a lixeira enquanto arrasta (para não bugar o dedo no celular)
-        if (!state.isReorderMode) {
+        // --- 4. LÓGICA DE ARRASTAR E SOLTAR (Nativa HTML5 + Celular) ---
+        if (state.isReorderMode) {
+            row.draggable = true;
+            row.dataset.index = index;
+            row.classList.add('drag-product-item', 'cursor-move');
+
+            // Mouse Drag API (Computador)
+            row.addEventListener('dragstart', (e) => {
+                window.draggedProdIndex = index;
+                e.dataTransfer.effectAllowed = 'move';
+                setTimeout(() => row.classList.add('opacity-30'), 0);
+            });
+            row.addEventListener('dragend', () => {
+                row.classList.remove('opacity-30');
+                document.querySelectorAll('.drag-product-item').forEach(el => el.classList.remove('border-t-2', 'border-yellow-500'));
+            });
+            row.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                row.classList.add('border-t-2', 'border-yellow-500');
+            });
+            row.addEventListener('dragleave', () => {
+                row.classList.remove('border-t-2', 'border-yellow-500');
+            });
+            row.addEventListener('drop', (e) => {
+                e.preventDefault();
+                row.classList.remove('border-t-2', 'border-yellow-500');
+                if (window.draggedProdIndex !== null && window.draggedProdIndex !== index) {
+                    window.reorderProductsArray(window.draggedProdIndex, index);
+                }
+            });
+
+            // Touch API (Celular)
+            row.addEventListener('touchstart', (e) => {
+                if (e.target.closest('button') || e.target.tagName === 'INPUT') return;
+                window.draggedProdIndex = index;
+                row.classList.add('opacity-50', 'ring-2', 'ring-yellow-500', 'z-50');
+            }, { passive: true });
+
+            row.addEventListener('touchmove', (e) => {
+                if (window.draggedProdIndex === null) return;
+                e.preventDefault(); // Impede a tela do celular de descer enquanto arrasta
+                const touch = e.touches[0];
+                const element = document.elementFromPoint(touch.clientX, touch.clientY);
+                document.querySelectorAll('.drag-product-item').forEach(el => el.classList.remove('border-t-2', 'border-yellow-500'));
+                if (element) {
+                    const targetEl = element.closest('.drag-product-item');
+                    if (targetEl && targetEl !== row) targetEl.classList.add('border-t-2', 'border-yellow-500');
+                }
+            }, { passive: false });
+
+            row.addEventListener('touchend', (e) => {
+                if (window.draggedProdIndex === null) return;
+                const touch = e.changedTouches[0];
+                const element = document.elementFromPoint(touch.clientX, touch.clientY);
+                const targetEl = element ? element.closest('.drag-product-item') : null;
+
+                row.classList.remove('opacity-50', 'ring-2', 'ring-yellow-500', 'z-50');
+                document.querySelectorAll('.drag-product-item').forEach(el => el.classList.remove('border-t-2', 'border-yellow-500'));
+
+                if (targetEl) {
+                    const targetIndex = parseInt(targetEl.dataset.index);
+                    if (window.draggedProdIndex !== targetIndex) {
+                        window.reorderProductsArray(window.draggedProdIndex, targetIndex);
+                    }
+                }
+                window.draggedProdIndex = null;
+            });
+        } else {
+            // Se não estiver em modo de reordenação, permite o "arrastar" comum que apaga
             setupSwipe(row.querySelector('.prod-swipe-content'));
         }
+
         scrollContainer.appendChild(row);
     });
 }
@@ -10201,7 +10272,7 @@ window.bulkChangeProductStatus = async (isActive) => {
 
 
 // =================================================================
-// 🧠 LÓGICA DE REORGANIZAÇÃO (COM DRAG & DROP PROFISSIONAL)
+// 🧠 LÓGICA DE REORGANIZAÇÃO (COM DRAG & DROP PROFISSIONAL E SCROLL AUTO)
 // =================================================================
 
 function defaultProductSort(a, b) {
@@ -10213,20 +10284,18 @@ function defaultProductSort(a, b) {
     const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
     if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
 
-    const codeA = parseInt(a.code) || 0;
-    const codeB = parseInt(b.code) || 0;
-    return codeB - codeA;
+    return (parseInt(b.code) || 0) - (parseInt(a.code) || 0);
 }
 
 function catalogProductSort(a, b) {
-    const orderA = a.order !== undefined && a.order !== null ? parseFloat(a.order) : 999999;
-    const orderB = b.order !== undefined && b.order !== null ? parseFloat(b.order) : 999999;
+    const orderA = a.order !== undefined ? parseFloat(a.order) : 999999;
+    const orderB = b.order !== undefined ? parseFloat(b.order) : 999999;
     if (orderA !== orderB) return orderA - orderB;
     return defaultProductSort(a, b);
 }
 
 window.startReorderMode = async () => {
-    // 1. Limpa Filtros
+    // 1. Limpa os filtros
     const searchInput = document.getElementById('admin-search-prod');
     const catInput = document.getElementById('admin-filter-cat');
     const statusInput = document.getElementById('admin-filter-status');
@@ -10234,17 +10303,16 @@ window.startReorderMode = async () => {
     if(catInput) catInput.value = '';
     if(statusInput) statusInput.value = '';
 
-    // 2. Prepara os Dados
+    // 2. Prepara o Modo
     state.backupProductsStr = JSON.stringify(state.products);
     state.isReorderMode = true;
     state.products.sort(catalogProductSort);
     state.products.forEach((p, index) => p.order = (index + 1) * 10);
     
-    // Desenha a tela
     renderProductsList(state.products);
-    showToast("Segure nas barrinhas para arrastar e reordenar.", "info");
+    showToast("Segure as barras e arraste para reordenar.", "info");
 
-    // 3. Importa a Biblioteca de Física Dinamicamente (Se já não existir)
+    // 🚀 3. MÁGICA: Injeta o SortableJS Dinamicamente
     if (!window.Sortable) {
         await new Promise(resolve => {
             const script = document.createElement('script');
@@ -10254,12 +10322,15 @@ window.startReorderMode = async () => {
         });
     }
 
-    // 4. CSS que faz o item arrastado flutuar e deixa o "buraco" vazio na lista original
+    // 4. Cria o CSS do Efeito Flutuante e Espaço Vazio
     if (!document.getElementById('sortable-custom-styles')) {
         const style = document.createElement('style');
         style.id = 'sortable-custom-styles';
         style.innerHTML = `
+            /* Deixa a posição original 'vazia' / invisível */
             .sortable-ghost { opacity: 0 !important; } 
+            
+            /* O clone que o cliente arrasta na mão (flutuando com sombra) */
             .sortable-drag { 
                 background-color: #1c1f2b !important; 
                 box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8) !important; 
@@ -10270,61 +10341,47 @@ window.startReorderMode = async () => {
                 opacity: 0.95 !important;
                 cursor: grabbing !important;
             }
-            .drag-handle { touch-action: none; }
         `;
         document.head.appendChild(style);
     }
 
-    // 5. Inicia o Controle
-    const container = document.getElementById('admin-product-scroll-container');
+    const container = document.querySelector('#admin-product-list .custom-scrollbar');
     if (!container) return;
 
+    // Destrói instância velha se houver
     if (window.productSortable) window.productSortable.destroy();
 
+    // 5. Inicia o Controle de Arrasto
     window.productSortable = new Sortable(container, {
-        animation: 250, 
-        handle: '.drag-handle', // SÓ permite pegar pelo ícone das barrinhas
-        forceFallback: true, 
-        fallbackClass: 'sortable-drag', // O card que levanta na mão
-        ghostClass: 'sortable-ghost', // O espaço invisível que fica para trás
-        scroll: true, // Faz a tela rolar quando encostar na borda
-        scrollSensitivity: 80,
+        animation: 250, // Deixa tudo super fluido
+        handle: '.drag-handle', // SÓ pode pegar pelo ícone
+        forceFallback: true, // Força o modo clone para celulares
+        fallbackClass: 'sortable-drag', // O item na mão
+        ghostClass: 'sortable-ghost', // O item no chão (vazio)
+        scroll: true, // Habilita SCROLL AUTOMÁTICO
+        scrollSensitivity: 80, // Quão perto da borda começa a rolar
         scrollSpeed: 15,
         onEnd: function (evt) {
             if(evt.newIndex !== evt.oldIndex) {
-                // Atualiza o array baseado de onde você tirou e onde soltou
+                // Atualiza o array na memória de acordo com o arrasto
                 const movedItem = state.products.splice(evt.oldIndex, 1)[0];
                 state.products.splice(evt.newIndex, 0, movedItem);
                 
-                // Recalcula o peso
+                // Recalcula os pesos de 10 em 10
                 state.products.forEach((p, i) => p.order = (i + 1) * 10);
                 
-                // Redesenha e reinicia o observador
+                // Redesenha para os números ficarem certos na tela (1, 2, 3...)
                 renderProductsList(state.products);
+                
+                // Como redesenhamos o HTML inteiro, tem que ligar o arrastar de novo!
                 window.startReorderMode(); 
             }
         }
     });
 };
 
-window.reorderProductsArray = (fromIndex, toIndex) => {
-    const movedItem = state.products.splice(fromIndex, 1)[0];
-    state.products.splice(toIndex, 0, movedItem);
-    
-    // Atualiza os pesos locais
-    state.products.forEach((p, index) => p.order = (index + 1) * 10);
-    
-    // Renderiza direto a lista sem passar pelo filtro/ordenação das colunas
-    renderProductsList(state.products);
-};
-
 window.cancelReorder = () => {
-    // CORREÇÃO: Destrói o Arrastar ANTES de reconstruir a tela
-    if (window.productSortable) {
-        try { window.productSortable.destroy(); } catch(e){}
-        window.productSortable = null;
-    }
-
+    if (window.productSortable) window.productSortable.destroy();
     if (state.backupProductsStr) state.products = JSON.parse(state.backupProductsStr);
     state.isReorderMode = false;
     
@@ -10332,17 +10389,20 @@ window.cancelReorder = () => {
     showToast("Reorganização Cancelada.", "info");
 };
 
+window.resetReorderToDefault = () => {
+    state.products.sort(defaultProductSort);
+    state.products.forEach((p, index) => p.order = (index + 1) * 10);
+    renderProductsList(state.products);
+    window.startReorderMode(); // Religa o arrastar
+    showToast("Ordem padrão calculada! Destaque > Oferta > Novo.", "info");
+};
+
 window.saveReorder = async () => {
     const btn = document.querySelector('button[onclick="saveReorder()"]');
     if(btn) { btn.innerText = "⏳ Salvando..."; btn.disabled = true; }
 
-    // ✨ CORREÇÃO CRÍTICA: Destrói a biblioteca ANTES do Firebase começar a alterar a tela
-    if (window.productSortable) {
-        try { window.productSortable.destroy(); } catch(e){}
-        window.productSortable = null;
-    }
-
     try {
+        // Grava no banco todos os produtos (Promise.all garante o lote seguro sem CORS)
         const promises = state.products.map((p) => {
             if (p.order !== undefined) {
                 return updateDoc(doc(db, `sites/${state.siteId}/products`, p.id), { order: p.order });
@@ -10350,6 +10410,7 @@ window.saveReorder = async () => {
         });
         await Promise.all(promises);
 
+        if (window.productSortable) window.productSortable.destroy();
         state.isReorderMode = false;
         state.backupProductsStr = null;
         
@@ -10357,22 +10418,13 @@ window.saveReorder = async () => {
         if (typeof renderCatalog === 'function') renderCatalog(state.products);
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
         
-        showToast("Nova ordem salva com sucesso!", "success");
+        showToast("Nova ordem do catálogo salva com sucesso!", "success");
     } catch (e) {
         alert("Erro ao salvar: " + e.message);
     } finally {
         if(btn) { btn.innerText = "Salvar"; btn.disabled = false; }
     }
 };
-
-window.resetReorderToDefault = () => {
-    state.products.sort(defaultProductSort);
-    state.products.forEach((p, index) => p.order = (index + 1) * 10);
-    renderProductsList(state.products);
-    window.startReorderMode(); 
-    showToast("Ordem padrão calculada! Destaque > Oferta > Novo.", "info");
-};
-
 
 window.moveProductInReorder = (id, direction) => {
     // Como os produtos estão listados por 'order', podemos apenas achar o index e trocar os valores

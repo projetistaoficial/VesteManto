@@ -1174,70 +1174,30 @@ function loadSettings() {
     });
 }
 
-// Variável global para evitar que o ouvinte seja duplicado sem querer
-let unsubscribeProducts = null;
-
 async function loadProducts() {
+    // Tenta cache de 5 minutos para produtos para evitar leituras no F5 frenético
     const cacheKey = `prods_${state.siteId}`;
+    const cached = getCachedData(cacheKey, 5);
 
-    // 1. CARGA IMEDIATA (Zero delay visual)
-    // Lê do cache local para pintar a tela instantaneamente enquanto o Firebase conecta
-    const cached = getCachedData(cacheKey, 60); // Mantemos no cache por 60 min
-    if (cached && state.products.length === 0) {
+    if (cached) {
         state.products = cached;
         renderCatalog(state.products);
+        
+        // ✨ CORREÇÃO: Pede para as categorias se redesenharem agora que os produtos chegaram do cache!
         if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
+        return;
     }
 
-    // 2. OUVINTE INTELIGENTE (Real-time Econômico)
-    if (unsubscribeProducts) unsubscribeProducts(); // Previne duplicidade
-
     const q = query(collection(db, `sites/${state.siteId}/products`));
+    const snapshot = await getDocs(q); // getDocs = 1 leitura por produto, uma única vez.
+    state.products = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    setCachedData(cacheKey, state.products, 5);
+    renderCatalog(state.products);
     
-    // O onSnapshot substitui o getDocs. Ele lê tudo na 1ª vez e depois escuta SÓ o que mudar.
-    unsubscribeProducts = onSnapshot(q, (snapshot) => {
-        let hasChanges = false;
-
-        snapshot.docChanges().forEach((change) => {
-            hasChanges = true;
-            const prodData = { id: change.doc.id, ...change.doc.data() };
-
-            if (change.type === 'added') {
-                // Adiciona o produto novo ou atualiza se já veio do cache
-                const idx = state.products.findIndex(p => p.id === prodData.id);
-                if (idx === -1) state.products.push(prodData);
-                else state.products[idx] = prodData;
-            }
-            if (change.type === 'modified') {
-                // Se você editou preço, estoque ou nome, ele atualiza só esse objeto na memória
-                const idx = state.products.findIndex(p => p.id === prodData.id);
-                if (idx !== -1) state.products[idx] = prodData;
-            }
-            if (change.type === 'removed') {
-                // Se você excluiu no painel, ele some da tela do cliente
-                state.products = state.products.filter(p => p.id !== prodData.id);
-            }
-        });
-
-        // Se o Firebase avisar que algo mudou, atualizamos a interface na mesma hora
-        if (hasChanges) {
-            // Salva o novo estado no seu cache silenciosamente
-            setCachedData(cacheKey, state.products, 60);
-
-            // Atualiza a vitrine principal
-            renderCatalog(state.products);
-            
-            // Atualiza os contadores das categorias (se houver menu lateral aberto)
-            if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
-
-            // Se o admin estiver com a aba "Estoque" aberta, a tabela atualiza sozinha também!
-            if (document.getElementById('admin-product-list')) {
-                if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-            }
-        }
-    });
+    // ✨ CORREÇÃO: Pede para as categorias se redesenharem agora que os produtos chegaram do banco!
+    if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
 }
-
 
 // --- FUNÇÃO AUXILIAR DE CACHE ---
 const getCachedData = (key, minutes = 30) => {
@@ -1256,7 +1216,7 @@ const setCachedData = (key, value, minutes = 30) => {
         value: value,
         expiry: now + (minutes * 60 * 1000)
     };
-
+    
     try {
         // Tenta salvar no cache do navegador
         localStorage.setItem(key, JSON.stringify(item));
@@ -1264,9 +1224,9 @@ const setCachedData = (key, value, minutes = 30) => {
         // Se o cache encher (geralmente por causa do peso das imagens Base64), 
         // ele ignora o erro pacificamente para não travar o site do cliente.
         console.warn(`⚠️ Cache ignorado para '${key}': Limite de 5MB do navegador atingido.`);
-
+        
         // Remove a chave para não deixar lixo corrompido na memória
-        try { localStorage.removeItem(key); } catch (e) { }
+        try { localStorage.removeItem(key); } catch(e){}
     }
 };
 
@@ -1297,7 +1257,7 @@ async function loadCategories() {
 window.moveCategory = async (id, fullPath, direction) => {
     // 1. Descobre quem é o "Pai" desta categoria para mexer apenas nas irmãs dela
     const parts = fullPath.split(' - ');
-    parts.pop();
+    parts.pop(); 
     const parentPath = parts.length > 0 ? parts.join(' - ') : null;
 
     // 2. Filtra as categorias que estão no mesmo nível (mesmo pai)
@@ -1746,7 +1706,7 @@ function renderCatalog(productsToRender) {
     if (!els.grid) return;
     els.grid.innerHTML = '';
 
-    let filtered = [...productsToRender].filter(p => p.active !== false);
+    let filtered = [...productsToRender];
     const searchTerm = document.getElementById('search-input')?.value.toLowerCase();
     const catTerm = document.getElementById('category-filter')?.value;
 
@@ -1761,43 +1721,37 @@ function renderCatalog(productsToRender) {
 
     const sortMode = document.getElementById('sort-filter')?.value || 'vitrine';
 
-    // ✨ ARMADURA: FORÇA O ESTOQUE PARA NÚMERO
+    // ✨ ARMADURA: FORÇA O ESTOQUE PARA NÚMERO (Se for vazio ou NaN, vira 0) ✨
     const getSafeStock = (val) => isNaN(parseInt(val)) ? 0 : parseInt(val);
 
     filtered.sort((a, b) => {
+        const priceA = parseFloat(a.promoPrice || a.price) || 0;
+        const priceB = parseFloat(b.promoPrice || b.price) || 0;
+        const codeA = parseInt(a.code) || 0;
+        const codeB = parseInt(b.code) || 0;
+
         const stockA = getSafeStock(a.stock);
         const stockB = getSafeStock(b.stock);
 
         const isSoldOutA = stockA <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
         const isSoldOutB = stockB <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
 
-        // Itens esgotados sempre vão pro final (se o sistema bloquear venda sem estoque)
         if (isSoldOutA && !isSoldOutB) return 1;
         if (!isSoldOutA && isSoldOutB) return -1;
 
         switch (sortMode) {
             case 'vitrine':
-                // 1. REGRA SOBERANA: Ordem Manual
-                // Se você arrastou o produto, ele ganha um número de ordem. Esse número manda em tudo!
-                const orderA = a.order !== undefined && a.order !== null ? parseFloat(a.order) : 999999;
-                const orderB = b.order !== undefined && b.order !== null ? parseFloat(b.order) : 999999;
-
-                if (orderA !== orderB) return orderA - orderB;
-
-                // 2. SE NÃO TIVER ORDEM MANUAL (ou clicar no botão Padrão), aplica a hierarquia:
-                const isHighlightA = a.highlight === true ? 1 : 0;
-                const isHighlightB = b.highlight === true ? 1 : 0;
-                if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA;
-
-                const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
-                const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
-                if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
-
-                const codeA = parseInt(a.code) || 0;
-                const codeB = parseInt(b.code) || 0;
+                if (a.highlight === true && b.highlight !== true) return -1;
+                if (a.highlight !== true && b.highlight === true) return 1;
+                const hasOfferA = (a.promoPrice && parseFloat(a.promoPrice) > 0);
+                const hasOfferB = (b.promoPrice && parseFloat(b.promoPrice) > 0);
+                if (hasOfferA && !hasOfferB) return -1;
+                if (!hasOfferA && hasOfferB) return 1;
                 return codeB - codeA;
-
-            // (Pode adicionar outros cases aqui se você tiver opções como "Maior Preço", "Menor Preço" no select)
+            case 'price-asc': return priceA - priceB;
+            case 'price-desc': return priceB - priceA;
+            case 'name-asc': return (a.name || '').localeCompare(b.name || '');
+            default: return codeB - codeA;
         }
     });
 
@@ -1811,8 +1765,11 @@ function renderCatalog(productsToRender) {
 
     filtered.forEach(p => {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
+
+        // ✨ APLICA A ARMADURA AQUI TAMBÉM ✨
         const currentStock = getSafeStock(p.stock);
         const isOut = currentStock <= 0 && !allowNegative;
+
         const currentPrice = parseFloat(p.promoPrice || p.price);
 
         let pixHtml = '';
@@ -2051,8 +2008,8 @@ window.renameCategory = async (id, oldFullName) => {
     if (!newNameShort || newNameShort.trim() === "") return;
 
     const parts = oldFullName.split(' - ');
-    parts.pop();
-    parts.push(newNameShort.trim());
+    parts.pop(); 
+    parts.push(newNameShort.trim()); 
     const newFullName = parts.join(' - ');
 
     if (newFullName === oldFullName) return;
@@ -2101,11 +2058,14 @@ window.renameCategory = async (id, oldFullName) => {
 // =================================================================
 // NOVA LÓGICA DE PRODUTOS (ADMIN)
 // =================================================================
+
 // 1. Filtra e Ordena (Substitui a lógica antiga)
 function filterAndRenderProducts() {
-    updateProductCountsUI();
+    // 1. Filtra
     let filtered = getCurrentFilteredProducts();
-    
+
+    // 2. Prepara Métricas (Para poder ordenar por elas)
+    // Precisamos saber as vendas de cada produto ANTES de ordenar
     const metricsMap = {};
     const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
 
@@ -2114,7 +2074,7 @@ function filterAndRenderProducts() {
             if (validStatuses.includes(order.status)) {
                 const orderDate = new Date(order.date);
                 order.items.forEach(item => {
-                    if (!metricsMap[item.id]) metricsMap[item.id] = { qtd: 0, lastDate: 0 };
+                    if (!metricsMap[item.id]) metricsMap[item.id] = { qtd: 0, lastDate: 0 }; // 0 para facilitar sort
                     metricsMap[item.id].qtd += (parseInt(item.qty) || 0);
                     if (orderDate.getTime() > metricsMap[item.id].lastDate) {
                         metricsMap[item.id].lastDate = orderDate.getTime();
@@ -2124,112 +2084,66 @@ function filterAndRenderProducts() {
         });
     }
 
-    if (state.isReorderMode) {
-        // MODO REORGANIZAR: Ordem manual é a lei suprema!
-        filtered.sort((a, b) => {
-            const orderA = a.order !== undefined && a.order !== null ? parseFloat(a.order) : 999999;
-            const orderB = b.order !== undefined && b.order !== null ? parseFloat(b.order) : 999999;
+    // 3. Ordena
+    const { key, direction } = state.sortConfig;
 
-            if (orderA !== orderB) return orderA - orderB;
+    filtered.sort((a, b) => {
+        let valA, valB;
 
-            const isHighlightA = a.highlight === true ? 1 : 0;
-            const isHighlightB = b.highlight === true ? 1 : 0;
-            if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA;
+        // Define os valores baseados na coluna clicada
+        switch (key) {
+            case 'code':
+                valA = a.code ? parseInt(a.code) : 0;
+                valB = b.code ? parseInt(b.code) : 0;
+                break;
+            case 'product':
+                valA = a.name.toLowerCase();
+                valB = b.name.toLowerCase();
+                break;
+            case 'stock':
+                valA = parseInt(a.stock) || 0;
+                valB = parseInt(b.stock) || 0;
+                break;
+            case 'price':
+                valA = parseFloat(a.price) || 0;
+                valB = parseFloat(b.price) || 0;
+                break;
+            case 'sales': // Ordenar por vendas
+                valA = metricsMap[a.id]?.qtd || 0;
+                valB = metricsMap[b.id]?.qtd || 0;
+                break;
+            case 'lastmov': // Ordenar por data
+                valA = metricsMap[a.id]?.lastDate || 0;
+                valB = metricsMap[b.id]?.lastDate || 0;
+                break;
+            default: return 0;
+        }
 
-            const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
-            const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
-            if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
+        // Lógica Asc/Desc
+        if (valA < valB) return direction === 'asc' ? -1 : 1;
+        if (valA > valB) return direction === 'asc' ? 1 : -1;
+        return 0;
+    });
 
-            return (parseInt(b.code) || 0) - (parseInt(a.code) || 0);
-        });
-    } else {
-        // MODO NORMAL (Ordena pelo clique nas colunas: Cód, Produto, Valor...)
-        const { key, direction } = state.sortConfig;
-
-        filtered.sort((a, b) => {
-            let valA, valB;
-
-            switch (key) {
-                case 'code':
-                    valA = a.code ? parseInt(a.code) : 0;
-                    valB = b.code ? parseInt(b.code) : 0;
-                    break;
-                case 'product':
-                    valA = a.name.toLowerCase();
-                    valB = b.name.toLowerCase();
-                    break;
-                case 'stock':
-                    valA = parseInt(a.stock) || 0;
-                    valB = parseInt(b.stock) || 0;
-                    break;
-                case 'price':
-                    valA = parseFloat(a.price) || 0;
-                    valB = parseFloat(b.price) || 0;
-                    break;
-                case 'sales': 
-                    valA = metricsMap[a.id]?.qtd || 0;
-                    valB = metricsMap[b.id]?.qtd || 0;
-                    break;
-                case 'lastmov': 
-                    valA = metricsMap[a.id]?.lastDate || 0;
-                    valB = metricsMap[b.id]?.lastDate || 0;
-                    break;
-                default: return 0;
-            }
-
-            if (valA < valB) return direction === 'asc' ? -1 : 1;
-            if (valA > valB) return direction === 'asc' ? 1 : -1;
-            return 0;
-        });
-    }
-
+    // 4. Renderiza passando as métricas calculadas (para não calcular de novo)
     renderProductsList(filtered, metricsMap);
 }
 
-// --- LÓGICA DE ORDENAÇÃO E FILTRAGEM ---
+
+
+// --- LÓGICA DE ORDENAÇÃO ---
 function getCurrentFilteredProducts() {
     const searchInput = els.adminSearchProd || getEl('admin-search-prod');
     const categoryInput = els.adminFilterCat || getEl('admin-filter-cat');
-    const statusInput = getEl('admin-filter-status'); // <--- NOVO FILTRO
-
     const term = searchInput ? searchInput.value.toLowerCase().trim() : '';
     const catFilter = categoryInput ? categoryInput.value : '';
-    const statusFilter = statusInput ? statusInput.value : ''; // <--- NOVO VALOR
 
     return state.products.filter(p => {
         const codeStr = p.code ? String(p.code) : '';
         const matchText = p.name.toLowerCase().includes(term) || codeStr.includes(term);
         const matchCat = catFilter ? p.category === catFilter : true;
-        
-        // NOVO: Lógica do filtro de Status
-        let matchStatus = true;
-        if (statusFilter === 'true') matchStatus = p.active !== false; // Ativos
-        if (statusFilter === 'false') matchStatus = p.active === false; // Inativos
-        
-        return matchText && matchCat && matchStatus;
+        return matchText && matchCat;
     });
-}
-
-function updateProductCountsUI() {
-    const total = state.products.length;
-    
-    // Conta quantos têm a tag de inativo
-    const inativos = state.products.filter(p => p.active === false).length;
-    const ativos = total - inativos;
-
-    // Atualiza o Topo
-    const elTotal = document.getElementById('total-produtos-count');
-    if (elTotal) elTotal.innerText = total;
-
-    // Atualiza os textos de dentro do Dropdown de Status
-    const optTodos = document.getElementById('opt-status-todos');
-    if (optTodos) optTodos.innerText = `Todos (${total})`;
-
-    const optAtivos = document.getElementById('opt-status-ativos');
-    if (optAtivos) optAtivos.innerText = `Ativos (${ativos})`;
-
-    const optInativos = document.getElementById('opt-status-inativos');
-    if (optInativos) optInativos.innerText = `Inativos (${inativos})`;
 }
 
 
@@ -2283,74 +2197,57 @@ function renderProductsList(products, preCalcMetrics = null) {
     const listEl = els.productListAdmin || getEl('admin-product-list');
     if (!listEl) return;
 
+    // --- CORREÇÃO: REMOVE A BARRA AMARELA ANTIGA À FORÇA ---
     const oldBar = document.getElementById('bulk-actions-bar');
     if (oldBar) {
-        oldBar.classList.add('hidden');
-        oldBar.style.display = 'none';
+        oldBar.classList.add('hidden'); // Esconde via classe
+        oldBar.style.display = 'none';  // Garante via CSS inline
     }
+    // --------------------------------------------------------
 
     listEl.innerHTML = '';
 
-    // --- 1. BARRA DE CONTROLES NOVA ---
+    // --- 1. BARRA DE CONTROLES NOVA (Azul/Escura) ---
     const controlsBar = document.createElement('div');
-    controlsBar.className = "flex flex-wrap justify-between items-center mb-2 px-1 gap-2 min-h-[40px] w-full";
+    controlsBar.className = "flex flex-wrap justify-between items-center mb-2 px-1 gap-2 min-h-[40px]";
 
-    const selectBtnText = state.isSelectionMode ? '<i class="fas fa-times mr-2"></i> Cancelar' : '<i class="fas fa-check-square mr-2"></i> Selecionar';
-    const selectBtnClass = state.isSelectionMode ? "text-red-400 hover:text-red-300 text-xs font-bold uppercase cursor-pointer py-2 px-2 bg-red-900/20 rounded border border-red-900/50" : "text-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase cursor-pointer py-2 px-2 hover:bg-yellow-900/20 rounded transition";
+    // Botão Selecionar
+    const selectBtnText = state.isSelectionMode ?
+        '<i class="fas fa-times mr-2"></i> Cancelar' :
+        '<i class="fas fa-check-square mr-2"></i> Selecionar';
+
+    const selectBtnClass = state.isSelectionMode ?
+        "text-red-400 hover:text-red-300 text-xs font-bold uppercase cursor-pointer py-2 px-2 bg-red-900/20 rounded border border-red-900/50" :
+        "text-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase cursor-pointer py-2 px-2 hover:bg-yellow-900/20 rounded transition";
 
     let bulkActionsHTML = '';
+    // Só mostra os botões se tiver itens selecionados
     if (state.isSelectionMode && state.selectedProducts.size > 0) {
         bulkActionsHTML = `
-            <div class="flex items-center gap-2 animate-fade-in bg-[#151720] border border-gray-700 rounded p-1 shadow-lg flex-1 justify-end overflow-x-auto custom-scrollbar">
-                <span class="text-white text-[10px] font-bold bg-blue-600 px-2 py-1 rounded ml-1 whitespace-nowrap shrink-0">${state.selectedProducts.size} <span class="hidden sm:inline">item(s)</span></span>
+            <div class="flex items-center gap-2 animate-fade-in bg-[#151720] border border-gray-700 rounded p-1 shadow-lg flex-1 justify-end">
+                <span class="text-white text-[10px] font-bold bg-blue-600 px-2 py-1 rounded ml-1 whitespace-nowrap">${state.selectedProducts.size} <span class="hidden sm:inline">item(s)</span></span>
                 
-                <button onclick="bulkChangeProductStatus(true)" class="bg-green-600 hover:bg-green-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0" title="Ativar">
-                    <i class="fas fa-eye"></i> <span class="hidden sm:inline">Ativar</span>
-                </button>
-                <button onclick="bulkChangeProductStatus(false)" class="bg-orange-600 hover:bg-orange-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0" title="Inativar">
-                    <i class="fas fa-eye-slash"></i> <span class="hidden sm:inline">Inativar</span>
-                </button>
-                
-                <div class="w-px bg-gray-600 h-4 mx-1 shrink-0"></div>
-
-                <select id="bulk-category-select-dynamic" class="bg-black text-white text-[10px] border border-gray-600 rounded px-1 h-7 outline-none w-24 sm:w-auto shrink-0">
+                <select id="bulk-category-select-dynamic" class="bg-black text-white text-[10px] border border-gray-600 rounded px-1 h-7 outline-none w-24 sm:w-auto">
                     <option value="">Mover...</option>${state.categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
                 </select>
                 
-                <button onclick="bulkMoveDynamic()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0">
+                <button onclick="bulkMoveDynamic()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition">
                     <i class="fas fa-exchange-alt sm:hidden"></i> <span class="hidden sm:inline">Mover</span>
                 </button>
                 
-                <div class="w-px bg-gray-600 h-4 mx-1 shrink-0"></div>
-                
-                <button onclick="document.getElementById('btn-bulk-delete').click()" class="bg-red-600 hover:bg-red-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0">
+                <button onclick="document.getElementById('btn-bulk-delete').click()" class="bg-red-600 hover:bg-red-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition">
                     <i class="fas fa-trash-alt sm:hidden"></i> <span class="hidden sm:inline">Excluir</span>
                 </button>
             </div>
         `;
     }
 
-    if (state.isReorderMode) {
-        controlsBar.innerHTML = `
-            <div class="flex w-full justify-between items-center bg-blue-900/20 border border-blue-500/50 p-2 rounded-lg animate-fade-in shadow-sm">
-                <span class="text-blue-400 font-bold text-xs uppercase tracking-wider"><i class="fas fa-arrows-alt-v mr-1"></i> Arraste para Reordenar</span>
-                <div class="flex gap-2">
-                    <button onclick="resetReorderToDefault()" class="bg-gray-800 hover:bg-gray-700 text-white px-3 h-8 rounded text-xs font-bold transition flex items-center gap-2"><i class="fas fa-magic"></i> Padrão</button>
-                    <button onclick="cancelReorder()" class="bg-red-900/50 hover:bg-red-600 text-red-400 hover:text-white px-3 h-8 rounded text-xs font-bold transition">Cancelar</button>
-                    <button onclick="saveReorder()" class="bg-green-600 hover:bg-green-500 text-white px-4 h-8 rounded text-xs font-bold transition flex items-center gap-2 shadow-lg"><i class="fas fa-save"></i> Salvar</button>
-                </div>
-            </div>
-        `;
-    } else {
-        controlsBar.innerHTML = `
-            <div class="flex gap-2 shrink-0">
-                <button onclick="toggleSelectionMode()" class="${selectBtnClass}">${selectBtnText}</button>
-                <button onclick="startReorderMode()" class="text-yellow-500 px-3 py-2 rounded text-xs font-bold uppercase transition flex items-center gap-2"><i class="fas fa-sort-amount-down"></i> Reorganizar</button>
-            </div>
-            ${bulkActionsHTML}
-        `;
-    }
-
+    controlsBar.innerHTML = `
+        <button onclick="toggleSelectionMode()" class="${selectBtnClass}">
+            ${selectBtnText}
+        </button>
+        ${bulkActionsHTML}
+    `;
     listEl.appendChild(controlsBar);
 
     if (products.length === 0) {
@@ -2361,34 +2258,56 @@ function renderProductsList(products, preCalcMetrics = null) {
     // --- 2. HEADER ---
     const allSelected = products.length > 0 && products.every(p => state.selectedProducts.has(p.id));
     const masterCheckAttr = allSelected ? 'checked' : '';
-    const getSortIcon = (key) => state.sortConfig.key !== key ? '<i class="fas fa-sort text-gray-700 ml-1 opacity-30"></i>' : (state.sortConfig.direction === 'asc' ? '<i class="fas fa-sort-up text-yellow-500 ml-1 mt-1"></i>' : '<i class="fas fa-sort-down text-yellow-500 ml-1 -mt-1"></i>');
 
-    const checkColContent = state.isSelectionMode ? `<input type="checkbox" onchange="toggleSelectAll(this)" ${masterCheckAttr} class="cursor-pointer rounded border-gray-600 bg-gray-800 text-yellow-500 focus:ring-0 w-4 h-4" title="Selecionar Todos">` : ``;
+    const getSortIcon = (key) => {
+        if (state.sortConfig.key !== key) return '<i class="fas fa-sort text-gray-700 ml-1 opacity-30"></i>';
+        return state.sortConfig.direction === 'asc'
+            ? '<i class="fas fa-sort-up text-yellow-500 ml-1 mt-1"></i>'
+            : '<i class="fas fa-sort-down text-yellow-500 ml-1 -mt-1"></i>';
+    };
+
+    const checkColContent = state.isSelectionMode
+        ? `<input type="checkbox" onchange="toggleSelectAll(this)" ${masterCheckAttr} class="cursor-pointer rounded border-gray-600 bg-gray-800 text-yellow-500 focus:ring-0 w-4 h-4" title="Selecionar Todos">`
+        : ``;
 
     const headerHTML = `
         <div class="hidden md:grid grid-cols-12 gap-2 bg-[#1f1f1f] text-gray-400 font-bold p-3 rounded-t-xl text-[10px] uppercase tracking-wider border-b border-gray-800 sticky top-0 z-20 select-none items-center shadow-lg">
-            ${state.isReorderMode ? `
-                <div class="col-span-2 text-center border-r border-gray-700 text-yellow-500">Mover / Nº</div>
-            ` : `
-                <div class="${state.isSelectionMode ? 'col-span-1 block' : 'hidden'} text-center flex items-center justify-center">${checkColContent}</div>
-                <div class="${state.isSelectionMode ? 'col-span-1' : 'col-span-1'} text-center border-r border-gray-700 cursor-pointer hover:text-white flex items-center justify-left h-full" onclick="sortProducts('code')">Cód ${getSortIcon('code')}</div>
-            `}
-            <div class="col-span-5 pl-2 cursor-pointer hover:text-white flex items-center" onclick="sortProducts('product')">Produto ${getSortIcon('product')}</div>
-            <div class="col-span-2 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('lastmov')">Última Mov. ${getSortIcon('lastmov')}</div>
-            <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('sales')">Qtd Vendidas ${getSortIcon('sales')}</div>
-            <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('stock')">Estoque ${getSortIcon('stock')}</div>
-            <div class="col-span-1 text-right pr-4 cursor-pointer hover:text-white flex items-center justify-end" onclick="sortProducts('price')">Valor ${getSortIcon('price')}</div>
+            <div class="${state.isSelectionMode ? 'col-span-1 block' : 'hidden'} text-center flex items-center justify-center">
+                ${checkColContent}
+            </div>
+            <div class="${state.isSelectionMode ? 'col-span-1' : 'col-span-1'} text-center border-r border-gray-700 cursor-pointer hover:text-white flex items-center justify-left h-full" onclick="sortProducts('code')">
+                Cód ${getSortIcon('code')}
+            </div>
+            <div class="col-span-5 pl-2 cursor-pointer hover:text-white flex items-center" onclick="sortProducts('product')">
+                Produto ${getSortIcon('product')}
+            </div>
+            <div class="col-span-2 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('lastmov')">
+                Última Mov. ${getSortIcon('lastmov')}
+            </div>
+            <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('sales')">
+                Qtd Vendidas ${getSortIcon('sales')}
+            </div>
+            <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('stock')">
+                Estoque ${getSortIcon('stock')}
+            </div>
+            <div class="col-span-1 text-right pr-4 cursor-pointer hover:text-white flex items-center justify-end" onclick="sortProducts('price')">
+                Valor ${getSortIcon('price')}
+            </div>
             <div class="col-span-1"></div>
         </div>
+        
         <div class="md:hidden flex items-center justify-between px-4 py-2 text-gray-400 text-xs uppercase font-bold bg-[#1f1f1f] rounded-t-lg border-b border-gray-800">
-            <div class="flex items-center gap-2">${state.isSelectionMode ? checkColContent : ''}<span>Produto</span></div>
+            <div class="flex items-center gap-2">
+                ${state.isSelectionMode ? checkColContent : ''}
+                <span>Produto</span>
+            </div>
             <span>Estoque / Valor</span>
         </div>
     `;
 
     const scrollContainer = document.createElement('div');
-    scrollContainer.id = 'admin-product-scroll-container'; // ID Adicionado para o arrastar
     scrollContainer.className = "max-h-[65vh] overflow-y-auto overflow-x-hidden border-x border-b border-gray-800 rounded-b-xl bg-[#0f111a] custom-scrollbar relative";
+
     listEl.insertAdjacentHTML('beforeend', headerHTML);
     listEl.appendChild(scrollContainer);
 
@@ -2411,7 +2330,7 @@ function renderProductsList(products, preCalcMetrics = null) {
     }
 
     // --- 3. LISTA ---
-    products.forEach((p, index) => {
+    products.forEach(p => {
         const metrics = metricsMap[p.id] || { qtd: 0, lastDate: 0 };
 
         let lastMovStr = "-";
@@ -2423,95 +2342,76 @@ function renderProductsList(products, preCalcMetrics = null) {
             ? `<div class="flex flex-col items-end"><span class="text-green-400 font-bold text-xs">${formatCurrency(p.promoPrice)}</span><span class="text-gray-600 text-[10px] line-through">${formatCurrency(p.price)}</span></div>`
             : `<span class="text-gray-200 font-bold text-xs">${formatCurrency(p.price)}</span>`;
 
-        const isInactive = p.active === false;
         const isChecked = state.selectedProducts.has(p.id) ? 'checked' : '';
-        
-        let bgClass = isChecked ? 'bg-[#1a233a] border-blue-500/30' : 'bg-[#151720] border-gray-800 hover:bg-[#1c1f2b]';
-        let imgOpacityClass = '';
-        
-        if (isInactive && !isChecked) {
-            bgClass = 'bg-[#2a1313] border-red-900/50 hover:bg-[#351818]'; 
-            imgOpacityClass = 'opacity-30 grayscale';
-        }
-
+        const bgClass = isChecked ? 'bg-blue-900/10 border-blue-500/30' : 'bg-[#151720] border-gray-800 hover:bg-[#1c1f2b]';
         const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://placehold.co/100?text=Sem+Foto';
         const codeStr = p.code ? p.code : '-';
         const safeStockDisplay = isNaN(parseInt(p.stock)) ? 0 : parseInt(p.stock);
 
-        const deleteBgClass = state.isSelectionMode || state.isReorderMode ? 'hidden' : 'absolute inset-y-0 right-0 w-24 bg-red-600 flex items-center justify-center cursor-pointer z-0';
-
-        // MUDANÇA: Verifica se é modo reorganizar para exibir as barras de arrasto
-        let selectionOrReorderHTML = '';
-        if (state.isReorderMode) {
-            selectionOrReorderHTML = `
-                <div class="md:col-span-1 flex items-center justify-center shrink-0 border-r border-gray-800 h-full drag-handle cursor-grab text-gray-500 hover:text-yellow-500 transition px-3">
-                    <i class="fas fa-grip-lines text-xl pointer-events-none"></i>
-                </div>
-                <div class="hidden md:flex flex-col md:col-span-1 items-center justify-center border-r border-gray-800 h-full shrink-0">
-                    <span class="text-[11px] font-bold text-yellow-500 mb-0.5">Nº ${index + 1}</span>
-                    <span class="text-[9px] font-bold text-white opacity-50">#${codeStr}</span>
-                </div>
-            `;
-        } else {
-            selectionOrReorderHTML = `
-                <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center shrink-0">
-                     <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
-                </div>
-                <div class="hidden md:flex flex-col ${state.isSelectionMode ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-center border-r border-gray-800 h-full shrink-0">
-                    <span class="text-base font-bold text-white font-mono opacity-80">#${codeStr}</span>
-                    ${isInactive ? '<span class="text-[9px] bg-red-600 text-white px-1 mt-1 rounded uppercase font-bold tracking-widest">Inativo</span>' : ''}
-                </div>
-            `;
-        }
+        // Esconde o fundo vermelho se estiver selecionando
+        const deleteBgClass = state.isSelectionMode ? 'hidden' : 'absolute inset-y-0 right-0 w-24 bg-red-600 flex items-center justify-center cursor-pointer z-0';
 
         const row = document.createElement('div');
         row.className = `relative overflow-hidden border-b border-gray-800 last:border-0 select-none group`;
-        if (state.isReorderMode) row.dataset.id = p.id; // Permite identificar quem está sendo arrastado
         row.ondblclick = () => editProduct(p.id);
 
         row.innerHTML = `
             <div class="${deleteBgClass}" onclick="confirmDeleteProduct('${p.id}')">
                 <i class="fas fa-trash-alt text-white text-lg"></i>
             </div>
-            <div class="relative z-10 p-3 transition-transform duration-200 ease-out prod-swipe-content ${bgClass} h-full flex flex-col md:grid md:grid-cols-12 gap-2 md:items-center">
+
+            <div class="relative z-10 p-3 transition-transform duration-200 ease-out prod-swipe-content ${bgClass} h-full flex flex-col md:grid md:grid-cols-12 gap-2 md:items-center bg-[#151720]">
+                
                 <div class="flex items-center justify-between w-full md:contents">
                     <div class="flex items-center gap-3 md:col-span-6 w-full flex-1 min-w-0">
                         
-                        ${selectionOrReorderHTML}
+                        <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center shrink-0">
+                             <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" 
+                               onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
+                        </div>
+
+                        <div class="hidden md:flex ${state.isSelectionMode ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-center border-r border-gray-800 h-full shrink-0">
+                            <span class="text-base font-bold text-white font-mono opacity-80">#${codeStr}</span>
+                        </div>
 
                         <div class="flex items-center gap-3 flex-1 min-w-0">
-                            <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0 ${imgOpacityClass}">
+                            <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0">
                             <div class="flex flex-col flex-1 min-w-0 pr-2">
                                 <div class="flex items-center gap-2">
                                     <span class="md:hidden shrink-0 text-[10px] bg-gray-700 text-white px-1.5 py-0.5 rounded font-bold">#${codeStr}</span>
-                                    ${isInactive ? '<span class="md:hidden shrink-0 text-[9px] bg-red-600 text-white px-1 rounded uppercase font-bold tracking-widest">Inativo</span>' : ''}
                                     <span class="text-gray-200 font-bold text-sm truncate group-hover:text-yellow-500 transition">${p.name}</span>
                                 </div>
                                 <span class="text-gray-500 text-[10px] truncate w-full block mt-0.5">${p.category || 'Geral'}</span>
                             </div>
                         </div>
                     </div>
+
                     <div class="md:hidden flex flex-col justify-center items-end shrink-0 pl-2 ml-auto h-10">
                         ${priceHtml}
-                        ${safeStockDisplay <= 0 ? '<span class="text-red-500 text-[10px] font-bold uppercase tracking-wider mt-0.5">Esgotado</span>' : `<span class="text-gray-500 text-[10px] mt-0.5 whitespace-nowrap">Est.: <span class="font-bold text-gray-300">${safeStockDisplay}</span></span>`}
+                        ${safeStockDisplay <= 0
+                ? '<span class="text-red-500 text-[10px] font-bold uppercase tracking-wider mt-0.5">Esgotado</span>'
+                : `<span class="text-gray-500 text-[10px] mt-0.5 whitespace-nowrap">Est.: <span class="font-bold text-gray-300">${safeStockDisplay}</span></span>`}
                     </div>
                 </div>
+
                 <div class="hidden md:block col-span-2 text-center text-gray-500 text-xs font-mono truncate">${lastMovStr}</div>
-                <div class="hidden md:block col-span-1 text-center text-gray-400 text-xs">${metrics.qtd > 0 ? `<span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-bold">${metrics.qtd}</span>` : '-'}</div>
-                <div class="hidden md:block col-span-1 text-center">${safeStockDisplay <= 0 ? '<span class="text-red-500 text-xs font-bold">0</span>' : `<span class="text-gray-400 text-xs font-bold">${safeStockDisplay}</span>`}</div>
+                <div class="hidden md:block col-span-1 text-center text-gray-400 text-xs">
+                    ${metrics.qtd > 0 ? `<span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-bold">${metrics.qtd}</span>` : '-'}
+                </div>
+                <div class="hidden md:block col-span-1 text-center">
+                        ${safeStockDisplay <= 0 ? '<span class="text-red-500 text-xs font-bold">0</span>' : `<span class="text-gray-400 text-xs font-bold">${safeStockDisplay}</span>`}
+                </div>
                 <div class="hidden md:block col-span-1 text-right pr-4">${priceHtml}</div>
-                <div class="hidden ${state.isSelectionMode || state.isReorderMode ? 'hidden' : 'md:flex'} col-span-1 justify-center items-center">
+                
+                <div class="hidden ${state.isSelectionMode ? 'hidden' : 'md:flex'} col-span-1 justify-center items-center">
                      <button onclick="event.stopPropagation(); confirmDeleteProduct('${p.id}')" class="text-gray-600 hover:text-red-500 transition p-2 rounded-full hover:bg-red-500/10" title="Excluir">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
             </div>
         `;
-        
-        // Desativa a funcionalidade de escorregar para a lixeira enquanto arrasta (para não bugar o dedo no celular)
-        if (!state.isReorderMode) {
-            setupSwipe(row.querySelector('.prod-swipe-content'));
-        }
+
+        setupSwipe(row.querySelector('.prod-swipe-content'));
         scrollContainer.appendChild(row);
     });
 }
@@ -3498,9 +3398,6 @@ function setupEventListeners() {
     if (els.adminFilterCat) els.adminFilterCat.addEventListener('change', filterAndRenderProducts);
     if (els.adminSortProd) els.adminSortProd.addEventListener('change', filterAndRenderProducts);
 
-    const adminFilterStatus = getEl('admin-filter-status');
-    if (adminFilterStatus) adminFilterStatus.addEventListener('change', filterAndRenderProducts);
-
     if (els.confCardActive) {
         els.confCardActive.addEventListener('change', (e) => {
             if (e.target.checked) els.confCardDetails.classList.remove('opacity-50', 'pointer-events-none');
@@ -3646,14 +3543,14 @@ function setupEventListeners() {
             if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
             try {
                 await addDoc(collection(db, `sites/${state.siteId}/categories`), { name: finalName, order: Date.now() });
-                els.newCatName.value = ''; state.selectedCategoryParent = null;
-
+                els.newCatName.value = ''; state.selectedCategoryParent = null; 
+                
                 // ✨ CORREÇÃO: Limpa o cache e recarrega a tela instantaneamente
                 localStorage.removeItem(`cats_${state.siteId}`);
                 await loadCategories();
                 renderAdminCategoryList();
                 showToast("Categoria criada com sucesso!", "success");
-
+                
             } catch (error) { alert("Erro: " + error.message); }
         };
 
@@ -5503,23 +5400,17 @@ window.updateCartQtyCard = (prodId, size, delta) => {
     const index = state.cart.findIndex(i => i.id === prodId && i.size === size);
     if (index === -1) return;
 
+    // Se estiver adicionando (+), verifica o estoque TOTAL do produto
     if (delta > 0) {
         const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
 
-        // ✨ CORREÇÃO DA GRADE: Filtra apenas por ID e Tamanho idênticos
-        const currentSizeQty = state.cart.reduce((total, item) => {
-            return (item.id === prodId && item.size === size) ? total + item.qty : total;
+        // Conta quantos desse produto (qualquer tamanho) já existem no carrinho
+        const currentTotalQty = state.cart.reduce((total, item) => {
+            return item.id === prodId ? total + item.qty : total;
         }, 0);
 
-        // ✨ CORREÇÃO DA GRADE: Pega o limite do tamanho específico
-        let limEstoque = isNaN(parseInt(product.stock, 10)) ? 0 : parseInt(product.stock, 10);
-        if (product.hasVariations && product.sizes) {
-            const sizeObj = product.sizes.find(s => s.name === size);
-            limEstoque = sizeObj ? (parseInt(sizeObj.stock) || 0) : 0;
-        }
-
-        if (!allowNegative && (currentSizeQty + 1 > limEstoque)) {
-            alert(`Estoque máximo atingido para o tamanho ${size}.`);
+        if (!allowNegative && (currentTotalQty + 1 > product.stock)) {
+            alert("Estoque máximo atingido para este produto.");
             return;
         }
     }
@@ -5539,20 +5430,13 @@ window.changeQty = (index, delta) => {
     if (delta > 0 && product) {
         const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
 
-        // ✨ CORREÇÃO DA GRADE: Conta apenas as unidades do mesmo tamanho no carrinho
-        const currentSizeQty = state.cart.reduce((total, cartItem) => {
-            return (cartItem.id === item.id && cartItem.size === item.size) ? total + cartItem.qty : total;
+        // Conta total no carrinho
+        const currentTotalQty = state.cart.reduce((total, cartItem) => {
+            return cartItem.id === item.id ? total + cartItem.qty : total;
         }, 0);
 
-        // ✨ CORREÇÃO DA GRADE: Pega o estoque real apenas deste tamanho
-        let limEstoque = isNaN(parseInt(product.stock, 10)) ? 0 : parseInt(product.stock, 10);
-        if (product.hasVariations && product.sizes) {
-            const sizeObj = product.sizes.find(s => s.name === item.size);
-            limEstoque = sizeObj ? (parseInt(sizeObj.stock) || 0) : 0;
-        }
-
-        if (!allowNegative && (currentSizeQty + 1 > limEstoque)) {
-            alert(`Limite de estoque atingido para o tamanho ${item.size}. Disponível: ${limEstoque} unid.`);
+        if (!allowNegative && (currentTotalQty + 1 > product.stock)) {
+            alert("Limite de estoque atingido.");
             return;
         }
     }
@@ -5643,23 +5527,25 @@ window.saveProduct = async (e) => {
         if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
 
         const isGraded = document.getElementById('prod-has-variations').checked;
-        
-        // Blindagem de Segurança
-        const statusActive = document.getElementById('prod-status-active');
-        const isActive = statusActive ? statusActive.checked : true;
 
+        // ✨ O SEGREDO ESTÁ AQUI: Captura o Estoque Geral que o usuário digitou
+        // E garante que ele NUNCA se misture com a grade!
         const inputGeneralStock = parseInt(document.getElementById('prod-stock').value) || 0;
-        let finalStock = 0; 
+
+        let finalStock = 0; // O Estoque que os clientes vão ver na vitrine
         let finalSizes = state.tempVariations ? [...state.tempVariations] : [];
 
         if (isGraded) {
+            // TRAVA: Não deixa salvar grade ligada se não tiver caixinhas
             if (finalSizes.length === 0) {
                 showToast("Adicione pelo menos um tamanho no estoque gradeado.", "error");
                 if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
                 return;
             }
+            // Vitrine usa a soma dos tamanhos
             finalStock = finalSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0);
         } else {
+            // Vitrine usa o que foi digitado no estoque geral
             finalStock = inputGeneralStock;
         }
 
@@ -5677,12 +5563,11 @@ window.saveProduct = async (e) => {
             promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
             cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
             hasVariations: isGraded,
-            stock: finalStock,               
-            generalStock: inputGeneralStock, 
+            stock: finalStock,               // 👉 Vai para a vitrine
+            generalStock: inputGeneralStock, // 👉 Fica guardado na memória do Painel
             sizes: finalSizes,
             images: state.tempImages || [],
             allowNoStock: document.getElementById('prod-allow-no-stock').checked,
-            active: isActive,
             highlight: document.getElementById('prod-highlight').checked,
             paymentOptions: {
                 pix: {
@@ -5699,17 +5584,10 @@ window.saveProduct = async (e) => {
             const nextCode = await getNextProductCode(state.siteId);
             productData.code = nextCode;
             productData.createdAt = new Date().toISOString();
-
-            const docRef = await addDoc(collection(db, `sites/${state.siteId}/products`), productData);
-            productData.id = docRef.id;
-            state.products.push(productData);
-
+            await addDoc(collection(db, `sites/${state.siteId}/products`), productData);
             showToast(`Produto #${nextCode} criado com sucesso!`, 'success');
         } else {
             await updateDoc(doc(db, `sites/${state.siteId}/products`, id), productData);
-            const idx = state.products.findIndex(p => p.id === id);
-            if (idx !== -1) state.products[idx] = { ...state.products[idx], ...productData };
-
             showToast('Produto atualizado com sucesso!', 'success');
         }
 
@@ -5718,11 +5596,10 @@ window.saveProduct = async (e) => {
         state.tempImages = [];
         state.tempVariations = [];
 
+        // Garante que o Formulário não bugue no F5
         const formEl = document.getElementById('form-product');
         if (formEl) formEl.onsubmit = window.saveProduct;
 
-        setCachedData(`prods_${state.siteId}`, state.products, 5);
-        renderCatalog(state.products);
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
 
     } catch (error) {
@@ -5750,6 +5627,9 @@ window.editProduct = (id) => {
     document.getElementById('prod-allow-no-stock').checked = p.allowNoStock || false;
     document.getElementById('prod-highlight').checked = p.highlight || false;
 
+    // ✨ CORREÇÃO SUPREMA: 
+    // Se existir a memória de "generalStock", puxa ela. 
+    // Se for um produto antigo que ainda não tem isso, não mistura as coisas.
     if (p.generalStock !== undefined) {
         document.getElementById('prod-stock').value = p.generalStock;
     } else {
@@ -5765,16 +5645,10 @@ window.editProduct = (id) => {
     }
 
     const chkVar = document.getElementById('prod-has-variations');
-    if (p.hasVariations) chkVar.checked = true;
-    else chkVar.checked = false;
-
-    // Blindagem de Segurança
-    const statusInactive = document.getElementById('prod-status-inactive');
-    const statusActive = document.getElementById('prod-status-active');
-    
-    if (statusInactive && statusActive) {
-        if (p.active === false) statusInactive.checked = true;
-        else statusActive.checked = true;
+    if (p.hasVariations) {
+        chkVar.checked = true;
+    } else {
+        chkVar.checked = false;
     }
 
     toggleStockMode();
@@ -5792,18 +5666,14 @@ window.editProduct = (id) => {
 
 // ✨ IMPORTANTE: Zera o formulário caso o usuário vá criar um NOVO produto
 window.openNewProductModal = () => {
-    // Blindagem de Segurança
-    const statusActive = document.getElementById('prod-status-active');
-    if (statusActive) statusActive.checked = true;
-
     const form = document.getElementById('form-product');
     if (form) form.reset();
 
     document.getElementById('edit-prod-id').value = '';
     state.tempImages = [];
-    state.tempVariations = [];
+    state.tempVariations = []; // Limpa tamanhos de edições anteriores
 
-    document.getElementById('prod-has-variations').checked = false; 
+    document.getElementById('prod-has-variations').checked = false; // Desativa a grade por padrão
     toggleStockMode();
 
     if (typeof renderImagePreviews === 'function') renderImagePreviews();
@@ -5914,26 +5784,8 @@ window.shareStoreLink = () => {
 // 10. CARRINHO (Lógica Interna)
 // =================================================================
 
-async function addToCart(product, size) {
-    // ✨ VALIDAÇÃO DE SEGURANÇA NO SERVIDOR (Leitura única, só no clique)
-    const prodRef = doc(db, `sites/${state.siteId}/products`, product.id);
-    const snap = await getDocFromServer(prodRef); // Lê do servidor na hora do clique
-    const pAtualizado = snap.data();
-
-    const allowNegative = state.globalSettings.allowNoStock || pAtualizado.allowNoStock;
-    
-    // ✨ CORREÇÃO DA GRADE: Descobre o limite real de estoque para este tamanho específico NO SERVIDOR
-    let limEstoque = isNaN(parseInt(pAtualizado.stock, 10)) ? 0 : parseInt(pAtualizado.stock, 10);
-    if (pAtualizado.hasVariations && pAtualizado.sizes) {
-        const sizeObj = pAtualizado.sizes.find(s => s.name === size);
-        limEstoque = sizeObj ? (parseInt(sizeObj.stock) || 0) : 0;
-    }
-
-    if (!allowNegative && limEstoque <= 0) {
-        alert(pAtualizado.hasVariations ? `Desculpe, o tamanho ${size} esgotou!` : 'Desculpe, este produto acabou de esgotar!');
-        loadProducts(true); // Atualiza a vitrine forçado
-        return;
-    }
+function addToCart(product, size) {
+    const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
 
     // 1. Verifica status da loja
     const status = getStoreStatus();
@@ -5948,14 +5800,23 @@ async function addToCart(product, size) {
         }
     }
 
-    // ✨ CORREÇÃO DA GRADE: Calcula a quantidade DESTE TAMANHO específico já no carrinho
-    const currentSizeQty = state.cart.reduce((total, item) => {
-        return (item.id === product.id && item.size === size) ? total + item.qty : total;
+    // ✨ ARMADURA NO CARRINHO: Filtra o estoque corrompido ✨
+    const safeStock = isNaN(parseInt(product.stock, 10)) ? 0 : parseInt(product.stock, 10);
+
+    // 2. Calcula o TOTAL deste produto no carrinho (somando todos os tamanhos)
+    const currentTotalQty = state.cart.reduce((total, item) => {
+        return item.id === product.id ? total + item.qty : total;
     }, 0);
 
-    // 4. Valida se adicionar +1 vai estourar o estoque do tamanho selecionado
-    if (!allowNegative && (currentSizeQty + 1 > limEstoque)) {
-        alert(`Limite de estoque atingido! Você já tem ${currentSizeQty} unidade(s) do tamanho ${size} no carrinho e o estoque disponível é ${limEstoque}.`);
+    // 3. Valida Estoque Geral (Usando a variável blindada)
+    if (!allowNegative && safeStock <= 0) {
+        alert('Este produto está esgotado.');
+        return;
+    }
+
+    // 4. Valida se adicionar +1 vai estourar o estoque total
+    if (!allowNegative && (currentTotalQty + 1 > safeStock)) {
+        alert(`Limite de estoque atingido! Você já tem ${currentTotalQty} unidades e o estoque total é ${safeStock}.`);
         return;
     }
 
@@ -6238,7 +6099,7 @@ window.deleteCategory = async (id, name) => {
             const batchPromises = linkedSubCats.map(sub =>
                 deleteDoc(doc(db, `sites/${state.siteId}/categories`, sub.id))
             );
-            await Promise.all(batchPromises);
+            await Promise.all(batchPromises); 
         }
 
         if (state.selectedCategoryParent === name || (state.selectedCategoryParent && state.selectedCategoryParent.startsWith(name + ' - '))) {
@@ -7126,7 +6987,7 @@ async function submitOrder() {
         const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
         const dConfig = state.storeProfile?.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
 
-        // Trava de Segurança da Tela
+        // Trava de Segurança
         const payModeEl = document.querySelector('input[name="pay-mode"]:checked');
         const payMode = payModeEl ? payModeEl.value : null;
 
@@ -7148,65 +7009,6 @@ async function submitOrder() {
 
         const methodEl = document.querySelector('input[name="payment-method-selection"]:checked');
         if (!payMode || !methodEl) return alert("⚠️ Selecione a forma de pagamento.");
-
-        // Muda o botão para mostrar que está pensando
-        const btnSubmit = document.getElementById('btn-finish-payment');
-        if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.innerText = "⏳ Validando estoque..."; }
-
-        // =================================================================
-        // 🛡️ BLINDAGEM CONTRA ESTOQUE FANTASMA (Validação em Tempo Real)
-        // =================================================================
-        let outOfStockItems = [];
-
-        for (const item of state.cart) {
-            const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
-            const snap = await getDocFromServer(prodRef); 
-            
-            if (!snap.exists()) {
-                outOfStockItems.push(`<b>${item.name}</b><br><span class="text-xs text-red-400">Produto indisponível ou excluído.</span>`);
-                continue;
-            }
-
-            const pAtualizado = snap.data();
-            const allowNegative = state.globalSettings.allowNoStock || pAtualizado.allowNoStock;
-
-            if (!allowNegative) {
-                let estoqueReal = 0;
-
-                if (pAtualizado.hasVariations && pAtualizado.sizes) {
-                    const sizeObj = pAtualizado.sizes.find(s => s.name === item.size);
-                    estoqueReal = sizeObj ? (parseInt(sizeObj.stock) || 0) : 0;
-                } else {
-                    estoqueReal = parseInt(pAtualizado.stock) || 0;
-                }
-
-                if (estoqueReal < item.qty) {
-                    // Formata o texto com HTML para ficar bonito no novo modal
-                    let msg = `<span class="font-bold text-white">${item.name}</span>`;
-                    if (item.size !== 'U') msg += ` <span class="text-xs text-gray-400">Tamanho: ${item.size}</span>`;
-                    msg += `<br><span class="text-xs font-bold text-red-400 block mt-1">Disponível: ${estoqueReal} unidade(s)</span>`;
-                    
-                    outOfStockItems.push(msg);
-                }
-            }
-        }
-
-        // Se encontrou algum produto esgotado, BARRA A VENDA E ABRE O MODAL NOVO!
-        if (outOfStockItems.length > 0) {
-            if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerText = "Confirmar Pedido"; }
-            
-            // Chama o novo modal estilisado!
-            if (typeof showOutOfStockModal === 'function') {
-                showOutOfStockModal(outOfStockItems);
-            } else {
-                alert("Erro de estoque. Verifique os itens.");
-            }
-            return; 
-        }
-        // =================================================================
-
-        // Se passou pela blindagem, muda o botão para enviando de fato
-        if (btnSubmit) { btnSubmit.innerText = "⏳ Enviando Pedido..."; }
 
         const method = methodEl.value;
         let paymentDetails = "", paymentMsgShort = "";
@@ -7255,7 +7057,7 @@ async function submitOrder() {
         const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
         const nextCode = await getNextOrderNumber(state.siteId);
 
-        // CORREÇÃO DE FRETE BLINDADA
+        // ✨ CORREÇÃO DE FRETE BLINDADA AQUI NO SALVAMENTO DO BANCO TAMBÉM
         const shipRule = dConfig.shippingRule || 'none';
         const shipValue = parseFloat(dConfig.shippingValue) || 0;
         let valueToSave = 0;
@@ -7276,6 +7078,9 @@ async function submitOrder() {
             couponData, cupom: couponData ? couponData.code : null,
             cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
         };
+
+        const btnSubmit = document.getElementById('btn-finish-payment');
+        if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.innerText = "⏳ Enviando..."; }
 
         const docRef = await addDoc(collection(db, `sites/${state.siteId}/sales`), order);
         const newOrderLocal = { id: docRef.id, ...order };
@@ -8340,8 +8145,6 @@ async function updateOrderStatusDB(orderId, newStatus) {
 }
 
 async function processStockUpdate(items, operation) {
-    let stockChanged = false; // Flag para saber se houve alguma alteração real
-
     for (const item of items) {
         if (!item.id) continue;
 
@@ -8356,6 +8159,8 @@ async function processStockUpdate(items, operation) {
             if (pData.hasVariations && Array.isArray(pData.sizes)) {
                 // ESTOQUE GRADEADO
                 let newSizes = [...pData.sizes];
+
+                // Encontra o tamanho exato que o cliente comprou
                 let sizeObj = newSizes.find(s => s.name === item.size);
 
                 if (sizeObj) {
@@ -8367,7 +8172,9 @@ async function processStockUpdate(items, operation) {
                     }
                 }
 
+                // Recalcula o estoque total do produto baseado nas caixinhas atualizadas
                 let newTotalStock = newSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0);
+
                 updates.sizes = newSizes;
                 updates.stock = newTotalStock;
 
@@ -8385,24 +8192,9 @@ async function processStockUpdate(items, operation) {
                 }
             }
 
-            // Atualiza no banco de dados
+            // Salva as alterações no banco de dados
             await updateDoc(prodRef, updates);
-
-            // 🔥 MÁGICA 4: Altera o estoque na memória RAM local instantaneamente
-            const localProdIndex = state.products.findIndex(p => p.id === item.id);
-            if (localProdIndex !== -1) {
-                state.products[localProdIndex] = { ...state.products[localProdIndex], ...updates };
-            }
-
-            stockChanged = true;
         }
-    }
-
-    // Se o estoque foi alterado, redesenha as telas usando os novos dados da memória
-    if (stockChanged) {
-        setCachedData(`prods_${state.siteId}`, state.products, 5);
-        renderCatalog(state.products);
-        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
     }
 }
 
@@ -10024,378 +9816,10 @@ setTimeout(() => {
     }
 }, 1000);
 
-
-// =================================================================
-// 📊 GERADOR DE RELATÓRIOS PERSONALIZADOS
-// =================================================================
-
-window.openReportModal = () => {
-    const modal = document.getElementById('modal-report-config');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    setTimeout(() => {
-        modal.classList.remove('opacity-0');
-        document.getElementById('report-card').classList.remove('scale-95');
-    }, 10);
-};
-
-window.closeReportModal = () => {
-    const modal = document.getElementById('modal-report-config');
-    modal.classList.add('opacity-0');
-    document.getElementById('report-card').classList.add('scale-95');
-    setTimeout(() => {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }, 300);
-};
-
-window.executeCustomReport = () => {
-    // 1. CAPTURA CONFIGURAÇÕES DO MODAL
-    const format = document.querySelector('input[name="rep-format"]:checked').value;
-    const statusFiltro = document.querySelector('input[name="rep-status"]:checked').value;
-    const sortType = document.getElementById('rep-sort').value;
-
-    const config = {
-        format: format,
-        showCat: document.getElementById('rep-col-cat').checked,
-        showStock: document.getElementById('rep-col-stock').checked,
-        showPrice: document.getElementById('rep-col-price').checked,
-        showPromo: document.getElementById('rep-col-promo').checked,
-        showCost: document.getElementById('rep-col-cost').checked
-    };
-
-    // 2. FILTRAGEM DE DADOS
-    let productsToExport = [...state.products];
-
-    if (statusFiltro === 'ativos') {
-        productsToExport = productsToExport.filter(p => p.active !== false);
-    } else if (statusFiltro === 'inativos') {
-        productsToExport = productsToExport.filter(p => p.active === false);
-    }
-
-    if (productsToExport.length === 0) {
-        showToast("Nenhum produto atende a este filtro.", "error");
-        return;
-    }
-
-    // 3. PREPARAÇÃO DE MÉTRICAS (Para ordenação de Vendas/Estoque)
-    const metricsMap = {};
-    const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
-    if (state.orders && (sortType === 'sales_desc' || sortType === 'sales_asc')) {
-        state.orders.forEach(order => {
-            if (validStatuses.includes(order.status)) {
-                order.items.forEach(item => {
-                    if (!metricsMap[item.id]) metricsMap[item.id] = 0;
-                    metricsMap[item.id] += (parseInt(item.qty) || 0);
-                });
-            }
-        });
-    }
-
-    // 4. ORDENAÇÃO DINÂMICA
-    productsToExport.sort((a, b) => {
-        const getStock = (p) => p.hasVariations && p.sizes ? p.sizes.reduce((acc, s) => acc + (parseInt(s.stock)||0), 0) : (parseInt(p.stock) || parseInt(p.generalStock) || 0);
-        
-        const codeA = parseInt(a.code) || 0; const codeB = parseInt(b.code) || 0;
-        const nameA = a.name.toLowerCase();  const nameB = b.name.toLowerCase();
-        const priceA = parseFloat(a.price) || 0; const priceB = parseFloat(b.price) || 0;
-        const stockA = getStock(a); const stockB = getStock(b);
-        const salesA = metricsMap[a.id] || 0; const salesB = metricsMap[b.id] || 0;
-
-        switch (sortType) {
-            case 'code_asc': return codeA - codeB;
-            case 'code_desc': return codeB - codeA;
-            case 'name_asc': return nameA.localeCompare(nameB);
-            case 'sales_desc': return salesB - salesA;
-            case 'sales_asc': return salesA - salesB;
-            case 'stock_desc': return stockB - stockA;
-            case 'stock_asc': return stockA - stockB;
-            case 'price_desc': return priceB - priceA;
-            case 'price_asc': return priceA - priceB;
-            default: return 0;
-        }
-    });
-
-    // 5. ENVIA PARA O UTILITÁRIOS FINALIZAR
-    if (typeof window.gerarRelatorioAvancado === 'function') {
-        window.gerarRelatorioAvancado(productsToExport, config);
-        closeReportModal();
-    } else {
-        alert("Erro: O arquivo utilitarios.js não carregou corretamente. Recarregue a página (Ctrl+F5).");
-    }
-};
-
-
-// =================================================================
-// 🚀 ATUALIZAÇÃO EM LOTE DE STATUS (ATIVO/INATIVO) COM FILTRO INTELIGENTE
-// =================================================================
-window.bulkChangeProductStatus = async (isActive) => {
-    // 1. Filtra apenas os produtos que REALMENTE precisam ser alterados
-    const productsToUpdate = [];
-    
-    state.selectedProducts.forEach(id => {
-        const prod = state.products.find(p => p.id === id);
-        if (prod) {
-            // No sistema, se não tiver a tag "active", ele é considerado ativo por padrão
-            const isCurrentlyActive = prod.active !== false; 
-            
-            // Só adiciona na fila de atualização se o status atual for DIFERENTE do desejado
-            if (isCurrentlyActive !== isActive) {
-                productsToUpdate.push(id);
-            }
-        }
-    });
-
-    const countTotal = state.selectedProducts.size;
-    const countToUpdate = productsToUpdate.length;
-    const actionText = isActive ? 'ATIVAR' : 'INATIVAR';
-    const statusText = isActive ? 'ativos' : 'inativos';
-
-    // 2. Se nenhum produto precisar de mudança, avisa e cancela a ação
-    if (countToUpdate === 0) {
-        alert(`Todos os ${countTotal} itens selecionados já estão ${statusText}. Nenhuma alteração foi necessária.`);
-        state.selectedProducts.clear();
-        filterAndRenderProducts(); // Tira a seleção da tela
-        return;
-    }
-
-    // 3. Monta a mensagem de confirmação inteligente
-    let confirmMsg = `Tem certeza que deseja ${actionText} ${countToUpdate} produto(s)?`;
-    
-    if (countTotal > countToUpdate) {
-        const ignorados = countTotal - countToUpdate;
-        confirmMsg = `Dos ${countTotal} itens selecionados, ${ignorados} já estavam ${statusText} e serão ignorados.\n\nDeseja ${actionText} os ${countToUpdate} produto(s) restantes?`;
-    }
-
-    if (!confirm(confirmMsg)) return;
-
-    // 4. Executa a atualização apenas nos que precisam
-    try {
-        document.body.style.cursor = 'wait';
-        
-        const promises = productsToUpdate.map(id => {
-            return updateDoc(doc(db, `sites/${state.siteId}/products`, id), { active: isActive });
-        });
-        
-        await Promise.all(promises);
-        
-        // 5. Atualiza a memória RAM local instantaneamente
-        productsToUpdate.forEach(id => {
-            const idx = state.products.findIndex(p => p.id === id);
-            if(idx !== -1) state.products[idx].active = isActive;
-        });
-
-        // 6. Limpa a seleção e redesenha a tela
-        state.selectedProducts.clear();
-        setCachedData(`prods_${state.siteId}`, state.products, 60);
-        filterAndRenderProducts(); 
-        
-        showToast(`${countToUpdate} produto(s) atualizado(s) com sucesso!`, 'success');
-        
-    } catch (error) { 
-        alert("Erro ao atualizar os produtos: " + error.message); 
-    } finally {
-        document.body.style.cursor = 'default';
-    }
-};
-
-
-// =================================================================
-// 🧠 LÓGICA DE REORGANIZAÇÃO (COM DRAG & DROP PROFISSIONAL)
-// =================================================================
-
-function defaultProductSort(a, b) {
-    const isHighlightA = a.highlight === true ? 1 : 0;
-    const isHighlightB = b.highlight === true ? 1 : 0;
-    if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA;
-
-    const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
-    const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
-    if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
-
-    const codeA = parseInt(a.code) || 0;
-    const codeB = parseInt(b.code) || 0;
-    return codeB - codeA;
-}
-
-function catalogProductSort(a, b) {
-    const orderA = a.order !== undefined && a.order !== null ? parseFloat(a.order) : 999999;
-    const orderB = b.order !== undefined && b.order !== null ? parseFloat(b.order) : 999999;
-    if (orderA !== orderB) return orderA - orderB;
-    return defaultProductSort(a, b);
-}
-
-window.startReorderMode = async () => {
-    // 1. Limpa Filtros
-    const searchInput = document.getElementById('admin-search-prod');
-    const catInput = document.getElementById('admin-filter-cat');
-    const statusInput = document.getElementById('admin-filter-status');
-    if(searchInput) searchInput.value = '';
-    if(catInput) catInput.value = '';
-    if(statusInput) statusInput.value = '';
-
-    // 2. Prepara os Dados
-    state.backupProductsStr = JSON.stringify(state.products);
-    state.isReorderMode = true;
-    state.products.sort(catalogProductSort);
-    state.products.forEach((p, index) => p.order = (index + 1) * 10);
-    
-    // Desenha a tela
-    renderProductsList(state.products);
-    showToast("Segure nas barrinhas para arrastar e reordenar.", "info");
-
-    // 3. Importa a Biblioteca de Física Dinamicamente (Se já não existir)
-    if (!window.Sortable) {
-        await new Promise(resolve => {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js';
-            script.onload = resolve;
-            document.head.appendChild(script);
-        });
-    }
-
-    // 4. CSS que faz o item arrastado flutuar e deixa o "buraco" vazio na lista original
-    if (!document.getElementById('sortable-custom-styles')) {
-        const style = document.createElement('style');
-        style.id = 'sortable-custom-styles';
-        style.innerHTML = `
-            .sortable-ghost { opacity: 0 !important; } 
-            .sortable-drag { 
-                background-color: #1c1f2b !important; 
-                box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8) !important; 
-                transform: scale(1.02) !important;
-                border: 1px solid #eab308 !important;
-                border-radius: 8px !important;
-                z-index: 99999 !important;
-                opacity: 0.95 !important;
-                cursor: grabbing !important;
-            }
-            .drag-handle { touch-action: none; }
-        `;
-        document.head.appendChild(style);
-    }
-
-    // 5. Inicia o Controle
-    const container = document.getElementById('admin-product-scroll-container');
-    if (!container) return;
-
-    if (window.productSortable) window.productSortable.destroy();
-
-    window.productSortable = new Sortable(container, {
-        animation: 250, 
-        handle: '.drag-handle', // SÓ permite pegar pelo ícone das barrinhas
-        forceFallback: true, 
-        fallbackClass: 'sortable-drag', // O card que levanta na mão
-        ghostClass: 'sortable-ghost', // O espaço invisível que fica para trás
-        scroll: true, // Faz a tela rolar quando encostar na borda
-        scrollSensitivity: 80,
-        scrollSpeed: 15,
-        onEnd: function (evt) {
-            if(evt.newIndex !== evt.oldIndex) {
-                // Atualiza o array baseado de onde você tirou e onde soltou
-                const movedItem = state.products.splice(evt.oldIndex, 1)[0];
-                state.products.splice(evt.newIndex, 0, movedItem);
-                
-                // Recalcula o peso
-                state.products.forEach((p, i) => p.order = (i + 1) * 10);
-                
-                // Redesenha e reinicia o observador
-                renderProductsList(state.products);
-                window.startReorderMode(); 
-            }
-        }
-    });
-};
-
-window.reorderProductsArray = (fromIndex, toIndex) => {
-    const movedItem = state.products.splice(fromIndex, 1)[0];
-    state.products.splice(toIndex, 0, movedItem);
-    
-    // Atualiza os pesos locais
-    state.products.forEach((p, index) => p.order = (index + 1) * 10);
-    
-    // Renderiza direto a lista sem passar pelo filtro/ordenação das colunas
-    renderProductsList(state.products);
-};
-
-window.cancelReorder = () => {
-    // CORREÇÃO: Destrói o Arrastar ANTES de reconstruir a tela
-    if (window.productSortable) {
-        try { window.productSortable.destroy(); } catch(e){}
-        window.productSortable = null;
-    }
-
-    if (state.backupProductsStr) state.products = JSON.parse(state.backupProductsStr);
-    state.isReorderMode = false;
-    
-    if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-    showToast("Reorganização Cancelada.", "info");
-};
-
-window.saveReorder = async () => {
-    const btn = document.querySelector('button[onclick="saveReorder()"]');
-    if(btn) { btn.innerText = "⏳ Salvando..."; btn.disabled = true; }
-
-    // ✨ CORREÇÃO CRÍTICA: Destrói a biblioteca ANTES do Firebase começar a alterar a tela
-    if (window.productSortable) {
-        try { window.productSortable.destroy(); } catch(e){}
-        window.productSortable = null;
-    }
-
-    try {
-        const promises = state.products.map((p) => {
-            if (p.order !== undefined) {
-                return updateDoc(doc(db, `sites/${state.siteId}/products`, p.id), { order: p.order });
-            }
-        });
-        await Promise.all(promises);
-
-        state.isReorderMode = false;
-        state.backupProductsStr = null;
-        
-        setCachedData(`prods_${state.siteId}`, state.products, 60);
-        if (typeof renderCatalog === 'function') renderCatalog(state.products);
-        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-        
-        showToast("Nova ordem salva com sucesso!", "success");
-    } catch (e) {
-        alert("Erro ao salvar: " + e.message);
-    } finally {
-        if(btn) { btn.innerText = "Salvar"; btn.disabled = false; }
-    }
-};
-
-window.resetReorderToDefault = () => {
-    state.products.sort(defaultProductSort);
-    state.products.forEach((p, index) => p.order = (index + 1) * 10);
-    renderProductsList(state.products);
-    window.startReorderMode(); 
-    showToast("Ordem padrão calculada! Destaque > Oferta > Novo.", "info");
-};
-
-
-window.moveProductInReorder = (id, direction) => {
-    // Como os produtos estão listados por 'order', podemos apenas achar o index e trocar os valores
-    const currentIndex = state.products.findIndex(p => p.id === id);
-    if (currentIndex === -1) return;
-
-    const targetIndex = currentIndex + direction;
-    if (targetIndex < 0 || targetIndex >= state.products.length) return;
-
-    // Troca APENAS a propriedade order entre os dois produtos afetados
-    const tempOrder = state.products[currentIndex].order;
-    state.products[currentIndex].order = state.products[targetIndex].order;
-    state.products[targetIndex].order = tempOrder;
-
-    filterAndRenderProducts();
-};
-
-
-
-
 // ============================================================
 // CONECTOR GLOBAL FINAL (ÚNICO E OBRIGATÓRIO)
 // ============================================================
+
 // 1. Navegação e UI
 window.openCart = openCart;
 window.closeCartModal = closeCartModal;
@@ -10454,12 +9878,6 @@ window.closeProductSelectorModal = closeProductSelectorModal;
 window.renderProductSelectorList = renderProductSelectorList;
 window.selectProductForFilter = selectProductForFilter;
 window.clearProductFilter = clearProductFilter;
-
-window.startReorderMode = startReorderMode;
-window.cancelReorder = cancelReorder;
-window.resetReorderToDefault = resetReorderToDefault;
-window.moveProductInReorder = moveProductInReorder;
-window.saveReorder = saveReorder;
 
 // 6. DESTRAVA ESTATÍSTICAS (Se for admin logado)
 if (state.user && typeof loadAdminSales === 'function') {
@@ -10988,8 +10406,8 @@ window.moveTopic = async (index, direction) => {
 };
 
 window.renderSidebarTopics = () => {
-    const activeTopics = state.storeProfile.enableCustomTopics && state.storeProfile.customTopics
-        ? state.storeProfile.customTopics.filter(t => t.active !== false)
+    const activeTopics = state.storeProfile.enableCustomTopics && state.storeProfile.customTopics 
+        ? state.storeProfile.customTopics.filter(t => t.active !== false) 
         : [];
 
     // --- 1. RENDERIZA NO MENU LATERAL (SIDEBAR) ---
@@ -11053,78 +10471,4 @@ window.openClientTopic = (index) => {
     showView('topic');
     toggleSidebar();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-};
-
-// =================================================================
-// 🛡️ MODAL DE ESTOQUE ESGOTADO (CHECKOUT)
-// =================================================================
-window.showOutOfStockModal = (outOfStockItems) => {
-    let modal = document.getElementById('out-of-stock-modal');
-    
-    // Se o modal não existe no HTML, o JS cria ele na hora
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'out-of-stock-modal';
-        modal.className = "fixed inset-0 bg-black/90 z-[99999] flex items-center justify-center p-4 opacity-0 transition-opacity duration-300 backdrop-blur-sm hidden";
-        document.body.appendChild(modal);
-    }
-
-    // Monta a listinha vermelha bonita com os itens que deram problema
-    const itemsHtml = outOfStockItems.map(itemHtml => `
-        <div class="flex items-center gap-3 bg-red-900/20 border border-red-500/30 p-3 rounded-lg text-left">
-            <div class="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
-                <i class="fas fa-box-open text-red-500"></i>
-            </div>
-            <div class="flex-1 text-gray-200 text-sm leading-tight">${itemHtml}</div>
-        </div>
-    `).join('');
-
-    modal.innerHTML = `
-        <div class="bg-[#151720] border-t-4 border-t-red-500 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300" id="oos-card">
-            <div class="p-6 text-center">
-                <div class="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
-                    <i class="fas fa-exclamation-triangle text-4xl text-red-500 animate-pulse"></i>
-                </div>
-                <h3 class="text-white font-extrabold text-2xl mb-2 tracking-tight">Ops! Estoque alterado.</h3>
-                <p class="text-gray-400 text-sm mb-6 leading-relaxed">
-                    Enquanto você preenchia os dados, alguém foi mais rápido e comprou as últimas unidades. Ajuste seu carrinho para prosseguir:
-                </p>
-
-                <div class="space-y-2 mb-6 max-h-48 overflow-y-auto custom-scrollbar pr-2">
-                    ${itemsHtml}
-                </div>
-
-                <button onclick="closeOutOfStockModal()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-red-900/50 uppercase tracking-wide flex items-center justify-center gap-2">
-                    <i class="fas fa-shopping-cart"></i> Voltar ao Carrinho
-                </button>
-            </div>
-        </div>
-    `;
-
-    // Exibe com animação suave
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    setTimeout(() => {
-        modal.classList.remove('opacity-0');
-        document.getElementById('oos-card').classList.remove('scale-95');
-    }, 10);
-};
-
-window.closeOutOfStockModal = () => {
-    const modal = document.getElementById('out-of-stock-modal');
-    if (!modal) return;
-    
-    // Oculta com animação
-    modal.classList.add('opacity-0');
-    document.getElementById('oos-card').classList.add('scale-95');
-    
-    setTimeout(() => {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        
-        // MÁGICA: Joga o cliente direto de volta pro carrinho!
-        if (typeof window.backToOrderList === 'function') {
-            window.backToOrderList();
-        }
-    }, 300);
 };

@@ -2345,7 +2345,7 @@ function renderProductsList(products, preCalcMetrics = null) {
         controlsBar.innerHTML = `
             <div class="flex gap-2 shrink-0">
                 <button onclick="toggleSelectionMode()" class="${selectBtnClass}">${selectBtnText}</button>
-                <button onclick="startReorderMode()" class="text-yellow-500 px-3 py-2 rounded text-xs font-bold uppercase transition flex items-center gap-2"><i class="fas fa-sort-amount-down"></i> Reorganizar</button>
+                <button onclick="startReorderMode()" class="hover:bg-gray-700 text-yellow-500 border border-gray-700 px-3 py-2 rounded text-xs font-bold uppercase transition flex items-center gap-2"><i class="fas fa-sort-amount-down"></i> Reorganizar</button>
             </div>
             ${bulkActionsHTML}
         `;

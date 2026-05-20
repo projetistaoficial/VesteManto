@@ -2345,7 +2345,7 @@ function renderProductsList(products, preCalcMetrics = null) {
         controlsBar.innerHTML = `
             <div class="flex gap-2 shrink-0">
                 <button onclick="toggleSelectionMode()" class="${selectBtnClass}">${selectBtnText}</button>
-                <button onclick="startReorderMode()" class="text-yellow-500 px-3 py-2 rounded text-xs font-bold uppercase transition flex items-center gap-2"><i class="fas fa-sort-amount-down"></i> Reorganizar</button>
+                <button onclick="startReorderMode()" class="bg-gray-800 hover:bg-gray-700 text-yellow-500 border border-gray-700 px-3 py-2 rounded text-xs font-bold uppercase transition flex items-center gap-2"><i class="fas fa-sort-amount-down"></i> Reorganizar</button>
             </div>
             ${bulkActionsHTML}
         `;
@@ -10373,6 +10373,33 @@ window.resetReorderToDefault = () => {
     showToast("Ordem padrão calculada! Destaque > Oferta > Novo.", "info");
 };
 
+window.saveReorder = async () => {
+    const btn = document.querySelector('button[onclick="saveReorder()"]');
+    if(btn) { btn.innerText = "⏳ Salvando..."; btn.disabled = true; }
+
+    try {
+        const promises = state.products.map((p) => {
+            if (p.order !== undefined) {
+                return updateDoc(doc(db, `sites/${state.siteId}/products`, p.id), { order: p.order });
+            }
+        });
+        await Promise.all(promises);
+
+        if (window.productSortable) window.productSortable.destroy();
+        state.isReorderMode = false;
+        state.backupProductsStr = null;
+        
+        setCachedData(`prods_${state.siteId}`, state.products, 60);
+        if (typeof renderCatalog === 'function') renderCatalog(state.products);
+        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+        
+        showToast("Nova ordem salva com sucesso!", "success");
+    } catch (e) {
+        alert("Erro ao salvar: " + e.message);
+    } finally {
+        if(btn) { btn.innerText = "Salvar"; btn.disabled = false; }
+    }
+};
 
 window.moveProductInReorder = (id, direction) => {
     // Como os produtos estão listados por 'order', podemos apenas achar o index e trocar os valores
