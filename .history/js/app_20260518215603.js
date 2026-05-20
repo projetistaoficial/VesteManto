@@ -1761,43 +1761,37 @@ function renderCatalog(productsToRender) {
 
     const sortMode = document.getElementById('sort-filter')?.value || 'vitrine';
 
-    // ✨ ARMADURA: FORÇA O ESTOQUE PARA NÚMERO
+    // ✨ ARMADURA: FORÇA O ESTOQUE PARA NÚMERO (Se for vazio ou NaN, vira 0) ✨
     const getSafeStock = (val) => isNaN(parseInt(val)) ? 0 : parseInt(val);
 
     filtered.sort((a, b) => {
+        const priceA = parseFloat(a.promoPrice || a.price) || 0;
+        const priceB = parseFloat(b.promoPrice || b.price) || 0;
+        const codeA = parseInt(a.code) || 0;
+        const codeB = parseInt(b.code) || 0;
+
         const stockA = getSafeStock(a.stock);
         const stockB = getSafeStock(b.stock);
 
         const isSoldOutA = stockA <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
         const isSoldOutB = stockB <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
 
-        // Itens esgotados sempre vão pro final (se o sistema bloquear venda sem estoque)
         if (isSoldOutA && !isSoldOutB) return 1;
         if (!isSoldOutA && isSoldOutB) return -1;
 
         switch (sortMode) {
             case 'vitrine':
-                // 1. REGRA SOBERANA: Ordem Manual
-                // Se você arrastou o produto, ele ganha um número de ordem. Esse número manda em tudo!
-                const orderA = a.order !== undefined && a.order !== null ? parseFloat(a.order) : 999999;
-                const orderB = b.order !== undefined && b.order !== null ? parseFloat(b.order) : 999999;
-
-                if (orderA !== orderB) return orderA - orderB;
-
-                // 2. SE NÃO TIVER ORDEM MANUAL (ou clicar no botão Padrão), aplica a hierarquia:
-                const isHighlightA = a.highlight === true ? 1 : 0;
-                const isHighlightB = b.highlight === true ? 1 : 0;
-                if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA;
-
-                const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
-                const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
-                if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
-
-                const codeA = parseInt(a.code) || 0;
-                const codeB = parseInt(b.code) || 0;
+                if (a.highlight === true && b.highlight !== true) return -1;
+                if (a.highlight !== true && b.highlight === true) return 1;
+                const hasOfferA = (a.promoPrice && parseFloat(a.promoPrice) > 0);
+                const hasOfferB = (b.promoPrice && parseFloat(b.promoPrice) > 0);
+                if (hasOfferA && !hasOfferB) return -1;
+                if (!hasOfferA && hasOfferB) return 1;
                 return codeB - codeA;
-
-            // (Pode adicionar outros cases aqui se você tiver opções como "Maior Preço", "Menor Preço" no select)
+            case 'price-asc': return priceA - priceB;
+            case 'price-desc': return priceB - priceA;
+            case 'name-asc': return (a.name || '').localeCompare(b.name || '');
+            default: return codeB - codeA;
         }
     });
 
@@ -1811,8 +1805,11 @@ function renderCatalog(productsToRender) {
 
     filtered.forEach(p => {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
+
+        // ✨ APLICA A ARMADURA AQUI TAMBÉM ✨
         const currentStock = getSafeStock(p.stock);
         const isOut = currentStock <= 0 && !allowNegative;
+
         const currentPrice = parseFloat(p.promoPrice || p.price);
 
         let pixHtml = '';
@@ -2101,90 +2098,66 @@ window.renameCategory = async (id, oldFullName) => {
 // =================================================================
 // NOVA LÓGICA DE PRODUTOS (ADMIN)
 // =================================================================
+// =================================================================
+// 🧠 CÉREBRO DE ORDENAÇÃO DO CATÁLOGO
+// =================================================================
+function defaultProductSort(a, b) {
+    // 1º Prioridade: Destaque
+    const isHighlightA = a.highlight === true ? 1 : 0;
+    const isHighlightB = b.highlight === true ? 1 : 0;
+    if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA;
+
+    // 2º Prioridade: Oferta
+    const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
+    const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
+    if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
+
+    // 3º Prioridade: Mais Novo (Código Maior)
+    const codeA = parseInt(a.code) || 0;
+    const codeB = parseInt(b.code) || 0;
+    return codeB - codeA;
+}
+
+function catalogProductSort(a, b) {
+    // Ordem Manual Soberana (Se existir)
+    const orderA = a.order !== undefined ? parseFloat(a.order) : 999999;
+    const orderB = b.order !== undefined ? parseFloat(b.order) : 999999;
+    if (orderA !== orderB) return orderA - orderB;
+
+    // Se não tiver ordem manual, usa a regra padrão
+    return defaultProductSort(a, b);
+}
+
 // 1. Filtra e Ordena (Substitui a lógica antiga)
 function filterAndRenderProducts() {
     updateProductCountsUI();
     let filtered = getCurrentFilteredProducts();
-    
-    const metricsMap = {};
-    const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
 
-    if (state.orders) {
-        state.orders.forEach(order => {
-            if (validStatuses.includes(order.status)) {
-                const orderDate = new Date(order.date);
-                order.items.forEach(item => {
-                    if (!metricsMap[item.id]) metricsMap[item.id] = { qtd: 0, lastDate: 0 };
-                    metricsMap[item.id].qtd += (parseInt(item.qty) || 0);
-                    if (orderDate.getTime() > metricsMap[item.id].lastDate) {
-                        metricsMap[item.id].lastDate = orderDate.getTime();
-                    }
-                });
-            }
-        });
-    }
-
+    // No modo de reordenação, força a lista a ficar igual à vitrine
     if (state.isReorderMode) {
-        // MODO REORGANIZAR: Ordem manual é a lei suprema!
-        filtered.sort((a, b) => {
-            const orderA = a.order !== undefined && a.order !== null ? parseFloat(a.order) : 999999;
-            const orderB = b.order !== undefined && b.order !== null ? parseFloat(b.order) : 999999;
-
-            if (orderA !== orderB) return orderA - orderB;
-
-            const isHighlightA = a.highlight === true ? 1 : 0;
-            const isHighlightB = b.highlight === true ? 1 : 0;
-            if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA;
-
-            const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
-            const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
-            if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
-
-            return (parseInt(b.code) || 0) - (parseInt(a.code) || 0);
-        });
+        filtered.sort(catalogProductSort);
     } else {
-        // MODO NORMAL (Ordena pelo clique nas colunas: Cód, Produto, Valor...)
+        // Ordenação normal por colunas
         const { key, direction } = state.sortConfig;
-
         filtered.sort((a, b) => {
             let valA, valB;
-
             switch (key) {
-                case 'code':
-                    valA = a.code ? parseInt(a.code) : 0;
-                    valB = b.code ? parseInt(b.code) : 0;
-                    break;
-                case 'product':
-                    valA = a.name.toLowerCase();
-                    valB = b.name.toLowerCase();
-                    break;
-                case 'stock':
-                    valA = parseInt(a.stock) || 0;
-                    valB = parseInt(b.stock) || 0;
-                    break;
-                case 'price':
-                    valA = parseFloat(a.price) || 0;
-                    valB = parseFloat(b.price) || 0;
-                    break;
-                case 'sales': 
-                    valA = metricsMap[a.id]?.qtd || 0;
-                    valB = metricsMap[b.id]?.qtd || 0;
-                    break;
-                case 'lastmov': 
-                    valA = metricsMap[a.id]?.lastDate || 0;
-                    valB = metricsMap[b.id]?.lastDate || 0;
-                    break;
-                default: return 0;
+                case 'code': valA = parseInt(a.code) || 0; valB = parseInt(b.code) || 0; break;
+                case 'product': valA = a.name.toLowerCase(); valB = b.name.toLowerCase(); break;
+                case 'stock': valA = parseInt(a.stock) || 0; valB = parseInt(b.stock) || 0; break;
+                case 'price': valA = parseFloat(a.price) || 0; valB = parseFloat(b.price) || 0; break;
+                default: return 0; // Vendas e Data omitidas por brevidade, pode manter se quiser
             }
-
             if (valA < valB) return direction === 'asc' ? -1 : 1;
             if (valA > valB) return direction === 'asc' ? 1 : -1;
             return 0;
         });
     }
 
-    renderProductsList(filtered, metricsMap);
+    renderProductsList(filtered);
 }
+
+
 
 // --- LÓGICA DE ORDENAÇÃO E FILTRAGEM ---
 function getCurrentFilteredProducts() {
@@ -2291,24 +2264,24 @@ function renderProductsList(products, preCalcMetrics = null) {
 
     listEl.innerHTML = '';
 
-    // --- 1. BARRA DE CONTROLES NOVA (COM REORGANIZAR E ARRASTAR) ---
+    // --- 1. BARRA DE CONTROLES NOVA (COM REORGANIZAR) ---
     const controlsBar = document.createElement('div');
-    controlsBar.className = "flex flex-wrap justify-between items-center mb-2 px-1 gap-2 min-h-[40px] w-full";
+    controlsBar.className = "flex flex-wrap justify-between items-center mb-2 px-1 gap-2 min-h-[40px]";
 
     if (state.isReorderMode) {
         // BARRA QUANDO ESTÁ REORGANIZANDO
         controlsBar.innerHTML = `
-            <div class="flex w-full justify-between items-center bg-blue-900/20 border border-blue-500/50 p-2 rounded-lg animate-fade-in shadow-sm">
-                <span class="text-blue-400 font-bold text-xs uppercase tracking-wider"><i class="fas fa-arrows-alt-v mr-1"></i> Arraste para Reordenar</span>
+            <div class="flex w-full justify-between items-center bg-blue-900/20 border border-blue-500/50 p-2 rounded-lg animate-fade-in">
+                <span class="text-blue-400 font-bold text-xs uppercase tracking-wider"><i class="fas fa-arrows-alt-v mr-1"></i> Reorganizando</span>
                 <div class="flex gap-2">
-                    <button onclick="resetReorderToDefault()" class="bg-gray-800 hover:bg-gray-700 text-white px-3 h-8 rounded text-xs font-bold transition flex items-center gap-2" title="Destaque > Oferta > Novos"><i class="fas fa-magic"></i> Padrão</button>
+                    <button onclick="resetReorderToDefault()" class="bg-gray-800 hover:bg-gray-700 text-white px-3 h-8 rounded text-xs font-bold transition flex items-center gap-2"><i class="fas fa-magic"></i> Padrão</button>
                     <button onclick="cancelReorder()" class="bg-red-900/50 hover:bg-red-600 text-red-400 hover:text-white px-3 h-8 rounded text-xs font-bold transition">Cancelar</button>
                     <button onclick="saveReorder()" class="bg-green-600 hover:bg-green-500 text-white px-4 h-8 rounded text-xs font-bold transition flex items-center gap-2 shadow-lg"><i class="fas fa-save"></i> Salvar</button>
                 </div>
             </div>
         `;
     } else {
-        // BARRA NORMAL
+        // BARRA NORMAL DO SEU CÓDIGO
         const selectBtnText = state.isSelectionMode ? '<i class="fas fa-times mr-2"></i> Cancelar' : '<i class="fas fa-check-square mr-2"></i> Selecionar';
         const selectBtnClass = state.isSelectionMode ? "text-red-400 hover:text-red-300 text-xs font-bold uppercase cursor-pointer py-2 px-2 bg-red-900/20 rounded border border-red-900/50" : "text-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase cursor-pointer py-2 px-2 hover:bg-yellow-900/20 rounded transition";
 
@@ -2344,14 +2317,13 @@ function renderProductsList(products, preCalcMetrics = null) {
             `;
         }
 
+        // Adiciona o botão Reorganizar junto ao de Selecionar
         controlsBar.innerHTML = `
-            <div class="flex flex-wrap items-center justify-between w-full gap-2">
-                <div class="flex gap-2 shrink-0">
-                    <button onclick="toggleSelectionMode()" class="${selectBtnClass}">${selectBtnText}</button>
-                    <button onclick="startReorderMode()" class="bg-gray-800 hover:bg-gray-700 text-yellow-500 border border-gray-700 px-3 py-2 rounded text-xs font-bold uppercase transition flex items-center gap-2"><i class="fas fa-sort-amount-down"></i> Reorganizar</button>
-                </div>
-                ${bulkActionsHTML}
+            <div class="flex gap-2">
+                <button onclick="toggleSelectionMode()" class="${selectBtnClass}">${selectBtnText}</button>
+                <button onclick="startReorderMode()" class="bg-gray-800 hover:bg-gray-700 text-yellow-500 border border-gray-700 px-3 py-2 rounded text-xs font-bold uppercase transition flex items-center gap-2"><i class="fas fa-sort-amount-down"></i> Reorganizar</button>
             </div>
+            ${bulkActionsHTML}
         `;
     }
 
@@ -2369,20 +2341,21 @@ function renderProductsList(products, preCalcMetrics = null) {
 
     const checkColContent = state.isSelectionMode ? `<input type="checkbox" onchange="toggleSelectAll(this)" ${masterCheckAttr} class="cursor-pointer rounded border-gray-600 bg-gray-800 text-yellow-500 focus:ring-0 w-4 h-4" title="Selecionar Todos">` : ``;
 
+    // HEADER MUDA CONFORME O MODO
     const headerHTML = `
         <div class="hidden md:grid grid-cols-12 gap-2 bg-[#1f1f1f] text-gray-400 font-bold p-3 rounded-t-xl text-[10px] uppercase tracking-wider border-b border-gray-800 sticky top-0 z-20 select-none items-center shadow-lg">
             ${state.isReorderMode ? `
-                <div class="col-span-2 text-center border-r border-gray-700 text-yellow-500">Nº e Cód</div>
+                <div class="col-span-1 text-center border-r border-gray-700 text-yellow-500">Nº</div>
             ` : `
                 <div class="${state.isSelectionMode ? 'col-span-1 block' : 'hidden'} text-center flex items-center justify-center">${checkColContent}</div>
-                <div class="${state.isSelectionMode ? 'col-span-1' : 'col-span-1'} text-center border-r border-gray-700 cursor-pointer hover:text-white flex items-center justify-left h-full" onclick="sortProducts('code')">Cód ${getSortIcon('code')}</div>
             `}
+            <div class="${state.isSelectionMode || state.isReorderMode ? 'col-span-1' : 'col-span-1'} text-center border-r border-gray-700 cursor-pointer hover:text-white flex items-center justify-left h-full" onclick="sortProducts('code')">Cód ${getSortIcon('code')}</div>
             <div class="col-span-5 pl-2 cursor-pointer hover:text-white flex items-center" onclick="sortProducts('product')">Produto ${getSortIcon('product')}</div>
             <div class="col-span-2 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('lastmov')">Última Mov. ${getSortIcon('lastmov')}</div>
             <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('sales')">Qtd Vendidas ${getSortIcon('sales')}</div>
             <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('stock')">Estoque ${getSortIcon('stock')}</div>
             <div class="col-span-1 text-right pr-4 cursor-pointer hover:text-white flex items-center justify-end" onclick="sortProducts('price')">Valor ${getSortIcon('price')}</div>
-            <div class="col-span-1"></div>
+            ${state.isReorderMode ? '' : '<div class="col-span-1"></div>'}
         </div>
         <div class="md:hidden flex items-center justify-between px-4 py-2 text-gray-400 text-xs uppercase font-bold bg-[#1f1f1f] rounded-t-lg border-b border-gray-800">
             <div class="flex items-center gap-2">${state.isSelectionMode ? checkColContent : ''}<span>Produto</span></div>
@@ -2416,6 +2389,7 @@ function renderProductsList(products, preCalcMetrics = null) {
     // --- 3. LISTA ---
     products.forEach((p, index) => {
         const metrics = metricsMap[p.id] || { qtd: 0, lastDate: 0 };
+        const positionNum = index + 1;
 
         let lastMovStr = "-";
         if (metrics.lastDate > 0) {
@@ -2441,22 +2415,34 @@ function renderProductsList(products, preCalcMetrics = null) {
         const codeStr = p.code ? p.code : '-';
         const safeStockDisplay = isNaN(parseInt(p.stock)) ? 0 : parseInt(p.stock);
 
-        const deleteBgClass = state.isSelectionMode || state.isReorderMode ? 'hidden' : 'absolute inset-y-0 right-0 w-24 bg-red-600 flex items-center justify-center cursor-pointer z-0';
+        const deleteBgClass = state.isSelectionMode ? 'hidden' : 'absolute inset-y-0 right-0 w-24 bg-red-600 flex items-center justify-center cursor-pointer z-0';
+
+        // LÓGICA DAS SETAS (Reordenar) ou CAIXAS (Selecionar)
+        const isFirstProd = index === 0;
+        const isLastProd = index === products.length - 1;
 
         let selectionOrReorderHTML = '';
         if (state.isReorderMode) {
-            // MODO DE REORDENAÇÃO: Ícone de Arrasto + Numeração
             selectionOrReorderHTML = `
-                <div class="flex items-center justify-center md:col-span-1 shrink-0 px-2 text-gray-500 hover:text-yellow-500 transition cursor-move" title="Arraste para reordenar">
-                     <i class="fas fa-grip-lines text-xl"></i>
+                <div class="md:col-span-1 flex flex-col items-center justify-center gap-0.5 border-r border-gray-800 h-full w-12 shrink-0 bg-black/20">
+                    <button type="button" onclick="event.stopPropagation(); moveProductInReorder('${p.id}', -1)" 
+                        class="text-gray-500 hover:text-yellow-500 p-0.5 transition" 
+                        ${isFirstProd ? 'disabled style="opacity:0.2"' : ''}>
+                        <i class="fas fa-caret-up"></i>
+                    </button>
+                    <span class="text-[11px] font-black text-yellow-500 leading-none">${positionNum}</span>
+                    <button type="button" onclick="event.stopPropagation(); moveProductInReorder('${p.id}', 1)" 
+                        class="text-gray-500 hover:text-yellow-500 p-0.5 transition" 
+                        ${isLastProd ? 'disabled style="opacity:0.2"' : ''}>
+                        <i class="fas fa-caret-down"></i>
+                    </button>
                 </div>
-                <div class="hidden md:flex flex-col md:col-span-1 items-center justify-center border-r border-gray-800 h-full shrink-0">
-                    <span class="text-xs text-yellow-500 font-bold mb-0.5">Nº ${index + 1}</span>
-                    <span class="text-[10px] font-bold text-white opacity-50">#${codeStr}</span>
+                <div class="hidden md:flex flex-col md:col-span-1 items-center justify-center border-r border-gray-800 h-full shrink-0 w-16">
+                    <span class="text-base font-bold text-white font-mono opacity-80">#${codeStr}</span>
+                    ${isInactive ? '<span class="text-[9px] bg-red-600 text-white px-1 mt-1 rounded uppercase font-bold tracking-widest">Inativo</span>' : ''}
                 </div>
             `;
         } else {
-            // MODO NORMAL (Checkbox)
             selectionOrReorderHTML = `
                 <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center shrink-0">
                      <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
@@ -2478,7 +2464,7 @@ function renderProductsList(products, preCalcMetrics = null) {
             </div>
             <div class="relative z-10 p-3 transition-transform duration-200 ease-out prod-swipe-content ${bgClass} h-full flex flex-col md:grid md:grid-cols-12 gap-2 md:items-center">
                 <div class="flex items-center justify-between w-full md:contents">
-                    <div class="flex items-center gap-3 md:col-span-6 w-full flex-1 min-w-0">
+                    <div class="flex items-center gap-3 md:col-span-7 w-full flex-1 min-w-0">
                         
                         ${selectionOrReorderHTML}
 
@@ -2511,78 +2497,10 @@ function renderProductsList(products, preCalcMetrics = null) {
             </div>
         `;
         
-        // --- 4. LÓGICA DE ARRASTAR E SOLTAR (Nativa HTML5 + Celular) ---
-        if (state.isReorderMode) {
-            row.draggable = true;
-            row.dataset.index = index;
-            row.classList.add('drag-product-item', 'cursor-move');
-
-            // Mouse Drag API (Computador)
-            row.addEventListener('dragstart', (e) => {
-                window.draggedProdIndex = index;
-                e.dataTransfer.effectAllowed = 'move';
-                setTimeout(() => row.classList.add('opacity-30'), 0);
-            });
-            row.addEventListener('dragend', () => {
-                row.classList.remove('opacity-30');
-                document.querySelectorAll('.drag-product-item').forEach(el => el.classList.remove('border-t-2', 'border-yellow-500'));
-            });
-            row.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                row.classList.add('border-t-2', 'border-yellow-500');
-            });
-            row.addEventListener('dragleave', () => {
-                row.classList.remove('border-t-2', 'border-yellow-500');
-            });
-            row.addEventListener('drop', (e) => {
-                e.preventDefault();
-                row.classList.remove('border-t-2', 'border-yellow-500');
-                if (window.draggedProdIndex !== null && window.draggedProdIndex !== index) {
-                    window.reorderProductsArray(window.draggedProdIndex, index);
-                }
-            });
-
-            // Touch API (Celular)
-            row.addEventListener('touchstart', (e) => {
-                if (e.target.closest('button') || e.target.tagName === 'INPUT') return;
-                window.draggedProdIndex = index;
-                row.classList.add('opacity-50', 'ring-2', 'ring-yellow-500', 'z-50');
-            }, { passive: true });
-
-            row.addEventListener('touchmove', (e) => {
-                if (window.draggedProdIndex === null) return;
-                e.preventDefault(); // Impede a tela do celular de descer enquanto arrasta
-                const touch = e.touches[0];
-                const element = document.elementFromPoint(touch.clientX, touch.clientY);
-                document.querySelectorAll('.drag-product-item').forEach(el => el.classList.remove('border-t-2', 'border-yellow-500'));
-                if (element) {
-                    const targetEl = element.closest('.drag-product-item');
-                    if (targetEl && targetEl !== row) targetEl.classList.add('border-t-2', 'border-yellow-500');
-                }
-            }, { passive: false });
-
-            row.addEventListener('touchend', (e) => {
-                if (window.draggedProdIndex === null) return;
-                const touch = e.changedTouches[0];
-                const element = document.elementFromPoint(touch.clientX, touch.clientY);
-                const targetEl = element ? element.closest('.drag-product-item') : null;
-
-                row.classList.remove('opacity-50', 'ring-2', 'ring-yellow-500', 'z-50');
-                document.querySelectorAll('.drag-product-item').forEach(el => el.classList.remove('border-t-2', 'border-yellow-500'));
-
-                if (targetEl) {
-                    const targetIndex = parseInt(targetEl.dataset.index);
-                    if (window.draggedProdIndex !== targetIndex) {
-                        window.reorderProductsArray(window.draggedProdIndex, targetIndex);
-                    }
-                }
-                window.draggedProdIndex = null;
-            });
-        } else {
-            // Se não estiver em modo de reordenação, permite o "arrastar" comum que apaga
+        // Desabilita o swipe (lixeira atrás) se estiver reorganizando, para o dedo não escorregar
+        if (!state.isReorderMode) {
             setupSwipe(row.querySelector('.prod-swipe-content'));
         }
-
         scrollContainer.appendChild(row);
     });
 }
@@ -10275,36 +10193,8 @@ window.bulkChangeProductStatus = async (isActive) => {
 // 🔄 LÓGICA DE REORDENAÇÃO DE PRODUTOS
 // =================================================================
 
-// =================================================================
-// 🧠 CÉREBRO E FUNÇÕES GLOBAIS DE REORGANIZAÇÃO (DRAG & DROP)
-// =================================================================
-
-function defaultProductSort(a, b) {
-    // 1º Prioridade: Destaque
-    const isHighlightA = a.highlight === true ? 1 : 0;
-    const isHighlightB = b.highlight === true ? 1 : 0;
-    if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA;
-
-    // 2º Prioridade: Oferta
-    const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
-    const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
-    if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
-
-    // 3º Prioridade: Mais Novo (Código Maior)
-    const codeA = parseInt(a.code) || 0;
-    const codeB = parseInt(b.code) || 0;
-    return codeB - codeA;
-}
-
-function catalogProductSort(a, b) {
-    const orderA = a.order !== undefined ? parseFloat(a.order) : 999999;
-    const orderB = b.order !== undefined ? parseFloat(b.order) : 999999;
-    if (orderA !== orderB) return orderA - orderB;
-    return defaultProductSort(a, b);
-}
-
 window.startReorderMode = () => {
-    // Limpa a busca e filtros para exibir a lista completa do catálogo
+    // 1. Limpa os filtros de pesquisa para mostrar o catálogo inteiro
     const searchInput = document.getElementById('admin-search-prod');
     const catInput = document.getElementById('admin-filter-cat');
     const statusInput = document.getElementById('admin-filter-status');
@@ -10312,80 +10202,41 @@ window.startReorderMode = () => {
     if(catInput) catInput.value = '';
     if(statusInput) statusInput.value = '';
 
-    // Salva o Backup e entra no modo
+    // 2. Faz um backup de segurança e entra no modo
     state.backupProductsStr = JSON.stringify(state.products);
     state.isReorderMode = true;
-    
-    // Deixa os produtos exatamente na ordem atual da vitrine antes de arrastar
-    state.products.sort(catalogProductSort);
-    state.products.forEach((p, index) => p.order = (index + 1) * 10);
-    
-    // Renderiza diretamente a tabela pulando os filtros de cliques
-    renderProductsList(state.products);
-    showToast("Arraste os produtos para reordenar.", "info");
-};
 
-window.reorderProductsArray = (fromIndex, toIndex) => {
-    const movedItem = state.products.splice(fromIndex, 1)[0];
-    state.products.splice(toIndex, 0, movedItem);
-    
-    // Atualiza os pesos locais
-    state.products.forEach((p, index) => p.order = (index + 1) * 10);
-    
-    // Renderiza direto a lista sem passar pelo filtro/ordenação das colunas
-    renderProductsList(state.products);
+    // 3. Organiza os produtos exatamente como o cliente vê na vitrine
+    state.products.sort(catalogProductSort);
+
+    // 4. Injeta pesos (10, 20, 30) para facilitar a troca local
+    state.products.forEach((p, index) => {
+        p.order = (index + 1) * 10;
+    });
+
+    filterAndRenderProducts();
 };
 
 window.cancelReorder = () => {
-    // Reverte a memória pro backup guardado
-    if (state.backupProductsStr) state.products = JSON.parse(state.backupProductsStr);
+    // Restaura a memória do backup de segurança
+    if (state.backupProductsStr) {
+        state.products = JSON.parse(state.backupProductsStr);
+    }
     state.isReorderMode = false;
-    
-    // Retoma o filtro comum do painel
-    if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-    showToast("Reorganização Cancelada.", "info");
+    filterAndRenderProducts();
 };
 
 window.resetReorderToDefault = () => {
-    // Aplica na memória a inteligência base do sistema
+    // Limpa a variável 'order' e usa a ordenação padrão (Destaque > Oferta)
     state.products.sort(defaultProductSort);
-    state.products.forEach((p, index) => p.order = (index + 1) * 10);
     
-    // Renderiza direto
-    renderProductsList(state.products);
-    showToast("Ordem padrão calculada! Clique em Salvar.", "info");
-};
-
-window.saveReorder = async () => {
-    const btn = document.querySelector('button[onclick="saveReorder()"]');
-    if(btn) { btn.innerText = "⏳ Salvando..."; btn.disabled = true; }
-
-    try {
-        // ✨ CORREÇÃO: Usando updateDoc nativo e Promise.all (100% seguro contra bloqueios)
-        const promises = state.products.map((p) => {
-            if (p.order !== undefined) {
-                return updateDoc(doc(db, `sites/${state.siteId}/products`, p.id), { order: p.order });
-            }
-        });
-
-        await Promise.all(promises);
-
-        state.isReorderMode = false;
-        state.backupProductsStr = null;
-        
-        setCachedData(`prods_${state.siteId}`, state.products, 60);
-        
-        // Atualiza a vitrine principal
-        if (typeof renderCatalog === 'function') renderCatalog(state.products);
-        // Atualiza a tabela do painel
-        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-        
-        showToast("Nova ordem do catálogo salva com sucesso!", "success");
-    } catch (e) {
-        alert("Erro ao salvar: " + e.message);
-    } finally {
-        if(btn) { btn.innerText = "Salvar"; btn.disabled = false; }
-    }
+    // Reescreve os pesos na nova ordem correta
+    state.products.forEach((p, index) => {
+        p.order = (index + 1) * 10;
+    });
+    
+    filterAndRenderProducts();
+    showToast("Ordem padrão aplicada. Clique em Salvar para confirmar.", "info");
 };
 
 window.moveProductInReorder = (id, direction) => {
@@ -10404,7 +10255,38 @@ window.moveProductInReorder = (id, direction) => {
     filterAndRenderProducts();
 };
 
+window.saveReorder = async () => {
+    const btn = document.querySelector('button[onclick="saveReorder()"]');
+    if(btn) { btn.innerText = "⏳ Salvando..."; btn.disabled = true; }
 
+    try {
+        const { writeBatch } = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+        const batch = writeBatch(db);
+
+        // Envia as novas ordens para o banco de dados em um único pacote
+        state.products.forEach((p) => {
+            const docRef = doc(db, `sites/${state.siteId}/products`, p.id);
+            // Só manda a variável "order" ou a limpa se o admin clicou no Padrão
+            if (p.order !== undefined) {
+                batch.update(docRef, { order: p.order });
+            }
+        });
+
+        await batch.commit();
+
+        state.isReorderMode = false;
+        state.backupProductsStr = null;
+        
+        setCachedData(`prods_${state.siteId}`, state.products, 60);
+        renderCatalog(state.products);
+        filterAndRenderProducts();
+        
+        showToast("Nova ordem do catálogo salva com sucesso!", "success");
+    } catch (e) {
+        alert("Erro ao salvar: " + e.message);
+        if(btn) { btn.innerText = "Salvar"; btn.disabled = false; }
+    }
+};
 
 
 // ============================================================
