@@ -1192,7 +1192,7 @@ async function loadProducts() {
     if (unsubscribeProducts) unsubscribeProducts(); // Previne duplicidade
 
     const q = query(collection(db, `sites/${state.siteId}/products`));
-
+    
     unsubscribeProducts = onSnapshot(q, (snapshot) => {
         let hasChanges = false;
 
@@ -1217,7 +1217,7 @@ async function loadProducts() {
         if (hasChanges) {
             setCachedData(cacheKey, state.products, 60);
             renderCatalog(state.products);
-
+            
             if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
 
             if (document.getElementById('admin-product-list')) {
@@ -1347,18 +1347,13 @@ function loadCoupons() {
     onSnapshot(q, (snapshot) => {
         state.coupons = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         
-        // Renderiza a lista no Admin
+        // Renderiza no Admin
         const viewAdmin = document.getElementById('view-admin');
         if (viewAdmin && !viewAdmin.classList.contains('hidden')) {
             renderAdminCoupons();
         }
 
-        // ✨ O GATILHO DO ADMIN: Fiscaliza e rotaciona se o oferecido expirou
-        if (state.user && typeof checkAndRotateExpiredOfferedCoupon === 'function') {
-            checkAndRotateExpiredOfferedCoupon();
-        }
-
-        // Exibe o cupom na vitrine para o cliente (se ele não for admin)
+        // ✨ O GATILHO: Exibe para o cliente se ele não for admin
         if (!state.user && typeof showOfferedCoupon === 'function') {
             showOfferedCoupon();
         }
@@ -1976,7 +1971,7 @@ window.renameCategory = async (id, oldFullName) => {
 function filterAndRenderProducts() {
     updateProductCountsUI();
     let filtered = getCurrentFilteredProducts();
-
+    
     const metricsMap = {};
     const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
 
@@ -2037,11 +2032,11 @@ function filterAndRenderProducts() {
                     valA = parseFloat(a.price) || 0;
                     valB = parseFloat(b.price) || 0;
                     break;
-                case 'sales':
+                case 'sales': 
                     valA = metricsMap[a.id]?.qtd || 0;
                     valB = metricsMap[b.id]?.qtd || 0;
                     break;
-                case 'lastmov':
+                case 'lastmov': 
                     valA = metricsMap[a.id]?.lastDate || 0;
                     valB = metricsMap[b.id]?.lastDate || 0;
                     break;
@@ -2071,19 +2066,19 @@ function getCurrentFilteredProducts() {
         const codeStr = p.code ? String(p.code) : '';
         const matchText = p.name.toLowerCase().includes(term) || codeStr.includes(term);
         const matchCat = catFilter ? p.category === catFilter : true;
-
+        
         // NOVO: Lógica do filtro de Status
         let matchStatus = true;
         if (statusFilter === 'true') matchStatus = p.active !== false; // Ativos
         if (statusFilter === 'false') matchStatus = p.active === false; // Inativos
-
+        
         return matchText && matchCat && matchStatus;
     });
 }
 
 function updateProductCountsUI() {
     const total = state.products.length;
-
+    
     // Conta quantos têm a tag de inativo
     const inativos = state.products.filter(p => p.active === false).length;
     const ativos = total - inativos;
@@ -2296,12 +2291,12 @@ function renderProductsList(products, preCalcMetrics = null) {
 
         const isInactive = p.active === false;
         const isChecked = state.selectedProducts.has(p.id) ? 'checked' : '';
-
+        
         let bgClass = isChecked ? 'bg-[#1a233a] border-blue-500/30' : 'bg-[#151720] border-gray-800 hover:bg-[#1c1f2b]';
         let imgOpacityClass = '';
-
+        
         if (isInactive && !isChecked) {
-            bgClass = 'bg-[#2a1313] border-red-900/50 hover:bg-[#351818]';
+            bgClass = 'bg-[#2a1313] border-red-900/50 hover:bg-[#351818]'; 
             imgOpacityClass = 'opacity-30 grayscale';
         }
 
@@ -2378,7 +2373,7 @@ function renderProductsList(products, preCalcMetrics = null) {
                 </div>
             </div>
         `;
-
+        
         // Desativa a funcionalidade de escorregar para a lixeira enquanto arrasta (para não bugar o dedo no celular)
         if (!state.isReorderMode) {
             setupSwipe(row.querySelector('.prod-swipe-content'));
@@ -2428,7 +2423,65 @@ window.toggleSelectionMode = () => {
     filterAndRenderProducts();
 };
 
+function renderAdminCoupons() {
+    if (!els.couponListAdmin) return;
 
+    els.couponListAdmin.innerHTML = state.coupons.map((c, index) => {
+
+        // Formatação do valor (R$ ou %)
+        const typeDisplay = c.type === 'percent'
+            ? `<span class="text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded text-[10px] whitespace-nowrap">${c.val}% OFF</span>`
+            : `<span class="text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded text-[10px] whitespace-nowrap">${formatCurrency(c.val)} OFF</span>`;
+
+        let isExpired = false;
+        let expiryDisplay = `<span class="text-[10px] text-green-500 font-bold flex items-center gap-1 whitespace-nowrap"><i class="fas fa-infinity text-[8px]"></i> Permanente</span>`;
+
+        if (c.expiryDate) {
+            const expiryDate = new Date(c.expiryDate);
+            const now = new Date();
+            // Formatação de data curta para mobile
+            const dateStr = expiryDate.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+            if (now > expiryDate) {
+                isExpired = true;
+                // 'w-fit' e 'block' ajudam a não quebrar o layout lateralmente
+                expiryDisplay = `<span class="text-[9px] text-red-400 font-bold bg-red-900/20 px-2 py-0.5 rounded border border-red-900/50 block mt-1 w-fit">EXPIRADO: ${dateStr}</span>`;
+            } else {
+                expiryDisplay = `<span class="text-[10px] text-gray-400 whitespace-nowrap">Expira: <span class="text-white font-bold">${dateStr}</span></span>`;
+            }
+        }
+
+        const borderClass = isExpired ? 'border-red-600 opacity-75' : 'border-green-500';
+        const isFocused = index === state.focusedCouponIndex;
+        // Adicionado 'w-full' aqui no container
+        const bgClass = isFocused ? 'bg-gray-700 ring-1 ring-yellow-500 z-10' : 'bg-[#151720] border-gray-800';
+
+        return `
+            <div id="coupon-item-${index}" 
+                 onclick="selectCoupon(${index})" 
+                 ondblclick="editCoupon('${c.id}')" 
+                 class="${bgClass} w-full border-l-4 ${borderClass} p-3 rounded-lg flex justify-between items-center shadow-sm mb-2 cursor-pointer transition select-none group relative overflow-hidden">
+                
+                ${isFocused ? '<div class="absolute -left-2 top-1/2 -translate-y-1/2 text-yellow-500 text-xs"><i class="fas fa-caret-right"></i></div>' : ''}
+
+                <div class="flex flex-col flex-1 min-w-0 pr-3 pointer-events-none">
+                    <span class="text-yellow-500 font-bold text-base tracking-wider truncate group-hover:text-white transition w-full block">${c.code}</span>
+                    
+                    <div class="flex flex-wrap items-center gap-2 mt-1">
+                        ${typeDisplay}
+                        ${!isExpired ? expiryDisplay : ''}
+                    </div>
+                    ${isExpired ? expiryDisplay : ''}
+                </div>
+                
+                <button onclick="event.stopPropagation(); deleteCoupon('${c.id}')" 
+                        class="w-9 h-9 shrink-0 flex items-center justify-center bg-red-600/10 text-red-500 border border-red-600/30 hover:bg-red-600 hover:text-white rounded transition z-20 active:scale-95">
+                    <i class="fas fa-trash-alt text-xs"></i>
+                </button>
+            </div>
+        `;
+    }).join('');
+}
 
 
 
@@ -3502,44 +3555,33 @@ function setupEventListeners() {
         });
     }
 
-    const btnAddCoupon = document.getElementById('btn-add-coupon');
-if (btnAddCoupon) {
-    btnAddCoupon.onclick = async () => {
-        const code = document.getElementById('coupon-code').value.trim().toUpperCase();
-        const val = parseFloat(document.getElementById('coupon-val').value);
-        const isPercent = document.getElementById('coupon-is-percent').checked;
-        const expiry = document.getElementById('coupon-expiry').value;
-
-        if (!code || isNaN(val)) return showToast("Preencha Código e Valor.", 'error');
-
-        const data = { 
-            code: code, 
-            val: val, 
-            type: isPercent ? 'percent' : 'fixed', 
-            expiryDate: expiry || null
+    const btnAddCoupon = getEl('btn-add-coupon');
+    if (btnAddCoupon) {
+        btnAddCoupon.onclick = async () => {
+            const code = getEl('coupon-code').value.trim().toUpperCase();
+            const val = parseFloat(getEl('coupon-val').value);
+            const isPercent = getEl('coupon-is-percent').checked;
+            const expiry = getEl('coupon-expiry').value;
+            if (!code || isNaN(val)) return showToast("Preencha Código e Valor.", 'error');
+            const data = { code: code, val: val, type: isPercent ? 'percent' : 'fixed', expiryDate: expiry || null };
+            try {
+                if (state.editingCouponId) {
+                    await updateDoc(doc(db, `sites/${state.siteId}/coupons`, state.editingCouponId), data);
+                    showToast('Cupom atualizado!');
+                } else {
+                    const exists = state.coupons.some(c => c.code === code);
+                    if (exists) return alert("Já existe um cupom com este código.");
+                    await addDoc(collection(db, `sites/${state.siteId}/coupons`), data);
+                    showToast('Cupom criado!');
+                }
+                resetCouponForm();
+            } catch (error) {
+                if (error.code === 'not-found' || error.message.includes('No document to update')) {
+                    alert("Atenção: O cupom não existe mais. Tente criar novo."); state.editingCouponId = null;
+                } else { alert("Erro ao salvar: " + error.message); }
+            }
         };
-
-        try {
-            if (state.editingCouponId) {
-                await updateDoc(doc(db, `sites/${state.siteId}/coupons`, state.editingCouponId), data);
-                showToast('Cupom atualizado!');
-            } else {
-                const exists = state.coupons.some(c => c.code === code);
-                if (exists) return alert("Já existe um cupom com este código.");
-                await addDoc(collection(db, `sites/${state.siteId}/coupons`), data);
-                showToast('Cupom criado!');
-            }
-            resetCouponForm();
-        } catch (error) {
-            if (error.code === 'not-found' || error.message.includes('No document to update')) {
-                alert("Atenção: O cupom não existe mais. Tente criar novo."); 
-                state.editingCouponId = null;
-            } else { 
-                alert("Erro ao salvar: " + error.message); 
-            }
-        }
-    };
-}
+    }
 
     const couponInputsIds = ['coupon-code', 'coupon-val', 'coupon-expiry'];
     couponInputsIds.forEach(id => {
@@ -5480,18 +5522,18 @@ window.saveProduct = async (e) => {
         if (nameExists) {
             showToast("Já existe um produto com este nome!", "error");
             if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
-            return;
+            return; 
         }
         // =================================================================
 
         const isGraded = document.getElementById('prod-has-variations').checked;
-
+        
         // Blindagem de Segurança
         const statusActive = document.getElementById('prod-status-active');
         const isActive = statusActive ? statusActive.checked : true;
 
         const inputGeneralStock = parseInt(document.getElementById('prod-stock').value) || 0;
-        let finalStock = 0;
+        let finalStock = 0; 
         let finalSizes = state.tempVariations ? [...state.tempVariations] : [];
 
         if (isGraded) {
@@ -5519,8 +5561,8 @@ window.saveProduct = async (e) => {
             promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
             cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
             hasVariations: isGraded,
-            stock: finalStock,
-            generalStock: inputGeneralStock,
+            stock: finalStock,               
+            generalStock: inputGeneralStock, 
             sizes: finalSizes,
             images: state.tempImages || [],
             allowNoStock: document.getElementById('prod-allow-no-stock').checked,
@@ -5542,7 +5584,7 @@ window.saveProduct = async (e) => {
 
             const docRef = await addDoc(collection(db, `sites/${state.siteId}/products`), productData);
             productData.id = docRef.id;
-
+            
             const index = state.products.findIndex(p => p.id === docRef.id);
             if (index === -1) {
                 state.products.push(productData);
@@ -5620,7 +5662,7 @@ window.editProduct = (id) => {
     // Blindagem de Segurança
     const statusInactive = document.getElementById('prod-status-inactive');
     const statusActive = document.getElementById('prod-status-active');
-
+    
     if (statusInactive && statusActive) {
         if (p.active === false) statusInactive.checked = true;
         else statusActive.checked = true;
@@ -5652,7 +5694,7 @@ window.openNewProductModal = () => {
     state.tempImages = [];
     state.tempVariations = [];
 
-    document.getElementById('prod-has-variations').checked = false;
+    document.getElementById('prod-has-variations').checked = false; 
     toggleStockMode();
 
     if (typeof renderImagePreviews === 'function') renderImagePreviews();
@@ -5770,7 +5812,7 @@ async function addToCart(product, size) {
     const pAtualizado = snap.data();
 
     const allowNegative = state.globalSettings.allowNoStock || pAtualizado.allowNoStock;
-
+    
     // ✨ CORREÇÃO DA GRADE: Descobre o limite real de estoque para este tamanho específico NO SERVIDOR
     let limEstoque = isNaN(parseInt(pAtualizado.stock, 10)) ? 0 : parseInt(pAtualizado.stock, 10);
     if (pAtualizado.hasVariations && pAtualizado.sizes) {
@@ -6112,74 +6154,66 @@ window.editCoupon = (id) => {
     const c = state.coupons.find(x => x.id === id);
     if (!c) return;
 
-    document.getElementById('coupon-code').value = c.code;
-    document.getElementById('coupon-val').value = c.val;
-    document.getElementById('coupon-is-percent').checked = (c.type === 'percent');
+    // Preenche os campos
+    getEl('coupon-code').value = c.code;
+    getEl('coupon-val').value = c.val;
+    getEl('coupon-is-percent').checked = (c.type === 'percent');
 
     if (c.expiryDate) {
         const d = new Date(c.expiryDate);
+        // Ajuste de fuso horário para o input datetime-local funcionar corretamente
         d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-        document.getElementById('coupon-expiry').value = d.toISOString().slice(0, 16);
+        getEl('coupon-expiry').value = d.toISOString().slice(0, 16);
     } else {
-        document.getElementById('coupon-expiry').value = '';
+        getEl('coupon-expiry').value = '';
     }
 
     state.editingCouponId = id;
 
-    const btnAdd = document.getElementById('btn-add-coupon');
+    // --- ATUALIZAÇÃO DOS BOTÕES ---
+
+    // 1. Muda o botão principal para "Salvar" (Azul)
+    const btnAdd = getEl('btn-add-coupon');
     if (btnAdd) {
         btnAdd.innerHTML = '<i class="fas fa-save"></i> <span>Salvar Alteração</span>';
         btnAdd.classList.replace('bg-green-600', 'bg-blue-600');
         btnAdd.classList.replace('hover:bg-green-500', 'hover:bg-blue-500');
     }
 
-    const btnCancel = document.getElementById('btn-cancel-coupon');
-    if (btnCancel) btnCancel.classList.remove('hidden');
+    // 2. Mostra o botão Cancelar
+    const btnCancel = getEl('btn-cancel-coupon');
+    if (btnCancel) {
+        btnCancel.classList.remove('hidden');
+    }
 
-    document.getElementById('coupon-code').focus();
+    getEl('coupon-code').focus();
     showToast(`Editando: ${c.code}`, 'info');
 };
 
 window.resetCouponForm = () => {
-    document.getElementById('coupon-code').value = '';
-    document.getElementById('coupon-val').value = '';
-    document.getElementById('coupon-expiry').value = '';
-    document.getElementById('coupon-is-percent').checked = false;
+    // 1. Limpa os campos
+    getEl('coupon-code').value = '';
+    getEl('coupon-val').value = '';
+    getEl('coupon-expiry').value = '';
+    getEl('coupon-is-percent').checked = false;
 
+    // 2. Reseta o ID de edição
     state.editingCouponId = null;
 
-    const btnAdd = document.getElementById('btn-add-coupon');
+    // 3. Reseta o botão principal para "Criar" (Verde)
+    const btnAdd = getEl('btn-add-coupon');
     if (btnAdd) {
         btnAdd.innerHTML = '<i class="fas fa-plus"></i> <span>Criar Cupom</span>';
+        // Remove classes azuis e poe verdes
         btnAdd.classList.remove('bg-blue-600', 'hover:bg-blue-500');
         btnAdd.classList.add('bg-green-600', 'hover:bg-green-500');
     }
 
-    const btnCancel = document.getElementById('btn-cancel-coupon');
-    if (btnCancel) btnCancel.classList.add('hidden');
-};
-
-window.resetCouponForm = () => {
-    document.getElementById('coupon-code').value = '';
-    document.getElementById('coupon-val').value = '';
-    document.getElementById('coupon-expiry').value = '';
-    document.getElementById('coupon-is-percent').checked = false;
-
-    // Limpa a caixinha
-    const chkOffered = document.getElementById('coupon-is-offered');
-    if (chkOffered) chkOffered.checked = false;
-
-    state.editingCouponId = null;
-
-    const btnAdd = document.getElementById('btn-add-coupon');
-    if (btnAdd) {
-        btnAdd.innerHTML = '<i class="fas fa-plus"></i> <span>Criar Cupom</span>';
-        btnAdd.classList.remove('bg-blue-600', 'hover:bg-blue-500');
-        btnAdd.classList.add('bg-green-600', 'hover:bg-green-500');
+    // 4. Esconde o botão Cancelar
+    const btnCancel = getEl('btn-cancel-coupon');
+    if (btnCancel) {
+        btnCancel.classList.add('hidden');
     }
-
-    const btnCancel = document.getElementById('btn-cancel-coupon');
-    if (btnCancel) btnCancel.classList.add('hidden');
 };
 
 // Função global para lidar com o clique de seleção
@@ -6285,10 +6319,6 @@ async function loadStoreProfile() {
             }
 
             if (typeof updateStoreStatusUI === 'function') updateStoreStatusUI();
-
-            if (!state.user && typeof showOfferedCoupon === 'function') {
-                showOfferedCoupon();
-            }
         });
 
     } catch (error) {
@@ -7021,8 +7051,8 @@ async function submitOrder() {
 
         for (const item of state.cart) {
             const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
-            const snap = await getDocFromServer(prodRef);
-
+            const snap = await getDocFromServer(prodRef); 
+            
             if (!snap.exists()) {
                 outOfStockItems.push(`<b>${item.name}</b><br><span class="text-xs text-red-400">Produto indisponível ou excluído.</span>`);
                 continue;
@@ -7046,7 +7076,7 @@ async function submitOrder() {
                     let msg = `<span class="font-bold text-white">${item.name}</span>`;
                     if (item.size !== 'U') msg += ` <span class="text-xs text-gray-400">Tamanho: ${item.size}</span>`;
                     msg += `<br><span class="text-xs font-bold text-red-400 block mt-1">Disponível: ${estoqueReal} unidade(s)</span>`;
-
+                    
                     outOfStockItems.push(msg);
                 }
             }
@@ -7055,14 +7085,14 @@ async function submitOrder() {
         // Se encontrou algum produto esgotado, BARRA A VENDA E ABRE O MODAL NOVO!
         if (outOfStockItems.length > 0) {
             if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerText = "Confirmar Pedido"; }
-
+            
             // Chama o novo modal estilisado!
             if (typeof showOutOfStockModal === 'function') {
                 showOutOfStockModal(outOfStockItems);
             } else {
                 alert("Erro de estoque. Verifique os itens.");
             }
-            return;
+            return; 
         }
         // =================================================================
 
@@ -9955,10 +9985,10 @@ window.executeCustomReport = () => {
 
     // 4. ORDENAÇÃO DINÂMICA
     productsToExport.sort((a, b) => {
-        const getStock = (p) => p.hasVariations && p.sizes ? p.sizes.reduce((acc, s) => acc + (parseInt(s.stock) || 0), 0) : (parseInt(p.stock) || parseInt(p.generalStock) || 0);
-
+        const getStock = (p) => p.hasVariations && p.sizes ? p.sizes.reduce((acc, s) => acc + (parseInt(s.stock)||0), 0) : (parseInt(p.stock) || parseInt(p.generalStock) || 0);
+        
         const codeA = parseInt(a.code) || 0; const codeB = parseInt(b.code) || 0;
-        const nameA = a.name.toLowerCase(); const nameB = b.name.toLowerCase();
+        const nameA = a.name.toLowerCase();  const nameB = b.name.toLowerCase();
         const priceA = parseFloat(a.price) || 0; const priceB = parseFloat(b.price) || 0;
         const stockA = getStock(a); const stockB = getStock(b);
         const salesA = metricsMap[a.id] || 0; const salesB = metricsMap[b.id] || 0;
@@ -9993,13 +10023,13 @@ window.executeCustomReport = () => {
 window.bulkChangeProductStatus = async (isActive) => {
     // 1. Filtra apenas os produtos que REALMENTE precisam ser alterados
     const productsToUpdate = [];
-
+    
     state.selectedProducts.forEach(id => {
         const prod = state.products.find(p => p.id === id);
         if (prod) {
             // No sistema, se não tiver a tag "active", ele é considerado ativo por padrão
-            const isCurrentlyActive = prod.active !== false;
-
+            const isCurrentlyActive = prod.active !== false; 
+            
             // Só adiciona na fila de atualização se o status atual for DIFERENTE do desejado
             if (isCurrentlyActive !== isActive) {
                 productsToUpdate.push(id);
@@ -10022,7 +10052,7 @@ window.bulkChangeProductStatus = async (isActive) => {
 
     // 3. Monta a mensagem de confirmação inteligente
     let confirmMsg = `Tem certeza que deseja ${actionText} ${countToUpdate} produto(s)?`;
-
+    
     if (countTotal > countToUpdate) {
         const ignorados = countTotal - countToUpdate;
         confirmMsg = `Dos ${countTotal} itens selecionados, ${ignorados} já estavam ${statusText} e serão ignorados.\n\nDeseja ${actionText} os ${countToUpdate} produto(s) restantes?`;
@@ -10033,28 +10063,28 @@ window.bulkChangeProductStatus = async (isActive) => {
     // 4. Executa a atualização apenas nos que precisam
     try {
         document.body.style.cursor = 'wait';
-
+        
         const promises = productsToUpdate.map(id => {
             return updateDoc(doc(db, `sites/${state.siteId}/products`, id), { active: isActive });
         });
-
+        
         await Promise.all(promises);
-
+        
         // 5. Atualiza a memória RAM local instantaneamente
         productsToUpdate.forEach(id => {
             const idx = state.products.findIndex(p => p.id === id);
-            if (idx !== -1) state.products[idx].active = isActive;
+            if(idx !== -1) state.products[idx].active = isActive;
         });
 
         // 6. Limpa a seleção e redesenha a tela
         state.selectedProducts.clear();
         setCachedData(`prods_${state.siteId}`, state.products, 60);
-        filterAndRenderProducts();
-
+        filterAndRenderProducts(); 
+        
         showToast(`${countToUpdate} produto(s) atualizado(s) com sucesso!`, 'success');
-
-    } catch (error) {
-        alert("Erro ao atualizar os produtos: " + error.message);
+        
+    } catch (error) { 
+        alert("Erro ao atualizar os produtos: " + error.message); 
     } finally {
         document.body.style.cursor = 'default';
     }
@@ -10091,16 +10121,16 @@ window.startReorderMode = async () => {
     const searchInput = document.getElementById('admin-search-prod');
     const catInput = document.getElementById('admin-filter-cat');
     const statusInput = document.getElementById('admin-filter-status');
-    if (searchInput) searchInput.value = '';
-    if (catInput) catInput.value = '';
-    if (statusInput) statusInput.value = '';
+    if(searchInput) searchInput.value = '';
+    if(catInput) catInput.value = '';
+    if(statusInput) statusInput.value = '';
 
     // 2. Prepara os Dados
     state.backupProductsStr = JSON.stringify(state.products);
     state.isReorderMode = true;
     state.products.sort(catalogProductSort);
     state.products.forEach((p, index) => p.order = (index + 1) * 10);
-
+    
     // Desenha a tela
     renderProductsList(state.products);
     showToast("Segure nas barrinhas para arrastar e reordenar.", "info");
@@ -10143,26 +10173,26 @@ window.startReorderMode = async () => {
     if (window.productSortable) window.productSortable.destroy();
 
     window.productSortable = new Sortable(container, {
-        animation: 250,
+        animation: 250, 
         handle: '.drag-handle', // SÓ permite pegar pelo ícone das barrinhas
-        forceFallback: true,
+        forceFallback: true, 
         fallbackClass: 'sortable-drag', // O card que levanta na mão
         ghostClass: 'sortable-ghost', // O espaço invisível que fica para trás
         scroll: true, // Faz a tela rolar quando encostar na borda
         scrollSensitivity: 80,
         scrollSpeed: 15,
         onEnd: function (evt) {
-            if (evt.newIndex !== evt.oldIndex) {
+            if(evt.newIndex !== evt.oldIndex) {
                 // Atualiza o array baseado de onde você tirou e onde soltou
                 const movedItem = state.products.splice(evt.oldIndex, 1)[0];
                 state.products.splice(evt.newIndex, 0, movedItem);
-
+                
                 // Recalcula o peso
                 state.products.forEach((p, i) => p.order = (i + 1) * 10);
-
+                
                 // Redesenha e reinicia o observador
                 renderProductsList(state.products);
-                window.startReorderMode();
+                window.startReorderMode(); 
             }
         }
     });
@@ -10171,10 +10201,10 @@ window.startReorderMode = async () => {
 window.reorderProductsArray = (fromIndex, toIndex) => {
     const movedItem = state.products.splice(fromIndex, 1)[0];
     state.products.splice(toIndex, 0, movedItem);
-
+    
     // Atualiza os pesos locais
     state.products.forEach((p, index) => p.order = (index + 1) * 10);
-
+    
     // Renderiza direto a lista sem passar pelo filtro/ordenação das colunas
     renderProductsList(state.products);
 };
@@ -10182,24 +10212,24 @@ window.reorderProductsArray = (fromIndex, toIndex) => {
 window.cancelReorder = () => {
     // CORREÇÃO: Destrói o Arrastar ANTES de reconstruir a tela
     if (window.productSortable) {
-        try { window.productSortable.destroy(); } catch (e) { }
+        try { window.productSortable.destroy(); } catch(e){}
         window.productSortable = null;
     }
 
     if (state.backupProductsStr) state.products = JSON.parse(state.backupProductsStr);
     state.isReorderMode = false;
-
+    
     if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
     showToast("Reorganização Cancelada.", "info");
 };
 
 window.saveReorder = async () => {
     const btn = document.querySelector('button[onclick="saveReorder()"]');
-    if (btn) { btn.innerText = "⏳ Salvando..."; btn.disabled = true; }
+    if(btn) { btn.innerText = "⏳ Salvando..."; btn.disabled = true; }
 
     // ✨ CORREÇÃO CRÍTICA: Destrói a biblioteca ANTES do Firebase começar a alterar a tela
     if (window.productSortable) {
-        try { window.productSortable.destroy(); } catch (e) { }
+        try { window.productSortable.destroy(); } catch(e){}
         window.productSortable = null;
     }
 
@@ -10213,16 +10243,16 @@ window.saveReorder = async () => {
 
         state.isReorderMode = false;
         state.backupProductsStr = null;
-
+        
         setCachedData(`prods_${state.siteId}`, state.products, 60);
         if (typeof renderCatalog === 'function') renderCatalog(state.products);
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-
+        
         showToast("Nova ordem salva com sucesso!", "success");
     } catch (e) {
         alert("Erro ao salvar: " + e.message);
     } finally {
-        if (btn) { btn.innerText = "Salvar"; btn.disabled = false; }
+        if(btn) { btn.innerText = "Salvar"; btn.disabled = false; }
     }
 };
 
@@ -10230,7 +10260,7 @@ window.resetReorderToDefault = () => {
     state.products.sort(defaultProductSort);
     state.products.forEach((p, index) => p.order = (index + 1) * 10);
     renderProductsList(state.products);
-    window.startReorderMode();
+    window.startReorderMode(); 
     showToast("Ordem padrão calculada! Destaque > Oferta > Novo.", "info");
 };
 
@@ -10927,7 +10957,7 @@ window.openClientTopic = (index) => {
 // =================================================================
 window.showOutOfStockModal = (outOfStockItems) => {
     let modal = document.getElementById('out-of-stock-modal');
-
+    
     // Se o modal não existe no HTML, o JS cria ele na hora
     if (!modal) {
         modal = document.createElement('div');
@@ -10980,266 +11010,18 @@ window.showOutOfStockModal = (outOfStockItems) => {
 window.closeOutOfStockModal = () => {
     const modal = document.getElementById('out-of-stock-modal');
     if (!modal) return;
-
+    
     // Oculta com animação
     modal.classList.add('opacity-0');
     document.getElementById('oos-card').classList.add('scale-95');
-
+    
     setTimeout(() => {
         modal.classList.add('hidden');
         modal.classList.remove('flex');
-
+        
         // MÁGICA: Joga o cliente direto de volta pro carrinho!
         if (typeof window.backToOrderList === 'function') {
             window.backToOrderList();
         }
     }, 300);
-};
-
-
-// =================================================================
-// 🎁 SISTEMA DE CUPOM OFERECIDO NA VITRINE (POPUP CLIENTE)
-// =================================================================
-
-// 1. Chave Mestra Global
-window.toggleGlobalOfferCoupon = async (isActive) => {
-    if (!state.storeProfile) state.storeProfile = {};
-    state.storeProfile.offerCouponActive = isActive;
-
-    try {
-        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { offerCouponActive: isActive }, { merge: true });
-        renderAdminCoupons(); // Redesenha a lista para mostrar/esconder as bolinhas
-        showToast(isActive ? "Oferta de cupom ativada!" : "Oferta de cupom desativada.");
-    } catch (e) {
-        showToast("Erro ao salvar configuração.", "error");
-    }
-};
-
-// 2. O Banner do Cliente
-window.showOfferedCoupon = () => {
-    // 1. Trava: O interruptor global da loja está ligado?
-    if (state.storeProfile?.offerCouponActive !== true) return;
-    
-    // 2. Trava: A lista de cupons já chegou do banco de dados?
-    if (!state.coupons || state.coupons.length === 0) return;
-
-    // 3. Acha o cupom que foi marcado como oferecido
-    const offered = state.coupons.find(c => c.isOffered === true);
-    if (!offered) return;
-
-    // ✨ 4. TRAVA DE VENCIMENTO: Se expirou, o cliente simplesmente não vê o banner!
-    if (offered.expiryDate) {
-        const expiry = new Date(offered.expiryDate);
-        if (new Date() > expiry) return; 
-    }
-
-    // 5. Se o cliente já fechou o banner hoje, ignora e deixa ele em paz
-    if (sessionStorage.getItem(`dismissed_coupon_${offered.code}`)) return;
-
-    // 6. Se o banner já estiver na tela, não faz nada (evita piscar na tela)
-    let banner = document.getElementById('floating-coupon-banner');
-    if (banner) return;
-
-    // 7. Cria o Banner
-    banner = document.createElement('div');
-    banner.id = 'floating-coupon-banner';
-    banner.className = 'fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-[#151720] border border-yellow-500/50 rounded-2xl shadow-2xl z-[9999] p-4 flex flex-col gap-2 transform translate-y-[150%] opacity-0 transition-all duration-700 ease-out';
-    document.body.appendChild(banner);
-
-    const desc = offered.type === 'percent' ? `${offered.val}% OFF` : `R$ ${formatCurrency(offered.val)} OFF`;
-
-    banner.innerHTML = `
-        <button onclick="closeOfferedCoupon('${offered.code}')" class="absolute top-2 right-2 text-gray-500 hover:text-white transition w-6 h-6 flex items-center justify-center bg-gray-800 hover:bg-red-600 rounded-full z-10">
-            <i class="fas fa-times text-xs"></i>
-        </button>
-        
-        <div class="flex items-center gap-3 relative z-0">
-            <div class="w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-500 flex items-center justify-center shrink-0 border border-yellow-500/30">
-                <i class="fas fa-ticket-alt text-xl animate-bounce"></i>
-            </div>
-            <div>
-                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Presente da loja!</p>
-                <p class="text-white font-extrabold text-sm mt-0.5">Use e ganhe <span class="text-green-400">${desc}</span></p>
-            </div>
-        </div>
-        
-        <div class="flex items-center justify-between bg-black border border-gray-700 rounded-xl p-2 mt-2 relative overflow-hidden group">
-            <div class="absolute inset-0 bg-yellow-500/5 group-hover:bg-yellow-500/10 transition pointer-events-none"></div>
-            <span class="text-yellow-500 font-mono font-bold tracking-widest text-lg pl-3 select-all">${offered.code}</span>
-            <button onclick="copyOfferedCoupon('${offered.code}')" class="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-lg font-bold text-xs uppercase transition shadow-md flex items-center gap-2 active:scale-95">
-                <i class="fas fa-copy"></i> Copiar
-            </button>
-        </div>
-    `;
-
-    // Sobe o banner 1 segundo após ser chamado
-    setTimeout(() => {
-        banner.classList.remove('translate-y-[150%]', 'opacity-0');
-    }, 1000);
-};
-
-window.closeOfferedCoupon = (code) => {
-    sessionStorage.setItem(`dismissed_coupon_${code}`, 'true');
-    const banner = document.getElementById('floating-coupon-banner');
-    if (banner) {
-        banner.classList.add('translate-y-[150%]', 'opacity-0');
-        setTimeout(() => banner.remove(), 700);
-    }
-};
-
-window.copyOfferedCoupon = (code) => {
-    navigator.clipboard.writeText(code).then(() => {
-        showToast("Cupom copiado! Cole no momento do pagamento.", "success");
-        closeOfferedCoupon(code);
-    }).catch(() => alert("Código: " + code));
-};
-
-window.setOfferedCoupon = async (couponId) => {
-    try {
-        const promises = state.coupons.map(c => {
-            const shouldBeOffered = (c.id === couponId);
-            if (c.isOffered !== shouldBeOffered) {
-                return updateDoc(doc(db, `sites/${state.siteId}/coupons`, c.id), { isOffered: shouldBeOffered });
-            }
-        });
-
-        await Promise.all(promises.filter(p => p !== undefined));
-        showToast("Cupom Destaque alterado!", "success");
-    } catch (error) {
-        showToast("Erro ao definir cupom.", "error");
-    }
-};
-
-// 3. Atualização Visual da Lista
-function renderAdminCoupons() {
-    if (!els.couponListAdmin) return;
-
-    // Sincroniza o botão global visualmente
-    const isGlobalActive = state.storeProfile?.offerCouponActive === true;
-    const toggleEl = document.getElementById('global-offer-coupon');
-    if (toggleEl) toggleEl.checked = isGlobalActive;
-
-    els.couponListAdmin.innerHTML = state.coupons.map((c, index) => {
-        const typeDisplay = c.type === 'percent'
-            ? `<span class="text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded text-[10px] whitespace-nowrap">${c.val}% OFF</span>`
-            : `<span class="text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded text-[10px] whitespace-nowrap">${formatCurrency(c.val)} OFF</span>`;
-
-        let isExpired = false;
-        let expiryDisplay = `<span class="text-[10px] text-green-500 font-bold flex items-center gap-1 whitespace-nowrap"><i class="fas fa-infinity text-[8px]"></i> Permanente</span>`;
-
-        if (c.expiryDate) {
-            const expiryDate = new Date(c.expiryDate);
-            const now = new Date();
-            const dateStr = expiryDate.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-
-            if (now > expiryDate) {
-                isExpired = true;
-                expiryDisplay = `<span class="text-[9px] text-red-400 font-bold bg-red-900/20 px-2 py-0.5 rounded border border-red-900/50 block mt-1 w-fit">EXPIRADO: ${dateStr}</span>`;
-            } else {
-                expiryDisplay = `<span class="text-[10px] text-gray-400 whitespace-nowrap">Expira: <span class="text-white font-bold">${dateStr}</span></span>`;
-            }
-        }
-
-        // Borda dourada se for o oferecido E o sistema estiver ligado!
-        const isOfferedAndActive = c.isOffered && isGlobalActive;
-        const borderClass = isExpired ? 'border-red-600 opacity-75' : (isOfferedAndActive ? 'border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.15)]' : 'border-green-500');
-        const isFocused = index === state.focusedCouponIndex;
-        const bgClass = isFocused ? 'bg-gray-700 ring-1 ring-yellow-500 z-10' : 'bg-[#151720] border-gray-800';
-
-        // Só desenha a bolinha (Radio Button) se a chave global estiver LIGADA
-        const radioHtml = isGlobalActive ? `
-            <label class="flex flex-col items-center justify-center cursor-pointer group/radio px-2 border-r border-gray-700" onclick="event.stopPropagation()">
-                <input type="radio" name="offered_coupon" class="w-4 h-4 text-yellow-500 bg-gray-900 border-gray-600 focus:ring-yellow-500 cursor-pointer" 
-                       ${c.isOffered ? 'checked' : ''} 
-                       onchange="setOfferedCoupon('${c.id}')" title="Oferecer este cupom na vitrine">
-                <span class="text-[8px] text-gray-500 group-hover/radio:text-yellow-500 mt-1 uppercase tracking-widest font-bold">Oferecer</span>
-            </label>
-        ` : '';
-
-        return `
-            <div id="coupon-item-${index}" 
-                 onclick="selectCoupon(${index})" 
-                 ondblclick="editCoupon('${c.id}')" 
-                 class="${bgClass} w-full border-l-4 ${borderClass} p-3 rounded-lg flex justify-between items-center shadow-sm mb-2 cursor-pointer transition select-none group relative overflow-hidden">
-                
-                ${isFocused ? '<div class="absolute -left-2 top-1/2 -translate-y-1/2 text-yellow-500 text-xs"><i class="fas fa-caret-right"></i></div>' : ''}
-
-                <div class="flex flex-col flex-1 min-w-0 pr-3 pointer-events-none">
-                    <span class="${isOfferedAndActive ? 'text-yellow-500' : 'text-green-500'} font-bold text-base tracking-wider truncate group-hover:text-white transition w-full block">
-                        ${c.code} ${isOfferedAndActive ? '<span class="text-[9px] bg-yellow-500 text-black px-1.5 py-0.5 rounded ml-2 align-middle shadow-md">OFERECIDO</span>' : ''}
-                    </span>
-                    
-                    <div class="flex flex-wrap items-center gap-2 mt-1">
-                        ${typeDisplay}
-                        ${!isExpired ? expiryDisplay : ''}
-                    </div>
-                    ${isExpired ? expiryDisplay : ''}
-                </div>
-                
-                <div class="flex items-center gap-1 shrink-0">
-                    ${radioHtml}
-                    <button onclick="event.stopPropagation(); deleteCoupon('${c.id}')" 
-                            class="w-9 h-9 ml-1 flex items-center justify-center bg-red-600/10 text-red-500 border border-red-600/30 hover:bg-red-600 hover:text-white rounded transition z-20 active:scale-95">
-                        <i class="fas fa-trash-alt text-xs"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-window.checkAndRotateExpiredOfferedCoupon = async () => {
-    // Só executa a limpeza se for o admin logado (impede que clientes alterem o banco de dados)
-    if (!state.user) return;
-
-    // Procura o cupom que está marcado como oferecido atualmente
-    const offered = state.coupons.find(c => c.isOffered === true);
-    if (!offered) return;
-
-    // Verifica se ele tem data de expiração e se essa data já passou
-    if (offered.expiryDate) {
-        const expiry = new Date(offered.expiryDate);
-        const now = new Date();
-
-        if (now > expiry) {
-            const dateStr = expiry.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-            
-            // Procura o próximo cupom válido (que não seja o atual e não esteja expirado)
-            const nextCoupon = state.coupons.find(c => {
-                if (c.id === offered.id) return false; // Ignora o que acabou de expirar
-                if (!c.expiryDate) return true; // Se for permanente, serve
-                return new Date(c.expiryDate) > now; // Se a data for no futuro, serve
-            });
-
-            try {
-                // 1. Remove o destaque do cupom expirado
-                await updateDoc(doc(db, `sites/${state.siteId}/coupons`, offered.id), { isOffered: false });
-
-                // 2. Lógica de substituição
-                if (nextCoupon) {
-                    // Ativa o próximo cupom válido
-                    await updateDoc(doc(db, `sites/${state.siteId}/coupons`, nextCoupon.id), { isOffered: true });
-                    
-                    // Mostra o aviso na tela do Admin
-                    if (typeof showSystemModal === 'function') {
-                        showSystemModal(`⚠️ ROTAÇÃO DE CUPOM:\n\nO cupom oferecido (${offered.code}) expirou em ${dateStr}.\n\nO sistema ativou automaticamente o próximo cupom válido: ${nextCoupon.code}.`, "warning");
-                    }
-                } else {
-                    // Se não tiver próximo, desliga a chave mestra global
-                    await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { offerCouponActive: false }, { merge: true });
-                    if(state.storeProfile) state.storeProfile.offerCouponActive = false;
-                    
-                    // Atualiza o botão visual da chave mestra se a tela estiver aberta
-                    const toggleEl = document.getElementById('global-offer-coupon');
-                    if (toggleEl) toggleEl.checked = false;
-
-                    if (typeof showSystemModal === 'function') {
-                        showSystemModal(`⚠️ OFERTA DESATIVADA:\n\nO cupom oferecido (${offered.code}) expirou em ${dateStr}.\n\nComo não há outros cupons válidos, a oferta automática na vitrine foi DESLIGADA.`, "warning");
-                    }
-                }
-            } catch (e) {
-                console.error("Erro ao rotacionar cupom:", e);
-            }
-        }
-    }
 };

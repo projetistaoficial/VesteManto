@@ -1346,19 +1346,14 @@ function loadCoupons() {
     const q = query(collection(db, `sites/${state.siteId}/coupons`));
     onSnapshot(q, (snapshot) => {
         state.coupons = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        // Renderiza a lista no Admin
+
+        // Renderiza no Admin
         const viewAdmin = document.getElementById('view-admin');
         if (viewAdmin && !viewAdmin.classList.contains('hidden')) {
             renderAdminCoupons();
         }
 
-        // ✨ O GATILHO DO ADMIN: Fiscaliza e rotaciona se o oferecido expirou
-        if (state.user && typeof checkAndRotateExpiredOfferedCoupon === 'function') {
-            checkAndRotateExpiredOfferedCoupon();
-        }
-
-        // Exibe o cupom na vitrine para o cliente (se ele não for admin)
+        // ✨ O GATILHO: Exibe para o cliente se ele não for admin
         if (!state.user && typeof showOfferedCoupon === 'function') {
             showOfferedCoupon();
         }
@@ -11027,20 +11022,14 @@ window.showOfferedCoupon = () => {
     const offered = state.coupons.find(c => c.isOffered === true);
     if (!offered) return;
 
-    // ✨ 4. TRAVA DE VENCIMENTO: Se expirou, o cliente simplesmente não vê o banner!
-    if (offered.expiryDate) {
-        const expiry = new Date(offered.expiryDate);
-        if (new Date() > expiry) return; 
-    }
-
-    // 5. Se o cliente já fechou o banner hoje, ignora e deixa ele em paz
+    // 4. Se o cliente já fechou o banner hoje, ignora e deixa ele em paz
     if (sessionStorage.getItem(`dismissed_coupon_${offered.code}`)) return;
 
-    // 6. Se o banner já estiver na tela, não faz nada (evita piscar na tela)
+    // 5. Se o banner já estiver na tela, não faz nada (evita piscar na tela)
     let banner = document.getElementById('floating-coupon-banner');
     if (banner) return;
 
-    // 7. Cria o Banner
+    // 6. Cria o Banner
     banner = document.createElement('div');
     banner.id = 'floating-coupon-banner';
     banner.className = 'fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-[#151720] border border-yellow-500/50 rounded-2xl shadow-2xl z-[9999] p-4 flex flex-col gap-2 transform translate-y-[150%] opacity-0 transition-all duration-700 ease-out';

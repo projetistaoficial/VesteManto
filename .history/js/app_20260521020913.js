@@ -1342,23 +1342,27 @@ window.moveCategory = async (id, fullPath, direction) => {
     }
 };
 
-function loadCoupons() {
+async function loadCoupons() {
     const q = query(collection(db, `sites/${state.siteId}/coupons`));
-    onSnapshot(q, (snapshot) => {
+    
+    onSnapshot(q, async (snapshot) => {
         state.coupons = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        // Renderiza a lista no Admin
+
+        // 1. SE FOR ADMIN: Dispara a rotação e o aviso
+        if (state.user && typeof checkAndRotateExpiredOfferedCoupon === 'function') {
+            // Await aqui é importante para garantir que o banco seja limpo 
+            // antes de renderizar a lista no admin
+            await checkAndRotateExpiredOfferedCoupon();
+        }
+
+        // 2. RENDER ADMIN (Se a aba estiver aberta)
         const viewAdmin = document.getElementById('view-admin');
-        if (viewAdmin && !viewAdmin.classList.contains('hidden')) {
+        if (viewAdmin && viewAdmin.offsetParent !== null) {
             renderAdminCoupons();
         }
 
-        // ✨ O GATILHO DO ADMIN: Fiscaliza e rotaciona se o oferecido expirou
-        if (state.user && typeof checkAndRotateExpiredOfferedCoupon === 'function') {
-            checkAndRotateExpiredOfferedCoupon();
-        }
-
-        // Exibe o cupom na vitrine para o cliente (se ele não for admin)
+        // 3. EXIBIÇÃO CLIENTE (Vitrine)
+        // A função showOfferedCoupon agora tem uma trava interna que ignora vencidos
         if (!state.user && typeof showOfferedCoupon === 'function') {
             showOfferedCoupon();
         }
@@ -11189,57 +11193,37 @@ function renderAdminCoupons() {
 }
 
 window.checkAndRotateExpiredOfferedCoupon = async () => {
-    // Só executa a limpeza se for o admin logado (impede que clientes alterem o banco de dados)
-    if (!state.user) return;
-
-    // Procura o cupom que está marcado como oferecido atualmente
+    // 1. Encontra o cupom oferecido
     const offered = state.coupons.find(c => c.isOffered === true);
-    if (!offered) return;
+    if (!offered || !offered.expiryDate) return;
 
-    // Verifica se ele tem data de expiração e se essa data já passou
-    if (offered.expiryDate) {
-        const expiry = new Date(offered.expiryDate);
-        const now = new Date();
+    const expiry = new Date(offered.expiryDate);
+    const now = new Date();
 
-        if (now > expiry) {
-            const dateStr = expiry.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-            
-            // Procura o próximo cupom válido (que não seja o atual e não esteja expirado)
-            const nextCoupon = state.coupons.find(c => {
-                if (c.id === offered.id) return false; // Ignora o que acabou de expirar
-                if (!c.expiryDate) return true; // Se for permanente, serve
-                return new Date(c.expiryDate) > now; // Se a data for no futuro, serve
-            });
+    // 2. Se NÃO expirou, não faz nada
+    if (now <= expiry) return;
 
-            try {
-                // 1. Remove o destaque do cupom expirado
-                await updateDoc(doc(db, `sites/${state.siteId}/coupons`, offered.id), { isOffered: false });
+    // 3. SE EXPIROU: O sistema vai rotacionar AGORA (mesmo que seja um cliente comum)
+    console.log("Cupom expirado detectado. Iniciando rotação automática...");
 
-                // 2. Lógica de substituição
-                if (nextCoupon) {
-                    // Ativa o próximo cupom válido
-                    await updateDoc(doc(db, `sites/${state.siteId}/coupons`, nextCoupon.id), { isOffered: true });
-                    
-                    // Mostra o aviso na tela do Admin
-                    if (typeof showSystemModal === 'function') {
-                        showSystemModal(`⚠️ ROTAÇÃO DE CUPOM:\n\nO cupom oferecido (${offered.code}) expirou em ${dateStr}.\n\nO sistema ativou automaticamente o próximo cupom válido: ${nextCoupon.code}.`, "warning");
-                    }
-                } else {
-                    // Se não tiver próximo, desliga a chave mestra global
-                    await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { offerCouponActive: false }, { merge: true });
-                    if(state.storeProfile) state.storeProfile.offerCouponActive = false;
-                    
-                    // Atualiza o botão visual da chave mestra se a tela estiver aberta
-                    const toggleEl = document.getElementById('global-offer-coupon');
-                    if (toggleEl) toggleEl.checked = false;
+    const nextCoupon = state.coupons.find(c => {
+        if (c.id === offered.id) return false;
+        if (!c.expiryDate) return true;
+        return new Date(c.expiryDate) > now;
+    });
 
-                    if (typeof showSystemModal === 'function') {
-                        showSystemModal(`⚠️ OFERTA DESATIVADA:\n\nO cupom oferecido (${offered.code}) expirou em ${dateStr}.\n\nComo não há outros cupons válidos, a oferta automática na vitrine foi DESLIGADA.`, "warning");
-                    }
-                }
-            } catch (e) {
-                console.error("Erro ao rotacionar cupom:", e);
-            }
+    try {
+        // Desmarca o expirado
+        await updateDoc(doc(db, `sites/${state.siteId}/coupons`, offered.id), { isOffered: false });
+
+        if (nextCoupon) {
+            // Ativa o próximo
+            await updateDoc(doc(db, `sites/${state.siteId}/coupons`, nextCoupon.id), { isOffered: true });
+        } else {
+            // Se não tem outro, desliga a chave mestra
+            await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { offerCouponActive: false }, { merge: true });
         }
+    } catch (e) {
+        console.error("Erro na rotação automática:", e);
     }
 };
