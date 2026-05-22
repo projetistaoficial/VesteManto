@@ -3,6 +3,7 @@ console.log("!!! ARQUIVO NOVO CARREGADO COM SUCESSO !!!");
 import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged, getDocsCheck, setDoc, getDocs, getDoc, runTransaction, getDocFromServer } from './firebase-config.js';
 import { initStatsModule, updateStatsData } from './stats.js';
 import { checkAndActivateSupport, initSupportModule } from './support.js';
+import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 // =================================================================
 // 1. HELPERS (FUNÇÕES AUXILIARES)
 // =================================================================
@@ -256,29 +257,146 @@ function updateCarouselUI(images) {
 }
 
 // 2. Renderiza as miniaturas no formulário
-function renderImagePreviews() {
-    const container = getEl('prod-imgs-preview');
+// =================================================================
+// 📸 RENDERIZADOR DE IMAGENS COM DRAG & DROP (DESKTOP E MOBILE)
+// =================================================================
+window.renderImagePreviews = () => {
+    const container = document.getElementById('prod-imgs-preview');
     if (!container) return;
 
     container.innerHTML = '';
 
-    if (state.tempImages.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada</p>';
+    if (!state.tempImages || state.tempImages.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-xs italic w-full text-center py-4">Nenhuma imagem selecionada. Clique em "Adicionar Foto".</p>';
         return;
     }
 
+    let draggedIndex = null; // Memória de quem está sendo arrastado
+
     state.tempImages.forEach((imgSrc, index) => {
         const div = document.createElement('div');
-        div.className = "relative w-16 h-16 group border border-gray-600 rounded overflow-hidden";
+        // Classes atualizadas para cursor de movimento e animações
+        div.className = "relative w-20 h-20 group border border-gray-600 rounded-lg overflow-hidden cursor-move transition-transform shadow-sm drag-item select-none";
+
+        // Permite o drag nativo no PC
+        div.draggable = true;
+        div.dataset.index = index;
+
+        // O HTML da caixinha (Note o pointer-events-none nas imagens para não bugar o toque do celular)
         div.innerHTML = `
-            <img src="${imgSrc}" class="w-full h-full object-cover">
-            <button type="button" onclick="removeTempImage(${index})" class="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-                <i class="fas fa-trash text-red-500"></i>
+            <img src="${imgSrc}" class="w-full h-full object-cover pointer-events-none select-none">
+            
+            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center pointer-events-none">
+                <i class="fas fa-arrows-alt text-white text-sm"></i>
+            </div>
+            
+            <button type="button" onclick="event.stopPropagation(); removeTempImage(${index})" 
+                class="absolute top-1 right-1 w-6 h-6 bg-red-600 hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-10 shadow-md">
+                <i class="fas fa-trash text-[10px]"></i>
             </button>
+            
+            ${index === 0 ? '<span class="absolute bottom-0 left-0 right-0 bg-yellow-500 text-black text-[9px] font-bold text-center uppercase py-0.5 pointer-events-none shadow-[0_-2px_4px_rgba(0,0,0,0.3)]">Capa</span>' : ''}
         `;
+
+        // ---------------------------------------------------
+        // 🖱️ EVENTOS PARA PC (MOUSE / HTML5 DRAG & DROP)
+        // ---------------------------------------------------
+        div.addEventListener('dragstart', (e) => {
+            draggedIndex = index;
+            e.dataTransfer.effectAllowed = "move";
+            setTimeout(() => div.classList.add('opacity-30'), 0);
+        });
+
+        div.addEventListener('dragend', () => {
+            div.classList.remove('opacity-30');
+            renderImagePreviews(); // Limpa as bordas amarelas
+        });
+
+        div.addEventListener('dragover', (e) => {
+            e.preventDefault(); // OBRIGATÓRIO para permitir soltar
+            div.classList.add('border-yellow-500', 'border-2', 'scale-105');
+        });
+
+        div.addEventListener('dragleave', () => {
+            div.classList.remove('border-yellow-500', 'border-2', 'scale-105');
+        });
+
+        div.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const targetIndex = index;
+            if (draggedIndex !== null && draggedIndex !== targetIndex) {
+                reorderImages(draggedIndex, targetIndex);
+            }
+        });
+
+        // ---------------------------------------------------
+        // 📱 EVENTOS PARA CELULAR (TOUCH API)
+        // ---------------------------------------------------
+        div.addEventListener('touchstart', (e) => {
+            // Ignora o toque se o usuário clicou na lixeirinha
+            if (e.target.closest('button')) return;
+
+            draggedIndex = index;
+            div.classList.add('opacity-50', 'scale-110', 'z-50', 'ring-2', 'ring-yellow-500');
+        }, { passive: true });
+
+        div.addEventListener('touchmove', (e) => {
+            if (draggedIndex === null) return;
+            e.preventDefault(); // 🛑 Trava a tela para não rolar o site enquanto arrasta a foto
+
+            const touch = e.touches[0];
+            // O Segredo: Acha qual elemento está embaixo do dedo em tempo real
+            const element = document.elementFromPoint(touch.clientX, touch.clientY);
+
+            // Limpa as bordas de todos
+            document.querySelectorAll('.drag-item').forEach(el => el.classList.remove('border-yellow-500', 'border-2', 'scale-105'));
+
+            // Acende a borda de quem o dedo está sobrevoando
+            if (element && element.closest('.drag-item')) {
+                const targetEl = element.closest('.drag-item');
+                if (targetEl !== div) targetEl.classList.add('border-yellow-500', 'border-2', 'scale-105');
+            }
+        }, { passive: false }); // passive false é necessário para o e.preventDefault funcionar no mobile
+
+        div.addEventListener('touchend', (e) => {
+            if (draggedIndex === null) return;
+
+            const touch = e.changedTouches[0];
+            const element = document.elementFromPoint(touch.clientX, touch.clientY);
+            const targetEl = element ? element.closest('.drag-item') : null;
+
+            if (targetEl) {
+                const targetIndex = parseInt(targetEl.dataset.index);
+                if (draggedIndex !== targetIndex) {
+                    reorderImages(draggedIndex, targetIndex);
+                } else {
+                    renderImagePreviews();
+                }
+            } else {
+                renderImagePreviews(); // Soltou fora, só reseta
+            }
+            draggedIndex = null;
+        });
+
         container.appendChild(div);
     });
-}
+};
+
+// --- Função que executa a troca na memória ---
+window.reorderImages = (fromIndex, toIndex) => {
+    // Tira a imagem da posição antiga
+    const imgToMove = state.tempImages.splice(fromIndex, 1)[0];
+    // Insere na nova posição
+    state.tempImages.splice(toIndex, 0, imgToMove);
+    // Renderiza a tela de novo
+    renderImagePreviews();
+};
+
+// --- Remove imagem da lista temporária ---
+window.removeTempImage = (index) => {
+    state.tempImages.splice(index, 1);
+    renderImagePreviews();
+};
 
 // 3. Remove imagem da lista temporária
 window.removeTempImage = (index) => {
@@ -371,23 +489,28 @@ async function getNextProductCode(siteId) {
 }
 
 // =================================================================
-// 2. ESTADO GLOBAL E DOM
+// 1. CHAVE MESTRA DA MEMÓRIA (Impede vazamento de loja e fantasmas) -ESTADO GLOBAL E DOM
 // =================================================================
+const getSiteMemoryKey = () => {
+    return window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo';
+};
 
+// =================================================================
+// 2. ESTADO GLOBAL E DOM (BLINDADO POR LOJA)
+// =================================================================
 const state = {
-    siteId: window.SITE_ID || new URLSearchParams(window.location.search).get('site') || 'demo',
-    products: [],
+    siteId: getSiteMemoryKey(), // Usa a chave mestra (mantém a lógica da URL intacta)
     products: [],
     categories: [],
     coupons: [],
     orders: [], // Vendas do admin
 
-    // Carrinho e Usuário
-    cart: JSON.parse(localStorage.getItem('cart')) || [],
+    // Carrinho e Usuário (Leitura Blindada - Sem o duplicado antigo)
+    cart: JSON.parse(localStorage.getItem(`cart_${getSiteMemoryKey()}`)) || [],
     user: null,
 
-    // Histórico de Pedidos do Cliente (Chave Corrigida)
-    myOrders: JSON.parse(localStorage.getItem('site_orders_history')) || [],
+    // Histórico de Pedidos do Cliente (Isolado por loja)
+    myOrders: JSON.parse(localStorage.getItem(`orders_${getSiteMemoryKey()}`)) || [],
     activeOrder: null, // Mantido apenas para compatibilidade de detalhes
 
     // Configurações e UI
@@ -421,13 +544,13 @@ const state = {
     focusedCouponIndex: -1,
     focusedProductId: null,
     selectedCategoryParent: null,
-    globalSettings: { allowNoStock: false }, // <--- Mude para TRUE
+    globalSettings: { allowNoStock: false },
     cardSelections: {},
 
-    //Configurações da aba PRODUTOS
-    isSelectionMode: false, // : Controla se checkboxes aparecem
-    selectedProducts: new Set(),
-    //Configuração padrão de ordenação
+    // Configurações da aba PRODUTOS
+    isSelectionMode: false, // Controla se checkboxes aparecem
+
+    // Configuração padrão de ordenação
     sortConfig: { key: 'code', direction: 'desc' },
 };
 let originalTheme = null;
@@ -565,27 +688,126 @@ const els = {
 
 };
 
+// Função global para limpar e fechar o modal corretamente
+window.fecharModalLogin = () => {
+    const modal = document.getElementById('login-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.style.display = ''; // Limpa a força bruta do CSS
+        modal.style.visibility = '';
+        modal.style.opacity = '';
+        modal.style.zIndex = '';
+        try { modal.close(); } catch (e) { }
+        modal.removeAttribute('open');
+    }
+};
 // =================================================================
 // 3. INICIALIZAÇÃO CORRIGIDA
 // =================================================================
+// =================================================================
+// =================================================================
+// 🛡️ SISTEMA DE BLINDAGEM DOM (ANTI-VAZAMENTO DE HTML) - DEFINITIVO
+// =================================================================
+const domVault = {};
+
+// ✨ A MÁGICA: Interceptador de Busca!
+// Como nós arrancamos o HTML da tela, o JS normal ficaria "cego".
+// Esse código ensina o navegador a procurar os itens DENTRO do cofre também!
+const originalGetElementById = document.getElementById.bind(document);
+document.getElementById = function (id) {
+    let el = originalGetElementById(id);
+    if (el) return el; // Se achou na tela, perfeito.
+
+    // Se não achou na tela, vasculha o cofre:
+    for (let key in domVault) {
+        const vaultEl = domVault[key];
+        if (vaultEl && typeof vaultEl.querySelector === 'function') {
+            if (vaultEl.id === id) return vaultEl;
+            const found = vaultEl.querySelector(`#${id}`);
+            if (found) return found;
+        }
+    }
+    return null;
+};
+
+window.lockAdminVault = () => {
+    // Áreas sensíveis que devem SUMIR fisicamente do código fonte
+    const secureAreas = ['view-admin', 'view-support', 'product-form-modal', 'modal-admin-order'];
+
+    secureAreas.forEach(id => {
+        const el = originalGetElementById(id);
+        if (el && !domVault[id]) {
+            // Cria uma âncora invisível para saber onde devolver o HTML depois
+            const placeholder = document.createElement('div');
+            placeholder.id = `vault-placeholder-${id}`;
+            placeholder.style.display = 'none';
+
+            el.parentNode.insertBefore(placeholder, el);
+            domVault[id] = el; // Guarda a área inteira na memória RAM
+            el.remove(); // ✨ EXCLUI o HTML da página, impossibilitando leitura sem senha!
+        }
+    });
+
+    // Oculta atalhos do admin
+    ['menu-btn-admin', 'btn-admin-login'].forEach(id => {
+        const btn = originalGetElementById(id);
+        if (btn) btn.style.setProperty('display', 'none', 'important');
+    });
+};
+
+window.unlockAdminVault = () => {
+    const secureAreas = ['view-admin', 'view-support', 'product-form-modal', 'modal-admin-order'];
+
+    secureAreas.forEach(id => {
+        const placeholder = originalGetElementById(`vault-placeholder-${id}`);
+        if (placeholder && domVault[id]) {
+            // Pega o HTML do cofre e devolve pra página exatamente no lugar original
+            placeholder.parentNode.insertBefore(domVault[id], placeholder);
+            placeholder.remove();
+            delete domVault[id]; // Limpa a memória
+        }
+    });
+
+    ['menu-btn-admin', 'btn-admin-login'].forEach(id => {
+        const btn = originalGetElementById(id);
+        if (btn) btn.style.display = '';
+    });
+
+    // ✨ FORÇA A ATUALIZAÇÃO DA TELA
+    // Como o HTML acabou de "nascer" de novo na página, as tabelas estariam vazias.
+    // Isso injeta os dados do banco imediatamente!
+    if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
+    if (typeof renderAdminCoupons === 'function') renderAdminCoupons();
+    if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+    if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
+    if (typeof fillProfileForm === 'function') fillProfileForm();
+};
 
 const startApplication = async () => {
     console.log("🚀 Iniciando App V4...");
 
-    // 1. Tenta Validar o Acesso (O await segura o código aqui)
+    // ✨ 0. TRANCA O COFRE ANTES DE QUALQUER COISA (Evita o vazamento do HTML)
+    if (typeof lockAdminVault === 'function') lockAdminVault();
+
+    // ✨ 1. SALVA NA MEMÓRIA E LIMPA A URL SEM PERDER O ID ✨
+    const currentUrl = window.location.href;
+    if (currentUrl.includes('admin=true')) {
+        sessionStorage.setItem('wantsAdmin', 'true');
+
+        // Pega a URL atual e corta apenas a chave secreta, mantendo o resto intacto!
+        const cleanUrl = currentUrl.replace('&admin=true', '').replace('?admin=true', '');
+        window.history.replaceState(null, '', cleanUrl);
+    }
+
     const acessoPermitido = await initApp();
 
-    // 2. Só carrega o resto se o initApp retornar TRUE
     if (acessoPermitido) {
         console.log("✅ Acesso Liberado. Carregando interface...");
         setupEventListeners();
         setupKeyboardListeners();
-
-        // Remove a "Cortina" (Mostra o site)
         document.body.classList.add('loaded');
     } else {
-        console.log("⛔ Acesso Negado. Site permanece oculto/bloqueado.");
-        // Não faz nada, a função initApp já exibiu a tela de morte
+        console.log("⛔ Acesso Negado.");
     }
 };
 
@@ -601,8 +823,14 @@ if (document.readyState === 'loading') {
 // =================================================================
 async function initApp() {
     // --- 1. SEGURANÇA E BLOQUEIO (NOVO) ---
-    const params = new URLSearchParams(window.location.search);
-    const siteId = params.get('site');
+    // Pega o ID que o index.html já validou, em vez de ler a URL!
+    let siteId = window.SITE_ID;
+
+    // Fallback de emergência caso perca a memória
+    if (!siteId) {
+        const params = new URLSearchParams(window.location.search);
+        siteId = params.get('site');
+    }
 
     if (!siteId) {
         exibirTelaMorte("Loja não identificada", "Link inválido.");
@@ -660,8 +888,13 @@ async function initApp() {
         loadCoupons();
         updateCartUI();
         startBackgroundListeners();
-        initStatsModule();
+        try {
+            if (typeof initStatsModule === 'function') initStatsModule();
+        } catch (errStats) {
+            console.warn("Aviso: Módulo de estatísticas falhou, mas o sistema continuará carregando.", errStats);
+        }
         loadTheme();
+
 
         // Monitoramento de segurança em tempo real (15s)
         setInterval(async () => {
@@ -672,39 +905,80 @@ async function initApp() {
                     window.location.reload();
                 }
             } catch (e) { }
-        }, 15000);
+        }, 60000);
 
         // --- 3. TEMA E UI (DO SEU CÓDIGO ANTIGO) ---
         if (localStorage.getItem('theme') === 'light') toggleTheme(false);
 
-        // --- 4. AUTH LISTENER (AGORA COM SUPORTE À SENHA DO CLIENTE) ---
-        // A lógica do botão está no setupEventListeners, aqui só definimos a view baseada na sessão
+        // --- 4. AUTH LISTENER (LOGICA DE PROTEÇÃO DE VIEW) ---123
         onAuthStateChanged(auth, (user) => {
-            // Só sobrescreve se o usuário não for o 'store-admin' simulado que criamos no botão de login
-            if (!state.user || state.user.uid !== 'store-admin') {
-                state.user = user;
-            }
+            // ✨ FIM DO CRACHÁ FALSO: Agora só existe o 'user' real do Firebase!
+            state.user = user;
 
-            const btnText = state.user ? 'Painel' : 'Área Admin';
-
-            if (els.menuBtnAdmin) {
-                els.menuBtnAdmin.innerHTML = `
-                    <i class="fas fa-user-shield text-white group-hover:text-white transition"></i>
-                    <span class="font-bold uppercase text-sm tracking-wide">${btnText}</span>
-                `;
-            }
-
-            const btnLoginNav = getEl('btn-admin-login');
-            if (btnLoginNav) btnLoginNav.innerText = btnText;
-
-            if (state.user) {
-                if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-                if (typeof loadAdminSales === 'function') loadAdminSales();
-                setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
+            // ✨ SE FOR ADMIN AUTENTICADO, ABRE O COFRE E DEVOLVE O HTML
+            if (user) {
+                if (typeof unlockAdminVault === 'function') unlockAdminVault();
             } else {
-                if (typeof showView === 'function') showView('catalog');
-                setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
+                // ✨ SE DESLOGAR, TRANCA O HTML NA MEMÓRIA NOVAMENTE
+                if (typeof lockAdminVault === 'function') lockAdminVault();
             }
+
+            // ✨ PASSO 2: Controle de visibilidade do botão na Sidebar
+            if (els.menuBtnAdmin) {
+                if (state.user) {
+                    els.menuBtnAdmin.classList.remove('hidden');
+                    els.menuBtnAdmin.innerHTML = `
+                        <i class="fas fa-user-shield text-white group-hover:text-white transition"></i>
+                        <span class="font-bold uppercase text-sm tracking-wide">Painel Admin</span>
+                    `;
+                } else {
+                    els.menuBtnAdmin.classList.add('hidden');
+                }
+            }
+
+            // Controle do botão de login na Navbar (se existir)
+            const btnLoginNav = getEl('btn-admin-login');
+            if (btnLoginNav) {
+                if (state.user) {
+                    btnLoginNav.classList.remove('hidden');
+                    btnLoginNav.innerText = 'Painel Admin';
+                } else {
+                    btnLoginNav.classList.add('hidden');
+                }
+            }
+
+            // --- DECISÃO DE TELA E RADAR ---
+            if (state.user) {
+                // Já logou, limpa a URL e fecha o modal
+                sessionStorage.removeItem('wantsAdmin');
+                if (typeof fecharModalLogin === 'function') fecharModalLogin();
+
+                if (typeof showView === 'function') showView('admin');
+                if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+            } else {
+                // É um cliente deslogado
+                if (typeof showView === 'function') showView('catalog');
+
+                // Abertura do Modal de Senha (Gatilho da URL)
+                if (sessionStorage.getItem('wantsAdmin') === 'true') {
+                    sessionStorage.removeItem('wantsAdmin');
+
+                    setTimeout(() => {
+                        const loginModal = document.getElementById('login-modal');
+                        if (loginModal) {
+                            loginModal.classList.remove('hidden');
+                            loginModal.style.display = '';
+                            loginModal.style.zIndex = '999999';
+                            try {
+                                if (!loginModal.open) loginModal.showModal();
+                            } catch (e) {
+                                loginModal.setAttribute('open', 'true');
+                            }
+                        }
+                    }, 500);
+                }
+            }
+            setTimeout(() => { if (window.checkFooter) window.checkFooter(); }, 100);
         });
 
         // --- 5. TIMERS E EXTRAS (DO SEU CÓDIGO ANTIGO) ---
@@ -714,8 +988,8 @@ async function initApp() {
             }
         }, 10000);
 
-        // Verifica Pedidos Ativos (Motoquinha)
-        const savedHistory = localStorage.getItem('site_orders_history');
+        // Verifica Pedidos Ativos (Motoquinha) - Isolado por loja!
+        const savedHistory = localStorage.getItem(`orders_${state.siteId}`);
         if (savedHistory) {
             state.myOrders = JSON.parse(savedHistory);
         }
@@ -738,53 +1012,81 @@ function exibirTelaMorte(titulo, msg, tipo = 'erro') {
 
     // 1. Limpa e Prepara o Body
     document.body.innerHTML = '';
-    document.body.style.display = 'block';
+
+    // Reseta margens e fundo do body para o layout preencher tudo
+    document.body.style.cssText = `display: block !important; background-color: #0B0E14; min-height: 100vh; margin: 0; padding: 0;`;
 
     // 2. Define o Design com base no Tipo
     let iconHtml = '<i class="fas fa-ban"></i>';
     let mainColor = '#ef4444'; // Vermelho Agressivo (Bloqueio)
-    let bgStyle = 'background: #000;';
-    let btnTextColor = 'white';
+    let bgStyle = 'background: radial-gradient(circle at top, #2a0808 0%, #0B0E14 100%);';
 
     if (tipo === 'pausado') {
-        iconHtml = '<i class="fas fa-tools"></i>'; // Ícone Manutenção
+        iconHtml = '<i class="fas fa-cog fa-spin"></i>'; // Ícone Manutenção
         mainColor = '#facc15'; // Amarelo Suave
-        bgStyle = 'background: linear-gradient(135deg, #0f172a 0%, #000000 100%);'; // Fundo Azul Escuro Elegante
-        btnTextColor = '#000'; // Texto preto no botão amarelo
+        bgStyle = 'background: radial-gradient(circle at top, #2a2208 0%, #0B0E14 100%);';
     }
 
-    // 3. Define o HTML Dinâmico
+    // 3. Define o HTML Dinâmico (Com o novo design premium e cards)
     document.body.innerHTML = `
-        <div style="
-            position: fixed; inset: 0; ${bgStyle} color: #fff; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            z-index: 999999; font-family: sans-serif; text-align: center; padding: 20px;
-        ">
-            <div style="font-size: 4rem; color: ${mainColor}; margin-bottom: 20px; opacity: 0.9;">
-                ${iconHtml}
-            </div>
-            <h1 style="font-size: 2rem; font-weight: bold; margin: 0; color: white; line-height: 1.2;">${titulo}</h1>
-            <p style="color: #94a3b8; margin-top: 15px; font-size: 1.1rem; max-width: 400px; line-height: 1.5;">${msg}</p>
-            
-            <button onclick="window.location.reload()" style="
-                margin-top: 40px; padding: 12px 30px; background: ${mainColor}; color: ${btnTextColor}; 
-                border: none; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: opacity 0.2s;
-            " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
-                Tentar Novamente
-            </button>
+        <style>
+            .lock-wrapper { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; box-sizing: border-box; ${bgStyle} }
+            .lock-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 24px; padding: 40px 30px; text-align: center; width: 100%; max-width: 450px; backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); margin-bottom: 25px; }
+            .promo-card { background: linear-gradient(145deg, rgba(37, 99, 235, 0.1), rgba(147, 51, 234, 0.05)); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 24px; padding: 25px; text-align: center; width: 100%; max-width: 450px; box-shadow: 0 0 30px rgba(37, 99, 235, 0.1); position: relative; overflow: hidden; }
+            .promo-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899); }
+            .promo-img { width: 100%; height: 160px; object-fit: cover; border-radius: 12px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1); background-color: #161821; }
+            .btn-reload { padding: 12px 35px; border: none; border-radius: 10px; font-weight: 800; cursor: pointer; font-size: 1rem; transition: transform 0.2s, opacity 0.2s; text-transform: uppercase; letter-spacing: 1px; margin-top: 10px; }
+            .btn-reload:hover { transform: scale(1.05); opacity: 0.9; }
+            .social-links { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 20px; }
+            .social-btn { flex: 1; min-width: 140px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 12px; text-decoration: none; font-weight: bold; font-size: 0.85rem; transition: all 0.2s; text-transform: uppercase; }
+            .btn-site { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+            .btn-site:hover { background: rgba(59, 130, 246, 0.4); color: #fff; transform: translateY(-2px); }
+            .btn-insta { background: rgba(236, 72, 153, 0.2); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.3); }
+            .btn-insta:hover { background: rgba(236, 72, 153, 0.4); color: #fff; transform: translateY(-2px); }
+        </style>
 
-            <div style="margin-top: 80px; display: flex; flex-direction: column; align-items: center; opacity: 0.6; transition: opacity 0.3s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">
-                <span style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; font-weight: bold;">Aproveite para conhecer a Projetista</span>
-                <a href="https://instagram.com/projetista_oficial" target="_blank" title="Siga a Projetista no Instagram" style="color: #ec4899; font-size: 2.2rem; text-decoration: none; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
-                    <i class="fab fa-instagram"></i>
-                </a>
+        <div class="lock-wrapper">
+            
+            <!-- ⛔ CARTÃO DE AVISO (BLOQUEIO/PAUSA) -->
+            <div class="lock-card">
+                <div style="font-size: 4rem; margin-bottom: 15px; color: ${mainColor}; text-shadow: 0 0 30px ${mainColor}60;">${iconHtml}</div>
+                <h1 style="font-size: 1.8rem; color: white; margin: 0 0 10px 0; font-weight: 900; letter-spacing: -0.5px;">${titulo}</h1>
+                <p style="color: #94a3b8; margin: 0 0 25px 0; font-size: 1rem; line-height: 1.5;">${msg}</p>
+                <button class="btn-reload" onclick="window.location.reload()" style="background: ${mainColor}; color: ${tipo === 'pausado' ? '#000' : '#fff'};">
+                    Atualizar Página
+                </button>
             </div>
+
+            <!-- 🚀 CARTÃO DE PROPAGANDA (CAPTAÇÃO DE LEADS) -->
+            <div class="promo-card">
+                <!-- 🖼️ INSIRA O LINK DA SUA IMAGEM DE PROPAGANDA AQUI 👇 -->
+                <img src="tudoCentral.png" alt="Crie sua Loja Virtual" class="promo-img">
+                
+                <h2 style="color: #fff; font-size: 1.3rem; margin: 0 0 8px 0; font-weight: 800;">Tenha o SEU E-Commerce, sua loja automática e profissional</h2>
+                <p style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.5; margin: 0;">
+                    Tenha um catálogo online completo como este. Venda pelo WhatsApp, gerencie seus pedidos e escale o seu negócio com a Projetista Oficial.
+                </p>
+                
+                <div class="social-links">
+                    <!-- 🌐 INSIRA O LINK DA SUA LANDING PAGE AQUI 👇 -->
+                    <a href="https://projetistaoficial.com" target="_blank" class="social-btn btn-site">
+                        <i class="fas fa-rocket text-lg"></i> Criar Minha Loja em 5 minutos
+                    </a>
+                    
+                    <!-- 📸 LINK DO INSTAGRAM -->
+                    <a href="https://instagram.com/projetista_oficial" target="_blank" class="social-btn btn-insta">
+                        <i class="fab fa-instagram text-lg"></i> Instagram
+                    </a>
+                </div>
+            </div>
+
         </div>
     `;
 
     // 4. Força a visibilidade
     document.body.style.opacity = "1";
     document.body.style.pointerEvents = "auto";
+    // Essa classe "loaded" desativa as blindagens de CSS que escondiam o site!
     document.body.classList.add('acesso-liberado', 'loaded');
 
     // 5. Garante Fonte de Ícones (Para o Insta funcionar mesmo sem carregar o resto)
@@ -872,34 +1174,194 @@ function loadSettings() {
     });
 }
 
-function loadProducts() {
-    const q = query(collection(db, `sites/${state.siteId}/products`));
-    onSnapshot(q, (snapshot) => {
-        state.products = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+// Variável global para evitar que o ouvinte seja duplicado sem querer
+let unsubscribeProducts = null;
+
+async function loadProducts() {
+    const cacheKey = `prods_${state.siteId}`;
+
+    // 1. CARGA IMEDIATA (Zero delay visual)
+    const cached = getCachedData(cacheKey, 60); // Mantemos no cache por 60 min
+    if (cached && state.products.length === 0) {
+        state.products = cached;
         renderCatalog(state.products);
-        if (state.user) filterAndRenderProducts();
+        if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
+    }
 
-        // Recalcula Capital de Giro sempre que produtos mudarem
-        calculateStatsMetrics();
-        renderAdminCategoryList();
-        updateStatsData(state.orders, state.products, state.siteStats);
+    // 2. OUVINTE INTELIGENTE (Real-time Econômico)
+    if (unsubscribeProducts) unsubscribeProducts(); // Previne duplicidade
+
+    const q = query(collection(db, `sites/${state.siteId}/products`));
+
+    unsubscribeProducts = onSnapshot(q, (snapshot) => {
+        let hasChanges = false;
+
+        snapshot.docChanges().forEach((change) => {
+            hasChanges = true;
+            const prodData = { id: change.doc.id, ...change.doc.data() };
+
+            if (change.type === 'added') {
+                const idx = state.products.findIndex(p => p.id === prodData.id);
+                if (idx === -1) state.products.push(prodData);
+                else state.products[idx] = prodData;
+            }
+            if (change.type === 'modified') {
+                const idx = state.products.findIndex(p => p.id === prodData.id);
+                if (idx !== -1) state.products[idx] = prodData;
+            }
+            if (change.type === 'removed') {
+                state.products = state.products.filter(p => p.id !== prodData.id);
+            }
+        });
+
+        if (hasChanges) {
+            setCachedData(cacheKey, state.products, 60);
+            renderCatalog(state.products);
+
+            if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
+
+            if (document.getElementById('admin-product-list')) {
+                if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+            }
+
+            // ✨ A SOLUÇÃO: Toda vez que um produto for salvo, adicionado ou vendido,
+            // forçamos o cálculo do Capital de Giro para atualizar a tela na mesma hora!
+            if (typeof calculateStatsMetrics === 'function') calculateStatsMetrics();
+        }
     });
 }
 
-function loadCategories() {
-    const q = query(collection(db, `sites/${state.siteId}/categories`), orderBy('name'));
-    onSnapshot(q, (snapshot) => {
-        state.categories = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+// --- FUNÇÃO AUXILIAR DE CACHE ---
+const getCachedData = (key, minutes = 30) => {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+    const data = JSON.parse(cached);
+    const now = new Date().getTime();
+    // Se o tempo atual for menor que o tempo de expiração, retorna o dado
+    if (now < data.expiry) return data.value;
+    return null;
+};
+
+const setCachedData = (key, value, minutes = 30) => {
+    const now = new Date().getTime();
+    const item = {
+        value: value,
+        expiry: now + (minutes * 60 * 1000)
+    };
+
+    try {
+        // Tenta salvar no cache do navegador
+        localStorage.setItem(key, JSON.stringify(item));
+    } catch (error) {
+        // Se o cache encher (geralmente por causa do peso das imagens Base64), 
+        // ele ignora o erro pacificamente para não travar o site do cliente.
+        console.warn(`⚠️ Cache ignorado para '${key}': Limite de 5MB do navegador atingido.`);
+
+        // Remove a chave para não deixar lixo corrompido na memória
+        try { localStorage.removeItem(key); } catch (e) { }
+    }
+};
+
+// --- CARREGAMENTO DE CATEGORIAS COM ECONOMIA ---
+async function loadCategories() {
+    const cacheKey = `cats_${state.siteId}`;
+    const cached = getCachedData(cacheKey);
+
+    if (cached) {
+        console.log("📦 Categorias carregadas do Cache");
+        state.categories = cached;
         renderCategories();
-        renderAdminCategoryList();
-    });
+        return;
+    }
+
+    // Se não tem cache, faz a leitura ÚNICA (getDocs em vez de onSnapshot)
+    console.log("🔥 Lendo Categorias do Firebase (Gasto: 1 leitura por cat)");
+    const q = query(collection(db, `sites/${state.siteId}/categories`));
+    const snap = await getDocs(q);
+    const cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    state.categories = cats;
+    setCachedData(cacheKey, cats);
+    renderCategories();
 }
+
+// ✨ NOVA FUNÇÃO: Move a categoria para cima ou para baixo
+window.moveCategory = async (id, fullPath, direction) => {
+    // 1. Descobre quem é o "Pai" desta categoria para mexer apenas nas irmãs dela
+    const parts = fullPath.split(' - ');
+    parts.pop();
+    const parentPath = parts.length > 0 ? parts.join(' - ') : null;
+
+    // 2. Filtra as categorias que estão no mesmo nível (mesmo pai)
+    const siblings = state.categories.filter(c => {
+        const cParts = c.name.split(' - ');
+        cParts.pop();
+        const cParentPath = cParts.length > 0 ? cParts.join(' - ') : null;
+        return cParentPath === parentPath;
+    });
+
+    // 🔥 A CORREÇÃO RIGOROSA: Ordena o array antes de descobrir o índice!
+    // Isto sincroniza o código de forma milimétrica com o que está a ver no ecrã.
+    siblings.sort((a, b) => {
+        const orderA = a.order !== undefined ? a.order : 999;
+        const orderB = b.order !== undefined ? b.order : 999;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.name.localeCompare(b.name);
+    });
+
+    // 3. Agora sim, acha a posição atual correta com base na ordem visual
+    const currentIndex = siblings.findIndex(s => s.id === id);
+    if (currentIndex === -1) return;
+
+    // 4. Calcula a nova posição de destino
+    const targetIndex = currentIndex + direction;
+    if (targetIndex < 0 || targetIndex >= siblings.length) return; // Trava se bater no teto ou no chão
+
+    // 5. Troca as duas de lugar no array ordenado
+    const temp = siblings[currentIndex];
+    siblings[currentIndex] = siblings[targetIndex];
+    siblings[targetIndex] = temp;
+
+    // 6. Salva a nova sequência no Firebase redistribuindo os pesos de 10 em 10
+    try {
+        const promises = siblings.map((sib, index) => {
+            return updateDoc(doc(db, `sites/${state.siteId}/categories`, sib.id), { order: index * 10 });
+        });
+        await Promise.all(promises);
+
+        // Limpa o cache e recarrega a tela instantaneamente com os dados novos
+        localStorage.removeItem(`cats_${state.siteId}`);
+        await loadCategories();
+        renderAdminCategoryList();
+        showToast("Ordem atualizada!");
+
+    } catch (e) {
+        console.error("Erro ao reordenar:", e);
+        showToast("Erro ao reordenar categoria.", "error");
+    }
+};
 
 function loadCoupons() {
     const q = query(collection(db, `sites/${state.siteId}/coupons`));
     onSnapshot(q, (snapshot) => {
         state.coupons = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderAdminCoupons();
+        
+        // Renderiza a lista no Admin
+        const viewAdmin = document.getElementById('view-admin');
+        if (viewAdmin && !viewAdmin.classList.contains('hidden')) {
+            renderAdminCoupons();
+        }
+
+        // ✨ O GATILHO DO ADMIN: Fiscaliza e rotaciona se o oferecido expirou
+        if (state.user && typeof checkAndRotateExpiredOfferedCoupon === 'function') {
+            checkAndRotateExpiredOfferedCoupon();
+        }
+
+        // Exibe o cupom na vitrine para o cliente (se ele não for admin)
+        if (!state.user && typeof showOfferedCoupon === 'function') {
+            showOfferedCoupon();
+        }
     });
 }
 
@@ -946,11 +1408,18 @@ function loadAdminSales() {
             filterAndRenderProducts();
         }
 
-        // Atualiza Estatísticas Gerais (Financeiro, Gráficos)
         if (typeof updateStatsData === 'function') {
             updateStatsData(state.orders, state.products, state.dailyStats);
         }
-    });
+    }, (error) => {
+        // Trata o bloqueio silenciosamente
+        console.log("🔒 Coleção de Vendas trancada aguardando senha.");
+    }); // Fim do onSnapshot das vendas // Fim do onSnapshot das vendas
+
+    // ✨ GATILHO RESTRITO: Só liga o radar se houver um usuário admin confirmado ✨
+    if (state.user && typeof loadAvisos === 'function') {
+        loadAvisos();
+    }
 }
 
 
@@ -1028,16 +1497,21 @@ window.openAdminOrderDetail = async (order) => {
 
 // Carrega Contadores de Visitas/Compartilhamentos
 function loadSiteStats() {
-    // Carrega a coleção de estatísticas diárias
     const q = query(collection(db, `sites/${state.siteId}/dailyStats`));
 
     onSnapshot(q, (snapshot) => {
         const dailyData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         state.dailyStats = dailyData; // Salva no estado global
 
-        // Atualiza o módulo de estatísticas
-        // IMPORTANTE: O terceiro parâmetro agora é state.dailyStats (array), não mais state.siteStats (objeto)
-        updateStatsData(state.orders, state.products, state.dailyStats);
+        // Atualiza o módulo de estatísticas externo (se existir)
+        if (typeof updateStatsData === 'function') {
+            updateStatsData(state.orders, state.products, state.dailyStats);
+        }
+
+        // ✨ CORREÇÃO: Força a atualização da tela imediatamente quando o Firebase responde!
+        if (typeof calculateStatsMetrics === 'function') {
+            calculateStatsMetrics();
+        }
     });
 }
 
@@ -1135,143 +1609,6 @@ function updateStatsUI() {
     calculateStatsMetrics();
 }
 
-function calculateStatsMetrics() {
-    // --- 1. CAPITAL DE GIRO (Independente de Filtros de Data) ---
-    // Regra: Estoque Atual * (Preço Promo ou Preço Normal)
-    let capitalGiro = 0;
-    if (state.products) {
-        state.products.forEach(p => {
-            if (p.stock > 0) {
-                const val = p.promoPrice || p.price;
-                capitalGiro += p.stock * val;
-            }
-        });
-    }
-    if (els.statCapitalGiro) els.statCapitalGiro.innerText = formatCurrency(capitalGiro);
-
-    // --- 2. FILTRAGEM DE PEDIDOS ---
-    if (!state.orders) return;
-
-    let filteredOrders = state.orders;
-
-    if (state.statsFilterType === 'period') {
-        filteredOrders = state.orders.filter(o => {
-            const orderDate = new Date(o.date);
-            const statsDate = state.statsDate;
-
-            // Comparação precisa de datas
-            const sameYear = orderDate.getFullYear() === statsDate.getFullYear();
-            const sameMonth = orderDate.getMonth() === statsDate.getMonth();
-            const sameDay = orderDate.getDate() === statsDate.getDate();
-
-            if (state.statsViewMode === 'month') return sameYear && sameMonth;
-            return sameYear && sameMonth && sameDay;
-        });
-    }
-
-    // --- 3. CÁLCULOS FINANCEIROS E KPIS ---
-    let totalSalesCount = 0;
-    let totalSalesValue = 0;
-    let totalCost = 0;
-
-    let countRefunded = 0;
-    let countCancelled = 0;
-    let countPending = 0;
-
-    // Para KPIs
-    let totalPaidOrders = 0; // Confirmado + Reembolsado (pedidos que foram pagos um dia)
-    let totalCreatedOrders = filteredOrders.length; // Todos gerados
-
-    filteredOrders.forEach(o => {
-        if (o.status === 'Reembolsado') {
-            countRefunded++;
-            totalPaidOrders++;
-        }
-        if (o.status === 'Cancelado') countCancelled++;
-        if (o.status === 'Pendente') countPending++;
-
-        if (o.status === 'Confirmado') {
-            totalSalesCount++;
-            totalPaidOrders++;
-            totalSalesValue += o.total;
-
-            // Cálculo de Custo e Lucro
-            o.items.forEach(item => {
-                let itemCost = 0;
-                // Prioridade 1: Custo salvo no momento da venda (histórico)
-                if (item.cost !== undefined) {
-                    itemCost = item.cost;
-                } else {
-                    // Prioridade 2: Custo atual do produto (fallback)
-                    const currentProd = state.products.find(p => p.id === item.id);
-                    if (currentProd) itemCost = currentProd.cost || 0;
-                }
-                totalCost += itemCost * item.qty;
-            });
-        }
-    });
-
-    const totalProfit = totalSalesValue - totalCost;
-
-    // Renderização no DOM
-    if (els.statSalesCount) els.statSalesCount.innerText = totalSalesCount;
-    if (els.statSalesTotal) els.statSalesTotal.innerText = formatCurrency(totalSalesValue);
-    if (els.statCostTotal) els.statCostTotal.innerText = formatCurrency(totalCost);
-    if (els.statProfitTotal) els.statProfitTotal.innerText = formatCurrency(totalProfit);
-
-    if (els.statRefunded) els.statRefunded.innerText = countRefunded;
-    if (els.statCancelled) els.statCancelled.innerText = countCancelled;
-    if (els.statPending) els.statPending.innerText = countPending;
-
-    // KPIs Percentuais
-    const approvalRate = totalCreatedOrders > 0 ? (totalSalesCount / totalCreatedOrders) * 100 : 0;
-    if (els.statRateApproval) els.statRateApproval.innerText = Math.round(approvalRate) + '%';
-
-    const refundRate = totalPaidOrders > 0 ? (countRefunded / totalPaidOrders) * 100 : 0;
-    if (els.statRateRefund) els.statRateRefund.innerText = Math.round(refundRate) + '%';
-
-    calculateTrend30();
-}
-
-function calculateTrend30() {
-    // Tendência fixa de 30 dias (independente do filtro de data visual)
-    const now = new Date();
-    const last30 = new Date(); last30.setDate(now.getDate() - 30);
-    const prior30 = new Date(); prior30.setDate(last30.getDate() - 30);
-
-    let salesLast30 = 0;
-    let salesPrior30 = 0;
-
-    state.orders.forEach(o => {
-        if (o.status !== 'Confirmado') return;
-        const d = new Date(o.date);
-
-        // Vendas dos últimos 30 dias
-        if (d >= last30 && d <= now) {
-            salesLast30 += o.total;
-        }
-        // Vendas dos 30 dias anteriores a isso (para comparar)
-        else if (d >= prior30 && d < last30) {
-            salesPrior30 += o.total;
-        }
-    });
-
-    let trend = 0;
-    if (salesPrior30 === 0) {
-        trend = salesLast30 > 0 ? 100 : 0; // Se antes era 0 e agora vendeu, subiu 100% (simbólico)
-    } else {
-        trend = ((salesLast30 - salesPrior30) / salesPrior30) * 100;
-    }
-
-    const symbol = trend >= 0 ? '+' : '';
-    const colorClass = trend >= 0 ? 'text-green-500' : 'text-red-500';
-
-    if (els.statTrend30) {
-        els.statTrend30.innerText = `${Math.round(Math.abs(trend))}% ${symbol}`;
-        els.statTrend30.className = `text-3xl font-bold ${colorClass}`;
-    }
-}
-
 // =================================================================
 // 6. RENDERIZADORES DE CATÁLOGO E ADMIN (MANTIDOS)
 // =================================================================
@@ -1280,8 +1617,7 @@ function renderCatalog(productsToRender) {
     if (!els.grid) return;
     els.grid.innerHTML = '';
 
-    // 1. FILTRAGEM
-    let filtered = [...productsToRender];
+    let filtered = [...productsToRender].filter(p => p.active !== false);
     const searchTerm = document.getElementById('search-input')?.value.toLowerCase();
     const catTerm = document.getElementById('category-filter')?.value;
 
@@ -1294,34 +1630,67 @@ function renderCatalog(productsToRender) {
         }
     }
 
-    // 2. ORDENAÇÃO
-    const sortMode = document.getElementById('sort-filter')?.value || 'vitrine';
+    const sortMode = (document.getElementById('sort-filter')?.value || 'vitrine').toLowerCase();
+
+    // ✨ ARMADURA: Garante que o valor do estoque e do preço sempre sejam números válidos
+    const getSafeStock = (val) => isNaN(parseInt(val)) ? 0 : parseInt(val);
+    const getSafePrice = (p) => {
+        let promo = parseFloat(p.promoPrice);
+        let normal = parseFloat(p.price);
+        if (!isNaN(promo) && promo > 0) return promo; // Se tem promoção válida, usa ela
+        if (!isNaN(normal) && normal > 0) return normal; // Senão, usa o normal
+        return 0; // Se tudo falhar, é 0
+    };
 
     filtered.sort((a, b) => {
-        const priceA = parseFloat(a.promoPrice || a.price) || 0;
-        const priceB = parseFloat(b.promoPrice || b.price) || 0;
-        const codeA = parseInt(a.code) || 0;
-        const codeB = parseInt(b.code) || 0;
+        const stockA = getSafeStock(a.stock);
+        const stockB = getSafeStock(b.stock);
 
-        const isSoldOutA = a.stock <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
-        const isSoldOutB = b.stock <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
+        const isSoldOutA = stockA <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
+        const isSoldOutB = stockB <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
+
+        // Itens esgotados sempre vão pro final
         if (isSoldOutA && !isSoldOutB) return 1;
         if (!isSoldOutA && isSoldOutB) return -1;
 
-        switch (sortMode) {
-            case 'vitrine':
-                if (a.highlight === true && b.highlight !== true) return -1;
-                if (a.highlight !== true && b.highlight === true) return 1;
-                const hasOfferA = (a.promoPrice && parseFloat(a.promoPrice) > 0);
-                const hasOfferB = (b.promoPrice && parseFloat(b.promoPrice) > 0);
-                if (hasOfferA && !hasOfferB) return -1;
-                if (!hasOfferA && hasOfferB) return 1;
-                return codeB - codeA;
-            case 'price-asc': return priceA - priceB;
-            case 'price-desc': return priceB - priceA;
-            case 'name-asc': return (a.name || '').localeCompare(b.name || '');
-            default: return codeB - codeA;
+        const priceA = getSafePrice(a);
+        const priceB = getSafePrice(b);
+        const nameA = (a.name || '').trim().toLowerCase();
+        const nameB = (b.name || '').trim().toLowerCase();
+
+        // 🔍 LÓGICA UNIVERSAL: Busca por "pedaços" do value do seu HTML
+        if (sortMode.includes('menor') || sortMode.includes('asc') && sortMode.includes('price')) {
+            return priceA - priceB;
         }
+        
+        if (sortMode.includes('maior') || sortMode.includes('desc') && sortMode.includes('price')) {
+            return priceB - priceA;
+        }
+        
+        if (sortMode.includes('nome') || sortMode.includes('name') || sortMode.includes('alfabetica')) {
+            return nameA.localeCompare(nameB);
+        }
+        
+        if (sortMode.includes('lancamento') || sortMode.includes('new') || sortMode.includes('date')) {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.code) || 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : parseInt(b.code) || 0;
+            return dateB - dateA;
+        }
+
+        // Padrão: Vitrine
+        const orderA = a.order !== undefined && a.order !== null ? parseFloat(a.order) : 999999;
+        const orderB = b.order !== undefined && b.order !== null ? parseFloat(b.order) : 999999;
+        if (orderA !== orderB) return orderA - orderB;
+
+        const isHighlightA = a.highlight === true ? 1 : 0;
+        const isHighlightB = b.highlight === true ? 1 : 0;
+        if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA;
+
+        const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
+        const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
+        if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
+
+        return (parseInt(b.code) || 0) - (parseInt(a.code) || 0);
     });
 
     if (filtered.length === 0) {
@@ -1329,66 +1698,37 @@ function renderCatalog(productsToRender) {
         return;
     }
 
-    // Configurações
     const pixGlobal = state.storeProfile.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
     const globalInst = state.storeProfile.installments || { active: false, max: 12, freeUntil: 3 };
 
     filtered.forEach(p => {
         const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-        const isOut = p.stock <= 0 && !allowNegative;
+        const currentStock = getSafeStock(p.stock);
+        const isOut = currentStock <= 0 && !allowNegative;
         const currentPrice = parseFloat(p.promoPrice || p.price);
 
-        // --- LÓGICA DE EXIBIÇÃO DO PIX (CORRIGIDA) ---
         let pixHtml = '';
-
         if (!pixGlobal.disableAll) {
-
-            // A) Regra Global Ativa
             if (pixGlobal.active && pixGlobal.value > 0) {
-
-                // Determina o texto correto da etiqueta (R$ ou %)
                 const isFixed = (pixGlobal.type === 'fixed');
-                const labelOff = isFixed
-                    ? `${formatCurrency(pixGlobal.value)} OFF`
-                    : `${pixGlobal.value}% OFF`;
+                const labelOff = isFixed ? `R$ ${formatCurrency(pixGlobal.value)} OFF` : `${pixGlobal.value}% OFF`;
 
                 if (pixGlobal.mode === 'total') {
-                    // MODO TOTAL: Exibe apenas a etiqueta informativa (sem calcular preço unitário)
-                    // CORREÇÃO: Usa labelOff para mostrar "R$ 10,00 OFF" em vez de "10% OFF" se for fixo
                     pixHtml = `<p class="text-green-500 text-[10px] font-bold mt-1"><i class="fas fa-tag mr-1"></i>${labelOff} no Pix (Total)</p>`;
                 } else {
-                    // MODO PRODUTO: Calcula o preço unitário
-                    let valDesconto = 0;
-                    if (isFixed) {
-                        valDesconto = pixGlobal.value;
-                    } else {
-                        valDesconto = currentPrice * (pixGlobal.value / 100);
-                    }
-
+                    let valDesconto = isFixed ? pixGlobal.value : currentPrice * (pixGlobal.value / 100);
                     const finalPix = Math.max(0, currentPrice - valDesconto);
-
-                    // Exibe o preço calculado
                     pixHtml = `<p class="text-green-500 text-[10px] font-bold mt-1"><i class="fas fa-bolt mr-1"></i>${formatCurrency(finalPix)} no Pix</p>`;
                 }
-
-            }
-
-            // B) Regra Individual (Fallback)
-            else if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
+            } else if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
                 const pix = p.paymentOptions.pix;
                 let finalPix = currentPrice;
-
-                if (pix.type === 'percent') {
-                    finalPix = currentPrice * (1 - (pix.val / 100));
-                } else {
-                    finalPix = Math.max(0, currentPrice - pix.val);
-                }
-
+                if (pix.type === 'percent') finalPix = currentPrice * (1 - (pix.val / 100));
+                else finalPix = Math.max(0, currentPrice - pix.val);
                 pixHtml = `<p class="text-green-500 text-[10px] font-bold mt-1"><i class="fas fa-bolt mr-1"></i>${formatCurrency(finalPix)} no Pix</p>`;
             }
         }
 
-        // Parcelamento
         let installmentHtml = '';
         if (globalInst.active) {
             if (globalInst.freeUntil > 1) {
@@ -1410,7 +1750,6 @@ function renderCatalog(productsToRender) {
 
         const imgOpacity = isOut ? 'opacity-50 grayscale' : '';
 
-        // Badges
         let badgesHtml = '';
         if (p.highlight || p.promoPrice) {
             badgesHtml = `<div class="absolute top-2 left-2 flex flex-col gap-1 z-20 pointer-events-none">`;
@@ -1444,99 +1783,7 @@ function renderCatalog(productsToRender) {
 
 
 // =======================================================================================================================//=======================================================================================================================
-//LÓGICA DE CATEGORIAS, EXIBIÇÃO, ORDEM, EDIÇÃO E EXCLUSÃO - FIM
-// =================================================================
-function renderCategories() {
-    // 1. Definição da Função de Preenchimento (Interna e Segura)
-    const populateSelect = (elementId) => {
-        const selectEl = document.getElementById(elementId); // Pega direto do HTML para garantir
-        if (!selectEl) return;
 
-        const currentVal = selectEl.value;
-
-        // LÓGICA DE TEXTO:
-        // Aumentei para 768px para pegar tablets e celulares grandes também
-        const isMobile = window.innerWidth < 768;
-
-        // Texto bem curto para mobile
-        const defaultLabel = isMobile ? "Todas categorias" : "Todas as Categorias";
-
-        // Aplica o HTML
-        // A classe text-xs ou text-[8px] do HTML vai controlar o tamanho da fonte.
-        // Aqui controlamos apenas o QUE está escrito.
-        selectEl.innerHTML = `<option value="" class="text-gray-500">${defaultLabel}</option>`;
-
-        // Adiciona as categorias
-        state.categories.forEach(c => {
-            selectEl.innerHTML += `<option value="${c.name}">${c.name}</option>`;
-        });
-
-        // Restaura a seleção
-        if (currentVal) selectEl.value = currentVal;
-    };
-
-    // 2. Chama a função para todos os selects de categoria do site
-    populateSelect('category-filter');       // Filtro da Vitrine
-    populateSelect('admin-filter-cat');      // Filtro do Admin
-    populateSelect('bulk-category-select');  // Ações em massa
-    populateSelect('prod-cat-select');       // Formulário de produto
-    populateSelect('bulk-category-select-dynamic'); // Barra dinâmica
-
-    // 3. Renderiza a Sidebar (Menu Lateral)
-    const sidebarContainer = document.getElementById('sidebar-categories');
-    if (sidebarContainer) {
-        const catNames = state.categories.map(c => c.name);
-
-        // Monta a Árvore de Categorias
-        const tree = {};
-        catNames.forEach(name => {
-            const parts = name.split(' - ');
-            let currentLevel = tree;
-            parts.forEach((part, index) => {
-                if (!currentLevel[part]) {
-                    const fullPath = parts.slice(0, index + 1).join(' - ');
-                    currentLevel[part] = { _path: fullPath, _children: {} };
-                }
-                currentLevel = currentLevel[part]._children;
-            });
-        });
-
-        // Função Recursiva HTML para Sidebar
-        const buildHtml = (node, level = 0) => {
-            let html = '';
-            const keys = Object.keys(node).sort();
-
-            keys.forEach(key => {
-                const item = node[key];
-                const hasChildren = Object.keys(item._children).length > 0;
-                const safePath = item._path.replace(/'/g, "\\'");
-                const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
-                const textStyle = level === 0
-                    ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm"
-                    : "text-gray-300 font-medium text-sm hover:text-white";
-
-                if (hasChildren) {
-                    html += `
-                        <details class="group mb-1">
-                            <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
-                                <span class="${textStyle} flex-1" style="padding-left:${paddingLeft}px" onclick="event.preventDefault(); filterByCat('${safePath}')">${key}</span>
-                                <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">▲</span>
-                            </summary>
-                            <div class="border-l border-gray-800 ml-4">${buildHtml(item._children, level + 1)}</div>
-                        </details>`;
-                } else {
-                    html += `
-                        <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center" onclick="filterByCat('${safePath}')">
-                            <span class="${textStyle}" style="padding-left:${paddingLeft}px">${key}</span>
-                        </div>`;
-                }
-            });
-            return html;
-        };
-
-        sidebarContainer.innerHTML = `<div class="space-y-1 mt-2">${buildHtml(tree)}</div>`;
-    }
-}
 
 // Função Helper para selecionar o pai sem fechar o menu visualmente
 window.selectParentCategory = (id, name, event) => {
@@ -1560,18 +1807,15 @@ window.selectParentCategory = (id, name, event) => {
 function renderAdminCategoryList() {
     if (!els.catListAdmin) return;
 
-    // 1. PERSISTÊNCIA (Mantém aberto o que já estava aberto)
     const openDetailsIds = new Set();
     els.catListAdmin.querySelectorAll('details[open]').forEach(el => {
         if (el.dataset.catId) openDetailsIds.add(el.dataset.catId);
     });
 
     els.catListAdmin.innerHTML = '';
-
     const catMap = {};
     state.categories.forEach(c => catMap[c.name] = c.id);
 
-    // Helper de Contagem
     const getProductCount = (catName) => {
         if (!state.products) return 0;
         return state.products.filter(p => {
@@ -1580,11 +1824,9 @@ function renderAdminCategoryList() {
         }).length;
     };
 
-    // Monta a Árvore
     const tree = {};
-    const sortedCats = [...state.categories].sort((a, b) => a.name.localeCompare(b.name));
-
-    sortedCats.forEach(c => {
+    // Pega a lista do state que já está ordenada por 'order'
+    state.categories.forEach(c => {
         const parts = c.name.split(' - ');
         let currentLevel = tree;
         parts.forEach((part, index) => {
@@ -1596,46 +1838,50 @@ function renderAdminCategoryList() {
         });
     });
 
-    // Renderização
+    const getOrder = (path) => {
+        const cat = state.categories.find(c => c.name === path);
+        return cat && cat.order !== undefined ? cat.order : 999;
+    };
+
     const buildHtml = (node, level = 0) => {
         let html = '';
-        const keys = Object.keys(node).sort();
+        // ✨ Ordena também na renderização do Admin
+        const keys = Object.keys(node).sort((a, b) => {
+            const orderA = getOrder(node[a]._path);
+            const orderB = getOrder(node[b]._path);
+            if (orderA !== orderB) return orderA - orderB;
+            return a.localeCompare(b);
+        });
 
-        keys.forEach(key => {
+        keys.forEach((key, index) => {
             const item = node[key];
             const childrenKeys = Object.keys(item._children);
             const hasChildren = childrenKeys.length > 0;
             const fullPath = item._path;
             const id = catMap[fullPath];
 
-            // --- CONTAGENS ---
             const prodCount = getProductCount(fullPath);
             const subCatCount = childrenKeys.length;
 
             let statsText = `${prodCount} produto(s)`;
-            if (subCatCount > 0) {
-                statsText += ` • ${subCatCount} subcategoria(s)`;
-            }
+            if (subCatCount > 0) statsText += ` • ${subCatCount} subcategoria(s)`;
 
             const isMain = level === 0;
             const isSelected = state.selectedCategoryParent === fullPath;
             const selectBorder = isSelected ? 'border-yellow-500' : 'border-gray-700';
             const isOpenAttr = openDetailsIds.has(id) ? 'open' : '';
+            const bgClass = isMain ? 'bg-[#1f2937] mb-2' : 'bg-black/30 mt-1 ml-4 border-l-2 border-gray-700';
 
-            const bgClass = isMain
-                ? 'bg-[#1f2937] mb-2'
-                : 'bg-black/30 mt-1 ml-4 border-l-2 border-gray-700';
+            // Verifica se é o primeiro ou último para ocultar as setas desnecessárias
+            const isFirst = index === 0;
+            const isLast = index === keys.length - 1;
 
             const rowContent = `
                 <div class="flex items-center justify-between p-3 rounded hover:bg-white/5 transition cursor-pointer group min-h-[60px]">
-                    
-                    <div class="flex flex-col justify-center flex-1" 
-                         onclick="selectParentCategory('${id}', '${fullPath}', event)">
-                        
+                    <div class="flex flex-col justify-center flex-1" onclick="selectParentCategory('${id}', '${fullPath}', event)">
                         <span class="${isMain ? 'text-white font-bold text-sm' : 'text-gray-300 text-sm'} ${isSelected ? 'text-yellow-500' : ''}">
                             ${key}
                         </span>
-                        
                         <span class="text-xs text-gray-400 font-bold mt-1 flex items-center gap-1">
                             ${statsText}
                         </span>
@@ -1645,21 +1891,28 @@ function renderAdminCategoryList() {
                         ${hasChildren ?
                     `<div class="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-gray-600 transition-transform group-open:rotate-180 group-open:bg-yellow-500/20 group-open:border-yellow-500 cursor-pointer">
                                 <span class="text-gray-300 text-sm group-open:text-yellow-500">▲</span>
-                             </div>`
-                    : ''}
+                             </div>` : ''}
 
-                        <div class="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity pl-2 border-l border-gray-700">
-                            <button type="button" 
-                                    onclick="event.stopPropagation(); renameCategory('${id}', '${fullPath}')" 
-                                    class="w-8 h-8 rounded-full bg-blue-900/30 text-blue-400 hover:bg-blue-600 hover:text-white flex items-center justify-center transition"
-                                    title="Editar Nome">
+                        <div class="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity pl-2 border-l border-gray-700">
+                            
+                            <button type="button" onclick="event.stopPropagation(); moveCategory('${id}', '${fullPath}', -1)" 
+                                    class="w-6 h-8 rounded bg-gray-800 text-gray-400 hover:bg-gray-600 hover:text-white flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed" 
+                                    title="Mover para Cima" ${isFirst ? 'disabled' : ''}>
+                                <i class="fas fa-arrow-up text-[10px]"></i>
+                            </button>
+                            <button type="button" onclick="event.stopPropagation(); moveCategory('${id}', '${fullPath}', 1)" 
+                                    class="w-6 h-8 rounded bg-gray-800 text-gray-400 hover:bg-gray-600 hover:text-white flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed mr-1" 
+                                    title="Mover para Baixo" ${isLast ? 'disabled' : ''}>
+                                <i class="fas fa-arrow-down text-[10px]"></i>
+                            </button>
+
+                            <button type="button" onclick="event.stopPropagation(); renameCategory('${id}', '${fullPath}')" 
+                                    class="w-8 h-8 rounded-full bg-blue-900/30 text-blue-400 hover:bg-blue-600 hover:text-white flex items-center justify-center transition" title="Editar Nome">
                                 <i class="fas fa-pen text-xs"></i>
                             </button>
 
-                            <button type="button" 
-                                    onclick="event.stopPropagation(); deleteCategory('${id}', '${fullPath}')" 
-                                    class="w-8 h-8 rounded-full bg-red-900/30 text-red-400 hover:bg-red-600 hover:text-white flex items-center justify-center transition"
-                                    title="Excluir Categoria">
+                            <button type="button" onclick="event.stopPropagation(); deleteCategory('${id}', '${fullPath}')" 
+                                    class="w-8 h-8 rounded-full bg-red-900/30 text-red-400 hover:bg-red-600 hover:text-white flex items-center justify-center transition" title="Excluir Categoria">
                                 <i class="fas fa-trash-alt text-xs"></i>
                             </button>
                         </div>
@@ -1670,20 +1923,12 @@ function renderAdminCategoryList() {
             if (hasChildren) {
                 html += `
                     <details class="rounded border ${selectBorder} ${bgClass} overflow-hidden group transition-all duration-300" ${isOpenAttr} data-cat-id="${id}">
-                        <summary class="list-none select-none outline-none">
-                            ${rowContent}
-                        </summary>
-                        <div class="pb-2 pr-2 border-t border-gray-700/50 animate-fade-in">
-                            ${buildHtml(item._children, level + 1)}
-                        </div>
+                        <summary class="list-none select-none outline-none">${rowContent}</summary>
+                        <div class="pb-2 pr-2 border-t border-gray-700/50 animate-fade-in">${buildHtml(item._children, level + 1)}</div>
                     </details>
                 `;
             } else {
-                html += `
-                    <div class="rounded border ${selectBorder} ${bgClass}">
-                        ${rowContent}
-                    </div>
-                `;
+                html += `<div class="rounded border ${selectBorder} ${bgClass}">${rowContent}</div>`;
             }
         });
         return html;
@@ -1697,10 +1942,9 @@ window.renameCategory = async (id, oldFullName) => {
 
     if (!newNameShort || newNameShort.trim() === "") return;
 
-    // Reconstrói o nome completo mantendo o pai (se houver)
     const parts = oldFullName.split(' - ');
-    parts.pop(); // Remove o nome antigo
-    parts.push(newNameShort.trim()); // Adiciona o novo
+    parts.pop();
+    parts.push(newNameShort.trim());
     const newFullName = parts.join(' - ');
 
     if (newFullName === oldFullName) return;
@@ -1708,27 +1952,18 @@ window.renameCategory = async (id, oldFullName) => {
     if (!confirm(`Renomear "${oldFullName}" para "${newFullName}"?\nIsso atualizará produtos e subcategorias vinculados.`)) return;
 
     try {
-        // 1. Atualiza a Categoria em si
         await updateDoc(doc(db, `sites/${state.siteId}/categories`, id), { name: newFullName });
 
-        // 2. ATUALIZAÇÃO EM CASCATA (Cascading Update)
-        // Precisamos encontrar produtos e subcategorias que dependem desse nome
-
-        // A. Produtos
         const productsToUpdate = state.products.filter(p => p.category === oldFullName || p.category.startsWith(oldFullName + ' - '));
-
-        // B. Subcategorias (ex: se mudei "Roupas", tenho que mudar "Roupas - Calças")
         const catsToUpdate = state.categories.filter(c => c.id !== id && c.name.startsWith(oldFullName + ' - '));
 
         const batchPromises = [];
 
-        // Atualiza Produtos
         productsToUpdate.forEach(p => {
             const newCatName = p.category.replace(oldFullName, newFullName);
             batchPromises.push(updateDoc(doc(db, `sites/${state.siteId}/products`, p.id), { category: newCatName }));
         });
 
-        // Atualiza Subcategorias
         catsToUpdate.forEach(c => {
             const newCatName = c.name.replace(oldFullName, newFullName);
             batchPromises.push(updateDoc(doc(db, `sites/${state.siteId}/categories`, c.id), { name: newCatName }));
@@ -1736,12 +1971,16 @@ window.renameCategory = async (id, oldFullName) => {
 
         await Promise.all(batchPromises);
 
-        showToast(`Categoria renomeada! (${batchPromises.length} vínculos atualizados)`);
-
-        // Limpa seleção se estava nela
         if (state.selectedCategoryParent === oldFullName) {
             state.selectedCategoryParent = null;
         }
+
+        // ✨ CORREÇÃO: Limpa o cache e recarrega a tela instantaneamente
+        localStorage.removeItem(`cats_${state.siteId}`);
+        await loadCategories();
+        renderAdminCategoryList();
+
+        showToast(`Categoria renomeada! (${batchPromises.length} vínculos atualizados)`);
 
     } catch (error) {
         console.error("Erro ao renomear:", error);
@@ -1754,14 +1993,11 @@ window.renameCategory = async (id, oldFullName) => {
 // =================================================================
 // NOVA LÓGICA DE PRODUTOS (ADMIN)
 // =================================================================
-
 // 1. Filtra e Ordena (Substitui a lógica antiga)
 function filterAndRenderProducts() {
-    // 1. Filtra
+    updateProductCountsUI();
     let filtered = getCurrentFilteredProducts();
 
-    // 2. Prepara Métricas (Para poder ordenar por elas)
-    // Precisamos saber as vendas de cada produto ANTES de ordenar
     const metricsMap = {};
     const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
 
@@ -1770,7 +2006,7 @@ function filterAndRenderProducts() {
             if (validStatuses.includes(order.status)) {
                 const orderDate = new Date(order.date);
                 order.items.forEach(item => {
-                    if (!metricsMap[item.id]) metricsMap[item.id] = { qtd: 0, lastDate: 0 }; // 0 para facilitar sort
+                    if (!metricsMap[item.id]) metricsMap[item.id] = { qtd: 0, lastDate: 0 };
                     metricsMap[item.id].qtd += (parseInt(item.qty) || 0);
                     if (orderDate.getTime() > metricsMap[item.id].lastDate) {
                         metricsMap[item.id].lastDate = orderDate.getTime();
@@ -1780,66 +2016,112 @@ function filterAndRenderProducts() {
         });
     }
 
-    // 3. Ordena
-    const { key, direction } = state.sortConfig;
+    if (state.isReorderMode) {
+        // MODO REORGANIZAR: Ordem manual é a lei suprema!
+        filtered.sort((a, b) => {
+            const orderA = a.order !== undefined && a.order !== null ? parseFloat(a.order) : 999999;
+            const orderB = b.order !== undefined && b.order !== null ? parseFloat(b.order) : 999999;
 
-    filtered.sort((a, b) => {
-        let valA, valB;
+            if (orderA !== orderB) return orderA - orderB;
 
-        // Define os valores baseados na coluna clicada
-        switch (key) {
-            case 'code':
-                valA = a.code ? parseInt(a.code) : 0;
-                valB = b.code ? parseInt(b.code) : 0;
-                break;
-            case 'product':
-                valA = a.name.toLowerCase();
-                valB = b.name.toLowerCase();
-                break;
-            case 'stock':
-                valA = parseInt(a.stock) || 0;
-                valB = parseInt(b.stock) || 0;
-                break;
-            case 'price':
-                valA = parseFloat(a.price) || 0;
-                valB = parseFloat(b.price) || 0;
-                break;
-            case 'sales': // Ordenar por vendas
-                valA = metricsMap[a.id]?.qtd || 0;
-                valB = metricsMap[b.id]?.qtd || 0;
-                break;
-            case 'lastmov': // Ordenar por data
-                valA = metricsMap[a.id]?.lastDate || 0;
-                valB = metricsMap[b.id]?.lastDate || 0;
-                break;
-            default: return 0;
-        }
+            const isHighlightA = a.highlight === true ? 1 : 0;
+            const isHighlightB = b.highlight === true ? 1 : 0;
+            if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA;
 
-        // Lógica Asc/Desc
-        if (valA < valB) return direction === 'asc' ? -1 : 1;
-        if (valA > valB) return direction === 'asc' ? 1 : -1;
-        return 0;
-    });
+            const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
+            const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
+            if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
 
-    // 4. Renderiza passando as métricas calculadas (para não calcular de novo)
+            return (parseInt(b.code) || 0) - (parseInt(a.code) || 0);
+        });
+    } else {
+        // MODO NORMAL (Ordena pelo clique nas colunas: Cód, Produto, Valor...)
+        const { key, direction } = state.sortConfig;
+
+        filtered.sort((a, b) => {
+            let valA, valB;
+
+            switch (key) {
+                case 'code':
+                    valA = a.code ? parseInt(a.code) : 0;
+                    valB = b.code ? parseInt(b.code) : 0;
+                    break;
+                case 'product':
+                    valA = a.name.toLowerCase();
+                    valB = b.name.toLowerCase();
+                    break;
+                case 'stock':
+                    valA = parseInt(a.stock) || 0;
+                    valB = parseInt(b.stock) || 0;
+                    break;
+                case 'price':
+                    valA = parseFloat(a.price) || 0;
+                    valB = parseFloat(b.price) || 0;
+                    break;
+                case 'sales':
+                    valA = metricsMap[a.id]?.qtd || 0;
+                    valB = metricsMap[b.id]?.qtd || 0;
+                    break;
+                case 'lastmov':
+                    valA = metricsMap[a.id]?.lastDate || 0;
+                    valB = metricsMap[b.id]?.lastDate || 0;
+                    break;
+                default: return 0;
+            }
+
+            if (valA < valB) return direction === 'asc' ? -1 : 1;
+            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+
     renderProductsList(filtered, metricsMap);
 }
 
-
-
-// --- LÓGICA DE ORDENAÇÃO ---
+// --- LÓGICA DE ORDENAÇÃO E FILTRAGEM ---
 function getCurrentFilteredProducts() {
     const searchInput = els.adminSearchProd || getEl('admin-search-prod');
     const categoryInput = els.adminFilterCat || getEl('admin-filter-cat');
+    const statusInput = getEl('admin-filter-status'); // <--- NOVO FILTRO
+
     const term = searchInput ? searchInput.value.toLowerCase().trim() : '';
     const catFilter = categoryInput ? categoryInput.value : '';
+    const statusFilter = statusInput ? statusInput.value : ''; // <--- NOVO VALOR
 
     return state.products.filter(p => {
         const codeStr = p.code ? String(p.code) : '';
         const matchText = p.name.toLowerCase().includes(term) || codeStr.includes(term);
         const matchCat = catFilter ? p.category === catFilter : true;
-        return matchText && matchCat;
+
+        // NOVO: Lógica do filtro de Status
+        let matchStatus = true;
+        if (statusFilter === 'true') matchStatus = p.active !== false; // Ativos
+        if (statusFilter === 'false') matchStatus = p.active === false; // Inativos
+
+        return matchText && matchCat && matchStatus;
     });
+}
+
+function updateProductCountsUI() {
+    const total = state.products.length;
+
+    // Conta quantos têm a tag de inativo
+    const inativos = state.products.filter(p => p.active === false).length;
+    const ativos = total - inativos;
+
+    // Atualiza o Topo
+    const elTotal = document.getElementById('total-produtos-count');
+    if (elTotal) elTotal.innerText = total;
+
+    // Atualiza os textos de dentro do Dropdown de Status
+    const optTodos = document.getElementById('opt-status-todos');
+    if (optTodos) optTodos.innerText = `Todos (${total})`;
+
+    const optAtivos = document.getElementById('opt-status-ativos');
+    if (optAtivos) optAtivos.innerText = `Ativos (${ativos})`;
+
+    const optInativos = document.getElementById('opt-status-inativos');
+    if (optInativos) optInativos.innerText = `Inativos (${inativos})`;
 }
 
 
@@ -1893,57 +2175,74 @@ function renderProductsList(products, preCalcMetrics = null) {
     const listEl = els.productListAdmin || getEl('admin-product-list');
     if (!listEl) return;
 
-    // --- CORREÇÃO: REMOVE A BARRA AMARELA ANTIGA À FORÇA ---
     const oldBar = document.getElementById('bulk-actions-bar');
     if (oldBar) {
-        oldBar.classList.add('hidden'); // Esconde via classe
-        oldBar.style.display = 'none';  // Garante via CSS inline
+        oldBar.classList.add('hidden');
+        oldBar.style.display = 'none';
     }
-    // --------------------------------------------------------
 
     listEl.innerHTML = '';
 
-    // --- 1. BARRA DE CONTROLES NOVA (Azul/Escura) ---
+    // --- 1. BARRA DE CONTROLES NOVA ---
     const controlsBar = document.createElement('div');
-    controlsBar.className = "flex flex-wrap justify-between items-center mb-2 px-1 gap-2 min-h-[40px]";
+    controlsBar.className = "flex flex-wrap justify-between items-center mb-2 px-1 gap-2 min-h-[40px] w-full";
 
-    // Botão Selecionar
-    const selectBtnText = state.isSelectionMode ?
-        '<i class="fas fa-times mr-2"></i> Cancelar' :
-        '<i class="fas fa-check-square mr-2"></i> Selecionar';
-
-    const selectBtnClass = state.isSelectionMode ?
-        "text-red-400 hover:text-red-300 text-xs font-bold uppercase cursor-pointer py-2 px-2 bg-red-900/20 rounded border border-red-900/50" :
-        "text-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase cursor-pointer py-2 px-2 hover:bg-yellow-900/20 rounded transition";
+    const selectBtnText = state.isSelectionMode ? '<i class="fas fa-times mr-2"></i> Cancelar' : '<i class="fas fa-check-square mr-2"></i> Selecionar';
+    const selectBtnClass = state.isSelectionMode ? "text-red-400 hover:text-red-300 text-xs font-bold uppercase cursor-pointer py-2 px-2 bg-red-900/20 rounded border border-red-900/50" : "text-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase cursor-pointer py-2 px-2 hover:bg-yellow-900/20 rounded transition";
 
     let bulkActionsHTML = '';
-    // Só mostra os botões se tiver itens selecionados
     if (state.isSelectionMode && state.selectedProducts.size > 0) {
         bulkActionsHTML = `
-            <div class="flex items-center gap-2 animate-fade-in bg-[#151720] border border-gray-700 rounded p-1 shadow-lg flex-1 justify-end">
-                <span class="text-white text-[10px] font-bold bg-blue-600 px-2 py-1 rounded ml-1 whitespace-nowrap">${state.selectedProducts.size} <span class="hidden sm:inline">item(s)</span></span>
+            <div class="flex items-center gap-2 animate-fade-in bg-[#151720] border border-gray-700 rounded p-1 shadow-lg flex-1 justify-end overflow-x-auto custom-scrollbar">
+                <span class="text-white text-[10px] font-bold bg-blue-600 px-2 py-1 rounded ml-1 whitespace-nowrap shrink-0">${state.selectedProducts.size} <span class="hidden sm:inline">item(s)</span></span>
                 
-                <select id="bulk-category-select-dynamic" class="bg-black text-white text-[10px] border border-gray-600 rounded px-1 h-7 outline-none w-24 sm:w-auto">
+                <button onclick="bulkChangeProductStatus(true)" class="bg-green-600 hover:bg-green-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0" title="Ativar">
+                    <i class="fas fa-eye"></i> <span class="hidden sm:inline">Ativar</span>
+                </button>
+                <button onclick="bulkChangeProductStatus(false)" class="bg-orange-600 hover:bg-orange-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0" title="Inativar">
+                    <i class="fas fa-eye-slash"></i> <span class="hidden sm:inline">Inativar</span>
+                </button>
+                
+                <div class="w-px bg-gray-600 h-4 mx-1 shrink-0"></div>
+
+                <select id="bulk-category-select-dynamic" class="bg-black text-white text-[10px] border border-gray-600 rounded px-1 h-7 outline-none w-24 sm:w-auto shrink-0">
                     <option value="">Mover...</option>${state.categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
                 </select>
                 
-                <button onclick="bulkMoveDynamic()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition">
+                <button onclick="bulkMoveDynamic()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0">
                     <i class="fas fa-exchange-alt sm:hidden"></i> <span class="hidden sm:inline">Mover</span>
                 </button>
                 
-                <button onclick="document.getElementById('btn-bulk-delete').click()" class="bg-red-600 hover:bg-red-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition">
+                <div class="w-px bg-gray-600 h-4 mx-1 shrink-0"></div>
+                
+                <button onclick="document.getElementById('btn-bulk-delete').click()" class="bg-red-600 hover:bg-red-500 text-white px-2 sm:px-3 h-7 rounded text-[10px] uppercase font-bold transition flex items-center gap-1 shrink-0">
                     <i class="fas fa-trash-alt sm:hidden"></i> <span class="hidden sm:inline">Excluir</span>
                 </button>
             </div>
         `;
     }
 
-    controlsBar.innerHTML = `
-        <button onclick="toggleSelectionMode()" class="${selectBtnClass}">
-            ${selectBtnText}
-        </button>
-        ${bulkActionsHTML}
-    `;
+    if (state.isReorderMode) {
+        controlsBar.innerHTML = `
+            <div class="flex w-full justify-between items-center bg-blue-900/20 border border-blue-500/50 p-2 rounded-lg animate-fade-in shadow-sm">
+                <span class="text-blue-400 font-bold text-xs uppercase tracking-wider"><i class="fas fa-arrows-alt-v mr-1"></i> Arraste para Reordenar</span>
+                <div class="flex gap-2">
+                    <button onclick="resetReorderToDefault()" class="bg-gray-800 hover:bg-gray-700 text-white px-3 h-8 rounded text-xs font-bold transition flex items-center gap-2"><i class="fas fa-magic"></i> Padrão</button>
+                    <button onclick="cancelReorder()" class="bg-red-900/50 hover:bg-red-600 text-red-400 hover:text-white px-3 h-8 rounded text-xs font-bold transition">Cancelar</button>
+                    <button onclick="saveReorder()" class="bg-green-600 hover:bg-green-500 text-white px-4 h-8 rounded text-xs font-bold transition flex items-center gap-2 shadow-lg"><i class="fas fa-save"></i> Salvar</button>
+                </div>
+            </div>
+        `;
+    } else {
+        controlsBar.innerHTML = `
+            <div class="flex gap-2 shrink-0">
+                <button onclick="toggleSelectionMode()" class="${selectBtnClass}">${selectBtnText}</button>
+                <button onclick="startReorderMode()" class="text-yellow-500 px-3 py-2 rounded text-xs font-bold uppercase transition flex items-center gap-2"><i class="fas fa-sort-amount-down"></i> Reorganizar</button>
+            </div>
+            ${bulkActionsHTML}
+        `;
+    }
+
     listEl.appendChild(controlsBar);
 
     if (products.length === 0) {
@@ -1954,56 +2253,34 @@ function renderProductsList(products, preCalcMetrics = null) {
     // --- 2. HEADER ---
     const allSelected = products.length > 0 && products.every(p => state.selectedProducts.has(p.id));
     const masterCheckAttr = allSelected ? 'checked' : '';
+    const getSortIcon = (key) => state.sortConfig.key !== key ? '<i class="fas fa-sort text-gray-700 ml-1 opacity-30"></i>' : (state.sortConfig.direction === 'asc' ? '<i class="fas fa-sort-up text-yellow-500 ml-1 mt-1"></i>' : '<i class="fas fa-sort-down text-yellow-500 ml-1 -mt-1"></i>');
 
-    const getSortIcon = (key) => {
-        if (state.sortConfig.key !== key) return '<i class="fas fa-sort text-gray-700 ml-1 opacity-30"></i>';
-        return state.sortConfig.direction === 'asc'
-            ? '<i class="fas fa-sort-up text-yellow-500 ml-1 mt-1"></i>'
-            : '<i class="fas fa-sort-down text-yellow-500 ml-1 -mt-1"></i>';
-    };
-
-    const checkColContent = state.isSelectionMode
-        ? `<input type="checkbox" onchange="toggleSelectAll(this)" ${masterCheckAttr} class="cursor-pointer rounded border-gray-600 bg-gray-800 text-yellow-500 focus:ring-0 w-4 h-4" title="Selecionar Todos">`
-        : ``;
+    const checkColContent = state.isSelectionMode ? `<input type="checkbox" onchange="toggleSelectAll(this)" ${masterCheckAttr} class="cursor-pointer rounded border-gray-600 bg-gray-800 text-yellow-500 focus:ring-0 w-4 h-4" title="Selecionar Todos">` : ``;
 
     const headerHTML = `
         <div class="hidden md:grid grid-cols-12 gap-2 bg-[#1f1f1f] text-gray-400 font-bold p-3 rounded-t-xl text-[10px] uppercase tracking-wider border-b border-gray-800 sticky top-0 z-20 select-none items-center shadow-lg">
-            <div class="${state.isSelectionMode ? 'col-span-1 block' : 'hidden'} text-center flex items-center justify-center">
-                ${checkColContent}
-            </div>
-            <div class="${state.isSelectionMode ? 'col-span-1' : 'col-span-1'} text-center border-r border-gray-700 cursor-pointer hover:text-white flex items-center justify-left h-full" onclick="sortProducts('code')">
-                Cód ${getSortIcon('code')}
-            </div>
-            <div class="col-span-5 pl-2 cursor-pointer hover:text-white flex items-center" onclick="sortProducts('product')">
-                Produto ${getSortIcon('product')}
-            </div>
-            <div class="col-span-2 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('lastmov')">
-                Última Mov. ${getSortIcon('lastmov')}
-            </div>
-            <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('sales')">
-                Qtd Vendidas ${getSortIcon('sales')}
-            </div>
-            <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('stock')">
-                Estoque ${getSortIcon('stock')}
-            </div>
-            <div class="col-span-1 text-right pr-4 cursor-pointer hover:text-white flex items-center justify-end" onclick="sortProducts('price')">
-                Valor ${getSortIcon('price')}
-            </div>
+            ${state.isReorderMode ? `
+                <div class="col-span-2 text-center border-r border-gray-700 text-yellow-500">Mover / Nº</div>
+            ` : `
+                <div class="${state.isSelectionMode ? 'col-span-1 block' : 'hidden'} text-center flex items-center justify-center">${checkColContent}</div>
+                <div class="${state.isSelectionMode ? 'col-span-1' : 'col-span-1'} text-center border-r border-gray-700 cursor-pointer hover:text-white flex items-center justify-left h-full" onclick="sortProducts('code')">Cód ${getSortIcon('code')}</div>
+            `}
+            <div class="col-span-5 pl-2 cursor-pointer hover:text-white flex items-center" onclick="sortProducts('product')">Produto ${getSortIcon('product')}</div>
+            <div class="col-span-2 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('lastmov')">Última Mov. ${getSortIcon('lastmov')}</div>
+            <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('sales')">Qtd Vendidas ${getSortIcon('sales')}</div>
+            <div class="col-span-1 text-center cursor-pointer hover:text-white flex items-center justify-center" onclick="sortProducts('stock')">Estoque ${getSortIcon('stock')}</div>
+            <div class="col-span-1 text-right pr-4 cursor-pointer hover:text-white flex items-center justify-end" onclick="sortProducts('price')">Valor ${getSortIcon('price')}</div>
             <div class="col-span-1"></div>
         </div>
-        
         <div class="md:hidden flex items-center justify-between px-4 py-2 text-gray-400 text-xs uppercase font-bold bg-[#1f1f1f] rounded-t-lg border-b border-gray-800">
-            <div class="flex items-center gap-2">
-                ${state.isSelectionMode ? checkColContent : ''}
-                <span>Produto</span>
-            </div>
+            <div class="flex items-center gap-2">${state.isSelectionMode ? checkColContent : ''}<span>Produto</span></div>
             <span>Estoque / Valor</span>
         </div>
     `;
 
     const scrollContainer = document.createElement('div');
+    scrollContainer.id = 'admin-product-scroll-container'; // ID Adicionado para o arrastar
     scrollContainer.className = "max-h-[65vh] overflow-y-auto overflow-x-hidden border-x border-b border-gray-800 rounded-b-xl bg-[#0f111a] custom-scrollbar relative";
-
     listEl.insertAdjacentHTML('beforeend', headerHTML);
     listEl.appendChild(scrollContainer);
 
@@ -2026,7 +2303,7 @@ function renderProductsList(products, preCalcMetrics = null) {
     }
 
     // --- 3. LISTA ---
-    products.forEach(p => {
+    products.forEach((p, index) => {
         const metrics = metricsMap[p.id] || { qtd: 0, lastDate: 0 };
 
         let lastMovStr = "-";
@@ -2038,65 +2315,84 @@ function renderProductsList(products, preCalcMetrics = null) {
             ? `<div class="flex flex-col items-end"><span class="text-green-400 font-bold text-xs">${formatCurrency(p.promoPrice)}</span><span class="text-gray-600 text-[10px] line-through">${formatCurrency(p.price)}</span></div>`
             : `<span class="text-gray-200 font-bold text-xs">${formatCurrency(p.price)}</span>`;
 
+        const isInactive = p.active === false;
         const isChecked = state.selectedProducts.has(p.id) ? 'checked' : '';
-        const bgClass = isChecked ? 'bg-blue-900/10 border-blue-500/30' : 'bg-[#151720] border-gray-800 hover:bg-[#1c1f2b]';
+
+        let bgClass = isChecked ? 'bg-[#1a233a] border-blue-500/30' : 'bg-[#151720] border-gray-800 hover:bg-[#1c1f2b]';
+        let imgOpacityClass = '';
+
+        if (isInactive && !isChecked) {
+            bgClass = 'bg-[#2a1313] border-red-900/50 hover:bg-[#351818]';
+            imgOpacityClass = 'opacity-30 grayscale';
+        }
+
         const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://placehold.co/100?text=Sem+Foto';
         const codeStr = p.code ? p.code : '-';
+        const safeStockDisplay = isNaN(parseInt(p.stock)) ? 0 : parseInt(p.stock);
 
-        // Esconde o fundo vermelho se estiver selecionando
-        const deleteBgClass = state.isSelectionMode ? 'hidden' : 'absolute inset-y-0 right-0 w-24 bg-red-600 flex items-center justify-center cursor-pointer z-0';
+        const deleteBgClass = state.isSelectionMode || state.isReorderMode ? 'hidden' : 'absolute inset-y-0 right-0 w-24 bg-red-600 flex items-center justify-center cursor-pointer z-0';
+
+        // MUDANÇA: Verifica se é modo reorganizar para exibir as barras de arrasto
+        let selectionOrReorderHTML = '';
+        if (state.isReorderMode) {
+            selectionOrReorderHTML = `
+                <div class="md:col-span-1 flex items-center justify-center shrink-0 border-r border-gray-800 h-full drag-handle cursor-grab text-gray-500 hover:text-yellow-500 transition px-3">
+                    <i class="fas fa-grip-lines text-xl pointer-events-none"></i>
+                </div>
+                <div class="hidden md:flex flex-col md:col-span-1 items-center justify-center border-r border-gray-800 h-full shrink-0">
+                    <span class="text-[11px] font-bold text-yellow-500 mb-0.5">Nº ${index + 1}</span>
+                    <span class="text-[9px] font-bold text-white opacity-50">#${codeStr}</span>
+                </div>
+            `;
+        } else {
+            selectionOrReorderHTML = `
+                <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center shrink-0">
+                     <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
+                </div>
+                <div class="hidden md:flex flex-col ${state.isSelectionMode ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-center border-r border-gray-800 h-full shrink-0">
+                    <span class="text-base font-bold text-white font-mono opacity-80">#${codeStr}</span>
+                    ${isInactive ? '<span class="text-[9px] bg-red-600 text-white px-1 mt-1 rounded uppercase font-bold tracking-widest">Inativo</span>' : ''}
+                </div>
+            `;
+        }
 
         const row = document.createElement('div');
         row.className = `relative overflow-hidden border-b border-gray-800 last:border-0 select-none group`;
+        if (state.isReorderMode) row.dataset.id = p.id; // Permite identificar quem está sendo arrastado
         row.ondblclick = () => editProduct(p.id);
 
         row.innerHTML = `
             <div class="${deleteBgClass}" onclick="confirmDeleteProduct('${p.id}')">
                 <i class="fas fa-trash-alt text-white text-lg"></i>
             </div>
-
-            <div class="relative z-10 p-3 transition-transform duration-200 ease-out prod-swipe-content ${bgClass} h-full flex flex-col md:grid md:grid-cols-12 gap-2 items-center">
-                
-                <div class="flex md:contents items-center justify-between w-full">
-                    <div class="flex items-center gap-3 md:col-span-6 w-full">
+            <div class="relative z-10 p-3 transition-transform duration-200 ease-out prod-swipe-content ${bgClass} h-full flex flex-col md:grid md:grid-cols-12 gap-2 md:items-center">
+                <div class="flex items-center justify-between w-full md:contents">
+                    <div class="flex items-center gap-3 md:col-span-6 w-full flex-1 min-w-0">
                         
-                        <div class="${state.isSelectionMode ? 'flex' : 'hidden'} md:col-span-1 items-center justify-center">
-                             <input type="checkbox" class="w-5 h-5 rounded border-gray-600 bg-gray-900 text-yellow-500 cursor-pointer" 
-                               onclick="event.stopPropagation(); toggleProductSelection('${p.id}')" ${isChecked}>
-                        </div>
+                        ${selectionOrReorderHTML}
 
-                        <div class="hidden md:flex ${state.isSelectionMode ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-center border-r border-gray-800 h-full">
-                            <span class="text-base font-bold text-white font-mono opacity-80">#${codeStr}</span>
-                        </div>
-
-                        <div class="flex items-center gap-3 md:col-span-4 min-w-0 flex-1">
-                            <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black">
-                            <div class="flex flex-col min-w-0">
-                                <div class="flex items-center">
-                                    <span class="md:hidden text-xs bg-gray-700 text-white px-1.5 py-0.5 rounded mr-2 font-bold">#${codeStr}</span>
+                        <div class="flex items-center gap-3 flex-1 min-w-0">
+                            <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0 ${imgOpacityClass}">
+                            <div class="flex flex-col flex-1 min-w-0 pr-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="md:hidden shrink-0 text-[10px] bg-gray-700 text-white px-1.5 py-0.5 rounded font-bold">#${codeStr}</span>
+                                    ${isInactive ? '<span class="md:hidden shrink-0 text-[9px] bg-red-600 text-white px-1 rounded uppercase font-bold tracking-widest">Inativo</span>' : ''}
                                     <span class="text-gray-200 font-bold text-sm truncate group-hover:text-yellow-500 transition">${p.name}</span>
                                 </div>
-                                <span class="text-gray-500 text-[10px] truncate">${p.category || 'Geral'}</span>
+                                <span class="text-gray-500 text-[10px] truncate w-full block mt-0.5">${p.category || 'Geral'}</span>
                             </div>
                         </div>
                     </div>
-
-                    <div class="md:hidden flex flex-col items-end min-w-[80px]">
+                    <div class="md:hidden flex flex-col justify-center items-end shrink-0 pl-2 ml-auto h-10">
                         ${priceHtml}
-                        ${p.stock <= 0 ? '<span class="text-red-500 text-[10px] font-bold">Esgotado</span>' : `<span class="text-gray-500 text-[10px]">Est.: ${p.stock}</span>`}
+                        ${safeStockDisplay <= 0 ? '<span class="text-red-500 text-[10px] font-bold uppercase tracking-wider mt-0.5">Esgotado</span>' : `<span class="text-gray-500 text-[10px] mt-0.5 whitespace-nowrap">Est.: <span class="font-bold text-gray-300">${safeStockDisplay}</span></span>`}
                     </div>
                 </div>
-
-                <div class="hidden md:block col-span-2 text-center text-gray-500 text-xs font-mono">${lastMovStr}</div>
-                <div class="hidden md:block col-span-1 text-center text-gray-400 text-xs">
-                    ${metrics.qtd > 0 ? `<span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-bold">${metrics.qtd}</span>` : '-'}
-                </div>
-                <div class="hidden md:block col-span-1 text-center">
-                    ${p.stock <= 0 ? '<span class="text-red-500 text-xs font-bold">0</span>' : `<span class="text-gray-400 text-xs font-bold">${p.stock}</span>`}
-                </div>
+                <div class="hidden md:block col-span-2 text-center text-gray-500 text-xs font-mono truncate">${lastMovStr}</div>
+                <div class="hidden md:block col-span-1 text-center text-gray-400 text-xs">${metrics.qtd > 0 ? `<span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-bold">${metrics.qtd}</span>` : '-'}</div>
+                <div class="hidden md:block col-span-1 text-center">${safeStockDisplay <= 0 ? '<span class="text-red-500 text-xs font-bold">0</span>' : `<span class="text-gray-400 text-xs font-bold">${safeStockDisplay}</span>`}</div>
                 <div class="hidden md:block col-span-1 text-right pr-4">${priceHtml}</div>
-                
-                <div class="hidden ${state.isSelectionMode ? 'hidden' : 'md:flex'} col-span-1 justify-center items-center">
+                <div class="hidden ${state.isSelectionMode || state.isReorderMode ? 'hidden' : 'md:flex'} col-span-1 justify-center items-center">
                      <button onclick="event.stopPropagation(); confirmDeleteProduct('${p.id}')" class="text-gray-600 hover:text-red-500 transition p-2 rounded-full hover:bg-red-500/10" title="Excluir">
                         <i class="fas fa-trash-alt"></i>
                     </button>
@@ -2104,7 +2400,10 @@ function renderProductsList(products, preCalcMetrics = null) {
             </div>
         `;
 
-        setupSwipe(row.querySelector('.prod-swipe-content'));
+        // Desativa a funcionalidade de escorregar para a lixeira enquanto arrasta (para não bugar o dedo no celular)
+        if (!state.isReorderMode) {
+            setupSwipe(row.querySelector('.prod-swipe-content'));
+        }
         scrollContainer.appendChild(row);
     });
 }
@@ -2150,65 +2449,7 @@ window.toggleSelectionMode = () => {
     filterAndRenderProducts();
 };
 
-function renderAdminCoupons() {
-    if (!els.couponListAdmin) return;
 
-    els.couponListAdmin.innerHTML = state.coupons.map((c, index) => {
-
-        // Formatação do valor (R$ ou %)
-        const typeDisplay = c.type === 'percent'
-            ? `<span class="text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded text-[10px] whitespace-nowrap">${c.val}% OFF</span>`
-            : `<span class="text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded text-[10px] whitespace-nowrap">${formatCurrency(c.val)} OFF</span>`;
-
-        let isExpired = false;
-        let expiryDisplay = `<span class="text-[10px] text-green-500 font-bold flex items-center gap-1 whitespace-nowrap"><i class="fas fa-infinity text-[8px]"></i> Permanente</span>`;
-
-        if (c.expiryDate) {
-            const expiryDate = new Date(c.expiryDate);
-            const now = new Date();
-            // Formatação de data curta para mobile
-            const dateStr = expiryDate.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-
-            if (now > expiryDate) {
-                isExpired = true;
-                // 'w-fit' e 'block' ajudam a não quebrar o layout lateralmente
-                expiryDisplay = `<span class="text-[9px] text-red-400 font-bold bg-red-900/20 px-2 py-0.5 rounded border border-red-900/50 block mt-1 w-fit">EXPIRADO: ${dateStr}</span>`;
-            } else {
-                expiryDisplay = `<span class="text-[10px] text-gray-400 whitespace-nowrap">Expira: <span class="text-white font-bold">${dateStr}</span></span>`;
-            }
-        }
-
-        const borderClass = isExpired ? 'border-red-600 opacity-75' : 'border-green-500';
-        const isFocused = index === state.focusedCouponIndex;
-        // Adicionado 'w-full' aqui no container
-        const bgClass = isFocused ? 'bg-gray-700 ring-1 ring-yellow-500 z-10' : 'bg-[#151720] border-gray-800';
-
-        return `
-            <div id="coupon-item-${index}" 
-                 onclick="selectCoupon(${index})" 
-                 ondblclick="editCoupon('${c.id}')" 
-                 class="${bgClass} w-full border-l-4 ${borderClass} p-3 rounded-lg flex justify-between items-center shadow-sm mb-2 cursor-pointer transition select-none group relative overflow-hidden">
-                
-                ${isFocused ? '<div class="absolute -left-2 top-1/2 -translate-y-1/2 text-yellow-500 text-xs"><i class="fas fa-caret-right"></i></div>' : ''}
-
-                <div class="flex flex-col flex-1 min-w-0 pr-3 pointer-events-none">
-                    <span class="text-yellow-500 font-bold text-base tracking-wider truncate group-hover:text-white transition w-full block">${c.code}</span>
-                    
-                    <div class="flex flex-wrap items-center gap-2 mt-1">
-                        ${typeDisplay}
-                        ${!isExpired ? expiryDisplay : ''}
-                    </div>
-                    ${isExpired ? expiryDisplay : ''}
-                </div>
-                
-                <button onclick="event.stopPropagation(); deleteCoupon('${c.id}')" 
-                        class="w-9 h-9 shrink-0 flex items-center justify-center bg-red-600/10 text-red-500 border border-red-600/30 hover:bg-red-600 hover:text-white rounded transition z-20 active:scale-95">
-                    <i class="fas fa-trash-alt text-xs"></i>
-                </button>
-            </div>
-        `;
-    }).join('');
-}
 
 
 
@@ -2480,48 +2721,32 @@ function renderSalesList(orders) {
             </div>
         `).join('');
 
-        // --- LÓGICA FINANCEIRA DETALHADA ---
-        // --- LÓGICA FINANCEIRA DETALHADA (CORRIGIDA) ---
+        // --- LÓGICA FINANCEIRA (CUPONS E DESCONTOS) ---
         const subTotalItens = o.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
         const valFrete = o.shippingFee || 0;
         const valTotalPago = o.total || 0;
 
-        // Cálculo matemático simples (pode ser zerado se tiver juros)
         const valDescontoTotal = Math.max(0, (subTotalItens + valFrete) - valTotalPago);
 
         let discountHtml = '';
-
-        // 1. Tenta descobrir dados do CUPOM (Agora fazemos isso FORA do if de valor)
         let valDescontoCupom = 0;
         let nomeCupom = null;
 
-        // Se temos os dados salvos do cupom (Checkout novo)
         if (o.couponData && o.couponData.value) {
             valDescontoCupom = o.couponData.value;
             nomeCupom = o.couponData.code;
-        }
-        // Fallback para pedidos antigos
-        else if (o.cupom && o.cupom.trim().length > 0) {
+        } else if (o.cupom && o.cupom.trim().length > 0) {
             nomeCupom = o.cupom;
             const isPix = (o.paymentMethod || '').toLowerCase().includes('pix');
-            // Se tem nome de cupom e não é Pix, assume que o desconto total é o cupom
             if (!isPix && valDescontoTotal > 0) valDescontoCupom = valDescontoTotal;
         }
 
-        // 2. CONDIÇÃO CORRIGIDA: Entra se tiver desconto matemático OU se tiver um cupom nomeado
-        // Isso garante que mesmo que os juros "comam" o valor do desconto, o nome do cupom aparece.
         if (valDescontoTotal > 0.05 || nomeCupom) {
-
-            // O que sobrar do desconto total é Pix (ou ajuste manual)
-            // (Total Esperado sem Pix = Subtotal + Frete - Cupom)
             const totalEsperadoSemPix = (subTotalItens + valFrete) - valDescontoCupom;
-
-            // Se o total pago for MAIOR que o esperado (juros), o desconto Pix é 0.
             const valDescontoPix = Math.max(0, totalEsperadoSemPix - valTotalPago);
 
             discountHtml += `<div class="mt-2 mb-2 border-y border-gray-700/50 py-2 space-y-1">`;
 
-            // Exibe Linha do Cupom (Sempre que tiver nome)
             if (nomeCupom) {
                 discountHtml += `
                     <div class="flex justify-between text-xs text-gray-300">
@@ -2531,7 +2756,6 @@ function renderSalesList(orders) {
                 `;
             }
 
-            // Exibe Linha do Pix (Se houver valor sobrando e for Pix)
             if (valDescontoPix > 0.05) {
                 discountHtml += `
                     <div class="flex justify-between text-xs text-gray-300">
@@ -2541,7 +2765,6 @@ function renderSalesList(orders) {
                 `;
             }
 
-            // Exibe Genérico (Caso tenha desconto matemático, mas sem cupom nem pix identificados)
             if (!nomeCupom && valDescontoPix <= 0.05 && valDescontoTotal > 0.05) {
                 discountHtml += `
                     <div class="flex justify-between text-xs text-gray-300">
@@ -2550,10 +2773,8 @@ function renderSalesList(orders) {
                     </div>
                 `;
             }
-
             discountHtml += `</div>`;
         }
-        // -----------------------------------
 
         const rawMethod = o.paymentMethod || '';
         const isOnline = rawMethod.includes('Online');
@@ -2564,39 +2785,116 @@ function renderSalesList(orders) {
         if (isOnline) typeBadge = `<span class="text-[10px] bg-green-900/40 text-green-400 border border-green-600/50 px-2 py-0.5 rounded uppercase font-bold tracking-wide mt-1 inline-block">Online</span>`;
         else if (isDelivery) typeBadge = `<span class="text-[10px] bg-orange-900/40 text-orange-400 border border-orange-600/50 px-2 py-0.5 rounded uppercase font-bold tracking-wide mt-1 inline-block">Na Entrega</span>`;
 
+        // =========================================================
+        // ✨ BOTÕES DE AÇÃO LADO A LADO
+        // =========================================================
+        const btnPrint = `<button type="button" onclick="event.stopPropagation(); printOrder('${o.id}')" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-3 py-2 rounded text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-print"></i> Imprimir</button>`;
+        const btnFinance = `<button type="button" onclick="event.stopPropagation(); document.getElementById('admin-finance-panel-${o.id}').classList.toggle('hidden');" class="bg-blue-900/20 hover:bg-blue-900/40 border border-blue-900/50 text-blue-400 px-3 py-2 rounded text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-hand-holding-usd"></i> Lucro</button>`;
+
+        const actionButtonsLeft = `<div class="flex items-center gap-2 w-full md:w-auto">${btnPrint}${btnFinance}</div>`;
+
         let controlsHtml = '';
         if (o.status.includes('Cancelado')) {
-            controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span></div>`;
+            controlsHtml = `
+                <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700 w-full">
+                    ${actionButtonsLeft}
+                    <span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span>
+                </div>`;
         } else if (o.status === 'Reembolsado') {
-            controlsHtml = `<div class="flex justify-end mt-4"><span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span></div>`;
+            controlsHtml = `
+                <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700 w-full">
+                    ${actionButtonsLeft}
+                    <span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span>
+                </div>`;
         } else if (o.status === 'Concluído') {
             controlsHtml = `
-                <div class="flex justify-end items-center gap-2 mt-4 pt-2 border-t border-gray-700">
-                    <span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs">FINALIZADO</span>
-                    <button onclick="adminRefundOrder('${o.id}')" class="border border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-2 rounded text-xs transition font-bold">
-                        <i class="fas fa-undo mr-1"></i> Reembolsar
-                    </button>
+                <div class="flex justify-between items-center gap-2 mt-4 pt-4 border-t border-gray-700 w-full">
+                    ${actionButtonsLeft}
+                    <div class="flex items-center gap-2">
+                        <span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs">FINALIZADO</span>
+                        <button onclick="adminRefundOrder('${o.id}')" class="border border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-2 rounded text-xs transition font-bold">
+                            <i class="fas fa-undo mr-1"></i> Reembolsar
+                        </button>
+                    </div>
                 </div>`;
         } else {
             controlsHtml = `
-                <div class="flex flex-col md:flex-row gap-4 justify-end items-center mt-4 border-t border-gray-700 pt-4">
-                    <div class="flex items-center gap-2">
-                        <label class="text-gray-500 text-xs uppercase font-bold">Status:</label>
-                        <select onchange="handleStatusChange(this, '${o.id}')" class="bg-gray-900 text-white text-xs border border-gray-600 rounded p-2 focus:border-yellow-500 outline-none">
+                <div class="flex flex-col md:flex-row gap-4 justify-between items-center mt-4 border-t border-gray-700 pt-4">
+                    ${actionButtonsLeft}
+                    <div class="flex items-center justify-end gap-2 w-full md:w-auto">
+                        <label class="text-gray-500 text-xs uppercase font-bold hidden md:inline">Status:</label>
+                        <select onchange="handleStatusChange(this, '${o.id}')" class="bg-gray-900 text-white text-xs border border-gray-600 rounded p-2 focus:border-yellow-500 outline-none flex-1 md:flex-none">
                             <option value="Aguardando aprovação" ${o.status === 'Aguardando aprovação' ? 'selected' : ''}>Aguardando aprovação</option>
                             <option value="Aprovado" ${o.status === 'Aprovado' ? 'selected' : ''}>Aprovado</option>
                             <option value="Preparando pedido" ${o.status === 'Preparando pedido' ? 'selected' : ''}>Preparando</option>
                             <option value="Saiu para entrega" ${o.status === 'Saiu para entrega' ? 'selected' : ''}>Saiu para entrega</option>
                             <option value="Entregue" ${o.status === 'Entregue' ? 'selected' : ''}>Entregue</option>
                         </select>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="adminCancelOrder('${o.id}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-xs font-bold transition">Cancelar</button>
+                        <button onclick="adminCancelOrder('${o.id}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-xs font-bold transition hidden sm:block">Cancelar</button>
                         <button onclick="adminFinalizeOrder('${o.id}')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-xs font-bold transition">Finalizar</button>
                     </div>
                 </div>
             `;
         }
+
+        // =========================================================
+        // ✨ LÓGICA DO RESUMO FINANCEIRO (PAINEL ESCONDIDO)
+        // =========================================================
+        let totalCost = 0;
+        const financeDetailsHtml = (o.items || []).map(i => {
+            const c = parseFloat(i.cost) || 0;
+            const rev = parseFloat(i.price) * parseInt(i.qty);
+            const prof = rev - (c * parseInt(i.qty));
+            totalCost += c * parseInt(i.qty);
+
+            return `
+                <div class="flex justify-between items-center text-[11px] border-b border-gray-800/50 pb-2 mb-2 last:border-0 last:pb-0 last:mb-0">
+                    <span class="font-bold text-gray-300 truncate pr-2 flex-1">${i.qty}x ${i.name}</span>
+                    <div class="flex flex-col items-end text-right">
+                        <span class="text-gray-400">Venda: <span class="text-green-400 font-bold">${formatCurrency(rev)}</span></span>
+                        <span class="text-gray-400 mt-0.5">Custo: <span class="text-red-400 font-bold">- ${formatCurrency(c * i.qty)}</span></span>
+                        <span class="text-blue-400 font-bold border-t border-gray-800 w-full text-right mt-0.5 pt-0.5">Lucro: ${formatCurrency(prof)}</span>
+                    </div>
+                </div>
+             `;
+        }).join('');
+
+        const liquidProfit = o.total - totalCost;
+        const profitMargin = o.total > 0 ? ((liquidProfit / o.total) * 100).toFixed(1) : 0;
+
+        const financePanelHTML = `
+            <div id="admin-finance-panel-${o.id}" onclick="event.stopPropagation()" class="hidden mt-4 mb-2 bg-[#0a0c13] p-4 rounded-xl border border-blue-900/30 shadow-inner cursor-default">
+                <div class="flex justify-between items-center mb-3 border-b border-blue-900/30 pb-2">
+                    <h4 class="text-blue-500 text-[10px] font-bold uppercase tracking-widest"><i class="fas fa-chart-pie mr-1"></i> Análise de Lucro</h4>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="exportFinancePDF('${o.id}')" class="bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/30 px-2 py-1 rounded text-[9px] font-bold uppercase transition flex items-center gap-1"><i class="fas fa-file-pdf"></i> PDF</button>
+                        <button type="button" onclick="exportFinanceExcel('${o.id}')" class="bg-green-900/20 hover:bg-green-900/40 text-green-400 border border-green-900/30 px-2 py-1 rounded text-[9px] font-bold uppercase transition flex items-center gap-1"><i class="fas fa-file-excel"></i> Excel</button>
+                    </div>
+                </div>
+                
+                ${financeDetailsHtml}
+                
+                <div class="mt-3 pt-3 border-t border-blue-900/30 flex flex-col gap-1.5 text-xs">
+                     <div class="flex justify-between text-gray-400">
+                        <span class="text-[11px] text-green-400 font-bold">Receita (Pedido):</span>
+                        <span class="text-green-400 font-bold">${formatCurrency(o.total)}</span>
+                     </div>
+                     <div class="flex justify-between text-gray-400">
+                        <span class="text-[11px] text-red-400 font-bold">Custo (Produtos):</span>
+                        <span class="text-red-400 font-bold">- ${formatCurrency(totalCost)}</span>
+                     </div>
+                     
+                     <div class="flex justify-between items-end mt-2 pt-2 border-t border-gray-800/50">
+                         <span class="text-green-500 font-bold uppercase text-[13px] tracking-wider">Lucro Líquido:</span>
+                         <span class="text-blue-400 font-extrabold text-lg leading-none">${formatCurrency(liquidProfit)}</span>
+                     </div>
+                     
+                     <div class="text-right mt-1">
+                         <span class="text-[9px] bg-blue-900/20 text-blue-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-900/30">Margem: ${profitMargin}%</span>
+                     </div>
+                </div>
+            </div>
+        `;
 
         const cardWrapper = document.createElement('div');
         cardWrapper.className = "mb-4";
@@ -2646,7 +2944,7 @@ function renderSalesList(orders) {
                     </div>
                 </div>
 
-                <div class="bg-gray-900 p-3 rounded border border-gray-800 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mb-4">
+                <div class="bg-gray-900 p-3 rounded border border-gray-800 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mb-2">
                     <div class="flex flex-col">
                         <span class="text-gray-500 font-bold mb-1">Cliente:</span>
                         <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center truncate flex items-center justify-center h-full">${o.customer?.name || '-'}</span>
@@ -2655,7 +2953,6 @@ function renderSalesList(orders) {
                         <span class="text-gray-500 font-bold mb-1">Telefone:</span>
                         <span class="bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 w-full text-center flex items-center justify-center h-full">${o.customer?.phone || '-'}</span>
                     </div>
-                    
                     <div class="flex flex-col">
                         <span class="text-gray-500 font-bold mb-1">Pagamento:</span>
                         <div class="bg-gray-800 text-white px-2 py-2 rounded border border-gray-700 w-full text-center flex flex-col items-center justify-center h-full min-h-[50px]">
@@ -2668,13 +2965,241 @@ function renderSalesList(orders) {
                         </div>
                     </div>
                 </div>
-
+                
+                ${financePanelHTML}
                 ${controlsHtml}
             </div>
         `;
         listEl.appendChild(cardWrapper);
     });
 }
+
+// =================================================================
+// 📊 EXPORTAÇÃO FINANCEIRA (PDF E EXCEL)
+// =================================================================
+
+// 1. Exportar para Excel (Tabela Estilizada Nativa)
+window.exportFinanceExcel = (orderId) => {
+    const order = state.orders.find(o => o.id === orderId);
+    if (!order) return showToast("Pedido não encontrado.", "error");
+
+    let totalCost = 0;
+    let totalRevenue = 0;
+
+    // Constrói as linhas dos produtos já com cores
+    let rowsHtml = '';
+    (order.items || []).forEach(i => {
+        const cost = parseFloat(i.cost) || 0;
+        const revenue = parseFloat(i.price) * parseInt(i.qty);
+        const costTotal = cost * parseInt(i.qty);
+        const profit = revenue - costTotal;
+
+        totalCost += costTotal;
+        totalRevenue += revenue;
+
+        rowsHtml += `
+            <tr>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; color: #334155;">${i.name}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; color: #334155;">${i.qty}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #64748b;">R$ ${cost.toFixed(2).replace('.', ',')}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #dc2626;">R$ ${costTotal.toFixed(2).replace('.', ',')}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #2563eb;">R$ ${revenue.toFixed(2).replace('.', ',')}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; color: #16a34a; font-weight: bold;">R$ ${profit.toFixed(2).replace('.', ',')}</td>
+            </tr>
+        `;
+    });
+
+    const finalRevenue = order.total || totalRevenue;
+    const liquidProfit = finalRevenue - totalCost;
+    const profitMargin = finalRevenue > 0 ? ((liquidProfit / finalRevenue) * 100).toFixed(1) : 0;
+
+    // Monta a estrutura da planilha (Excel lê HTML nativamente)
+    const tableHtml = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+            <meta charset="utf-8">
+            <style>
+                table { border-collapse: collapse; font-family: Arial, sans-serif; }
+                th { background-color: #1e3a8a; color: white; padding: 12px; font-weight: bold; border: 1px solid #1e3a8a; }
+                td { font-size: 14px; }
+                .totais td { font-weight: bold; font-size: 16px; background-color: #f8fafc; border: 1px solid #cbd5e1; }
+            </style>
+        </head>
+        <body>
+            <table>
+                <tr>
+                    <td colspan="6" style="text-align: center; font-size: 22px; font-weight: bold; background-color: #f1f5f9; padding: 15px; border: 1px solid #cbd5e1; color: #0f172a;">
+                        RELATÓRIO DE LUCRO - PEDIDO #${order.code || orderId}
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="3" style="border: 1px solid #cbd5e1; padding: 8px;"><strong>Cliente:</strong> ${order.customer?.name || '-'}</td>
+                    <td colspan="3" style="border: 1px solid #cbd5e1; padding: 8px; text-align: right;"><strong>Data:</strong> ${new Date(order.date).toLocaleDateString('pt-BR')}</td>
+                </tr>
+                <tr><td colspan="6" style="height: 15px;"></td></tr>
+                
+                <tr>
+                    <th>PRODUTO</th>
+                    <th>QTD</th>
+                    <th>CUSTO UN.</th>
+                    <th>CUSTO TOTAL</th>
+                    <th>VENDA TOTAL</th>
+                    <th>LUCRO PRODUTO</th>
+                </tr>
+                
+                ${rowsHtml}
+                
+                <tr><td colspan="6" style="height: 15px;"></td></tr>
+                
+                <tr class="totais">
+                    <td colspan="5" style="text-align: right; padding: 10px;">RECEITA DO PEDIDO:</td>
+                    <td style="text-align: right; padding: 10px; color: #2563eb;">R$ ${finalRevenue.toFixed(2).replace('.', ',')}</td>
+                </tr>
+                <tr class="totais">
+                    <td colspan="5" style="text-align: right; padding: 10px;">CUSTO DOS PRODUTOS:</td>
+                    <td style="text-align: right; padding: 10px; color: #dc2626;">- R$ ${totalCost.toFixed(2).replace('.', ',')}</td>
+                </tr>
+                <tr class="totais">
+                    <td colspan="5" style="text-align: right; padding: 12px; font-size: 18px; background-color: #e2e8f0; color: #0f172a;">LUCRO LÍQUIDO:</td>
+                    <td style="text-align: right; padding: 12px; font-size: 18px; color: #16a34a; background-color: #e2e8f0;">R$ ${liquidProfit.toFixed(2).replace('.', ',')}</td>
+                </tr>
+                <tr class="totais">
+                    <td colspan="5" style="text-align: right; padding: 10px; font-size: 12px; color: #64748b; border-top: none;">Margem de Lucro:</td>
+                    <td style="text-align: right; padding: 10px; font-size: 12px; color: #1d4ed8; border-top: none;">${profitMargin}%</td>
+                </tr>
+            </table>
+        </body>
+        </html>
+    `;
+
+    // Converte e dispara o download do arquivo .xls
+    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Lucro_Pedido_${order.code || orderId}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    showToast("Planilha gerada com sucesso!", "success");
+};
+
+// 2. Exportar para PDF (Gera visualização de impressão formatada)
+window.exportFinancePDF = (orderId) => {
+    const order = state.orders.find(o => o.id === orderId);
+    if (!order) return showToast("Pedido não encontrado.", "error");
+
+    let totalCost = 0;
+
+    // Constrói as linhas da tabela
+    let itemsHtml = (order.items || []).map(i => {
+        const cost = parseFloat(i.cost) || 0;
+        const revenue = parseFloat(i.price) * parseInt(i.qty);
+        const costTotal = cost * parseInt(i.qty);
+        const profit = revenue - costTotal;
+
+        totalCost += costTotal;
+
+        return `
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">${i.qty}x ${i.name}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #dc2626;">${formatCurrency(costTotal)}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">${formatCurrency(revenue)}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #16a34a; font-weight: bold;">${formatCurrency(profit)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    const liquidProfit = order.total - totalCost;
+    const profitMargin = order.total > 0 ? ((liquidProfit / order.total) * 100).toFixed(1) : 0;
+
+    // Abre uma nova janela para o relatório
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+
+    // Desenha o HTML do relatório
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Relatório de Lucro - Pedido #${order.code || orderId}</title>
+            <style>
+                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #0f172a; line-height: 1.5; }
+                .header { border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; }
+                .header h1 { margin: 0; color: #1e3a8a; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }
+                .info-grid { display: flex; justify-content: space-between; margin-bottom: 30px; font-size: 14px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                th { background-color: #f8fafc; padding: 12px 10px; text-align: left; border-bottom: 2px solid #cbd5e1; color: #475569; font-size: 12px; text-transform: uppercase; }
+                .summary { background-color: #f1f5f9; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; width: 300px; float: right; }
+                .summary-line { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px; color: #475569; }
+                .summary-total { display: flex; justify-content: space-between; margin-top: 15px; padding-top: 15px; border-top: 2px solid #cbd5e1; font-size: 18px; font-weight: bold; color: #16a34a; }
+                .margin-badge { display: inline-block; background: #e0e7ff; color: #1d4ed8; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-top: 10px; float: right;}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Análise Financeira de Pedido</h1>
+            </div>
+            
+            <div class="info-grid">
+                <div>
+                    <strong>Pedido:</strong> #${order.code || orderId}<br>
+                    <strong>Data:</strong> ${new Date(order.date).toLocaleDateString('pt-BR')}<br>
+                    <strong>Cliente:</strong> ${order.customer?.name || 'Não informado'}
+                </div>
+                <div style="text-align: right;">
+                    <strong>Pagamento:</strong> ${order.paymentMethod || 'N/A'}<br>
+                    <strong>Status:</strong> ${order.status}
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Produto</th>
+                        <th>Custo Total</th>
+                        <th>Venda Total</th>
+                        <th>Lucro</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml}
+                </tbody>
+            </table>
+
+            <div class="summary">
+                <div class="summary-line">
+                    <span>Receita (Pedido):</span>
+                    <strong>${formatCurrency(order.total)}</strong>
+                </div>
+                <div class="summary-line">
+                    <span>Custo (Produtos):</span>
+                    <strong style="color: #dc2626;">- ${formatCurrency(totalCost)}</strong>
+                </div>
+                <div class="summary-total">
+                    <span>Lucro Líquido:</span>
+                    <span>${formatCurrency(liquidProfit)}</span>
+                </div>
+                <div style="text-align: right; width: 100%;">
+                    <span class="margin-badge">Margem: ${profitMargin}%</span>
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+
+    // Aguarda o HTML carregar e abre a tela de impressão do Windows/Mac
+    setTimeout(() => {
+        printWindow.print();
+        // Fecha a guia de impressão automaticamente depois que o usuário salvar/cancelar
+        printWindow.close();
+    }, 500);
+};
+
+
 // --- FUNÇÃO PARA MARCAR COMO VISTO ---
 window.markAsViewed = async (id) => {
     // 1. Encontra o pedido na memória
@@ -2692,59 +3217,123 @@ window.markAsViewed = async (id) => {
         }
     }
 };
+
+
 // =================================================================
-// 8. EVENT LISTENERS
+// 8. EVENT LISTENERS (LIMPO - SEM CÓDIGO FANTASMA)
 // =================================================================
 function setupEventListeners() {
     setupAccordion('btn-acc-cat', 'content-acc-cat', 'arrow-acc-cat');
     setupAccordion('btn-acc-coupon', 'content-acc-coupon', 'arrow-acc-coupon');
 
-    // 1. Botão Sair (Logout)
     const btnLogout = document.getElementById('btn-logout');
     if (btnLogout) {
         btnLogout.onclick = () => {
-            // Verifica se a função signOut existe (importada do firebase)
+            sessionStorage.removeItem('isStoreAdmin');
+            sessionStorage.removeItem('wantsAdmin');
+            const isLocal = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
+            const urlLimpa = isLocal ? window.location.pathname + '?site=' + state.siteId : window.location.pathname;
+
             if (typeof signOut === 'function' && typeof auth !== 'undefined') {
-                signOut(auth).then(() => {
-                    window.location.reload(); // Recarrega para limpar o estado
-                });
-            } else {
-                console.error("Erro: signOut não encontrado.");
-            }
+                signOut(auth).then(() => { window.location.href = urlLimpa; });
+            } else { window.location.href = urlLimpa; }
         };
     }
 
-    // 2. Accordion do Tema (Aparência)
-    setupAccordion('btn-acc-theme', 'content-acc-theme', 'arrow-acc-theme');
+    const btnLoginCancel = getEl('btn-login-cancel');
+    if (btnLoginCancel) btnLoginCancel.onclick = () => { if (typeof fecharModalLogin === 'function') fecharModalLogin(); };
 
-    // --- CORREÇÃO 1: Removido 'window.' ---
-    if (els.checkoutCep) {
-        // Usamos uma "arrow function" () => ... para garantir que a função exista na hora do clique
-        els.checkoutCep.addEventListener('blur', (e) => handleCheckoutCep(e));
-    }
+    const btnLoginSubmit = document.getElementById('btn-login-submit');
+    const passInput = document.getElementById('admin-pass');
 
-    // =================================================================
-    // CORREÇÃO: LIBERAR HORÁRIO IMEDIATAMENTE AO CLICAR
-    // =================================================================
-    const checkHours = document.getElementById('conf-hours-active');
-    const divHours = document.getElementById('hours-settings');
-
-    if (checkHours && divHours) {
-        checkHours.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                // Se marcou: Remove opacidade e permite cliques
-                divHours.classList.remove('opacity-50', 'pointer-events-none');
-            } else {
-                // Se desmarcou: Deixa transparente e bloqueia cliques
-                divHours.classList.add('opacity-50', 'pointer-events-none');
-            }
+    if (passInput) {
+        passInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); if (btnLoginSubmit) btnLoginSubmit.click(); }
         });
     }
 
-    // Filtros Admin
+    if (btnLoginSubmit) {
+        btnLoginSubmit.onclick = async () => {
+            const pass = passInput ? passInput.value.trim() : '';
+            const btnOriginalText = btnLoginSubmit.innerText;
+            btnLoginSubmit.innerText = "Verificando...";
+            btnLoginSubmit.disabled = true;
+            try {
+                if (checkAndActivateSupport(pass)) {
+                    if (typeof fecharModalLogin === 'function') fecharModalLogin();
+                    if (passInput) passInput.value = '';
+                    showView('admin'); showView('support'); return;
+                }
+
+                let loggedIn = false;
+                const emailDaLoja = `${state.siteId}@app.projetistaoficial.com`.toLowerCase();
+
+                try {
+                    await signInWithEmailAndPassword(auth, emailDaLoja, pass);
+                    loggedIn = true;
+                } catch (e1) {
+                    try {
+                        await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
+                        loggedIn = true;
+                    } catch (e2) {
+                        const docRef = doc(db, "sites", state.siteId);
+                        const snap = await getDocFromServer(docRef);
+                        if (snap.exists() && snap.data().access?.admin === pass) {
+                            if (pass.length >= 6) {
+                                try {
+                                    await createUserWithEmailAndPassword(auth, emailDaLoja, pass);
+                                    loggedIn = true;
+                                } catch (migErr) {
+                                    alert("Erro de segurança ao migrar conta."); return;
+                                }
+                            } else {
+                                alert("Sua senha tem menos de 6 caracteres. Peça ao Administrador para aumentar."); return;
+                            }
+                        }
+                    }
+                }
+
+                if (loggedIn) {
+                    sessionStorage.removeItem('support_mode');
+                    if (typeof fecharModalLogin === 'function') fecharModalLogin();
+                    if (passInput) passInput.value = '';
+                    if (els.menuBtnAdmin) {
+                        els.menuBtnAdmin.classList.remove('hidden');
+                        els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield text-white group-hover:text-white transition"></i><span class="font-bold uppercase text-sm tracking-wide ml-2">Painel Admin</span>`;
+                    }
+                    const btnLoginNav = getEl('btn-admin-login');
+                    if (btnLoginNav) {
+                        btnLoginNav.classList.remove('hidden'); btnLoginNav.innerText = 'Painel Admin';
+                    }
+                    showView('admin');
+                    if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+                    if (typeof loadAdminSales === 'function') loadAdminSales();
+                } else { alert("Senha incorreta."); }
+
+            } catch (error) { alert("Erro inesperado. Tente novamente."); }
+            finally { btnLoginSubmit.innerText = btnOriginalText; btnLoginSubmit.disabled = false; }
+        };
+    }
+
+    setupAccordion('btn-acc-theme', 'content-acc-theme', 'arrow-acc-theme');
+
+    if (els.checkoutCep) els.checkoutCep.addEventListener('blur', (e) => handleCheckoutCep(e));
+
+    const checkHours = document.getElementById('conf-hours-active');
+    const divHours = document.getElementById('hours-settings');
+    if (checkHours && divHours) {
+        checkHours.addEventListener('change', (e) => {
+            if (e.target.checked) divHours.classList.remove('opacity-50', 'pointer-events-none');
+            else divHours.classList.add('opacity-50', 'pointer-events-none');
+        });
+    }
+
     if (els.adminSearchProd) els.adminSearchProd.addEventListener('input', filterAndRenderProducts);
     if (els.adminFilterCat) els.adminFilterCat.addEventListener('change', filterAndRenderProducts);
     if (els.adminSortProd) els.adminSortProd.addEventListener('change', filterAndRenderProducts);
+
+    const adminFilterStatus = getEl('admin-filter-status');
+    if (adminFilterStatus) adminFilterStatus.addEventListener('change', filterAndRenderProducts);
 
     if (els.confCardActive) {
         els.confCardActive.addEventListener('change', (e) => {
@@ -2754,7 +3343,6 @@ function setupEventListeners() {
     }
     setupAccordion('btn-acc-installments', 'content-acc-installments', 'arrow-acc-installments');
 
-    // Ações em Massa
     const btnBulkDel = getEl('btn-bulk-delete');
     if (btnBulkDel) btnBulkDel.onclick = async () => {
         if (!confirm(`Excluir ${state.selectedProducts.size} produtos selecionados?`)) return;
@@ -2780,24 +3368,31 @@ function setupEventListeners() {
         } catch (error) { alert("Erro ao mover: " + error.message); }
     };
 
-    // Filtros Vitrine
-    if (els.searchInput) els.searchInput.addEventListener('input', (e) => { const term = e.target.value.toLowerCase(); const filtered = state.products.filter(p => p.name.toLowerCase().includes(term) || p.description.toLowerCase().includes(term)); renderCatalog(filtered); });
+    if (els.searchInput) {
+        els.searchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const clearSearchBtn = document.getElementById('clear-search-btn');
+
+            // Mostra ou esconde o X
+            if (term.length > 0 && clearSearchBtn) {
+                clearSearchBtn.classList.remove('hidden');
+            } else if (clearSearchBtn) {
+                clearSearchBtn.classList.add('hidden');
+            }
+
+            const filtered = state.products.filter(p =>
+                p.name.toLowerCase().includes(term) ||
+                (p.description && p.description.toLowerCase().includes(term)) ||
+                (p.code && String(p.code).includes(term))
+            );
+            renderCatalog(filtered);
+        });
+    }
     if (els.catFilter) els.catFilter.addEventListener('change', (e) => { const cat = e.target.value; if (!cat) return renderCatalog(state.products); const filtered = state.products.filter(p => p.category === cat || p.category.startsWith(cat + ' -')); renderCatalog(filtered); });
 
-    // Filtros de Vendas
     setupAccordion('btn-acc-sales-filters', 'content-acc-sales-filters', 'arrow-acc-sales-filters');
 
-    const idsFiltros = [
-        'filter-search-general',
-        'filter-search-product',
-        'filter-status',
-        'filter-payment',
-        'filter-sort-order',
-        'filter-date-start',
-        'filter-date-end',
-        'filter-search-code'
-    ];
-
+    const idsFiltros = ['filter-search-general', 'filter-search-product-value', 'filter-status', 'filter-payment', 'filter-sort-order', 'filter-date-start', 'filter-date-end', 'filter-search-code'];
     idsFiltros.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -2809,235 +3404,56 @@ function setupEventListeners() {
     const btnClear = document.getElementById('btn-clear-filters');
     if (btnClear) {
         btnClear.onclick = () => {
-            idsFiltros.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = '';
-            });
+            // Limpa todos os inputs da lista
+            idsFiltros.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+            // Reseta a ordenação
             const sort = document.getElementById('filter-sort-order');
             if (sort) sort.value = 'date_desc';
+
+            // 👉 A MÁGICA: Limpa a nossa caixa visual de produtos
+            clearProductFilter(null);
+
+            // Recarrega a tabela
             filterAndRenderSales();
         };
     }
 
-    // Dashboard
     if (els.dashPrevDate) els.dashPrevDate.onclick = () => { if (state.dashViewMode === 'day') state.dashDate.setDate(state.dashDate.getDate() - 1); else state.dashDate.setMonth(state.dashDate.getMonth() - 1); updateDashboardUI(); };
     if (els.dashNextDate) els.dashNextDate.onclick = () => { if (state.dashViewMode === 'day') state.dashDate.setDate(state.dashDate.getDate() + 1); else state.dashDate.setMonth(state.dashDate.getMonth() + 1); updateDashboardUI(); };
     if (els.btnViewDay) els.btnViewDay.onclick = () => { state.dashViewMode = 'day'; updateDashboardUI(); };
     if (els.btnViewMonth) els.btnViewMonth.onclick = () => { state.dashViewMode = 'month'; updateDashboardUI(); };
 
-    // Estatísticas
     if (els.statsFilterAll) els.statsFilterAll.onclick = () => { state.statsFilterType = 'all'; updateStatsUI(); };
     if (els.statsFilterPeriod) els.statsFilterPeriod.onclick = () => { state.statsFilterType = 'period'; updateStatsUI(); };
-    if (els.statsPrevDate) els.statsPrevDate.onclick = () => {
-        if (state.statsViewMode === 'day') state.statsDate.setDate(state.statsDate.getDate() - 1);
-        else state.statsDate.setMonth(state.statsDate.getMonth() - 1);
-        updateStatsUI();
-    };
-    if (els.statsNextDate) els.statsNextDate.onclick = () => {
-        if (state.statsViewMode === 'day') state.statsDate.setDate(state.statsDate.getDate() + 1);
-        else state.statsDate.setMonth(state.statsDate.getMonth() + 1);
-        updateStatsUI();
-    };
+    if (els.statsPrevDate) els.statsPrevDate.onclick = () => { if (state.statsViewMode === 'day') state.statsDate.setDate(state.statsDate.getDate() - 1); else state.statsDate.setMonth(state.statsDate.getMonth() - 1); updateStatsUI(); };
+    if (els.statsNextDate) els.statsNextDate.onclick = () => { if (state.statsViewMode === 'day') state.statsDate.setDate(state.statsDate.getDate() + 1); else state.statsDate.setMonth(state.statsDate.getMonth() + 1); updateStatsUI(); };
     if (els.statsViewDay) els.statsViewDay.onclick = () => { state.statsViewMode = 'day'; updateStatsUI(); };
     if (els.statsViewMonth) els.statsViewMonth.onclick = () => { state.statsViewMode = 'month'; updateStatsUI(); };
 
-    // --- CORREÇÃO 2: Funções de Janela (Mantemos window aqui pois é atribuição) ---
-    window.openProductSelectorModal = () => {
-        const modal = document.getElementById('modal-product-selector');
-        if (modal) {
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            const input = document.getElementById('selector-internal-search');
-            if (input) { input.value = ''; input.focus(); }
-            renderProductSelectorList('');
-        }
-    };
-    window.closeProductSelectorModal = () => {
-        const modal = document.getElementById('modal-product-selector');
-        if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
-    };
-    window.renderProductSelectorList = (term = '') => {
-        const container = document.getElementById('product-selector-list');
-        if (!container) return;
-        container.innerHTML = '';
-        const cleanTerm = term.toLowerCase().trim();
-        const filtered = state.products.filter(p => {
-            const name = p.name.toLowerCase();
-            const code = p.code ? String(p.code).toLowerCase() : '';
-            return name.includes(cleanTerm) || code.includes(cleanTerm);
-        });
-        if (filtered.length === 0) {
-            container.innerHTML = '<p class="text-gray-500 text-center py-4 text-sm">Nenhum produto encontrado.</p>';
-            return;
-        }
-        filtered.forEach(p => {
-            const codeStr = p.code ? `#${p.code}` : '-';
-            const item = document.createElement('div');
-            item.className = "flex items-center justify-between p-3 rounded-lg hover:bg-gray-800 cursor-pointer border border-transparent hover:border-gray-700 transition mb-1 group";
-            item.onclick = () => confirmProductSelection(p.name, p.code);
-            item.innerHTML = `
-            <div class="flex items-center gap-3">
-                <span class="text-yellow-500 font-mono font-bold text-xs bg-yellow-900/20 px-2 py-1 rounded">${codeStr}</span>
-                <span class="text-gray-300 font-medium text-sm group-hover:text-white transition">${p.name}</span>
-            </div>
-            <i class="fas fa-chevron-right text-gray-600 text-xs opacity-0 group-hover:opacity-100 transition"></i>
-        `;
-            container.appendChild(item);
-        });
-    };
-    window.confirmProductSelection = (name, code) => {
-        const inputHidden = document.getElementById('filter-search-product-value');
-        if (inputHidden) inputHidden.value = name;
-        const display = document.getElementById('selected-product-display');
-        const btnClear = document.getElementById('btn-clear-prod-selection');
-        if (display) {
-            display.innerText = name;
-            display.classList.add('text-white', 'font-bold');
-            display.classList.remove('text-gray-400');
-        }
-        if (btnClear) btnClear.classList.remove('hidden');
-        closeProductSelectorModal();
-        filterAndRenderSales();
-    };
-    window.clearProductFilter = () => {
-        const inputHidden = document.getElementById('filter-search-product-value');
-        if (inputHidden) inputHidden.value = '';
-        const display = document.getElementById('selected-product-display');
-        const btnClear = document.getElementById('btn-clear-prod-selection');
-        if (display) {
-            display.innerText = "Selecionar produto...";
-            display.classList.remove('text-white', 'font-bold');
-            display.classList.add('text-gray-400');
-        }
-        if (btnClear) btnClear.classList.add('hidden');
-        filterAndRenderSales();
-    };
+    const btnCart = document.getElementById('cart-btn'); if (btnCart) btnCart.onclick = () => openCart();
+    const btnCartMob = document.getElementById('cart-btn-mobile'); if (btnCartMob) btnCartMob.onclick = () => openCart();
 
-    // --- CORREÇÃO 3: Botões Principais (SEM 'window.') ---
-
-    // Carrinho Desktop
-    const btnCart = document.getElementById('cart-btn');
-    if (btnCart) {
-        // Usamos () => para atrasar a execução e evitar o erro "not defined"
-        btnCart.onclick = () => openCart();
+    if (els.btnCheckout) {
+        els.btnCheckout.onclick = () => {
+            if (state.cart.length === 0) return alert('Carrinho vazio');
+            els.cartModal.classList.add('hidden');
+            openCheckoutModal();
+        };
     }
 
-    // Carrinho Mobile
-    const btnCartMob = document.getElementById('cart-btn-mobile');
-    if (btnCartMob) {
-        btnCartMob.onclick = () => openCart(); // <--- MUDANÇA AQUI
-    }
-
-    // Login
     const btnAdminLogin = getEl('btn-admin-login');
-    if (btnAdminLogin) {
-        btnAdminLogin.onclick = () => {
-            if (state.user) { showView('admin'); } else { getEl('login-modal').showModal(); }
-        };
-    }
-    const btnLoginCancel = getEl('btn-login-cancel');
-    if (btnLoginCancel) btnLoginCancel.onclick = () => getEl('login-modal').close();
+    if (btnAdminLogin) { btnAdminLogin.onclick = () => { if (state.user) { showView('admin'); } else { getEl('login-modal').showModal(); } }; }
 
-    const btnLoginSubmit = document.getElementById('btn-login-submit');
-    if (btnLoginSubmit) {
-        btnLoginSubmit.onclick = async () => {
-            const passInput = document.getElementById('admin-pass');
-            const pass = passInput.value.trim();
-            const modal = document.getElementById('login-modal');
-            const btnOriginalText = btnLoginSubmit.innerText;
-
-            // Efeito visual de carregamento
-            btnLoginSubmit.innerText = "Verificando...";
-            btnLoginSubmit.disabled = true;
-
-            try {
-                // 1. Verifica Modo Suporte (Senha Mestre Fixa: projetista47@)
-                if (checkAndActivateSupport(pass)) {
-                    modal.close();
-                    passInput.value = '';
-                    showView('admin');
-                    showView('support');
-                    return;
-                }
-
-                // ============================================================
-                // 2. BUSCA A SENHA FRESQUINHA DIRETO DO BANCO DE DADOS
-                // Garante que pega a senha real que acabou de ser criada
-                // ============================================================
-                const docRef = doc(db, "sites", state.siteId);
-                const snap = await getDocFromServer(docRef); // Ignora cache
-
-                if (snap.exists()) {
-                    const data = snap.data();
-                    const savedAccess = data.access || {};
-                    const clientAdminPass = savedAccess.admin;
-                    const clientDevPass = savedAccess.dev;
-
-                    // A. Verifica Senha DEV exclusiva desta Loja
-                    if (clientDevPass && pass === clientDevPass) {
-                        console.log("🛠️ Acesso Liberado: Modo Desenvolvedor da Loja");
-                        modal.close();
-                        passInput.value = '';
-                        showView('admin');
-                        showView('support');
-                        return;
-                    }
-
-                    // B. Verifica Senha ADMIN (Lojista) exclusiva desta Loja
-                    if (clientAdminPass && pass === clientAdminPass) {
-                        console.log("🔓 Acesso liberado via Senha da Loja");
-
-                        // Simula um usuário logado
-                        state.user = { uid: 'store-admin', email: 'loja@local', role: 'admin' };
-
-                        modal.close();
-                        passInput.value = '';
-
-                        if (els.menuBtnAdmin) {
-                            els.menuBtnAdmin.innerHTML = `<i class="fas fa-user-shield"></i> <span class="ml-2">Painel Admin</span>`;
-                        }
-
-                        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-                        if (typeof loadAdminSales === 'function') loadAdminSales();
-
-                        showView('admin');
-                        return;
-                    }
-                }
-
-                // ============================================================
-                // 3. FALLBACK: LOGIN FIREBASE AUTH (admin123 Mestre)
-                // ============================================================
-                await signInWithEmailAndPassword(auth, "admin@admin.com", pass);
-                sessionStorage.removeItem('support_mode');
-                modal.close();
-                passInput.value = '';
-                showView('admin');
-
-            } catch (error) {
-                // Se chegou aqui, nenhuma das 4 senhas funcionou
-                alert("Senha incorreta.");
-                console.error("Tentativa de login falhou:", error);
-            } finally {
-                // Restaura o botão
-                btnLoginSubmit.innerText = btnOriginalText;
-                btnLoginSubmit.disabled = false;
-            }
-        };
-    }
-
-    // Sidebar e UI Geral (CORREÇÃO: SEM 'window.')
     const btnMob = getEl('mobile-menu-btn'); if (btnMob) btnMob.onclick = toggleSidebar;
     const btnCloseSide = getEl('close-sidebar'); if (btnCloseSide) btnCloseSide.onclick = toggleSidebar;
     if (els.sidebarOverlay) els.sidebarOverlay.onclick = toggleSidebar;
 
-    if (els.themeToggle) els.themeToggle.onclick = () => { toggleTheme(true); };
+    if (els.themeToggle) els.themeToggle.onclick = () => toggleTheme(true);
 
     if (els.menuLinkHome) {
         els.menuLinkHome.onclick = (e) => {
-            if (e) e.preventDefault();
-            showView('catalog');
-            filterByCat('');
+            if (e) e.preventDefault(); showView('catalog'); filterByCat('');
             if (window.innerWidth < 1024) toggleSidebar();
         };
     }
@@ -3052,14 +3468,10 @@ function setupEventListeners() {
     const btnToggleFilters = getEl('btn-toggle-filters'); const filtersBody = getEl('filters-body'); const iconFilter = getEl('icon-filter-arrow');
     if (btnToggleFilters && filtersBody) { btnToggleFilters.onclick = () => { filtersBody.classList.toggle('hidden'); if (iconFilter) { iconFilter.style.transform = filtersBody.classList.contains('hidden') ? 'rotate(180deg)' : 'rotate(0deg)'; } }; }
 
-    // Modais - Fechar
     const btnCloseModal = getEl('close-modal-btn'); if (btnCloseModal) btnCloseModal.onclick = closeProductModal;
     const backdrop = getEl('modal-backdrop'); if (backdrop) backdrop.onclick = closeProductModal;
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !getEl('product-modal').classList.contains('hidden')) closeProductModal();
-    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !getEl('product-modal').classList.contains('hidden')) closeProductModal(); });
 
-    // Forms
     if (els.btnAddCat) {
         els.btnAddCat.onclick = async () => {
             const nameInput = els.newCatName.value.trim();
@@ -3067,24 +3479,24 @@ function setupEventListeners() {
             let finalName = nameInput;
             if (state.selectedCategoryParent) { finalName = `${state.selectedCategoryParent} - ${nameInput}`; }
             try {
-                await addDoc(collection(db, `sites/${state.siteId}/categories`), { name: finalName });
-                els.newCatName.value = '';
-                state.selectedCategoryParent = null;
+                await addDoc(collection(db, `sites/${state.siteId}/categories`), { name: finalName, order: Date.now() });
+                els.newCatName.value = ''; state.selectedCategoryParent = null;
+
+                // ✨ CORREÇÃO: Limpa o cache e recarrega a tela instantaneamente
+                localStorage.removeItem(`cats_${state.siteId}`);
+                await loadCategories();
                 renderAdminCategoryList();
+                showToast("Categoria criada com sucesso!", "success");
+
             } catch (error) { alert("Erro: " + error.message); }
         };
 
         setupAccordion('btn-acc-profile', 'content-acc-profile', 'arrow-acc-profile');
         const btnProfile = getEl('btn-acc-profile');
-        if (btnProfile) {
-            btnProfile.addEventListener('click', () => {
-                setTimeout(() => { if (typeof window.checkFooter === 'function') window.checkFooter(); }, 50);
-            });
-        }
+        if (btnProfile) { btnProfile.addEventListener('click', () => { setTimeout(() => { if (typeof window.checkFooter === 'function') window.checkFooter(); }, 50); }); }
         if (els.btnSaveProfile) els.btnSaveProfile.onclick = saveStoreProfile;
     }
 
-    // Formulário Produto
     const checkPix = getEl('prod-pix-active');
     const settingsPix = getEl('pix-settings');
     if (checkPix && settingsPix) {
@@ -3106,40 +3518,49 @@ function setupEventListeners() {
     const settingsCard = getEl('card-settings');
     if (checkCard && settingsCard) {
         checkCard.addEventListener('change', (e) => {
-            if (e.target.checked) { settingsCard.classList.remove('opacity-50', 'pointer-events-none'); getEl('prod-card-installments').focus(); }
+            if (e.target.checked) { settingsCard.classList.remove('opacity-50', 'pointer-events-none'); getEl('prod-card-installments')?.focus(); }
             else { settingsCard.classList.add('opacity-50', 'pointer-events-none'); }
         });
     }
 
-    const btnAddCoupon = getEl('btn-add-coupon');
-    if (btnAddCoupon) {
-        btnAddCoupon.onclick = async () => {
-            const code = getEl('coupon-code').value.trim().toUpperCase();
-            const val = parseFloat(getEl('coupon-val').value);
-            const isPercent = getEl('coupon-is-percent').checked;
-            const expiry = getEl('coupon-expiry').value;
-            if (!code || isNaN(val)) return showToast("Preencha Código e Valor.", 'error');
-            const data = { code: code, val: val, type: isPercent ? 'percent' : 'fixed', expiryDate: expiry || null };
-            try {
-                if (state.editingCouponId) {
-                    await updateDoc(doc(db, `sites/${state.siteId}/coupons`, state.editingCouponId), data);
-                    showToast('Cupom atualizado!');
-                } else {
-                    const exists = state.coupons.some(c => c.code === code);
-                    if (exists) return alert("Já existe um cupom com este código.");
-                    await addDoc(collection(db, `sites/${state.siteId}/coupons`), data);
-                    showToast('Cupom criado!');
-                }
-                resetCouponForm();
-            } catch (error) {
-                console.error("Erro no cupom:", error);
-                if (error.code === 'not-found' || error.message.includes('No document to update')) {
-                    alert("Atenção: O cupom não existe mais. Tente criar novo.");
-                    state.editingCouponId = null;
-                } else { alert("Erro ao salvar: " + error.message); }
-            }
+    const btnAddCoupon = document.getElementById('btn-add-coupon');
+if (btnAddCoupon) {
+    btnAddCoupon.onclick = async () => {
+        const code = document.getElementById('coupon-code').value.trim().toUpperCase();
+        const val = parseFloat(document.getElementById('coupon-val').value);
+        const isPercent = document.getElementById('coupon-is-percent').checked;
+        const expiry = document.getElementById('coupon-expiry').value;
+
+        if (!code || isNaN(val)) return showToast("Preencha Código e Valor.", 'error');
+
+        const data = { 
+            code: code, 
+            val: val, 
+            type: isPercent ? 'percent' : 'fixed', 
+            expiryDate: expiry || null
         };
-    }
+
+        try {
+            if (state.editingCouponId) {
+                await updateDoc(doc(db, `sites/${state.siteId}/coupons`, state.editingCouponId), data);
+                showToast('Cupom atualizado!');
+            } else {
+                const exists = state.coupons.some(c => c.code === code);
+                if (exists) return alert("Já existe um cupom com este código.");
+                await addDoc(collection(db, `sites/${state.siteId}/coupons`), data);
+                showToast('Cupom criado!');
+            }
+            resetCouponForm();
+        } catch (error) {
+            if (error.code === 'not-found' || error.message.includes('No document to update')) {
+                alert("Atenção: O cupom não existe mais. Tente criar novo."); 
+                state.editingCouponId = null;
+            } else { 
+                alert("Erro ao salvar: " + error.message); 
+            }
+        }
+    };
+}
 
     const couponInputsIds = ['coupon-code', 'coupon-val', 'coupon-expiry'];
     couponInputsIds.forEach(id => {
@@ -3173,27 +3594,20 @@ function setupEventListeners() {
             if (files.length === 0) return;
             for (const file of files) {
                 try {
-                    const base64 = await processImageFile(file);
-                    state.tempImages.push(base64);
+                    const base64 = await processImageFile(file); state.tempImages.push(base64);
                 } catch (err) { console.error("Erro imagem", err); }
             }
-            renderImagePreviews();
-            fileInput.value = '';
+            renderImagePreviews(); fileInput.value = '';
         });
     }
 
     const btnAddProd = getEl('btn-add-product');
     if (btnAddProd) {
         btnAddProd.onclick = () => {
-            getEl('form-product').reset();
-            getEl('edit-prod-id').value = '';
-            state.tempImages = [];
-            renderImagePreviews();
-            const checkNoStock = getEl('prod-allow-no-stock');
-            if (checkNoStock) checkNoStock.checked = false;
-            if (els.productFormModal) els.productFormModal.classList.remove('hidden');
+            if (typeof openNewProductModal === 'function') openNewProductModal();
         };
     }
+
     const btnCancelProd = getEl('btn-cancel-prod'); if (btnCancelProd) btnCancelProd.onclick = () => { if (els.productFormModal) els.productFormModal.classList.add('hidden'); };
 
     if (els.confCardActive) {
@@ -3206,95 +3620,11 @@ function setupEventListeners() {
         });
     }
 
-    // Botão de Finalizar no Carrinho
-    if (els.btnCheckout) {
-        els.btnCheckout.onclick = () => {
-            if (state.cart.length === 0) return alert('Carrinho vazio');
-            els.cartModal.classList.add('hidden');
-            // CORREÇÃO: Removido 'window.'
-            openCheckoutModal();
-        };
-    }
-
-    const formProd = getEl('form-product');
-    if (formProd) {
-        formProd.onsubmit = async (e) => {
-            e.preventDefault();
-            const btnSave = document.querySelector('#form-product button[type="submit"]');
-            const originalText = btnSave ? btnSave.innerText : 'Salvar';
-            try {
-                if (btnSave) { btnSave.innerText = "Salvando..."; btnSave.disabled = true; }
-                const idEl = getEl('edit-prod-id');
-                const nameEl = getEl('prod-name');
-                const catEl = getEl('prod-cat-select');
-                const descEl = getEl('prod-desc');
-                const priceEl = getEl('prod-price');
-                const promoEl = getEl('prod-promo');
-                const stockEl = getEl('prod-stock');
-                const costEl = getEl('prod-cost');
-                const sizesEl = getEl('prod-sizes');
-
-                const noStockEl = getEl('prod-allow-no-stock');
-                const highlightEl = getEl('prod-highlight');
-                const parseVal = (val) => val ? parseFloat(val.replace(/\./g, '').replace(',', '.')) : 0;
-
-                if (state.tempImages.length === 0) { alert("Adicione pelo menos uma imagem!"); return; }
-
-                const pixActive = getEl('prod-pix-active').checked;
-                const pixValRaw = getEl('prod-pix-val').value;
-                const pixVal = parseVal(pixValRaw);
-                const pixType = getEl('prod-pix-type').value;
-
-                const data = {
-                    name: nameEl ? nameEl.value : 'Sem Nome',
-                    category: catEl ? catEl.value : "Geral",
-                    description: descEl ? descEl.value : '',
-                    price: priceEl ? parseVal(priceEl.value) : 0,
-                    promoPrice: promoEl && promoEl.value ? parseVal(promoEl.value) : null,
-                    stock: stockEl ? parseInt(stockEl.value) : 0,
-                    cost: costEl ? parseVal(costEl.value) : 0,
-                    sizes: sizesEl ? sizesEl.value.split(',').map(s => s.trim()).filter(s => s !== '') : [],
-                    images: state.tempImages,
-                    allowNoStock: noStockEl ? noStockEl.checked : false,
-                    highlight: highlightEl ? highlightEl.checked : false,
-                    paymentOptions: { pix: { active: pixActive, val: pixVal, type: pixType } }
-                };
-
-                const id = idEl.value;
-                if (id) {
-                    await updateDoc(doc(db, `sites/${state.siteId}/products`, id), data);
-                    showToast('Produto atualizado!');
-                } else {
-                    const nextCode = await getNextProductCode(state.siteId);
-                    data.code = nextCode;
-                    data.createdAt = new Date().toISOString();
-                    await addDoc(collection(db, `sites/${state.siteId}/products`), data);
-                    showToast('Produto criado!');
-                }
-                if (els.productFormModal) els.productFormModal.classList.add('hidden');
-                e.target.reset();
-                state.tempImages = [];
-                if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
-            } catch (err) {
-                console.error(err); alert("Erro ao salvar produto: " + err.message);
-            } finally {
-                if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
-            }
-        };
-    }
-
     const btnGoCheckout = document.getElementById('btn-go-checkout');
     const btnFinishPayment = document.getElementById('btn-finish-payment');
     const btnCloseCart = document.getElementById('close-cart');
 
-    // --- CORREÇÃO 4: Removido 'window.' (Funções Locais) ---
-    if (btnGoCheckout) {
-        // Usamos () => para evitar o erro "not defined" durante o carregamento
-        btnGoCheckout.onclick = () => {
-            if (typeof goToCheckoutView === 'function') goToCheckoutView();
-            else if (window.goToCheckoutView) window.goToCheckoutView();
-        };
-    }
+    if (btnGoCheckout) { btnGoCheckout.onclick = () => { if (typeof goToCheckoutView === 'function') goToCheckoutView(); }; }
     if (btnFinishPayment) btnFinishPayment.onclick = submitOrder;
     if (btnCloseCart) btnCloseCart.onclick = closeCartModal;
 
@@ -3348,20 +3678,172 @@ function setupEventListeners() {
     validateSubOptions('sub-check-delivery');
     updatePaymentVisuals();
 
-    const logoInput = getEl('conf-logo-upload');
-    if (logoInput) {
-        logoInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0]; if (!file) return;
-            try { const base64 = await processImageFile(file); state.tempLogo = base64; const preview = getEl('conf-logo-preview'); const placeholder = getEl('conf-logo-placeholder'); if (preview) { preview.src = base64; preview.classList.remove('hidden'); } if (placeholder) placeholder.classList.add('hidden'); } catch (err) { console.error("Erro logo:", err); }
+    // =================================================================
+    // 🖼️ SISTEMA PROFISSIONAL DE RECORTE DE IMAGEM (CROPPER.JS) - CARREGAS AS IMAGENS E ABRE O MODAL DE CORTE (INICIO))
+    // =================================================================
+    // Variáveis globais para o Cropper
+    window.cropper = null;
+    window.currentCropType = ''; // Vai guardar se estamos cortando 'logo' ou 'banner'
+
+    // 1. Escuta quando o usuário escolhe um arquivo
+    const setupImageUploads = () => {
+        const logoInput = document.getElementById('conf-logo-upload');
+        const bannerInput = document.getElementById('conf-banner-upload');
+
+        if (logoInput) {
+            // Remove listeners antigos (prevenção de bugs)
+            const newLogoInput = logoInput.cloneNode(true);
+            logoInput.parentNode.replaceChild(newLogoInput, logoInput);
+            newLogoInput.addEventListener('change', (e) => handleImageSelectForCrop(e, 'logo'));
+        }
+
+        if (bannerInput) {
+            // Remove listeners antigos
+            const newBannerInput = bannerInput.cloneNode(true);
+            bannerInput.parentNode.replaceChild(newBannerInput, bannerInput);
+            newBannerInput.addEventListener('change', (e) => handleImageSelectForCrop(e, 'banner'));
+        }
+    };
+
+    // Ativa os ouvintes assim que carregar a página
+    document.addEventListener('DOMContentLoaded', setupImageUploads);
+
+    // 2. Pega a foto do celular/PC e joga pro Modal
+    window.handleImageSelectForCrop = (event, type) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            showToast("Por favor, selecione uma imagem válida (JPG, PNG).", "error");
+            event.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            openCropModal(e.target.result, type);
+        };
+        reader.readAsDataURL(file);
+
+        // Reseta o input para o usuário poder selecionar a mesma foto se cancelar sem querer
+        event.target.value = '';
+    };
+
+    // 3. Abre o modal e liga o Cropper.js
+    window.openCropModal = (imageSrc, type) => {
+        window.currentCropType = type;
+        const modal = document.getElementById('crop-modal');
+        const imageEl = document.getElementById('crop-image');
+        const title = document.getElementById('crop-title');
+
+        if (!modal || !imageEl) {
+            console.error("ERRO: HTML do modal de crop não encontrado.");
+            return;
+        }
+
+        // ✨ A MÁGICA VISUAL: Se for logo, aplica a classe que deixa o corte redondo no CSS
+        if (type === 'logo') {
+            modal.classList.add('crop-modo-logo');
+            title.innerHTML = '<i class="fas fa-store mr-2"></i> Recortar Logo (Círculo)';
+        } else {
+            modal.classList.remove('crop-modo-logo');
+            title.innerHTML = '<i class="fas fa-image mr-2"></i> Recortar Banner (Retângulo)';
+        }
+
+        imageEl.src = imageSrc;
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        setTimeout(() => modal.classList.remove('opacity-0'), 10);
+
+        if (window.cropper) {
+            window.cropper.destroy();
+        }
+
+        setTimeout(() => {
+            if (typeof Cropper === 'undefined') {
+                alert("ERRO: O Cropper.js não carregou! Verifique o link no index.html");
+                return;
+            }
+
+            const ratio = type === 'logo' ? 1 / 1 : 21 / 9;
+
+            window.cropper = new Cropper(imageEl, {
+                aspectRatio: ratio,
+                viewMode: 2,
+                dragMode: 'move',
+                autoCropArea: 1, // <-- AJUSTE: Agora começa com o tamanho MÁXIMO da imagem (1 = 100%)
+                restore: false,
+                guides: type !== 'logo', // <-- AJUSTE: Mostra linhas de grade só no banner
+                center: type !== 'logo', // <-- AJUSTE: Mostra cruz central só no banner
+                highlight: false,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: true,
+            });
+        }, 150);
+    };
+
+    // 4. Fechar Modal
+    window.closeCropModal = () => {
+        const modal = document.getElementById('crop-modal');
+        modal.classList.add('opacity-0');
+
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            if (window.cropper) {
+                window.cropper.destroy();
+                window.cropper = null;
+            }
+            document.getElementById('crop-image').src = ''; // Limpa memória
+        }, 300);
+    };
+
+    // 5. MÁGICA: Confirma e comprime a imagem final
+    window.confirmCrop = () => {
+        if (!window.cropper) return;
+
+        // O Cropper faz a compressão e define o tamanho máximo aqui!
+        const canvas = window.cropper.getCroppedCanvas({
+            // Se for logo, 500px tá ótimo. Banner pode ser maior (1200px)
+            maxWidth: window.currentCropType === 'logo' ? 500 : 1200,
+            maxHeight: window.currentCropType === 'logo' ? 500 : 1200,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high',
         });
-    }
-    const bannerInput = document.getElementById('conf-banner-upload');
-    if (bannerInput) {
-        bannerInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0]; if (!file) return;
-            try { const base64 = await processImageFile(file); state.tempBanner = base64; const preview = document.getElementById('conf-banner-preview'); if (preview) { preview.src = base64; preview.classList.remove('hidden'); } } catch (err) { console.error(err); }
-        });
-    }
+
+        // Converte pra Base64 JPEG (Qualidade de 80% = Leve e bonito)
+        const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+
+        // Joga a imagem comprimida de volta pra tela e pra memória do seu Painel
+        if (window.currentCropType === 'logo') {
+            state.tempLogo = base64Image;
+            const preview = document.getElementById('conf-logo-preview');
+            const placeholder = document.getElementById('conf-logo-placeholder');
+
+            if (preview) {
+                preview.src = base64Image;
+                preview.classList.remove('hidden');
+            }
+            if (placeholder) placeholder.classList.add('hidden');
+
+        } else if (window.currentCropType === 'banner') {
+            state.tempBanner = base64Image;
+            const preview = document.getElementById('conf-banner-preview');
+
+            if (preview) {
+                preview.src = base64Image;
+                preview.classList.remove('hidden');
+            }
+        }
+
+        closeCropModal();
+        // Você não precisa salvar ainda, o botão verde "Salvar Perfil" que você já tem fará isso!
+    };
+    // =================================================================
+    // 🖼️ SISTEMA PROFISSIONAL DE RECORTE DE IMAGEM (CROPPER.JS) - CARREGAS AS IMAGENS E ABRE O MODAL DE CORTE (FIM))
+    // =================================================================
 
     const chkDisablePix = document.getElementById('conf-pix-disable-all');
     if (chkDisablePix) {
@@ -3395,92 +3877,50 @@ function setupEventListeners() {
         }, true);
     }
 
-    // =================================================================
-    // INICIALIZAÇÃO DO MÓDULO DE SUPORTE (Recolocado)
-    // =================================================================
-    // Isso envia o 'state' e o 'db' para o arquivo support.js
     if (typeof initSupportModule === 'function') {
         initSupportModule({
             state: state,
             auth: auth,
-            showToast: showToast, // Para os alertas bonitos
-            loadAdminSales: loadAdminSales, // Para resetar vendas se precisar
+            showToast: showToast,
+            loadAdminSales: loadAdminSales,
             checkActiveOrders: checkActiveOrders,
-            loadProducts: loadProducts, // Para recarregar produtos após organizar
+            loadProducts: loadProducts,
             windowRef: window
         });
     }
 
-    // =================================================================
-    // AUTO-SAVE DE PARCELAMENTO (Restauração)
-    // =================================================================
-
-    // 1. Checkbox de Ativar/Desativar
     const cardActive = document.getElementById('conf-card-active');
     if (cardActive) {
         cardActive.addEventListener('change', (e) => {
-            // Controle Visual
             const details = document.getElementById('conf-card-details');
             if (details) {
                 if (e.target.checked) details.classList.remove('opacity-50', 'pointer-events-none');
                 else details.classList.add('opacity-50', 'pointer-events-none');
             }
-            // Salva Imediatamente
             autoSaveSettings('installments');
         });
     }
 
-    // 2. Campos de Texto/Número (Salva ao sair do campo - blur)
     const cardInputs = ['conf-card-max', 'conf-card-rate'];
     cardInputs.forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('blur', () => {
-                // Se for a taxa, formata visualmente antes de salvar
-                if (id === 'conf-card-rate' && typeof formatMoneyInput === 'function') {
-                    // Pequeno truque para manter formatado bonito
-                    // (Opcional, se não tiver a função ele ignora)
-                }
-                autoSaveSettings('installments');
-            });
-        }
+        if (el) { el.addEventListener('blur', () => { autoSaveSettings('installments'); }); }
     });
 
-    // 3. Select "Sem Juros" (Salva ao mudar a opção)
     const cardFree = document.getElementById('conf-card-free');
-    if (cardFree) {
-        cardFree.addEventListener('change', () => autoSaveSettings('installments'));
-    }
+    if (cardFree) { cardFree.addEventListener('change', () => autoSaveSettings('installments')); }
 
     setupRateMask();
 
-    // =================================================================
-    // AUTO-SAVE LOGÍSTICA (CEP E RAIO)
-    // =================================================================
     const logisticsInputs = ['conf-store-cep', 'conf-max-dist'];
-
     logisticsInputs.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-            // Salva ao sair do campo (blur)
-            el.addEventListener('blur', () => {
-                autoSaveSettings('logistics');
-            });
-
-            // Opcional: Se quiser salvar ao pressionar Enter
-            el.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    el.blur(); // Tira o foco para disparar o save
-                }
-            });
+            el.addEventListener('blur', () => { autoSaveSettings('logistics'); });
+            el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { el.blur(); } });
         }
     });
 
-    // =================================================================
-    // CONTROLE DE PAGAMENTOS (LISTENERS & TRAVAS)
-    // =================================================================
-
-    // Lista de IDs dos Checkboxes
     const payCheckboxes = [
         'conf-pay-online-active', 'conf-pay-online-pix', 'conf-pay-online-credit', 'conf-pay-online-debit',
         'conf-pay-delivery-active', 'conf-pay-delivery-pix', 'conf-pay-delivery-credit', 'conf-pay-delivery-debit', 'conf-pay-delivery-cash'
@@ -3489,7 +3929,6 @@ function setupEventListeners() {
     payCheckboxes.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-            // Remove listeners antigos (clone) para não duplicar lógica
             const newEl = el.cloneNode(true);
             el.parentNode.replaceChild(newEl, el);
 
@@ -3498,69 +3937,46 @@ function setupEventListeners() {
                 const isMasterDelivery = id === 'conf-pay-delivery-active';
                 const isChecked = e.target.checked;
 
-                // --- TRAVA 1: Não pode desativar o ÚLTIMO método Mestre ---
                 if ((isMasterOnline || isMasterDelivery) && !isChecked) {
                     const onlineActive = document.getElementById('conf-pay-online-active').checked;
                     const deliveryActive = document.getElementById('conf-pay-delivery-active').checked;
-
                     if (!onlineActive && !deliveryActive) {
                         alert("⚠️ Você não pode desativar todas as formas de pagamento.\nPelo menos uma (Online ou Entrega) deve ficar ativa.");
-                        e.target.checked = true; // Reverte
-                        return;
+                        e.target.checked = true; return;
                     }
                 }
 
-                // --- TRAVA 2: Não pode desativar todas as sub-opções de um grupo ativo ---
-                // Se eu estou desmarcando um sub-item (ex: Pix Online), verifico se sobrou algum outro no grupo
                 if (!isMasterOnline && !isMasterDelivery && !isChecked) {
                     const group = id.includes('online') ? 'online' : 'delivery';
                     const masterId = `conf-pay-${group}-active`;
                     const masterChecked = document.getElementById(masterId).checked;
 
-                    // Só valida se o grupo Mestre estiver ativo
                     if (masterChecked) {
-                        // Conta quantos estão marcados neste grupo (excluindo o Master)
                         const inputs = document.querySelectorAll(`input[id^="conf-pay-${group}-"]:not([id$="-active"]):checked`);
                         if (inputs.length === 0) {
                             alert(`⚠️ O grupo ${group === 'online' ? 'Online' : 'Entrega'} precisa de pelo menos uma opção ativa.`);
-                            e.target.checked = true; // Reverte
-                            return;
+                            e.target.checked = true; return;
                         }
                     }
                 }
-
-                // Atualiza visual (opacidade)
                 if (typeof updatePaymentVisuals === 'function') updatePaymentVisuals();
-
-                // Salva no Banco
                 autoSaveSettings('payments');
             });
         }
     });
 
-    // =================================================================
-    // AUTO-SAVE: CONFIGURAÇÕES DE PEDIDO (Frete, Código, Tempo)
-    // =================================================================
-    // 1. Pedir Código do Cliente (Checkbox)
     const elReqCode = document.getElementById('conf-req-code');
-    if (elReqCode) {
-        elReqCode.addEventListener('change', () => autoSaveSettings('orders'));
-    }
+    if (elReqCode) { elReqCode.addEventListener('change', () => autoSaveSettings('orders')); }
 
-    // 2. Tempo de Cancelamento (Input Número)
     const elCancelTime = document.getElementById('conf-cancel-time');
     if (elCancelTime) {
         elCancelTime.addEventListener('blur', () => autoSaveSettings('orders'));
-        elCancelTime.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') elCancelTime.blur();
-        });
+        elCancelTime.addEventListener('keydown', (e) => { if (e.key === 'Enter') elCancelTime.blur(); });
     }
 
-    // 3. Regra de Frete (Select)
     const elShipRule = document.getElementById('conf-shipping-rule');
     if (elShipRule) {
         elShipRule.addEventListener('change', (e) => {
-            // Controle Visual
             const container = document.getElementById('shipping-value-container');
             if (container) {
                 if (e.target.value !== 'none') container.classList.remove('opacity-50', 'pointer-events-none');
@@ -3570,12 +3986,10 @@ function setupEventListeners() {
         });
     }
 
-    // 4. Valor do Frete (Input Texto)
     const elShipValue = document.getElementById('conf-shipping-value');
     if (elShipValue) {
         elShipValue.addEventListener('blur', () => {
             if (typeof formatMoneyForInput === 'function' && elShipValue.value) {
-                // Formatação visual simples
                 let val = parseFloat(elShipValue.value.replace(/[^\d,.]/g, '').replace(',', '.')) || 0;
                 if (val > 0) elShipValue.value = formatMoneyForInput(val);
             }
@@ -3583,74 +3997,453 @@ function setupEventListeners() {
         });
     }
 
-    // =================================================================
-    // MÁSCARA DE MOEDA PARA PRODUTOS (Venda, Promo, Custo, Pix)
-    // =================================================================
     const productPriceInputs = ['prod-price', 'prod-promo', 'prod-cost', 'prod-pix-val'];
-
     productPriceInputs.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('input', (e) => {
-                let value = e.target.value.replace(/\D/g, ""); // Remove tudo que não é número
-
-                // Se apagar tudo, limpa o campo
-                if (value === "") {
-                    e.target.value = "";
-                    return;
-                }
-
-                // Converte para decimal (divide por 100 para criar os centavos)
-                // Ex: digita 1 -> 0.01 | digita 100 -> 1.00
+                let value = e.target.value.replace(/\D/g, "");
+                if (value === "") { e.target.value = ""; return; }
                 value = (parseFloat(value) / 100).toFixed(2) + '';
-
-                // Troca ponto por vírgula
                 value = value.replace(".", ",");
-
-                // Adiciona ponto de milhar (ex: 1.000,00)
                 value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
-
                 e.target.value = value;
             });
         }
     });
+
+    // --- VALIDAÇÃO EM TEMPO REAL: WHATSAPP DA LOJA ---
+    const inputWpp = document.getElementById('conf-store-wpp');
+    const erroWpp = document.getElementById('erro-conf-wpp');
+
+    if (inputWpp && erroWpp) {
+        inputWpp.addEventListener('input', (e) => {
+            // 1. Remove qualquer letra ou símbolo na hora que o cara digita
+            let valor = e.target.value.replace(/\D/g, '');
+            e.target.value = valor;
+
+            if (valor.length > 0) {
+                // 2. Se tiver menos de 10 ou mais de 13 números, está errado
+                if (valor.length < 11 || valor.length > 13) {
+                    inputWpp.classList.remove('border-gray-700', 'focus:border-yellow-500', 'border-green-500');
+                    inputWpp.classList.add('border-red-500', 'focus:border-red-500'); // Borda vermelha
+                    erroWpp.classList.remove('hidden'); // Mostra o aviso
+                } else {
+                    // 3. Se estiver no tamanho certo, fica VERDE de sucesso
+                    inputWpp.classList.remove('border-red-500', 'focus:border-red-500', 'border-gray-700', 'focus:border-yellow-500');
+                    inputWpp.classList.add('border-green-500'); // Borda verde
+                    erroWpp.classList.add('hidden'); // Esconde o aviso
+                }
+            } else {
+                // 4. Se ele apagar tudo e o campo ficar vazio, volta pra cor original (cinza/amarelo)
+                inputWpp.classList.remove('border-red-500', 'focus:border-red-500', 'border-green-500');
+                inputWpp.classList.add('border-gray-700', 'focus:border-yellow-500');
+                erroWpp.classList.add('hidden');
+            }
+        });
+    }
+
+    // =======================================================
+    // GATILHOS DO GERENCIADOR DE TÓPICOS (CORRIGIDO)
+    // =======================================================
+    const chkMasterTopicos = document.getElementById('ativar-topicos-geral');
+    if (chkMasterTopicos) {
+        // Remove ouvintes antigos clonando
+        const newChk = chkMasterTopicos.cloneNode(true);
+        chkMasterTopicos.parentNode.replaceChild(newChk, chkMasterTopicos);
+
+        newChk.addEventListener('change', async (e) => {
+            const isActive = e.target.checked;
+            state.storeProfile.enableCustomTopics = isActive;
+
+            const formArea = document.getElementById('box-form-topico');
+            if (formArea) {
+                if (isActive) formArea.classList.remove('opacity-50', 'pointer-events-none');
+                else formArea.classList.add('opacity-50', 'pointer-events-none');
+            }
+
+            try {
+                await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { enableCustomTopics: isActive }, { merge: true });
+                if (typeof renderSidebarTopics === 'function') renderSidebarTopics();
+                showToast(isActive ? "Tópicos ativados na loja!" : "Tópicos ocultos da loja.");
+            } catch (err) { console.error(err); }
+        });
+    }
+
+    // 1. OUVINTES DO TÍTULO E DESCRIÇÃO (Fazem o botão "Novo" virar "Salvar" ao digitar)
+    const titleInput = document.getElementById('topico-titulo');
+    if (titleInput) {
+        const newTitle = titleInput.cloneNode(true);
+        titleInput.parentNode.replaceChild(newTitle, titleInput);
+        newTitle.addEventListener('input', () => {
+            if (typeof checkTopicChanges === 'function') checkTopicChanges();
+        });
+    }
+
+    const richDesc = document.getElementById('topico-descricao-rich');
+    if (richDesc) {
+        const newDesc = richDesc.cloneNode(true);
+        richDesc.parentNode.replaceChild(newDesc, richDesc);
+        newDesc.addEventListener('input', () => {
+            if (typeof checkTopicChanges === 'function') checkTopicChanges();
+        });
+    }
+
+    // 3. INICIA O ESTADO ORIGINAL
+    if (typeof renderIconSelector === 'function') renderIconSelector();
+    state.originalTopicState = "||fa-file-alt";
+
+} // <-- FECHA A FUNÇÃO setupEventListeners()
+
+
+// =====================================================================
+// 🌟 SISTEMA DE CATEGORIAS PREMIUM (VIDRO, CORES DO PAINEL E CARROSSEL)
+// =====================================================================
+window.aplicarCoresCategorias = (catName) => {
+    const todosBotoes = document.querySelectorAll('.categoria-btn');
+
+    // Arrays isolados com as classes exatas
+    // INATIVA: Fundo de vidro branco 10% (transparente e limpo)
+    const classesInativas = ['bg-white/10', 'text-[var(--txt-body)]', 'border-transparent'];
+
+    // ATIVA: Fundo preto 60% (bg-black/60) para dar o destaque escuro que você pediu!
+    const classesAtivas = ['bg-black/60', 'text-[var(--clr-accent)]', 'border-[var(--clr-accent)]'];
+
+    todosBotoes.forEach(btn => {
+        // Limpa qualquer estilo inline que as tentativas anteriores tenham deixado preso
+        btn.removeAttribute('style');
+
+        // Remove todas as classes para evitar acúmulo e sujeira
+        btn.classList.remove(...classesInativas, ...classesAtivas, 'bg-white/5', 'bg-white/20', 'bg-[#151720]', 'bg-black', 'text-white', 'text-gray-300');
+
+        const isAtivo = btn.dataset.cat === catName || (catName !== '' && catName.startsWith(btn.dataset.cat + ' -'));
+
+        if (isAtivo) {
+            btn.classList.add(...classesAtivas);
+        } else {
+            btn.classList.add(...classesInativas);
+        }
+    });
+};
+
+// 2. FUNÇÃO DO CLIQUE (Filtra e muda cor)
+window.filterByCat = (catName) => {
+    window.isCategorySelected = (catName !== ''); // Avisa o carrossel se deve pausar
+
+    if (els.pageTitle) els.pageTitle.innerText = catName ? catName.split(' - ').pop() : 'Vitrine';
+    if (els.catFilter) els.catFilter.value = catName;
+
+    if (!catName) renderCatalog(state.products);
+    else {
+        const term = catName.toLowerCase();
+        const filtered = state.products.filter(p => {
+            if (!p.category) return false;
+            const prodCat = p.category.toLowerCase();
+            return prodCat === term || prodCat.startsWith(term + ' -');
+        });
+        renderCatalog(filtered);
+    }
+
+    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    if (window.innerWidth < 1024) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+            sidebar.classList.add('-translate-x-full');
+            if (overlay) overlay.classList.add('hidden');
+        }
+    }
+
+    // ✨ AQUI: Fecha qualquer opção/dropdown da BARRA SUPERIOR que esteja aberto
+    if (typeof fecharCatDropdown === 'function') fecharCatDropdown();
+
+    window.aplicarCoresCategorias(catName);
+};
+
+// 3. RENDERIZADOR (Cria os botões na tela)
+function renderCategories() {
+    const populateSelect = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const val = el.value;
+        el.innerHTML = `<option value="">Todas</option>`;
+        state.categories.forEach(c => el.innerHTML += `<option value="${c.name}">${c.name}</option>`);
+        if (val) el.value = val;
+    };
+    ['category-filter', 'admin-filter-cat', 'bulk-category-select', 'prod-cat-select', 'bulk-category-select-dynamic'].forEach(populateSelect);
+
+    const scrollContainer = document.getElementById('categorias-scroll');
+    if (scrollContainer) {
+        let activeCat = document.getElementById('category-filter')?.value || '';
+
+        if (activeCat !== '') {
+            const catExists = state.categories.some(c => c.name === activeCat || activeCat.startsWith(c.name + ' -'));
+            if (!catExists) { activeCat = ''; renderCatalog(state.products); }
+        }
+
+        let pillsHtml = '';
+        const principais = state.categories.filter(c => !c.name.includes(' - '));
+        const categoriasParaMostrar = principais.length > 0 ? principais : state.categories;
+        categoriasParaMostrar.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        categoriasParaMostrar.forEach(c => {
+            const safeName = c.name.replace(/'/g, "\\'");
+            const hasSubs = state.categories.some(sub => sub.name.startsWith(c.name + ' - '));
+
+            // 👉 ESTRUTURA BASE: Só estrutura e desfoque. As cores (bg-white/10) entram via JS.
+            const classesEstrutura = "categoria-btn flex items-center h-full rounded-full transition-all shrink-0 border backdrop-blur-md font-['Nunito'] font-black tracking-wide text-xs outline-none";
+
+            if (hasSubs) {
+                pillsHtml += `
+                    <div class="${classesEstrutura}" data-cat="${safeName}">
+                        <button onclick="filterByCat('${safeName}')" class="px-4 h-full rounded-l-full outline-none">
+                            ${c.name}
+                        </button>
+                        <button onclick="toggleCatDropdown('${safeName}', event)" class="px-3 h-full border-l border-white/20 flex items-center justify-center rounded-r-full hover:bg-black/30 outline-none transition-colors">
+                            <i class="fas fa-chevron-down text-[10px]"></i>
+                        </button>
+                    </div>
+                `;
+            } else {
+                pillsHtml += `
+                    <button onclick="filterByCat('${safeName}')" data-cat="${safeName}" class="${classesEstrutura} px-5 outline-none">
+                        ${c.name}
+                    </button>
+                `;
+            }
+        });
+
+        scrollContainer.innerHTML = pillsHtml;
+
+        // Ao terminar de desenhar, o JS pinta quem é quem
+        setTimeout(() => { window.aplicarCoresCategorias(activeCat); }, 10);
+
+        if (typeof initCategoryCarousel === 'function') initCategoryCarousel();
+    }
+
+    // --- SIDEBAR (MANTENHA A SUA CÓPIA AQUI) ---
+    const sidebarContainer = document.getElementById('sidebar-categories');
+    if (sidebarContainer) {
+        const tree = {};
+        state.categories.forEach(c => {
+            const parts = c.name.split(' - ');
+            let currentLevel = tree;
+            parts.forEach((part, index) => {
+                if (!currentLevel[part]) {
+                    const fullPath = parts.slice(0, index + 1).join(' - ');
+                    currentLevel[part] = { _path: fullPath, _children: {} };
+                }
+                currentLevel = currentLevel[part]._children;
+            });
+        });
+
+        const getOrder = (path) => {
+            const cat = state.categories.find(c => c.name === path);
+            return cat && cat.order !== undefined ? cat.order : 999;
+        };
+
+        const buildHtml = (node, level = 0) => {
+            let html = '';
+            const keys = Object.keys(node).sort((a, b) => {
+                const orderA = getOrder(node[a]._path);
+                const orderB = getOrder(node[b]._path);
+                if (orderA !== orderB) return orderA - orderB;
+                return a.localeCompare(b);
+            });
+
+            keys.forEach(key => {
+                const item = node[key];
+                const hasChildren = Object.keys(item._children).length > 0;
+                const safePath = item._path.replace(/'/g, "\\'");
+                const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
+                const textStyle = level === 0 ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm" : "text-gray-300 font-medium text-sm hover:text-white";
+
+                if (hasChildren) {
+                    html += `
+                        <details class="group mb-1">
+                            <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
+                                <span class="${textStyle} flex-1" style="padding-left:${paddingLeft}px" onclick="event.preventDefault(); filterByCat('${safePath}')">${key}</span>
+                                <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">▲</span>
+                            </summary>
+                            <div class="border-l border-gray-800 ml-4">${buildHtml(item._children, level + 1)}</div>
+                        </details>`;
+                } else {
+                    html += `
+                        <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center" onclick="filterByCat('${safePath}')">
+                            <span class="${textStyle}" style="padding-left:${paddingLeft}px">${key}</span>
+                        </div>`;
+                }
+            });
+            return html;
+        };
+        sidebarContainer.innerHTML = `<div class="space-y-1 mt-2">${buildHtml(tree)}</div>`;
+    }
 }
+
+// 4. DROPDOWN DE SUBCATEGORIAS
+window.toggleCatDropdown = (parentName, event) => {
+    event.stopPropagation();
+    const dropdown = document.getElementById('global-cat-dropdown');
+    if (!dropdown.classList.contains('hidden') && dropdown.dataset.current === parentName) {
+        fecharCatDropdown();
+        return;
+    }
+    const subs = state.categories.filter(c => c.name.startsWith(parentName + ' - ') && c.name.split(' - ').length === parentName.split(' - ').length + 1);
+    dropdown.innerHTML = subs.map(sub => {
+        const safeSubName = sub.name.replace(/'/g, "\\'");
+        const shortName = sub.name.replace(parentName + ' - ', '');
+        return `
+            <button onclick="filterByCat('${safeSubName}'); fecharCatDropdown()" class="block w-full text-left px-5 py-2.5 text-xs font-bold text-gray-400 hover:bg-white/10 hover:text-white transition-colors outline-none">
+                ${shortName}
+            </button>
+        `;
+    }).join('');
+    const btnRect = event.currentTarget.getBoundingClientRect();
+    dropdown.style.top = `${btnRect.bottom + 8}px`;
+    const spaceRight = window.innerWidth - btnRect.right;
+    if (spaceRight < 150) {
+        dropdown.style.right = `${window.innerWidth - btnRect.right}px`;
+        dropdown.style.left = 'auto';
+    } else {
+        dropdown.style.left = `${btnRect.left - 50}px`;
+        dropdown.style.right = 'auto';
+    }
+    dropdown.dataset.current = parentName;
+    dropdown.classList.remove('hidden');
+    setTimeout(() => {
+        dropdown.classList.remove('opacity-0', 'scale-95');
+        dropdown.classList.add('opacity-100', 'scale-100');
+    }, 10);
+};
+
+window.fecharCatDropdown = () => {
+    const dropdown = document.getElementById('global-cat-dropdown');
+    if (dropdown && !dropdown.classList.contains('hidden')) {
+        dropdown.classList.remove('opacity-100', 'scale-100');
+        dropdown.classList.add('opacity-0', 'scale-95');
+        setTimeout(() => dropdown.classList.add('hidden'), 200);
+        dropdown.dataset.current = "";
+    }
+};
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#global-cat-dropdown') && !e.target.closest('.categoria-btn')) {
+        fecharCatDropdown();
+    }
+});
+
+// ===============================================
+// 5. CARROSSEL COM PING-PONG BLINDADO E PAUSA
+// ===============================================
+window.isCategorySelected = false;
+window.initCategoryCarousel = () => {
+    const slider = document.getElementById('categorias-scroll');
+    if (!slider) return;
+
+    // 🔥 A VACINA DO CELULAR: Remove o 'scroll-smooth' que causa o cabo de guerra
+    slider.classList.remove('scroll-smooth');
+    slider.style.scrollBehavior = 'auto';
+
+    // Mata animações velhas se atualizar a tela
+    if (window.carouselAnimationId) {
+        cancelAnimationFrame(window.carouselAnimationId);
+    }
+
+    let isDown = false;
+    let startX;
+    let scrollLeft;
+    let isAutoScrolling = true;
+    let scrollDirection = 1;
+
+    const playAutoScroll = () => {
+        window.carouselAnimationId = requestAnimationFrame(playAutoScroll);
+
+        const selectEscondido = document.getElementById('category-filter');
+        const temCategoriaAtiva = selectEscondido && selectEscondido.value !== '';
+
+        // Pausa se clicou em algo ou se o dedo estiver na tela
+        if (!isAutoScrolling || temCategoriaAtiva) return;
+
+        const maxScroll = slider.scrollWidth - slider.clientWidth;
+        if (maxScroll <= 0) return;
+
+        if (slider.scrollLeft >= maxScroll - 2) scrollDirection = -1;
+        else if (slider.scrollLeft <= 0) scrollDirection = 1;
+
+        // Roda fluido
+        slider.scrollLeft += scrollDirection;
+    };
+
+    playAutoScroll();
+
+    // 📱 EVENTOS BLINDADOS (Usando on... para não duplicar lixo na memória)
+
+    // --- CONTROLES PC (MOUSE) ---
+    slider.onmousedown = (e) => {
+        isDown = true; isAutoScrolling = false; slider.style.cursor = 'grabbing';
+        startX = e.pageX - slider.offsetLeft; scrollLeft = slider.scrollLeft;
+    };
+    slider.onmouseleave = () => {
+        isDown = false; slider.style.cursor = 'grab'; isAutoScrolling = true;
+    };
+    slider.onmouseup = () => {
+        isDown = false; slider.style.cursor = 'grab';
+        setTimeout(() => { isAutoScrolling = true; }, 2000);
+    };
+    slider.onmousemove = (e) => {
+        if (!isDown) return; e.preventDefault();
+        const x = e.pageX - slider.offsetLeft; const walk = (x - startX) * 2;
+        slider.scrollLeft = scrollLeft - walk;
+    };
+
+    // --- CONTROLES CELULAR (DEDO) ---
+    slider.ontouchstart = () => {
+        // Pausa a animação assim que o dedo encosta
+        isAutoScrolling = false;
+    };
+    slider.ontouchend = () => {
+        // Quando tira o dedo, espera 2 segundos e volta a andar sozinho
+        setTimeout(() => { isAutoScrolling = true; }, 2000);
+    };
+};;
 
 // =================================================================
 // RECUPERAÇÃO DAS ABAS DO ADMIN (Produtos, Categoria, Stats, Config)
 // =================================================================
-const adminTabs = document.querySelectorAll('.tab-btn');
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tab-btn');
+    if (!btn) return;
 
-if (adminTabs.length > 0) {
-    adminTabs.forEach(btn => {
-        btn.onclick = () => {
-            // 1. Esconde todos os conteúdos das abas
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.add('hidden');
-            });
-
-            // 2. Remove o destaque (amarelo) de todos os botões
-            adminTabs.forEach(b => {
-                b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500');
-                b.classList.add('text-gray-400');
-            });
-
-            // 3. Mostra o conteúdo da aba clicada
-            const targetId = btn.dataset.tab; // Pega o ID do HTML (ex: data-tab="tab-produtos")
-            const targetContent = document.getElementById(targetId);
-
-            if (targetContent) {
-                targetContent.classList.remove('hidden');
-            } else {
-                console.warn(`Aba alvo não encontrada: ${targetId}`);
-            }
-
-            // 4. Destaca o botão clicado
-            btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500');
-            btn.classList.remove('text-gray-400');
-        };
+    // 1. Esconde todos os conteúdos das abas com Blindagem Dupla
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+        content.setAttribute('hidden', 'true'); // Trava HTML
+        content.style.setProperty('display', 'none', 'important'); // Trava inline
     });
-}
+
+    // 2. Remove o destaque de todos os botões
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('text-yellow-500', 'border-b-2', 'border-yellow-500');
+        b.classList.add('text-gray-400');
+    });
+
+    // 3. Mostra o conteúdo da aba clicada
+    const targetId = btn.dataset.tab;
+    const targetContent = document.getElementById(targetId);
+
+    if (targetContent) {
+        targetContent.classList.remove('hidden');
+        targetContent.removeAttribute('hidden'); // Destrava HTML
+        targetContent.style.display = '';
+    } else {
+        console.warn(`Aba alvo não encontrada: ${targetId}`);
+    }
+
+    // 4. Destaca o botão clicado
+    btn.classList.add('text-yellow-500', 'border-b-2', 'border-yellow-500');
+    btn.classList.remove('text-gray-400');
+});
 
 function updateCardStyles(isLight) {
     const cards = document.querySelectorAll('.product-card');
@@ -3716,27 +4509,44 @@ function showView(viewName) {
     const header = document.getElementById('site-header');
     const searchBar = document.getElementById('site-search-bar');
     const floatCapsule = document.getElementById('site-floating-capsule');
+    const viewTopic = document.getElementById('view-topic')
 
     // IDs das Telas
     const viewCatalog = document.getElementById('view-catalog');
     const viewAdmin = document.getElementById('view-admin');
     const viewSupport = document.getElementById('view-support');
 
-    // 1. Esconde TODAS as telas
-    if (viewCatalog) viewCatalog.classList.add('hidden');
-    if (viewAdmin) viewAdmin.classList.add('hidden');
-    if (viewSupport) viewSupport.classList.add('hidden');
+    // ✨ 1. BLINDAGEM NATIVA ABSOLUTA: Esconde usando Tailwind, CSS inline e o atributo HTML
+    const hideSecure = (el) => {
+        if (!el) return;
+        el.classList.add('hidden');
+        el.setAttribute('hidden', 'true'); // Oculta mesmo se desativarem o CSS
+        el.style.setProperty('display', 'none', 'important');
+    };
+
+    const showSecure = (el) => {
+        if (!el) return;
+        el.classList.remove('hidden');
+        el.removeAttribute('hidden');
+        el.style.display = '';
+    };
+
+    // Esconde todas por segurança antes de revelar a certa
+    hideSecure(viewCatalog);
+    hideSecure(viewAdmin);
+    hideSecure(viewSupport);
+    hideSecure(viewTopic);
 
     // 2. Lógica do TOPO (Cabeçalho)
     if (viewName === 'admin' || viewName === 'support') {
-        if (header) header.classList.add('hidden');
-        if (searchBar) searchBar.classList.add('hidden');
-        if (floatCapsule) floatCapsule.classList.add('hidden');
-        document.body.classList.remove('pt-6'); 
+        hideSecure(header);
+        hideSecure(searchBar);
+        hideSecure(floatCapsule);
+        document.body.classList.remove('pt-6');
     } else {
-        if (header) header.classList.remove('hidden');
-        if (searchBar) searchBar.classList.remove('hidden');
-        if (floatCapsule) floatCapsule.classList.remove('hidden');
+        showSecure(header);
+        showSecure(searchBar);
+        showSecure(floatCapsule);
     }
 
     // =========================================================
@@ -3745,44 +4555,60 @@ function showView(viewName) {
     const storeName = state.storeProfile?.name || 'Loja';
 
     if (viewName === 'admin') {
-        if (viewAdmin) viewAdmin.classList.remove('hidden');
+        showSecure(viewAdmin);
         if (typeof loadAdminSales === 'function') loadAdminSales();
-        
-        // Título do Painel Admin
+
         document.title = `${storeName} - Painel Admin`;
+
+        if (typeof window.loadAvisos === 'function') window.loadAvisos();
     }
     else if (viewName === 'support') {
-        if (viewSupport) viewSupport.classList.remove('hidden');
-        
-        // Título do Suporte
+        showSecure(viewSupport);
         document.title = `Suporte - ${storeName}`;
     }
+    else if (viewName === 'topic') {
+        showSecure(viewTopic);
+        document.title = `${storeName} - Informações`;
+    }
     else {
-        // Padrão: Catálogo
-        if (viewCatalog) viewCatalog.classList.remove('hidden');
+        // Padrão: Catálogo (Vitrine)
+        showSecure(viewCatalog);
+        hideSecure(viewAdmin); // Reafirma a trava do admin!
+
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        
-        // Título da Vitrine
         document.title = `${storeName} - Catálogo`;
+
+        if (window.activeAvisosListener) {
+            window.activeAvisosListener();
+            window.activeAvisosListener = null;
+        }
+
+        try {
+            const alertIcon = document.getElementById('icone-avisos');
+            if (alertIcon) alertIcon.classList.add('hidden');
+        } catch (e) { }
     }
 
     if (typeof window.checkFooter === 'function') window.checkFooter();
 }
 
 // Atualiza o texto do botão de ordenar e reordena a lista
-function updateSortLabel(selectElement) {
+window.updateSortLabel = function (selectElement) {
     // 1. Atualiza o texto visual (Label)
     const label = document.getElementById('sort-label-display');
     if (label) {
         // Pega o texto da opção selecionada (ex: "Menor Preço")
         label.innerText = selectElement.options[selectElement.selectedIndex].text;
 
-        // Muda a cor para amarelo para indicar que está ativo
-        label.classList.add('text-yellow-500');
+        // Remove qualquer cor fixa do Tailwind e aplica a cor de Destaque da Loja
+        label.classList.remove('text-yellow-500', 'text-orange-500', 'text-gray-400');
+        label.style.color = 'var(--txt-body)';
     }
 
     // 2. Chama a reordenação (usa a função existente)
-    renderCatalog(state.products);
+    if (typeof renderCatalog === 'function') {
+        renderCatalog(state.products);
+    }
 };
 
 // OBRIGATÓRIO: EXPOR PARA O HTML
@@ -3902,6 +4728,7 @@ function setupKeyboardListeners() {
 //     }
 // }
 
+
 function setupSwipe(element) {
     if (!element) return;
 
@@ -3964,62 +4791,82 @@ window.updateStatus = async (orderId, newStatus, oldStatus) => {
     const order = state.orders.find(o => o.id === orderId);
     if (!order) return;
 
+    // Se aprovou, dá baixa no estoque
     if (newStatus === 'Confirmado' && oldStatus !== 'Confirmado') {
-        for (const item of order.items) {
-            const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
-            const prodInState = state.products.find(p => p.id === item.id);
-            if (prodInState) {
-                const allowNegative = state.globalSettings.allowNoStock || prodInState.allowNoStock;
-                let newStock = prodInState.stock - item.qty;
-                if (!allowNegative && newStock < 0) newStock = 0;
-                await updateDoc(prodRef, { stock: newStock });
-            }
-        }
+        await processStockUpdate(order.items, 'remove');
     }
+    // Se cancelou/reembolsou, devolve pro estoque
     if ((newStatus === 'Cancelado' || newStatus === 'Reembolsado') && oldStatus === 'Confirmado') {
-        for (const item of order.items) {
-            const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
-            const prodInState = state.products.find(p => p.id === item.id);
-            if (prodInState) {
-                const newStock = prodInState.stock + item.qty;
-                await updateDoc(prodRef, { stock: newStock });
-            }
-        }
+        await processStockUpdate(order.items, 'add');
     }
 };
 
-function openProductModal(productId) {
+window.openProductModal = (productId) => {
     const p = state.products.find(x => x.id === productId);
     if (!p) return;
 
     state.focusedProductId = productId;
     state.currentImgIndex = 0;
 
-    const modal = getEl('product-modal');
-    const backdrop = getEl('modal-backdrop');
-    const card = getEl('modal-card');
+    const modal = document.getElementById('product-modal');
+    const backdrop = document.getElementById('modal-backdrop');
+    const card = document.getElementById('modal-card');
 
     if (!modal || !card) return;
 
-    // Config Visual (Scrollbar)
-    if (!document.getElementById('style-hide-scroll')) {
+    if (!document.getElementById('style-product-modal-image')) {
         const style = document.createElement('style');
-        style.id = 'style-hide-scroll';
-        style.innerHTML = `.hide-scroll::-webkit-scrollbar { display: none; } .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }`;
+        style.id = 'style-product-modal-image';
+        style.innerHTML = `
+            .hide-scroll::-webkit-scrollbar { display: none; } 
+            .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+            .thin-scroll::-webkit-scrollbar { width: 4px; }
+            .thin-scroll::-webkit-scrollbar-track { background: transparent; }
+            .thin-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
+            
+            #modal-img {
+                position: absolute !important;
+                inset: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: cover !important;
+                object-position: top center !important;
+                z-index: 1 !important;
+            }
+            
+            #modal-thumbnails {
+                position: absolute !important;
+                bottom: 20px !important;
+                left: 0 !important;
+                width: 100% !important;
+                display: flex !important;
+                justify-content: center !important;
+                z-index: 10 !important;
+            }
+        `;
         document.head.appendChild(style);
     }
 
-    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0";
+    card.className = "bg-gray-900 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl border border-gray-700 flex flex-col md:flex-row overflow-hidden transform transition-all duration-300 pointer-events-auto relative scale-95 opacity-0 hide-scroll";
 
-    // Imagens
+    const imgCol = card.children[1];
+    const rightCol = card.children[2];
+
+    if (imgCol) {
+        imgCol.className = "w-full md:w-1/2 h-[40vh] md:h-auto relative shrink-0 overflow-hidden bg-black";
+    }
+
+    if (rightCol) {
+        rightCol.className = "w-full md:w-1/2 flex flex-col bg-gray-900 overflow-y-auto relative hide-scroll md:max-h-[90vh]";
+        if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
+        if (rightCol.children[1]) rightCol.children[1].className = "px-6 md:px-8 py-6 space-y-6 shrink-0 pb-10";
+    }
+
     let images = p.images || [];
     if (images.length === 0) images = ['https://placehold.co/600'];
-    updateCarouselUI(images);
+    if (typeof updateCarouselUI === 'function') updateCarouselUI(images);
 
-    // Configurações
     const instProfile = state.storeProfile.installments || { active: false, max: 12, freeUntil: 1 };
-
-    // --- LÓGICA CRÍTICA: Carrega o TIPO (percent ou fixed) ---
     const pixGlobal = state.storeProfile.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
 
     const maxInstNoInterest = parseInt(instProfile.freeUntil) || 1;
@@ -4029,26 +4876,15 @@ function openProductModal(productId) {
     const priceFinal = parseFloat(p.promoPrice || p.price || 0);
     const hasPromo = p.promoPrice && p.promoPrice < p.price;
 
-    // --- LÓGICA DE EXIBIÇÃO PIX (MODAL) ---
     let pixHtml = '';
 
     if (!pixGlobal.disableAll) {
-
-        // A) Global Ativo
         if (pixGlobal.active && pixGlobal.value > 0) {
-
-            // 1. Determina se é Valor Fixo ou Porcentagem
             const isFixed = (pixGlobal.type === 'fixed');
-
-            // 2. Prepara os textos baseados no tipo
-            // Ex: "R$ 10,00 OFF" ou "10% OFF"
             const badgeText = isFixed ? `R$ ${formatCurrency(pixGlobal.value)} OFF` : `${pixGlobal.value}% OFF`;
-
-            // Ex: "R$ 10,00" ou "10%" (para o texto descritivo)
             const valueText = isFixed ? `${formatCurrency(pixGlobal.value)}` : `${pixGlobal.value}%`;
 
             if (pixGlobal.mode === 'total') {
-                // MODO TOTAL: Exibe apenas a informação do desconto, SEM CALCULAR no preço do produto
                 pixHtml = `
                 <div class="flex flex-col gap-1 mt-1">
                     <div class="flex items-center gap-2 text-sm text-gray-300">
@@ -4058,15 +4894,7 @@ function openProductModal(productId) {
                     <p class="text-[10px] text-gray-500 pl-6 italic">* Aplicado no valor total da venda.</p>
                 </div>`;
             } else {
-                // MODO PRODUTO: Calcula o valor final unitário
-                let valDesconto = 0;
-
-                if (isFixed) {
-                    valDesconto = pixGlobal.value;
-                } else {
-                    valDesconto = priceFinal * (pixGlobal.value / 100);
-                }
-
+                let valDesconto = isFixed ? pixGlobal.value : priceFinal * (pixGlobal.value / 100);
                 const finalPix = Math.max(0, priceFinal - valDesconto);
 
                 pixHtml = `
@@ -4075,11 +4903,7 @@ function openProductModal(productId) {
                     <span><b>${formatCurrency(finalPix)}</b> no Pix <span class="text-green-400 text-[10px] font-bold bg-green-900/30 px-1.5 py-0.5 rounded ml-1">${badgeText}</span></span>
                 </div>`;
             }
-
-        }
-
-        // B) Individual (Fallback) - Se global inativo
-        else if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
+        } else if (p.paymentOptions && p.paymentOptions.pix && p.paymentOptions.pix.active) {
             const pixConfig = p.paymentOptions.pix;
             let pricePix = priceFinal;
             let badgeText = '';
@@ -4099,18 +4923,57 @@ function openProductModal(productId) {
                 </div>`;
         }
     }
-    // ------------------------------------------
 
-    // Parcelamento
     let displayInst = (maxInstNoInterest > 1) ? maxInstNoInterest : maxInstTotal;
     let interestLabel = (maxInstNoInterest > 1) ? '<span class="text-green-400 font-bold text-xs ml-1">sem juros</span>' : '';
     const priceInstallment = priceFinal / displayInst;
 
-    // Preenchimento de Textos
-    if (getEl('modal-title')) getEl('modal-title').innerText = p.name;
-    if (getEl('modal-desc')) getEl('modal-desc').innerText = p.description || "Sem descrição detalhada.";
+    const elTitle = document.getElementById('modal-title');
+    if (elTitle) elTitle.innerText = p.name;
 
-    const elPrice = getEl('modal-price');
+    const elDesc = document.getElementById('modal-desc');
+    if (elDesc) {
+        const fullText = p.description || "Sem descrição detalhada.";
+        elDesc.innerText = fullText;
+
+        const oldBtn = document.getElementById('btn-read-more');
+        if (oldBtn) oldBtn.remove();
+
+        elDesc.style.maxHeight = 'unset';
+        elDesc.style.overflowY = 'hidden';
+        elDesc.classList.remove('thin-scroll');
+
+        if (fullText.length > 150 || (fullText.match(/\n/g) || []).length > 2) {
+            elDesc.style.display = '-webkit-box';
+            elDesc.style.webkitLineClamp = '3';
+            elDesc.style.webkitBoxOrient = 'vertical';
+            elDesc.style.overflow = 'hidden';
+            elDesc.style.whiteSpace = 'normal';
+
+            const btnMore = document.createElement('button');
+            btnMore.id = 'btn-read-more';
+            btnMore.className = 'text-yellow-500 font-bold text-xs mt-2 hover:underline focus:outline-none transition';
+            btnMore.innerText = 'Ver mais';
+
+            btnMore.onclick = () => {
+                if (elDesc.style.webkitLineClamp === '3') {
+                    elDesc.style.webkitLineClamp = 'unset';
+                    elDesc.style.whiteSpace = 'pre-line';
+                    btnMore.innerText = 'Ver menos';
+                } else {
+                    elDesc.style.webkitLineClamp = '3';
+                    elDesc.style.whiteSpace = 'normal';
+                    btnMore.innerText = 'Ver mais';
+                }
+            };
+            elDesc.parentNode.insertBefore(btnMore, elDesc.nextSibling);
+        } else {
+            elDesc.style.webkitLineClamp = 'unset';
+            elDesc.style.whiteSpace = 'pre-line';
+        }
+    }
+
+    const elPrice = document.getElementById('modal-price');
     if (elPrice) {
         let htmlHtml = '';
         if (hasPromo) htmlHtml += `<span class="text-gray-500 text-sm line-through block mb-1">De: ${formatCurrency(priceOriginal)}</span>`;
@@ -4130,47 +4993,107 @@ function openProductModal(productId) {
         elPrice.innerHTML = htmlHtml;
     }
 
-    // Scroll
-    const rightCol = card.children[2];
-    if (rightCol) {
-        rightCol.className = "w-full md:w-1/2 flex flex-col h-full bg-gray-900 overflow-y-auto relative hide-scroll";
-        if (rightCol.children[0]) rightCol.children[0].className = "p-6 md:p-8 pb-0 shrink-0";
-        if (rightCol.children[1]) rightCol.children[1].className = "px-6 md:px-8 py-6 space-y-6 flex-1";
+    const sizesWrapper = document.getElementById('modal-sizes-wrapper');
+    const sizesDiv = document.getElementById('modal-sizes');
+    const btnAdd = document.getElementById('modal-add-cart');
+
+    if (sizesWrapper && btnAdd && sizesWrapper.parentElement === btnAdd.parentElement) {
+        const parent = btnAdd.parentElement;
+        parent.classList.remove('flex', 'flex-col');
+        sizesWrapper.style.order = '';
+        btnAdd.style.order = '';
+
+        parent.appendChild(sizesWrapper);
+        parent.appendChild(btnAdd);
+
+        btnAdd.style.marginTop = '16px';
     }
 
-    // Tamanhos
-    const sizesDiv = getEl('modal-sizes');
-    const sizesWrapper = getEl('modal-sizes-wrapper');
-    let selectedSizeInModal = 'U';
+    let selectedSizeInModal = null;
+
+    const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
+    const isSizeOutOfStock = (sizeStock) => sizeStock <= 0 && !allowNegative;
 
     if (sizesDiv) {
         sizesDiv.innerHTML = '';
-        if (p.sizes && p.sizes.length > 0) {
+
+        if (p.hasVariations && p.sizes && p.sizes.length > 0) {
+            // ✨ ESTOQUE GRADEADO
             if (sizesWrapper) sizesWrapper.classList.remove('hidden');
-            selectedSizeInModal = p.sizes[0];
-            p.sizes.forEach(s => {
+
+            const formattedSizes = p.sizes.map(s => {
+                if (typeof s === 'object') return s;
+                return { name: s, stock: p.stock };
+            });
+
+            selectedSizeInModal = formattedSizes.find(s => !isSizeOutOfStock(s.stock)) || formattedSizes[0];
+
+            formattedSizes.forEach(s => {
                 const btn = document.createElement('button');
-                btn.className = `w-10 h-10 rounded border font-bold transition flex items-center justify-center text-sm ${s === selectedSizeInModal ? 'bg-yellow-500 text-black border-yellow-500' : 'border-gray-600 text-gray-300 hover:border-yellow-500 hover:text-yellow-500'}`;
-                btn.innerText = s;
+                const outOfStock = isSizeOutOfStock(s.stock);
+
+                if (outOfStock) {
+                    btn.className = `w-10 h-10 rounded border border-gray-700 bg-gray-800/50 text-gray-500 font-bold flex items-center justify-center text-sm cursor-not-allowed relative overflow-hidden`;
+                    btn.innerHTML = `<span class="opacity-50">${s.name}</span><div class="absolute inset-0 w-[140%] h-[1px] bg-red-500/70 transform origin-top-left rotate-45"></div>`;
+                } else if (s.name === selectedSizeInModal.name) {
+                    btn.className = `w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm`;
+                    btn.innerHTML = `<span>${s.name}</span>`;
+                } else {
+                    btn.className = `w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm`;
+                    btn.innerHTML = `<span>${s.name}</span>`;
+                }
+
                 btn.onclick = () => {
+                    if (outOfStock) return;
                     selectedSizeInModal = s;
-                    Array.from(sizesDiv.children).forEach(b => {
-                        if (b.innerText === s) b.className = "w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm";
-                        else b.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
+
+                    Array.from(sizesDiv.children).forEach((b, idx) => {
+                        const curS = formattedSizes[idx];
+                        if (isSizeOutOfStock(curS.stock)) return;
+
+                        if (curS.name === s.name) {
+                            b.className = "w-10 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold transition flex items-center justify-center text-sm";
+                        } else {
+                            b.className = "w-10 h-10 rounded border border-gray-600 text-gray-300 font-bold hover:border-yellow-500 hover:text-yellow-500 transition flex items-center justify-center text-sm";
+                        }
                     });
+                    updateAddToCartBtn();
                 };
                 sizesDiv.appendChild(btn);
             });
         } else {
-            if (sizesWrapper) sizesWrapper.classList.add('hidden');
+            // ✨ ESTOQUE GERAL: Exibe "Tamanho Único" em vez de esconder tudo
+            if (sizesWrapper) sizesWrapper.classList.remove('hidden');
+
+            const currentStock = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
+            const isOut = currentStock <= 0 && !allowNegative;
+
+            const btnSingle = document.createElement('div');
+
+            if (isOut) {
+                btnSingle.className = `px-4 h-10 rounded border border-gray-700 bg-gray-800/50 text-gray-500 font-bold flex items-center justify-center text-sm cursor-not-allowed relative overflow-hidden`;
+                btnSingle.innerHTML = `<span class="opacity-50">Único</span><div class="absolute inset-0 w-[140%] h-[1px] bg-red-500/70 transform origin-top-left rotate-6"></div>`;
+            } else {
+                btnSingle.className = `px-4 h-10 rounded border border-yellow-500 bg-yellow-500 text-black font-bold flex items-center justify-center text-sm select-none`;
+                btnSingle.innerHTML = `<span>Único</span>`;
+            }
+            sizesDiv.appendChild(btnSingle);
         }
     }
 
-    // Botão Adicionar
-    const btnAdd = getEl('modal-add-cart');
-    if (btnAdd) {
-        const allowNegative = state.globalSettings.allowNoStock || p.allowNoStock;
-        const isOut = p.stock <= 0 && !allowNegative;
+    const updateAddToCartBtn = () => {
+        const btnAdd = document.getElementById('modal-add-cart');
+        if (!btnAdd) return;
+
+        let currentStock = 0;
+
+        if (p.hasVariations && selectedSizeInModal) {
+            currentStock = selectedSizeInModal.stock;
+        } else {
+            currentStock = isNaN(parseInt(p.stock, 10)) ? 0 : parseInt(p.stock, 10);
+        }
+
+        const isOut = currentStock <= 0 && !allowNegative;
 
         if (isOut) {
             btnAdd.disabled = true;
@@ -4180,11 +5103,15 @@ function openProductModal(productId) {
             btnAdd.disabled = false;
             btnAdd.innerHTML = `<i class="fas fa-shopping-bag mr-2"></i><span>ADICIONAR</span>`;
             btnAdd.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-4 rounded-xl shadow-lg shadow-green-900/50 transition transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide";
-            btnAdd.onclick = () => { addToCart(p, selectedSizeInModal); closeProductModal(); };
-        }
-    }
 
-    // Exibir
+            // Manda o código "U" pro carrinho para o carrinho não desenhar caixa nenhuma!
+            const sizeNamePass = (p.hasVariations && selectedSizeInModal) ? selectedSizeInModal.name : 'U';
+            btnAdd.onclick = () => { addToCart(p, sizeNamePass); closeProductModal(); };
+        }
+    };
+
+    updateAddToCartBtn();
+
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     setTimeout(() => {
@@ -4192,6 +5119,136 @@ function openProductModal(productId) {
         card.classList.remove('opacity-0', 'scale-95');
         card.classList.add('opacity-100', 'scale-100');
     }, 10);
+};
+
+// 2. Desenha a caixinha igual à imagem
+window.renderVariationBadges = () => {
+    const container = document.getElementById('variations-container');
+    if (!container) return;
+
+    let html = `
+        <div class="flex flex-col items-center shrink-0 mr-4">
+            <span class="text-gray-400 text-[9px] font-bold mb-1 w-12 text-center leading-tight">Adicionar<br>Tamanho</span>
+            <button type="button" onclick="openVariationModal()" class="w-12 h-12 rounded border border-gray-500 hover:border-yellow-500 hover:text-yellow-500 flex items-center justify-center text-white text-xl transition bg-black">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+    `;
+
+    let totalStock = 0;
+
+    (state.tempVariations || []).forEach((v, index) => {
+        totalStock += parseInt(v.stock) || 0;
+        html += `
+            <div class="flex items-end gap-2 shrink-0 group cursor-pointer" ondblclick="openVariationModal(${index})">
+                ${index === 0 ? `<span class="text-gray-400 text-[10px] font-bold mb-3 mr-1">Estoque:</span>` : ''}
+                <div class="border border-gray-600 rounded overflow-hidden flex flex-col w-12 text-center transition group-hover:border-yellow-500 select-none">
+                    <div class="bg-gray-500 text-white font-bold py-1 border-b border-gray-600 text-sm truncate px-1" title="${v.name}">${v.name}</div>
+                    <div class="bg-black text-white font-bold py-2 text-sm">${v.stock}</div>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+    document.getElementById('var-total-count').innerText = (state.tempVariations || []).length;
+    document.getElementById('var-total-stock').innerText = totalStock;
+};
+
+// 3. Modais de Variação
+window.openVariationModal = (index = null) => {
+    const modal = document.getElementById('variation-modal');
+    const title = document.getElementById('variation-modal-title');
+    const inputName = document.getElementById('var-name');
+    const inputStock = document.getElementById('var-stock');
+    const inputIndex = document.getElementById('var-edit-index');
+    const btnDelete = document.getElementById('btn-delete-var');
+
+    if (index !== null) {
+        title.innerText = 'Editar Tamanho';
+        const v = state.tempVariations[index];
+        inputName.value = v.name;
+        inputStock.value = v.stock;
+        inputIndex.value = index;
+        btnDelete.classList.remove('hidden');
+    } else {
+        title.innerText = 'Novo Tamanho';
+        inputName.value = '';
+        inputStock.value = '';
+        inputIndex.value = '';
+        btnDelete.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        document.getElementById('variation-card').classList.remove('scale-95');
+    }, 10);
+
+    inputName.focus();
+};
+
+window.closeVariationModal = () => {
+    const modal = document.getElementById('variation-modal');
+    modal.classList.add('opacity-0');
+    document.getElementById('variation-card').classList.add('scale-95');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }, 300);
+};
+
+window.saveVariation = () => {
+    const name = document.getElementById('var-name').value.trim().toUpperCase();
+    const stock = parseInt(document.getElementById('var-stock').value) || 0;
+    const index = document.getElementById('var-edit-index').value;
+
+    if (!name) return showToast("Informe o nome do tamanho.", "error");
+    if (!state.tempVariations) state.tempVariations = [];
+
+    // Checa se o tamanho já existe
+    const existingIndex = state.tempVariations.findIndex(v => v.name === name);
+    if (existingIndex !== -1 && existingIndex.toString() !== index) {
+        return showToast("Este tamanho já existe!", "error");
+    }
+
+    if (index === '') {
+        state.tempVariations.push({ name, stock }); // Adiciona novo
+    } else {
+        state.tempVariations[index] = { name, stock }; // Edita existente
+    }
+
+    renderVariationBadges();
+    closeVariationModal();
+};
+
+// 4. Bloqueia Exclusão se Tiver Pedido Pendente
+window.deleteVariation = () => {
+    const index = document.getElementById('var-edit-index').value;
+    if (index === '') return;
+
+    const prodId = document.getElementById('edit-prod-id').value;
+    const sizeName = state.tempVariations[index].name;
+
+    // Se o produto já existir no banco, verifica os pedidos pendentes
+    if (prodId) {
+        const hasPendingOrder = state.orders.some(order =>
+            order.status === 'Pendente' &&
+            order.items.some(item => item.id === prodId && item.size === sizeName)
+        );
+
+        if (hasPendingOrder) {
+            alert(`❌ EXCLUSÃO BLOQUEADA\n\nVocê não pode excluir o tamanho "${sizeName}" pois existem pedidos 'Pendentes' aguardando por este item.\nCancele ou confirme o pedido antes de excluir a variação.`);
+            return;
+        }
+    }
+
+    if (confirm(`Tem certeza que deseja excluir o tamanho ${sizeName}?`)) {
+        state.tempVariations.splice(index, 1);
+        renderVariationBadges();
+        closeVariationModal();
+    }
 };
 
 function closeProductModal() {
@@ -4205,7 +5262,6 @@ function closeProductModal() {
     setTimeout(() => { modal.classList.add('hidden'); }, 300);
 };
 
-// Variável para controlar zoom
 // Variável para controlar zoom
 let isZoomed = false;
 
@@ -4292,17 +5348,23 @@ window.updateCartQtyCard = (prodId, size, delta) => {
     const index = state.cart.findIndex(i => i.id === prodId && i.size === size);
     if (index === -1) return;
 
-    // Se estiver adicionando (+), verifica o estoque TOTAL do produto
     if (delta > 0) {
         const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
 
-        // Conta quantos desse produto (qualquer tamanho) já existem no carrinho
-        const currentTotalQty = state.cart.reduce((total, item) => {
-            return item.id === prodId ? total + item.qty : total;
+        // ✨ CORREÇÃO DA GRADE: Filtra apenas por ID e Tamanho idênticos
+        const currentSizeQty = state.cart.reduce((total, item) => {
+            return (item.id === prodId && item.size === size) ? total + item.qty : total;
         }, 0);
 
-        if (!allowNegative && (currentTotalQty + 1 > product.stock)) {
-            alert("Estoque máximo atingido para este produto.");
+        // ✨ CORREÇÃO DA GRADE: Pega o limite do tamanho específico
+        let limEstoque = isNaN(parseInt(product.stock, 10)) ? 0 : parseInt(product.stock, 10);
+        if (product.hasVariations && product.sizes) {
+            const sizeObj = product.sizes.find(s => s.name === size);
+            limEstoque = sizeObj ? (parseInt(sizeObj.stock) || 0) : 0;
+        }
+
+        if (!allowNegative && (currentSizeQty + 1 > limEstoque)) {
+            alert(`Estoque máximo atingido para o tamanho ${size}.`);
             return;
         }
     }
@@ -4322,13 +5384,20 @@ window.changeQty = (index, delta) => {
     if (delta > 0 && product) {
         const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
 
-        // Conta total no carrinho
-        const currentTotalQty = state.cart.reduce((total, cartItem) => {
-            return cartItem.id === item.id ? total + cartItem.qty : total;
+        // ✨ CORREÇÃO DA GRADE: Conta apenas as unidades do mesmo tamanho no carrinho
+        const currentSizeQty = state.cart.reduce((total, cartItem) => {
+            return (cartItem.id === item.id && cartItem.size === item.size) ? total + cartItem.qty : total;
         }, 0);
 
-        if (!allowNegative && (currentTotalQty + 1 > product.stock)) {
-            alert("Limite de estoque atingido.");
+        // ✨ CORREÇÃO DA GRADE: Pega o estoque real apenas deste tamanho
+        let limEstoque = isNaN(parseInt(product.stock, 10)) ? 0 : parseInt(product.stock, 10);
+        if (product.hasVariations && product.sizes) {
+            const sizeObj = product.sizes.find(s => s.name === item.size);
+            limEstoque = sizeObj ? (parseInt(sizeObj.stock) || 0) : 0;
+        }
+
+        if (!allowNegative && (currentSizeQty + 1 > limEstoque)) {
+            alert(`Limite de estoque atingido para o tamanho ${item.size}. Disponível: ${limEstoque} unid.`);
             return;
         }
     }
@@ -4381,6 +5450,35 @@ window.confirmDeleteProduct = async (id) => {
     }
 };
 
+// =================================================================
+// 📦 SALVAR E EDITAR PRODUTOS (ESTOQUE HÍBRIDO DEFINITIVO)
+// =================================================================
+// =================================================================
+// 📦 ALTERNA ENTRE GERAL E GRADEADO (TOTALMENTE INDEPENDENTES)
+// =================================================================
+window.toggleStockMode = () => {
+    const isGraded = document.getElementById('prod-has-variations').checked;
+    const divGen = document.getElementById('div-general-stock');
+    const divVar = document.getElementById('div-variations-stock');
+
+    if (isGraded) {
+        // Esconde o Estoque Geral e mostra a Grade
+        divGen.classList.add('hidden');
+        divVar.classList.remove('hidden');
+        divVar.classList.add('flex');
+        if (typeof renderVariationBadges === 'function') renderVariationBadges();
+    } else {
+        // Esconde a Grade e volta o Estoque Geral.
+        // Nenhuma matemática é feita aqui! O valor fica intacto.
+        divGen.classList.remove('hidden');
+        divVar.classList.add('hidden');
+        divVar.classList.remove('flex');
+    }
+};
+
+// =================================================================
+// 📦 SALVAR PRODUTO NO BANCO (COM SEPARAÇÃO DE ESTOQUES)
+// =================================================================
 window.saveProduct = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     const btnSave = document.querySelector('#form-product button[type="submit"]');
@@ -4389,41 +5487,66 @@ window.saveProduct = async (e) => {
     try {
         if (btnSave) { btnSave.innerText = 'Salvando...'; btnSave.disabled = true; }
 
-        // --- CORREÇÃO DE LEITURA DO CHECKBOX ---
-        // 1. Tenta pegar pelo ID direto
-        let elHighlight = document.getElementById('prod-highlight');
-        let elNoStock = document.getElementById('prod-allow-no-stock');
+        const id = document.getElementById('edit-prod-id').value;
+        const prodName = document.getElementById('prod-name').value.trim();
 
-        // 2. Se falhar, tenta pegar dentro do form (caso haja duplicidade externa)
-        const form = document.getElementById('form-product');
-        if (form) {
-            if (!elHighlight) elHighlight = form.querySelector('#prod-highlight');
-            if (!elNoStock) elNoStock = form.querySelector('#prod-allow-no-stock');
+        // =================================================================
+        // 🛡️ TRAVA CONTRA NOME DUPLICADO
+        // =================================================================
+        const nameExists = state.products.some(p => {
+            if (id && p.id === id) return false;
+            return p.name.toLowerCase().trim() === prodName.toLowerCase();
+        });
+
+        if (nameExists) {
+            showToast("Já existe um produto com este nome!", "error");
+            if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
+            return;
+        }
+        // =================================================================
+
+        const isGraded = document.getElementById('prod-has-variations').checked;
+
+        // Blindagem de Segurança
+        const statusActive = document.getElementById('prod-status-active');
+        const isActive = statusActive ? statusActive.checked : true;
+
+        const inputGeneralStock = parseInt(document.getElementById('prod-stock').value) || 0;
+        let finalStock = 0;
+        let finalSizes = state.tempVariations ? [...state.tempVariations] : [];
+
+        if (isGraded) {
+            if (finalSizes.length === 0) {
+                showToast("Adicione pelo menos um tamanho no estoque gradeado.", "error");
+                if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
+                return;
+            }
+            finalStock = finalSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0);
+        } else {
+            finalStock = inputGeneralStock;
         }
 
-        // 3. Converte para Booleano (true/false)
-        const isHighlight = elHighlight ? elHighlight.checked : false;
-        const allowNoStock = elNoStock ? elNoStock.checked : false;
+        if (!state.tempImages || state.tempImages.length === 0) {
+            showToast("Adicione pelo menos uma imagem!", "error");
+            if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
+            return;
+        }
 
-        // DEBUG: Veja isso no console ao salvar
-        console.log("--> SALVANDO. Destaque marcado?", isHighlight);
-
-        // 4. Monta o Objeto
         const productData = {
             name: document.getElementById('prod-name').value,
             category: document.getElementById('prod-cat-select').value,
             description: document.getElementById('prod-desc').value,
             price: parseFloat(document.getElementById('prod-price').value.replace(/\./g, '').replace(',', '.')) || 0,
             promoPrice: parseFloat(document.getElementById('prod-promo').value.replace(/\./g, '').replace(',', '.')) || null,
-            stock: parseInt(document.getElementById('prod-stock').value) || 0,
             cost: parseFloat(document.getElementById('prod-cost').value.replace(/\./g, '').replace(',', '.')) || null,
-            sizes: document.getElementById('prod-sizes').value.split(',').map(s => s.trim()).filter(s => s),
+            hasVariations: isGraded,
+            stock: finalStock,
+            generalStock: inputGeneralStock,
+            sizes: finalSizes,
             images: state.tempImages || [],
-
-            // GRAVA OS VALORES CAPTURADOS
-            allowNoStock: allowNoStock,
-            highlight: isHighlight,
-
+            allowNoStock: document.getElementById('prod-allow-no-stock').checked,
+            active: isActive,
+            highlight: document.getElementById('prod-highlight').checked,
             paymentOptions: {
                 pix: {
                     active: document.getElementById('prod-pix-active').checked,
@@ -4433,62 +5556,99 @@ window.saveProduct = async (e) => {
             }
         };
 
-        const id = document.getElementById('edit-prod-id').value;
-
-        // 5. Envia
         if (!id) {
             const nextCode = await getNextProductCode(state.siteId);
             productData.code = nextCode;
             productData.createdAt = new Date().toISOString();
-            await addDoc(collection(db, `sites/${state.siteId}/products`), productData);
-            showToast(`Produto #${nextCode} criado!`);
+
+            const docRef = await addDoc(collection(db, `sites/${state.siteId}/products`), productData);
+            productData.id = docRef.id;
+
+            const index = state.products.findIndex(p => p.id === docRef.id);
+            if (index === -1) {
+                state.products.push(productData);
+            } else {
+                state.products[index] = productData;
+            }
+
+            showToast(`Produto #${nextCode} criado com sucesso!`, 'success');
         } else {
             await updateDoc(doc(db, `sites/${state.siteId}/products`, id), productData);
-            showToast('Produto atualizado!');
+            const idx = state.products.findIndex(p => p.id === id);
+            if (idx !== -1) state.products[idx] = { ...state.products[idx], ...productData };
+
+            showToast('Produto atualizado com sucesso!', 'success');
         }
 
-        // 6. Limpa e Fecha
         document.getElementById('product-form-modal').classList.add('hidden');
         document.getElementById('form-product').reset();
         state.tempImages = [];
-        if (typeof renderImagePreviews === 'function') renderImagePreviews();
+        state.tempVariations = [];
+
+        const formEl = document.getElementById('form-product');
+        if (formEl) formEl.onsubmit = window.saveProduct;
+
+        setCachedData(`prods_${state.siteId}`, state.products, 5);
+        renderCatalog(state.products);
         if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
 
+        // ✨ CORREÇÃO AQUI: Força as estatísticas (Capital de Giro) a se atualizarem imediatamente
+        if (typeof calculateStatsMetrics === 'function') calculateStatsMetrics();
+
     } catch (error) {
-        console.error(error);
         alert('Erro ao salvar: ' + error.message);
     } finally {
         if (btnSave) { btnSave.innerText = originalText; btnSave.disabled = false; }
     }
 };
 
+// =================================================================
+// 📦 ABRIR PRODUTO PARA EDITAR (LENDO OS ESTOQUES SEPARADOS)
+// =================================================================
 window.editProduct = (id) => {
     const p = state.products.find(x => x.id === id);
     if (!p) return;
 
-    console.log(`Abrindo edição: ${p.name}`);
-    console.log(`Valor de 'highlight' no banco:`, p.highlight); // Deve mostrar true, false ou undefined
-
-    // Inputs de texto
     document.getElementById('edit-prod-id').value = p.id;
     document.getElementById('prod-name').value = p.name;
     document.getElementById('prod-cat-select').value = p.category || "";
     document.getElementById('prod-desc').value = p.description || "";
     document.getElementById('prod-price').value = formatMoneyForInput(p.price);
     document.getElementById('prod-promo').value = formatMoneyForInput(p.promoPrice);
-    document.getElementById('prod-stock').value = p.stock;
     document.getElementById('prod-cost').value = formatMoneyForInput(p.cost);
-    document.getElementById('prod-sizes').value = p.sizes ? p.sizes.join(', ') : '';
 
-    // --- CHECKBOXES (LEITURA) ---
-    const elHighlight = document.getElementById('prod-highlight');
-    const elNoStock = document.getElementById('prod-allow-no-stock');
+    document.getElementById('prod-allow-no-stock').checked = p.allowNoStock || false;
+    document.getElementById('prod-highlight').checked = p.highlight || false;
 
-    // Usa !!p.highlight para forçar que undefined vire false e true vire true
-    if (elHighlight) elHighlight.checked = !!p.highlight;
-    if (elNoStock) elNoStock.checked = !!p.allowNoStock;
+    if (p.generalStock !== undefined) {
+        document.getElementById('prod-stock').value = p.generalStock;
+    } else {
+        document.getElementById('prod-stock').value = p.hasVariations ? 0 : (p.stock || 0);
+    }
 
-    // Imagens e Pix
+    state.tempVariations = [];
+    if (Array.isArray(p.sizes) && p.sizes.length > 0) {
+        state.tempVariations = p.sizes.map(s => {
+            if (typeof s === 'object') return s;
+            return { name: s, stock: p.stock || 0 };
+        });
+    }
+
+    const chkVar = document.getElementById('prod-has-variations');
+    if (p.hasVariations) chkVar.checked = true;
+    else chkVar.checked = false;
+
+    // Blindagem de Segurança
+    const statusInactive = document.getElementById('prod-status-inactive');
+    const statusActive = document.getElementById('prod-status-active');
+
+    if (statusInactive && statusActive) {
+        if (p.active === false) statusInactive.checked = true;
+        else statusActive.checked = true;
+    }
+
+    toggleStockMode();
+
     state.tempImages = p.images ? [...p.images] : [];
     if (typeof renderImagePreviews === 'function') renderImagePreviews();
 
@@ -4497,12 +5657,26 @@ window.editProduct = (id) => {
     document.getElementById('prod-pix-val').value = pixData.type === 'percent' ? pixData.val : formatMoneyForInput(pixData.val);
     document.getElementById('prod-pix-type').value = pixData.type;
 
-    const settingsPix = document.getElementById('pix-settings');
-    if (settingsPix) {
-        settingsPix.classList.toggle('opacity-50', !pixData.active);
-        settingsPix.classList.toggle('pointer-events-none', !pixData.active);
-    }
+    document.getElementById('product-form-modal').classList.remove('hidden');
+};
 
+// ✨ IMPORTANTE: Zera o formulário caso o usuário vá criar um NOVO produto
+window.openNewProductModal = () => {
+    // Blindagem de Segurança
+    const statusActive = document.getElementById('prod-status-active');
+    if (statusActive) statusActive.checked = true;
+
+    const form = document.getElementById('form-product');
+    if (form) form.reset();
+
+    document.getElementById('edit-prod-id').value = '';
+    state.tempImages = [];
+    state.tempVariations = [];
+
+    document.getElementById('prod-has-variations').checked = false;
+    toggleStockMode();
+
+    if (typeof renderImagePreviews === 'function') renderImagePreviews();
     document.getElementById('product-form-modal').classList.remove('hidden');
 };
 
@@ -4527,50 +5701,54 @@ window.deleteCoupon = async (id) => {
     }
 };
 
-window.filterByCat = (catName) => {
-    // 1. Atualiza Título e Select Visual
-    if (els.pageTitle) els.pageTitle.innerText = catName ? catName : 'Vitrine';
-    if (els.catFilter) els.catFilter.value = catName;
 
-    // 2. Lógica de Filtragem (Hierárquica)
-    // Se não tiver categoria (clicou em "Todos"), mostra tudo.
-    if (!catName) {
-        renderCatalog(state.products);
-    } else {
-        const term = catName.toLowerCase();
 
-        const filtered = state.products.filter(p => {
-            if (!p.category) return false;
-            const prodCat = p.category.toLowerCase();
+// ===============================================
+// LÓGICA DO CAMPO DE BUSCA E BOTÃO "X"
+// ===============================================
+window.limparBusca = function () {
+    const searchInput = document.getElementById('search-input');
+    const clearSearchBtn = document.getElementById('clear-search-btn');
 
-            // CASO 1: É a categoria exata (Ex: clicou em "Camisas", produto é "Camisas")
-            const isExact = prodCat === term;
-
-            // CASO 2: É uma categoria Pai (Ex: clicou em "Roupas", produto é "Roupas - Camisas")
-            // O " - " garante que "Camisa" não pegue "Camisete" por engano, apenas subníveis reais.
-            const isParent = prodCat.startsWith(term + ' -');
-
-            return isExact || isParent;
-        });
-
-        renderCatalog(filtered);
-    }
-
-    // 3. Rola para o topo da grade
-    if (els.grid) els.grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    // 4. FECHA O MENU LATERAL (MOBILE)
-    // Verifica se estamos no celular e se o menu está aberto
-    if (window.innerWidth < 1024) { // 1024px é o padrão lg do Tailwind, ou use 768 para md
-        const sidebar = getEl('sidebar');
-        const overlay = getEl('sidebar-overlay');
-
-        if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
-            sidebar.classList.add('-translate-x-full'); // Fecha sidebar
-            if (overlay) overlay.classList.add('hidden'); // Esconde fundo escuro
-        }
+    if (searchInput) {
+        searchInput.value = '';
+        if (clearSearchBtn) clearSearchBtn.classList.add('hidden');
+        searchInput.focus();
+        // Reseta o catálogo
+        filterByCat(document.getElementById('category-filter')?.value || '');
     }
 };
+
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const clearSearchBtn = document.getElementById('clear-search-btn');
+            const currentCat = document.getElementById('category-filter')?.value || '';
+
+            // Aparece o botão de (X)
+            if (term.length > 0 && clearSearchBtn) {
+                clearSearchBtn.classList.remove('hidden');
+            } else if (clearSearchBtn) {
+                clearSearchBtn.classList.add('hidden');
+            }
+
+            // Filtra os produtos
+            let filtered = state.products;
+            if (currentCat) {
+                filtered = filtered.filter(p => p.category === currentCat || p.category.startsWith(currentCat + ' -'));
+            }
+
+            filtered = filtered.filter(p =>
+                p.name.toLowerCase().includes(term) ||
+                (p.description && p.description.toLowerCase().includes(term)) ||
+                (p.code && String(p.code).includes(term))
+            );
+            renderCatalog(filtered);
+        });
+    }
+});
 
 function toggleSidebar() {
     const isOpen = !els.sidebar.classList.contains('-translate-x-full');
@@ -4606,8 +5784,27 @@ window.shareStoreLink = () => {
 // 10. CARRINHO (Lógica Interna)
 // =================================================================
 
-function addToCart(product, size) {
-    const allowNegative = state.globalSettings.allowNoStock || product.allowNoStock;
+async function addToCart(product, size) {
+    // ✨ VALIDAÇÃO DE SEGURANÇA NO SERVIDOR (Leitura única, só no clique)
+    const prodRef = doc(db, `sites/${state.siteId}/products`, product.id);
+    const snap = await getDocFromServer(prodRef); // Lê do servidor na hora do clique
+    const pAtualizado = snap.data();
+
+    const allowNegative = state.globalSettings.allowNoStock || pAtualizado.allowNoStock;
+
+    // ✨ CORREÇÃO DA GRADE: Descobre o limite real de estoque para este tamanho específico NO SERVIDOR
+    let limEstoque = isNaN(parseInt(pAtualizado.stock, 10)) ? 0 : parseInt(pAtualizado.stock, 10);
+    if (pAtualizado.hasVariations && pAtualizado.sizes) {
+        const sizeObj = pAtualizado.sizes.find(s => s.name === size);
+        limEstoque = sizeObj ? (parseInt(sizeObj.stock) || 0) : 0;
+    }
+
+    if (!allowNegative && limEstoque <= 0) {
+        alert(pAtualizado.hasVariations ? `Desculpe, o tamanho ${size} esgotou!` : 'Desculpe, este produto acabou de esgotar!');
+        loadProducts(true); // Atualiza a vitrine forçado
+        return;
+    }
+
     // 1. Verifica status da loja
     const status = getStoreStatus();
 
@@ -4621,20 +5818,14 @@ function addToCart(product, size) {
         }
     }
 
-    // 1. Calcula o TOTAL deste produto no carrinho (somando todos os tamanhos: P + M + G...)
-    const currentTotalQty = state.cart.reduce((total, item) => {
-        return item.id === product.id ? total + item.qty : total;
+    // ✨ CORREÇÃO DA GRADE: Calcula a quantidade DESTE TAMANHO específico já no carrinho
+    const currentSizeQty = state.cart.reduce((total, item) => {
+        return (item.id === product.id && item.size === size) ? total + item.qty : total;
     }, 0);
 
-    // 2. Valida Estoque Geral
-    if (!allowNegative && product.stock <= 0) {
-        alert('Este produto está esgotado.');
-        return;
-    }
-
-    // 3. Valida se adicionar +1 vai estourar o estoque total
-    if (!allowNegative && (currentTotalQty + 1 > product.stock)) {
-        alert(`Limite de estoque atingido! Você já tem ${currentTotalQty} unidades deste produto (soma de tamanhos) e o estoque total é ${product.stock}.`);
+    // 4. Valida se adicionar +1 vai estourar o estoque do tamanho selecionado
+    if (!allowNegative && (currentSizeQty + 1 > limEstoque)) {
+        alert(`Limite de estoque atingido! Você já tem ${currentSizeQty} unidade(s) do tamanho ${size} no carrinho e o estoque disponível é ${limEstoque}.`);
         return;
     }
 
@@ -4664,7 +5855,8 @@ function addToCart(product, size) {
 }
 
 function saveCart() {
-    localStorage.setItem('cart', JSON.stringify(state.cart));
+    // Agora ele salva numa gaveta exclusiva, ex: "cart_loja-do-joao"
+    localStorage.setItem(`cart_${state.siteId}`, JSON.stringify(state.cart));
     updateCartUI();
     renderCatalog(state.products);
 }
@@ -4888,31 +6080,49 @@ window.removeCoupon = () => {
 
 
 window.deleteCategory = async (id, name) => {
-    // 1. VERIFICAÇÃO DE VÍNCULO (NOVO)
-    // Filtra produtos que são desta categoria exata OU de subcategorias (ex: "Roupas" e "Roupas - Camisas")
     const linkedProducts = state.products.filter(p =>
-        p.category === name || (p.category && p.category.startsWith(name + ' -'))
+        p.category === name || (p.category && p.category.startsWith(name + ' - '))
     );
 
-    // Se encontrar produtos, bloqueia e avisa
     if (linkedProducts.length > 0) {
-        alert(`❌ AÇÃO BLOQUEADA\n\nNão é possível excluir a categoria "${name}".\n\nExistem ${linkedProducts.length} produto(s) vinculados a ela.\nPor favor, mova ou exclua esses produtos antes de apagar a categoria.`);
-        return; // Interrompe a função aqui
+        alert(`❌ AÇÃO BLOQUEADA\n\nNão é possível excluir a categoria "${name}".\n\nExistem ${linkedProducts.length} produto(s) vinculados a ela ou às suas subcategorias.\nPor favor, mova ou exclua esses produtos antes de apagar a categoria.`);
+        return;
     }
 
-    // 2. Confirmação padrão
-    if (!confirm(`Tem certeza que deseja excluir a categoria "${name}"?`)) return;
+    const linkedSubCats = state.categories.filter(c =>
+        c.id !== id && c.name.startsWith(name + ' - ')
+    );
+
+    let msgConfirmacao = `Tem certeza que deseja excluir a categoria "${name}"?`;
+
+    if (linkedSubCats.length > 0) {
+        msgConfirmacao = `⚠️ ATENÇÃO!\n\nA categoria "${name}" possui ${linkedSubCats.length} subcategoria(s) dentro dela.\n\nSe você prosseguir, a categoria principal e TODAS AS SUBCATEGORIAS serão apagadas juntas!\n\nDeseja excluir tudo?`;
+    }
+
+    if (!confirm(msgConfirmacao)) return;
 
     try {
         await deleteDoc(doc(db, `sites/${state.siteId}/categories`, id));
 
-        // Limpa seleção se for a categoria atual
-        if (state.selectedCategoryParent === name) {
-            state.selectedCategoryParent = null;
-            if (els.newCatName) els.newCatName.placeholder = "Nome da Categoria Principal...";
+        if (linkedSubCats.length > 0) {
+            const batchPromises = linkedSubCats.map(sub =>
+                deleteDoc(doc(db, `sites/${state.siteId}/categories`, sub.id))
+            );
+            await Promise.all(batchPromises);
         }
 
-        alert('Categoria excluída com sucesso!');
+        if (state.selectedCategoryParent === name || (state.selectedCategoryParent && state.selectedCategoryParent.startsWith(name + ' - '))) {
+            state.selectedCategoryParent = null;
+            const newCatNameEl = document.getElementById('new-cat-name');
+            if (newCatNameEl) newCatNameEl.placeholder = "Nome da Categoria Principal...";
+        }
+
+        // ✨ CORREÇÃO: Limpa o cache e recarrega a tela instantaneamente
+        localStorage.removeItem(`cats_${state.siteId}`);
+        await loadCategories();
+        renderAdminCategoryList();
+
+        showToast('Categoria excluída com sucesso!', 'success');
     } catch (error) {
         console.error(error);
         alert('Erro ao excluir: ' + error.message);
@@ -4923,66 +6133,74 @@ window.editCoupon = (id) => {
     const c = state.coupons.find(x => x.id === id);
     if (!c) return;
 
-    // Preenche os campos
-    getEl('coupon-code').value = c.code;
-    getEl('coupon-val').value = c.val;
-    getEl('coupon-is-percent').checked = (c.type === 'percent');
+    document.getElementById('coupon-code').value = c.code;
+    document.getElementById('coupon-val').value = c.val;
+    document.getElementById('coupon-is-percent').checked = (c.type === 'percent');
 
     if (c.expiryDate) {
         const d = new Date(c.expiryDate);
-        // Ajuste de fuso horário para o input datetime-local funcionar corretamente
         d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-        getEl('coupon-expiry').value = d.toISOString().slice(0, 16);
+        document.getElementById('coupon-expiry').value = d.toISOString().slice(0, 16);
     } else {
-        getEl('coupon-expiry').value = '';
+        document.getElementById('coupon-expiry').value = '';
     }
 
     state.editingCouponId = id;
 
-    // --- ATUALIZAÇÃO DOS BOTÕES ---
-
-    // 1. Muda o botão principal para "Salvar" (Azul)
-    const btnAdd = getEl('btn-add-coupon');
+    const btnAdd = document.getElementById('btn-add-coupon');
     if (btnAdd) {
         btnAdd.innerHTML = '<i class="fas fa-save"></i> <span>Salvar Alteração</span>';
         btnAdd.classList.replace('bg-green-600', 'bg-blue-600');
         btnAdd.classList.replace('hover:bg-green-500', 'hover:bg-blue-500');
     }
 
-    // 2. Mostra o botão Cancelar
-    const btnCancel = getEl('btn-cancel-coupon');
-    if (btnCancel) {
-        btnCancel.classList.remove('hidden');
-    }
+    const btnCancel = document.getElementById('btn-cancel-coupon');
+    if (btnCancel) btnCancel.classList.remove('hidden');
 
-    getEl('coupon-code').focus();
+    document.getElementById('coupon-code').focus();
     showToast(`Editando: ${c.code}`, 'info');
 };
 
 window.resetCouponForm = () => {
-    // 1. Limpa os campos
-    getEl('coupon-code').value = '';
-    getEl('coupon-val').value = '';
-    getEl('coupon-expiry').value = '';
-    getEl('coupon-is-percent').checked = false;
+    document.getElementById('coupon-code').value = '';
+    document.getElementById('coupon-val').value = '';
+    document.getElementById('coupon-expiry').value = '';
+    document.getElementById('coupon-is-percent').checked = false;
 
-    // 2. Reseta o ID de edição
     state.editingCouponId = null;
 
-    // 3. Reseta o botão principal para "Criar" (Verde)
-    const btnAdd = getEl('btn-add-coupon');
+    const btnAdd = document.getElementById('btn-add-coupon');
     if (btnAdd) {
         btnAdd.innerHTML = '<i class="fas fa-plus"></i> <span>Criar Cupom</span>';
-        // Remove classes azuis e poe verdes
         btnAdd.classList.remove('bg-blue-600', 'hover:bg-blue-500');
         btnAdd.classList.add('bg-green-600', 'hover:bg-green-500');
     }
 
-    // 4. Esconde o botão Cancelar
-    const btnCancel = getEl('btn-cancel-coupon');
-    if (btnCancel) {
-        btnCancel.classList.add('hidden');
+    const btnCancel = document.getElementById('btn-cancel-coupon');
+    if (btnCancel) btnCancel.classList.add('hidden');
+};
+
+window.resetCouponForm = () => {
+    document.getElementById('coupon-code').value = '';
+    document.getElementById('coupon-val').value = '';
+    document.getElementById('coupon-expiry').value = '';
+    document.getElementById('coupon-is-percent').checked = false;
+
+    // Limpa a caixinha
+    const chkOffered = document.getElementById('coupon-is-offered');
+    if (chkOffered) chkOffered.checked = false;
+
+    state.editingCouponId = null;
+
+    const btnAdd = document.getElementById('btn-add-coupon');
+    if (btnAdd) {
+        btnAdd.innerHTML = '<i class="fas fa-plus"></i> <span>Criar Cupom</span>';
+        btnAdd.classList.remove('bg-blue-600', 'hover:bg-blue-500');
+        btnAdd.classList.add('bg-green-600', 'hover:bg-green-500');
     }
+
+    const btnCancel = document.getElementById('btn-cancel-coupon');
+    if (btnCancel) btnCancel.classList.add('hidden');
 };
 
 // Função global para lidar com o clique de seleção
@@ -5088,6 +6306,10 @@ async function loadStoreProfile() {
             }
 
             if (typeof updateStoreStatusUI === 'function') updateStoreStatusUI();
+
+            if (!state.user && typeof showOfferedCoupon === 'function') {
+                showOfferedCoupon();
+            }
         });
 
     } catch (error) {
@@ -5137,6 +6359,22 @@ function renderStoreProfile() {
             navLogo.classList.add('hidden');
             navText.innerHTML = p.name || '<span class="text-white">SUA</span><span class="text-yellow-500">LOJA</span>';
             navText.classList.remove('hidden');
+        }
+
+        // ✨ CORREÇÃO DO CLIQUE NA LOGO ✨
+        // Procura o link <a> que envolve a logo e o texto
+        const logoLink = navLogo.closest('a') || navText.closest('a');
+        if (logoLink) {
+            // Remove o href="index.html" que estava quebrando o site
+            logoLink.removeAttribute('href');
+            logoLink.style.cursor = 'pointer';
+
+            // Faz o clique apenas voltar para a vitrine inicial da loja atual
+            logoLink.onclick = (e) => {
+                e.preventDefault(); // Impede o navegador de tentar mudar a URL
+                if (typeof showView === 'function') showView('catalog');
+                if (typeof filterByCat === 'function') filterByCat(''); // Limpa qualquer filtro
+            };
         }
     }
 
@@ -5254,7 +6492,6 @@ window.cancelProfileEdit = () => {
 };
 
 // Função para carregar dados nos inputs de configuração
-// Função para carregar dados nos inputs de configuração
 function fillProfileForm() {
     const p = state.storeProfile || {};
 
@@ -5280,39 +6517,32 @@ function fillProfileForm() {
 
     if (typeof updateFreeInstallmentsSelect === 'function') updateFreeInstallmentsSelect();
 
-    // Atualiza visual do parcelamento
     const elCardDetails = document.getElementById('conf-card-details');
     if (elCardDetails) {
         if (inst.active) elCardDetails.classList.remove('opacity-50', 'pointer-events-none');
         else elCardDetails.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    // 3. Configurações de Pedido (Entrega, Tempo, Frete)
+    // 3. Configurações de Pedido
     const dConfig = p.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5, shippingRule: 'none', shippingValue: 0 };
-    const settings = p.settings || {}; // Alguns dados podem estar aqui
+    const settings = p.settings || {};
 
     setCheck('conf-own-delivery', dConfig.ownDelivery);
 
-    // O Código e o Tempo podem estar em 'deliveryConfig' ou 'settings' dependendo da versão anterior do seu banco.
-    // Verificamos ambos para garantir.
     const reqCode = dConfig.reqCustomerCode !== undefined ? dConfig.reqCustomerCode : (settings.reqClientCode || false);
     const cancelTime = dConfig.cancelTimeMin !== undefined ? dConfig.cancelTimeMin : (settings.cancellationTime || 5);
 
     setCheck('conf-req-code', reqCode);
     setVal('conf-cancel-time', cancelTime);
-
-    // Frete
     setVal('conf-shipping-rule', dConfig.shippingRule || 'none');
     setVal('conf-shipping-value', typeof formatMoneyForInput === 'function' ? formatMoneyForInput(dConfig.shippingValue) : dConfig.shippingValue);
 
-    // Controle Visual do Frete
     const elShipCont = document.getElementById('shipping-value-container');
     if (elShipCont) {
         if (dConfig.shippingRule && dConfig.shippingRule !== 'none') elShipCont.classList.remove('opacity-50', 'pointer-events-none');
         else elShipCont.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    // Controle Visual do Código de Entrega
     const elReq = document.getElementById('conf-req-code');
     if (elReq) {
         if (dConfig.ownDelivery) {
@@ -5364,8 +6594,25 @@ function fillProfileForm() {
     setCheck('conf-pay-delivery-debit', payConfig.delivery?.debit !== false);
     setCheck('conf-pay-delivery-cash', payConfig.delivery?.cash !== false);
 
+    // ✨ 7. PIX GLOBAL (CORREÇÃO: AGORA ELE CARREGA QUANDO VOCÊ ABRE O ADMIN)
+    const pg = p.pixGlobal || { disableAll: false, active: false, value: 0, mode: 'product', type: 'percent' };
+    setCheck('conf-pix-disable-all', pg.disableAll);
+    setCheck('conf-pix-global-active', pg.active);
+    setVal('conf-pix-global-value', pg.value);
+
+    const rMode = document.querySelector(`input[name="conf-pix-mode"][value="${pg.mode}"]`);
+    if (rMode) rMode.checked = true;
+
+    const rType = document.querySelector(`input[name="conf-pix-type"][value="${pg.type || 'percent'}"]`);
+    if (rType) rType.checked = true;
+
+    // Atualiza Visual
     if (typeof updatePaymentVisuals === 'function') updatePaymentVisuals();
     if (typeof togglePixGlobalUI === 'function') togglePixGlobalUI();
+
+    // Atualiza painel e vitrine de tópicos
+    if (typeof renderAdminTopics === 'function') renderAdminTopics();
+    if (typeof renderSidebarTopics === 'function') renderSidebarTopics();
 }
 
 // Função para salvar no Firebase
@@ -5401,7 +6648,7 @@ async function saveStoreProfile() {
 
         // CORREÇÃO DO PARCELAMENTO: Criando o objeto installments corretamente
         installments: {
-            active: getCheck(els.confCardActive), // <--- AQUI ESTAVA O ERRO (Usar checked)
+            active: getCheck(els.confCardActive),
             max: parseInt(getVal(els.confCardMax)) || 12,
             freeUntil: parseInt(getVal(els.confCardFree)) || 3,
             rate: parseFloat(getVal(els.confCardRate).replace(',', '.')) || 0
@@ -5409,10 +6656,13 @@ async function saveStoreProfile() {
     };
 
     try {
-        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), data);
+        // ✨ O TRUQUE MÁGICO AQUI: { merge: true }
+        // Isso avisa o banco de dados para NÃO apagar o que não foi enviado (como o frete e a entrega)
+        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), data, { merge: true });
 
-        // Atualiza a memória local imediatamente
-        state.storeProfile = data;
+        // ✨ CORREÇÃO NA MEMÓRIA DA TELA: 
+        // Mesclamos os dados antigos com os novos, assim o frete não some da tela antes de atualizar a página
+        state.storeProfile = { ...state.storeProfile, ...data };
 
         // Atualiza a vitrine para mostrar/esconder o parcelamento nos cards
         renderCatalog(state.products);
@@ -5543,132 +6793,6 @@ let checkoutState = {
     isValidDelivery: false
 };
 
-// --- NOVA FUNÇÃO CENTRAL DE VISIBILIDADE ---
-window.applyCheckoutVisibility = () => {
-    // 1. Configurações
-    const pm = state.storeProfile?.paymentMethods || {
-        online: { active: true },
-        delivery: { active: true }
-    };
-    const dConfig = state.storeProfile?.deliveryConfig || {};
-
-    // 2. Estados
-    const onlineActive = pm.online?.active !== false;
-    const deliveryPaymentActive = pm.delivery?.active !== false;
-    const logisticsActive = dConfig.ownDelivery === true;
-    const showDeliveryTab = deliveryPaymentActive && logisticsActive;
-
-    // 3. Elementos
-    const labelOnline = document.getElementById('label-pay-online');
-    const containerDelivery = document.getElementById('container-delivery-option');
-    const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
-    const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
-
-    // 4. Visibilidade Online
-    if (labelOnline) {
-        if (onlineActive) {
-            labelOnline.classList.remove('hidden');
-            if (radioOnline) radioOnline.disabled = false;
-        } else {
-            labelOnline.classList.add('hidden');
-            if (radioOnline) radioOnline.disabled = true;
-        }
-    }
-
-    // 5. Visibilidade Entrega
-    if (containerDelivery) {
-        if (showDeliveryTab) {
-            containerDelivery.classList.remove('hidden');
-            if (radioDelivery) radioDelivery.disabled = false;
-        } else {
-            containerDelivery.classList.add('hidden');
-            if (radioDelivery) radioDelivery.disabled = true;
-        }
-    }
-
-    // 6. Auto-Correção (Troca de aba se a atual sumiu)
-    if (radioOnline && radioOnline.checked && !onlineActive) {
-        if (showDeliveryTab && radioDelivery) {
-            radioDelivery.checked = true;
-            // Força atualização visual sem chamar a função recursiva
-            const deliveryContent = document.getElementById('pay-delivery-content');
-            const onlineContent = document.getElementById('pay-online-content');
-            if (deliveryContent) deliveryContent.classList.remove('hidden');
-            if (onlineContent) onlineContent.classList.add('hidden');
-        }
-    }
-    if (radioDelivery && radioDelivery.checked && !showDeliveryTab) {
-        if (onlineActive && radioOnline) {
-            radioOnline.checked = true;
-            // Força atualização visual
-            const deliveryContent = document.getElementById('pay-delivery-content');
-            const onlineContent = document.getElementById('pay-online-content');
-            if (deliveryContent) deliveryContent.classList.add('hidden');
-            if (onlineContent) onlineContent.classList.remove('hidden');
-        }
-    }
-
-    // 7. Atualiza Totais (Isso é seguro)
-    // REMOVIDO: window.togglePaymentMode() <--- CAUSAVA O LOOP
-    if (typeof window.calcCheckoutTotal === 'function') window.calcCheckoutTotal();
-};
-
-window.openCheckoutModal = () => {
-    // 1. Limpa campos anteriores
-    ['checkout-cep', 'checkout-number', 'checkout-comp', 'checkout-name', 'checkout-phone'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
-    });
-
-    ['address-details', 'delivery-error'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.add('hidden');
-    });
-
-    // 2. Reseta o estado do CEP
-    if (typeof checkoutState !== 'undefined') {
-        checkoutState.isValidDelivery = false;
-        checkoutState.address = null;
-        checkoutState.distance = 0;
-    }
-
-    // 3. Aplica visibilidade das opções (Pix, Cartão, etc)
-    applyCheckoutVisibility();
-
-    // 4. Exibição das Telas
-    const viewCart = document.getElementById('view-cart-list');
-    const viewCheckout = document.getElementById('view-checkout');
-
-    if (viewCart) viewCart.classList.add('hidden');
-    if (viewCheckout) viewCheckout.classList.remove('hidden');
-
-    const cartTitle = document.getElementById('cart-modal-title');
-    if (cartTitle) cartTitle.innerText = "FINALIZAR PEDIDO";
-
-    document.getElementById('btn-modal-back')?.classList.remove('hidden');
-    document.getElementById('btn-go-checkout')?.classList.add('hidden');
-
-    // 5. TRAVAMENTO INICIAL 
-    const btnFinish = document.getElementById('btn-finish-payment');
-    const paySection = document.getElementById('checkout-payment-options');
-
-    // Força o bloqueio visual e adiciona a classe de trava
-    if (paySection) {
-        paySection.classList.add('opacity-50', 'locked-section');
-        paySection.classList.remove('pointer-events-none'); // Importante para o Toast funcionar
-    }
-
-    if (btnFinish) {
-        btnFinish.classList.remove('hidden');
-        btnFinish.disabled = true; // <--- AGORA TRAVA O BOTÃO
-        btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
-    }
-
-    // 6. Roda a validação final para garantir que continue travado
-    if (typeof validateCheckoutForm === 'function') {
-        validateCheckoutForm();
-    }
-};
 
 window.closeCheckoutModal = () => {
     els.checkoutModal.classList.add('hidden');
@@ -5884,7 +7008,7 @@ async function submitOrder() {
         const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
         const dConfig = state.storeProfile?.deliveryConfig || { ownDelivery: false, reqCustomerCode: false, cancelTimeMin: 5 };
 
-        // Trava de Segurança
+        // Trava de Segurança da Tela
         const payModeEl = document.querySelector('input[name="pay-mode"]:checked');
         const payMode = payModeEl ? payModeEl.value : null;
 
@@ -5906,6 +7030,65 @@ async function submitOrder() {
 
         const methodEl = document.querySelector('input[name="payment-method-selection"]:checked');
         if (!payMode || !methodEl) return alert("⚠️ Selecione a forma de pagamento.");
+
+        // Muda o botão para mostrar que está pensando
+        const btnSubmit = document.getElementById('btn-finish-payment');
+        if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.innerText = "⏳ Validando estoque..."; }
+
+        // =================================================================
+        // 🛡️ BLINDAGEM CONTRA ESTOQUE FANTASMA (Validação em Tempo Real)
+        // =================================================================
+        let outOfStockItems = [];
+
+        for (const item of state.cart) {
+            const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+            const snap = await getDocFromServer(prodRef);
+
+            if (!snap.exists()) {
+                outOfStockItems.push(`<b>${item.name}</b><br><span class="text-xs text-red-400">Produto indisponível ou excluído.</span>`);
+                continue;
+            }
+
+            const pAtualizado = snap.data();
+            const allowNegative = state.globalSettings.allowNoStock || pAtualizado.allowNoStock;
+
+            if (!allowNegative) {
+                let estoqueReal = 0;
+
+                if (pAtualizado.hasVariations && pAtualizado.sizes) {
+                    const sizeObj = pAtualizado.sizes.find(s => s.name === item.size);
+                    estoqueReal = sizeObj ? (parseInt(sizeObj.stock) || 0) : 0;
+                } else {
+                    estoqueReal = parseInt(pAtualizado.stock) || 0;
+                }
+
+                if (estoqueReal < item.qty) {
+                    // Formata o texto com HTML para ficar bonito no novo modal
+                    let msg = `<span class="font-bold text-white">${item.name}</span>`;
+                    if (item.size !== 'U') msg += ` <span class="text-xs text-gray-400">Tamanho: ${item.size}</span>`;
+                    msg += `<br><span class="text-xs font-bold text-red-400 block mt-1">Disponível: ${estoqueReal} unidade(s)</span>`;
+
+                    outOfStockItems.push(msg);
+                }
+            }
+        }
+
+        // Se encontrou algum produto esgotado, BARRA A VENDA E ABRE O MODAL NOVO!
+        if (outOfStockItems.length > 0) {
+            if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerText = "Confirmar Pedido"; }
+
+            // Chama o novo modal estilisado!
+            if (typeof showOutOfStockModal === 'function') {
+                showOutOfStockModal(outOfStockItems);
+            } else {
+                alert("Erro de estoque. Verifique os itens.");
+            }
+            return;
+        }
+        // =================================================================
+
+        // Se passou pela blindagem, muda o botão para enviando de fato
+        if (btnSubmit) { btnSubmit.innerText = "⏳ Enviando Pedido..."; }
 
         const method = methodEl.value;
         let paymentDetails = "", paymentMsgShort = "";
@@ -5954,13 +7137,17 @@ async function submitOrder() {
         const fullAddress = `${street}, ${number} ${comp ? '(' + comp + ')' : ''} - ${district} - CEP: ${cep}`;
         const nextCode = await getNextOrderNumber(state.siteId);
 
+        // CORREÇÃO DE FRETE BLINDADA
         const shipRule = dConfig.shippingRule || 'none';
         const shipValue = parseFloat(dConfig.shippingValue) || 0;
         let valueToSave = 0;
         if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery && shipValue > 0) {
-            if (shipRule === 'both' || (shipRule === 'online' && payMode === 'online') || (shipRule === 'delivery' && payMode === 'delivery')) {
-                valueToSave = shipValue;
-            }
+            let applyFrete = false;
+            if (shipRule === 'both' || shipRule === 'todos' || shipRule === 'sempre') applyFrete = true;
+            else if ((shipRule === 'online' || shipRule === 'pagamento_online') && payMode === 'online') applyFrete = true;
+            else if ((shipRule === 'delivery' || shipRule === 'pagamento_entrega' || shipRule === 'entrega') && payMode === 'delivery') applyFrete = true;
+
+            if (applyFrete) valueToSave = shipValue;
         }
 
         const order = {
@@ -5972,17 +7159,19 @@ async function submitOrder() {
             cancelLimit: new Date(new Date().getTime() + cancelMinutes * 60000).toISOString()
         };
 
-        const btnSubmit = document.getElementById('btn-finish-payment');
-        if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.innerText = "⏳ Enviando..."; }
-
         const docRef = await addDoc(collection(db, `sites/${state.siteId}/sales`), order);
         const newOrderLocal = { id: docRef.id, ...order };
         if (!Array.isArray(state.myOrders)) state.myOrders = [];
         state.myOrders.push(newOrderLocal);
-        localStorage.setItem('site_orders_history', JSON.stringify(state.myOrders));
+
+        // Salva o histórico isolado
+        localStorage.setItem(`orders_${state.siteId}`, JSON.stringify(state.myOrders));
 
         startBackgroundListeners(); checkActiveOrders(); state.cart = []; state.currentCoupon = null;
-        localStorage.setItem('cart', JSON.stringify([])); updateCartUI();
+
+        // Esvazia o carrinho isolado
+        localStorage.setItem(`cart_${state.siteId}`, JSON.stringify([]));
+        updateCartUI();
 
         if (payMode === 'online') {
             let msg = `*NOVO PEDIDO #${order.code}*\n--------------------------------\n`;
@@ -6067,11 +7256,12 @@ function populateInstallments() {
     const shipValue = parseFloat(dConfig.shippingValue) || 0;
     const payMode = document.querySelector('input[name="pay-mode"]:checked')?.value || 'online';
 
+    // ✨ CORREÇÃO DE FRETE BLINDADA
     if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery && shipValue > 0) {
         let shouldAddShip = false;
-        if (shipRule === 'both') shouldAddShip = true;
-        else if (shipRule === 'online' && payMode === 'online') shouldAddShip = true;
-        else if (shipRule === 'delivery' && payMode === 'delivery') shouldAddShip = true;
+        if (shipRule === 'both' || shipRule === 'todos' || shipRule === 'sempre') shouldAddShip = true;
+        else if ((shipRule === 'online' || shipRule === 'pagamento_online') && payMode === 'online') shouldAddShip = true;
+        else if ((shipRule === 'delivery' || shipRule === 'pagamento_entrega' || shipRule === 'entrega') && payMode === 'delivery') shouldAddShip = true;
 
         if (shouldAddShip) {
             valorFrete = shipValue;
@@ -6079,7 +7269,6 @@ function populateInstallments() {
     }
 
     // 3. Define o Valor Presente (PV) Total para financiamento
-    // Na Tabela Price Padrão, o frete entra no montante financiado
     const valorPresenteTotal = Math.max(0, valorBaseProdutos + valorFrete);
 
     // 4. Gera Opções
@@ -6090,33 +7279,23 @@ function populateInstallments() {
         let montanteFinal = valorPresenteTotal;
         let label = `${i}x Sem Juros`;
 
-        // --- CÁLCULO TABELA PRICE ---
-        // Aplica juros sobre o TOTAL (Produto + Frete)
         if (instConfig.active && i > instConfig.freeUntil && instConfig.rate > 0) {
             const taxa = instConfig.rate / 100;
             const fator = Math.pow(1 + taxa, i);
-
-            // Fórmula PMT (Prestação) = PV * [ i(1+i)^n / ((1+i)^n - 1) ]
             const valorPrestacao = valorPresenteTotal * ((taxa * fator) / (fator - 1));
 
             montanteFinal = valorPrestacao * i;
             label = `${i}x (c/ juros)`;
         }
 
-        // Valor da parcela para exibição
         const valorParcelaDisplay = montanteFinal / i;
-
         const option = document.createElement('option');
         option.value = i;
-
-        // Salva o total calculado no dataset
         option.dataset.total = montanteFinal.toFixed(2);
-
         option.text = `${label} de ${formatCurrency(valorParcelaDisplay)}`;
         select.appendChild(option);
     }
 
-    // Atualiza o total verde
     if (typeof calcCheckoutTotal === 'function') calcCheckoutTotal();
 }
 
@@ -6407,94 +7586,208 @@ function updateFreeInstallmentsSelect() {
     }
 }
 
-// 1. Controla o Modo Principal (Online vs Entrega)
-function togglePaymentMode() {
-    const modeEl = document.querySelector('input[name="pay-mode"]:checked');
-    if (!modeEl) return;
-
-    const mode = modeEl.value;
-    const lblMethod = document.getElementById('lbl-payment-method');
-
-    // --- CORREÇÃO: REMOVIDAS AS LINHAS QUE DESBLOQUEAVAM AUTOMATICAMENTE ---
-    // Quem decide se desbloqueia agora é APENAS a função validateCheckoutForm()
-    // -----------------------------------------------------------------------
-
-    // Recupera Configs (com fallback seguro para credit/debit)
+// =================================================================
+// 🛒 1. RENDERIZADOR CENTRAL DO CHECKOUT (BLINDADO)
+// =================================================================
+window.renderCheckoutPaymentsUI = () => {
     const pm = state.storeProfile?.paymentMethods || {};
+    const dConfig = state.storeProfile?.deliveryConfig || {};
 
-    // --- SELETORES ---
-    const radioPix = document.querySelector('input[name="payment-method-selection"][value="pix"]');
-    const lblPix = radioPix ? radioPix.closest('label') : null;
+    const onlineActive = pm.online?.active !== false;
+    const deliveryPaymentActive = pm.delivery?.active !== false;
+    const logisticsActive = dConfig.ownDelivery === true;
+    const showDeliveryTab = deliveryPaymentActive && logisticsActive;
 
-    // Crédito (div container)
-    const radioCredit = document.querySelector('input[name="payment-method-selection"][value="credit"]');
-    const divCredit = document.getElementById('container-credit-option');
+    const radioOnline = document.querySelector('input[name="pay-mode"][value="online"]');
+    const radioDelivery = document.querySelector('input[name="pay-mode"][value="delivery"]');
 
-    // Débito (label)
-    const radioDebit = document.querySelector('input[name="payment-method-selection"][value="debit"]');
-    const lblDebit = document.getElementById('container-debit-option');
+    const labelOnline = document.getElementById('label-pay-online') || (radioOnline ? radioOnline.closest('label') : null);
+    const containerDelivery = document.getElementById('container-delivery-option') || (radioDelivery ? radioDelivery.closest('label') : null);
 
-    // Dinheiro
-    const radioCash = document.querySelector('input[name="payment-method-selection"][value="cash"]');
-    const containerCash = document.getElementById('container-cash-option');
-
-    const updateVis = (el, show, radio) => {
-        if (!el) return;
-        if (show) {
-            el.classList.remove('hidden');
-            el.style.display = '';
-            if (radio) radio.disabled = false;
+    // 2. ABAS PRINCIPAIS (Online vs Entrega)
+    if (labelOnline) {
+        if (onlineActive) {
+            labelOnline.classList.remove('hidden');
+            if (radioOnline) radioOnline.disabled = false;
         } else {
-            el.classList.add('hidden');
-            el.style.setProperty('display', 'none', 'important');
-            if (radio) radio.disabled = true;
+            labelOnline.classList.add('hidden');
+            if (radioOnline) { radioOnline.disabled = true; radioOnline.checked = false; }
+        }
+    }
+
+    if (containerDelivery) {
+        if (showDeliveryTab) {
+            containerDelivery.classList.remove('hidden');
+            if (radioDelivery) radioDelivery.disabled = false;
+        } else {
+            containerDelivery.classList.add('hidden');
+            if (radioDelivery) { radioDelivery.disabled = true; radioDelivery.checked = false; }
+        }
+    }
+
+    // 3. GARANTE SELEÇÃO DE ABA: Se nada estiver marcado, marca a primeira visível sozinha
+    let currentModeEl = document.querySelector('input[name="pay-mode"]:checked');
+    if (!currentModeEl || currentModeEl.disabled || (currentModeEl.closest('label') && currentModeEl.closest('label').classList.contains('hidden'))) {
+        if (onlineActive && radioOnline) {
+            radioOnline.checked = true;
+            currentModeEl = radioOnline;
+        } else if (showDeliveryTab && radioDelivery) {
+            radioDelivery.checked = true;
+            currentModeEl = radioDelivery;
+        }
+    }
+
+    const mode = currentModeEl ? currentModeEl.value : null;
+
+    // Alterna os painéis internos baseado na aba
+    const deliveryContent = document.getElementById('pay-delivery-content');
+    const onlineContent = document.getElementById('pay-online-content');
+    if (mode === 'delivery') {
+        if (deliveryContent) deliveryContent.classList.remove('hidden');
+        if (onlineContent) onlineContent.classList.add('hidden');
+    } else if (mode === 'online') {
+        if (deliveryContent) deliveryContent.classList.add('hidden');
+        if (onlineContent) onlineContent.classList.remove('hidden');
+    }
+
+    // 4. FORMAS DE PAGAMENTO SECUNDÁRIAS (Pix, Cartão, Dinheiro)
+    const lblMethod = document.getElementById('lbl-payment-method');
+    if (mode === 'delivery' && lblMethod) lblMethod.innerText = "Pagarei na entrega com:";
+    if (mode === 'online' && lblMethod) lblMethod.innerText = "Pagar agora com:";
+
+    const getWrapper = (val) => {
+        const radio = document.querySelector(`input[name="payment-method-selection"][value="${val}"]`) ||
+            document.querySelector(`input[name="payment-method"][value="${val}"]`);
+        if (!radio) return null;
+
+        // ✨ CORREÇÃO CRÍTICA: Pega apenas a label em volta do input, ou o ID exato. 
+        // Não sobe para o parentElement para não pegar a caixa toda.
+        let wrapper = document.getElementById(`container-${val}-option`);
+        if (!wrapper) {
+            wrapper = radio.closest('label');
+        }
+        return { radio, wrapper };
+    };
+
+    const pix = getWrapper('pix');
+    const credit = getWrapper('credit');
+    const debit = getWrapper('debit');
+    const cash = getWrapper('cash');
+
+    const pConfig = mode === 'delivery' ? (pm.delivery || {}) : (pm.online || {});
+
+    // ✨ CORREÇÃO CRÍTICA: Usa APENAS as classes do Tailwind para não quebrar o layout!
+    const forceUpdateVis = (obj, shouldShow) => {
+        if (!obj) return;
+        if (shouldShow) {
+            if (obj.wrapper) obj.wrapper.classList.remove('hidden');
+            if (obj.radio) {
+                obj.radio.disabled = false;
+                const lbl = obj.radio.closest('label');
+                if (lbl) lbl.classList.remove('hidden');
+            }
+        } else {
+            if (obj.wrapper) obj.wrapper.classList.add('hidden');
+            if (obj.radio) {
+                obj.radio.disabled = true;
+                obj.radio.checked = false; // Desmarca para não bugar
+                const lbl = obj.radio.closest('label');
+                if (lbl) lbl.classList.add('hidden');
+            }
         }
     };
 
-    if (mode === 'delivery') {
-        if (lblMethod) lblMethod.innerText = "Pagarei na entrega com:";
+    forceUpdateVis(pix, pConfig.pix !== false);
+    forceUpdateVis(credit, pConfig.credit !== false);
+    forceUpdateVis(debit, pConfig.debit !== false);
+    forceUpdateVis(cash, mode === 'delivery' ? (pConfig.cash !== false) : false);
 
-        // Verifica configurações de Entrega
-        const pDel = pm.delivery || {};
-        updateVis(lblPix, pDel.pix !== false, radioPix);
-        updateVis(divCredit, pDel.credit !== false, radioCredit);
-        updateVis(lblDebit, pDel.debit !== false, radioDebit);
-        updateVis(containerCash, pDel.cash !== false, radioCash);
+    // 5. GARANTE SELEÇÃO DE MÉTODO: Pega o primeiro válido e marca sozinho
+    let currentMethodEl = document.querySelector('input[name="payment-method-selection"]:checked') ||
+        document.querySelector('input[name="payment-method"]:checked');
 
+    let invalidMethod = false;
+    if (!currentMethodEl || currentMethodEl.disabled) {
+        invalidMethod = true;
     } else {
-        // ONLINE
-        if (lblMethod) lblMethod.innerText = "Pagar agora com:";
-
-        // Verifica configurações Online
-        const pOn = pm.online || {};
-        updateVis(lblPix, pOn.pix !== false, radioPix);
-        updateVis(divCredit, pOn.credit !== false, radioCredit);
-        updateVis(lblDebit, pOn.debit !== false, radioDebit);
-        updateVis(containerCash, false, radioCash); // Dinheiro nunca no online
-    }
-
-    // Auto-Correção
-    const current = document.querySelector('input[name="payment-method-selection"]:checked');
-    let isInvalid = false;
-
-    if (!current) isInvalid = true;
-    else if (current.disabled) isInvalid = true;
-    else if (current.closest('.hidden')) isInvalid = true;
-
-    if (isInvalid) {
-        const valid = document.querySelector('input[name="payment-method-selection"]:not(:disabled)');
-        if (valid && !valid.closest('.hidden')) {
-            valid.checked = true;
-            if (typeof window.toggleMethodSelection === 'function') window.toggleMethodSelection();
+        const wrap = currentMethodEl.closest('label') || document.getElementById(`container-${currentMethodEl.value}-option`);
+        if (wrap && wrap.classList.contains('hidden')) {
+            invalidMethod = true;
         }
-    } else {
-        if (typeof window.toggleMethodSelection === 'function') window.toggleMethodSelection();
     }
 
-    // IMPORTANTE: Após ajustar o visual, validamos se deve continuar bloqueado
-    if (typeof validateCheckoutForm === 'function') validateCheckoutForm();
+    if (invalidMethod) {
+        const validRadios = document.querySelectorAll('input[name="payment-method-selection"]:not(:disabled), input[name="payment-method"]:not(:disabled)');
+        for (let r of validRadios) {
+            const w = r.closest('label') || document.getElementById(`container-${r.value}-option`);
+            if (w && !w.classList.contains('hidden')) {
+                r.checked = true;
+                break;
+            }
+        }
+    }
 
-    applyCheckoutVisibility();
+    // Aciona as lógicas secundárias
+    if (typeof toggleMethodSelection === 'function') toggleMethodSelection();
+    if (typeof validateCheckoutForm === 'function') validateCheckoutForm();
+};
+
+// Mantém os atalhos antigos funcionando sem erro
+window.applyCheckoutVisibility = () => renderCheckoutPaymentsUI();
+window.togglePaymentMode = () => renderCheckoutPaymentsUI();
+
+// =================================================================
+// ✨ 2. ABERTURA DO CHECKOUT 
+// =================================================================
+window.openCheckoutModal = () => {
+    ['checkout-cep', 'checkout-number', 'checkout-comp', 'checkout-name', 'checkout-phone'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+
+    ['address-details', 'delivery-error'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+
+    if (typeof checkoutState !== 'undefined') {
+        checkoutState.isValidDelivery = false;
+        checkoutState.address = null;
+        checkoutState.distance = 0;
+    }
+
+    const viewCart = document.getElementById('view-cart-list');
+    const viewCheckout = document.getElementById('view-checkout');
+
+    if (viewCart) viewCart.classList.add('hidden');
+    if (viewCheckout) viewCheckout.classList.remove('hidden');
+
+    const cartTitle = document.getElementById('cart-modal-title');
+    if (cartTitle) cartTitle.innerText = "FINALIZAR PEDIDO";
+
+    document.getElementById('btn-modal-back')?.classList.remove('hidden');
+    document.getElementById('btn-go-checkout')?.classList.add('hidden');
+
+    // ✨ Roda a faxina AGORA, com a tela aberta
+    renderCheckoutPaymentsUI();
+
+    const btnFinish = document.getElementById('btn-finish-payment');
+    const paySection = document.getElementById('checkout-payment-options');
+
+    if (paySection) {
+        paySection.classList.add('opacity-50', 'locked-section');
+        paySection.classList.remove('pointer-events-none');
+    }
+
+    if (btnFinish) {
+        btnFinish.classList.remove('hidden');
+        btnFinish.disabled = true;
+        btnFinish.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+
+    if (typeof validateCheckoutForm === 'function') {
+        validateCheckoutForm();
+    }
 };
 
 // 2. Controla a Seleção Específica (Pix vs Cartão vs Dinheiro)
@@ -6556,12 +7849,12 @@ window.calcCheckoutTotal = () => {
     // 2. Calcula Subtotal dos Itens
     state.cart.forEach(item => subtotalDisplay += item.price * item.qty);
 
-    // 3. Calcula Frete (Baseado na regra e no modo de pagamento)
+    // 3. ✨ CORREÇÃO DE FRETE BLINDADA
     if (typeof checkoutState !== 'undefined' && checkoutState.isValidDelivery && shipValue > 0) {
         let applyFrete = false;
-        if (shipRule === 'both') applyFrete = true;
-        else if (shipRule === 'online' && payMode === 'online') applyFrete = true;
-        else if (shipRule === 'delivery' && payMode === 'delivery') applyFrete = true;
+        if (shipRule === 'both' || shipRule === 'todos' || shipRule === 'sempre') applyFrete = true;
+        else if ((shipRule === 'online' || shipRule === 'pagamento_online') && payMode === 'online') applyFrete = true;
+        else if ((shipRule === 'delivery' || shipRule === 'pagamento_entrega' || shipRule === 'entrega') && payMode === 'delivery') applyFrete = true;
 
         if (applyFrete) shippingDisplay = shipValue;
     }
@@ -6587,12 +7880,10 @@ window.calcCheckoutTotal = () => {
                     totalWithPixPrices += price * item.qty;
                 });
             } else {
-                // Modo Total
                 let totalDesc = isFixed ? val : subtotalDisplay * (val / 100);
                 totalWithPixPrices = Math.max(0, subtotalDisplay - totalDesc);
             }
         } else {
-            // Individual por produto
             state.cart.forEach(item => {
                 const prod = state.products.find(p => p.id === item.id);
                 let price = item.price;
@@ -6607,7 +7898,6 @@ window.calcCheckoutTotal = () => {
 
         discountPixDisplay = Math.max(0, subtotalDisplay - totalWithPixPrices);
 
-        // Aplica Cupom sobre o preço Pix
         if (state.currentCoupon) {
             const baseCupom = totalWithPixPrices;
             if (state.currentCoupon.type === 'percent') discountCouponDisplay = baseCupom * (state.currentCoupon.val / 100);
@@ -6616,44 +7906,32 @@ window.calcCheckoutTotal = () => {
 
         finalTotal = (subtotalDisplay - discountPixDisplay - discountCouponDisplay) + shippingDisplay;
     }
-
-    // B. CRÉDITO (AQUI ESTÁ A CORREÇÃO DOS JUROS)
+    // B. CRÉDITO
     else if (method === 'credit' && payMode === 'online') {
-
-        // 1. Aplica Cupom primeiro para saber a base
         if (state.currentCoupon) {
             if (state.currentCoupon.type === 'percent') discountCouponDisplay = subtotalDisplay * (state.currentCoupon.val / 100);
             else discountCouponDisplay = state.currentCoupon.val;
         }
 
-        // 2. Busca o valor total já calculado COM JUROS no dropdown
         const select = document.getElementById('checkout-installments');
-
-        // Verifica se tem algo selecionado
         if (select && select.options.length > 0 && select.selectedIndex >= 0) {
             const selectedOpt = select.options[select.selectedIndex];
-
-            // Se a opção tem um "data-total", é esse o valor final (já inclui frete e juros)
             if (selectedOpt.dataset.total) {
                 finalTotal = parseFloat(selectedOpt.dataset.total);
             } else {
-                // Fallback (caso raro sem data-total)
                 finalTotal = (subtotalDisplay - discountCouponDisplay) + shippingDisplay;
             }
         } else {
-            // Se não carregou as parcelas ainda
             finalTotal = (subtotalDisplay - discountCouponDisplay) + shippingDisplay;
         }
 
-        // Verifica se tem juros para exibir o aviso
         const instConfig = state.storeProfile?.installments;
         const parcelas = select ? parseInt(select.value) : 1;
         if (instConfig && instConfig.active && instConfig.rate > 0 && parcelas > instConfig.freeUntil) {
             obsJuros = `* Inclui juros de ${instConfig.rate}% a.m.`;
         }
     }
-
-    // C. OUTROS (Débito, Dinheiro, Crédito na Entrega)
+    // C. OUTROS
     else {
         if (state.currentCoupon) {
             if (state.currentCoupon.type === 'percent') discountCouponDisplay = subtotalDisplay * (state.currentCoupon.val / 100);
@@ -6680,7 +7958,6 @@ window.calcCheckoutTotal = () => {
             html += `<div class="flex justify-between text-yellow-500 font-medium"><span>Frete</span><span>+ ${formatCurrency(shippingDisplay)}</span></div>`;
         }
 
-        // Se o total final for maior que a soma simples (indica juros), mostra linha de juros
         const somaSimples = (subtotalDisplay - discountPixDisplay - discountCouponDisplay) + shippingDisplay;
         if (finalTotal > somaSimples + 0.05) {
             const valorJuros = finalTotal - somaSimples;
@@ -6692,15 +7969,12 @@ window.calcCheckoutTotal = () => {
         detailsContainer.innerHTML = html;
     }
 
-    // Atualiza Total Grande
     const elTotal = document.getElementById('checkout-final-total');
     if (elTotal) elTotal.innerText = formatCurrency(finalTotal);
 
-    // Atualiza Total Header (se existir)
     const elTotalHeader = document.getElementById('checkout-total-display');
     if (elTotalHeader) elTotalHeader.innerText = formatCurrency(finalTotal);
 };
-
 
 // Função para gerar número sequencial seguro
 async function getNextOrderNumber(siteId) {
@@ -6924,35 +8198,12 @@ async function updateOrderStatusDB(orderId, newStatus) {
 
         // --- CENÁRIO A: BAIXA DE ESTOQUE (Entrou em status válido) ---
         if (!wasConsuming && isConsuming) {
-            for (const item of items) {
-                if (item.id) {
-                    const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
-                    const pSnap = await getDoc(prodRef);
-                    if (pSnap.exists()) {
-                        const currentStock = parseInt(pSnap.data().stock) || 0;
-                        const qty = parseInt(item.qty) || 0;
-                        let newStock = currentStock - qty;
-                        if (newStock < 0) newStock = 0;
-                        await updateDoc(prodRef, { stock: newStock });
-                    }
-                }
-            }
-            showToast(`Estoque baixado!`, 'success');
+            await processStockUpdate(items, 'remove');
+            showToast(`Estoque baixado com sucesso!`, 'success');
         }
-
         // --- CENÁRIO B: DEVOLUÇÃO DE ESTOQUE (Saiu de status válido) ---
         else if (wasConsuming && !isConsuming) {
-            for (const item of items) {
-                if (item.id) {
-                    const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
-                    const pSnap = await getDoc(prodRef);
-                    if (pSnap.exists()) {
-                        const currentStock = parseInt(pSnap.data().stock) || 0;
-                        const qty = parseInt(item.qty) || 0;
-                        await updateDoc(prodRef, { stock: currentStock + qty });
-                    }
-                }
-            }
+            await processStockUpdate(items, 'add');
             showToast(`Estoque devolvido.`, 'info');
         }
 
@@ -6963,7 +8214,6 @@ async function updateOrderStatusDB(orderId, newStatus) {
         }
 
         await updateDoc(orderRef, updateData);
-        // O onSnapshot do loadAdminSales cuidará de atualizar a tela automaticamente.
 
     } catch (error) {
         console.error("Erro ao atualizar status:", error);
@@ -6971,6 +8221,72 @@ async function updateOrderStatusDB(orderId, newStatus) {
     }
 }
 
+async function processStockUpdate(items, operation) {
+    let stockChanged = false; // Flag para saber se houve alguma alteração real
+
+    for (const item of items) {
+        if (!item.id) continue;
+
+        const prodRef = doc(db, `sites/${state.siteId}/products`, item.id);
+        const pSnap = await getDoc(prodRef);
+
+        if (pSnap.exists()) {
+            let pData = pSnap.data();
+            let qty = parseInt(item.qty) || 0;
+            let updates = {};
+
+            if (pData.hasVariations && Array.isArray(pData.sizes)) {
+                // ESTOQUE GRADEADO
+                let newSizes = [...pData.sizes];
+                let sizeObj = newSizes.find(s => s.name === item.size);
+
+                if (sizeObj) {
+                    let currentSizeStock = parseInt(sizeObj.stock) || 0;
+                    if (operation === 'remove') {
+                        sizeObj.stock = Math.max(0, currentSizeStock - qty);
+                    } else {
+                        sizeObj.stock = currentSizeStock + qty;
+                    }
+                }
+
+                let newTotalStock = newSizes.reduce((acc, val) => acc + parseInt(val.stock || 0), 0);
+                updates.sizes = newSizes;
+                updates.stock = newTotalStock;
+
+            } else {
+                // ESTOQUE GERAL
+                let currentStock = parseInt(pData.stock) || 0;
+                let currentGenStock = parseInt(pData.generalStock) || 0;
+
+                if (operation === 'remove') {
+                    updates.stock = Math.max(0, currentStock - qty);
+                    updates.generalStock = Math.max(0, currentGenStock - qty);
+                } else {
+                    updates.stock = currentStock + qty;
+                    updates.generalStock = currentGenStock + qty;
+                }
+            }
+
+            // Atualiza no banco de dados
+            await updateDoc(prodRef, updates);
+
+            // 🔥 MÁGICA 4: Altera o estoque na memória RAM local instantaneamente
+            const localProdIndex = state.products.findIndex(p => p.id === item.id);
+            if (localProdIndex !== -1) {
+                state.products[localProdIndex] = { ...state.products[localProdIndex], ...updates };
+            }
+
+            stockChanged = true;
+        }
+    }
+
+    // Se o estoque foi alterado, redesenha as telas usando os novos dados da memória
+    if (stockChanged) {
+        setCachedData(`prods_${state.siteId}`, state.products, 5);
+        renderCatalog(state.products);
+        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+    }
+}
 
 // ÍCONE DE RASTREIO CHAMA ISSO:
 async function openTrackModal() {
@@ -8371,11 +9687,597 @@ function validateCheckoutForm() {
     }
 }
 
+// =================================================================
+// 🔍 SELETOR DE PRODUTOS PARA FILTRO DE VENDAS
+// =================================================================
+
+window.openProductSelectorModal = () => {
+    const modal = document.getElementById('modal-product-selector');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        const searchInput = document.getElementById('selector-internal-search');
+        if (searchInput) {
+            searchInput.value = ''; // Limpa a busca anterior
+            setTimeout(() => searchInput.focus(), 100);
+        }
+
+        window.renderProductSelectorList('');
+    }
+};
+
+window.closeProductSelectorModal = () => {
+    const modal = document.getElementById('modal-product-selector');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+};
+
+window.renderProductSelectorList = (searchTerm = '') => {
+    const listContainer = document.getElementById('product-selector-list');
+    if (!listContainer) return;
+
+    let filteredProducts = state.products;
+
+    if (searchTerm) {
+        const term = searchTerm.toLowerCase().trim();
+        filteredProducts = state.products.filter(p =>
+            p.name.toLowerCase().includes(term) ||
+            (p.code && String(p.code).includes(term))
+        );
+    }
+
+    if (filteredProducts.length === 0) {
+        listContainer.innerHTML = '<div class="p-8 text-center text-gray-500 text-sm italic">Nenhum produto encontrado.</div>';
+        return;
+    }
+
+    listContainer.innerHTML = filteredProducts.map(p => {
+        const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://placehold.co/100?text=Sem+Foto';
+        const safeName = p.name.replace(/'/g, "\\'"); // Impede que aspas no nome quebrem o clique
+
+        return `
+            <div onclick="selectProductForFilter('${safeName}')" 
+                 class="flex items-center gap-3 p-3 border-b border-gray-800 hover:bg-gray-800 cursor-pointer transition active:scale-[0.98] rounded">
+                <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0">
+                <div class="flex flex-col flex-1 min-w-0">
+                    <span class="text-white font-bold text-sm truncate">${p.name}</span>
+                    <span class="text-gray-500 text-[10px] font-mono mt-0.5">Cód: #${p.code || '-'}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+};
+
+window.selectProductForFilter = (productName) => {
+    // 1. Atualiza o input oculto que a lógica de vendas usa
+    const filterInput = document.getElementById('filter-search-product-value');
+    if (filterInput) filterInput.value = productName;
+
+    // 2. Atualiza o input/div visual para o Admin ver o que selecionou
+    const displayInput = document.getElementById('filter-search-product');
+    if (displayInput) {
+        if (displayInput.tagName === 'INPUT') displayInput.value = productName;
+        else displayInput.innerText = productName;
+    }
+
+    // 3. Fecha o modal
+    closeProductSelectorModal();
+
+    // 4. Roda o filtro na tabela
+    if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
+};
+
+// =================================================================
+// 🔍 SELETOR DE PRODUTOS PARA FILTRO DE VENDAS (RESOLVIDO)
+// =================================================================
+
+window.openProductSelectorModal = () => {
+    const modal = document.getElementById('modal-product-selector');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        const searchInput = document.getElementById('selector-internal-search');
+        if (searchInput) {
+            searchInput.value = ''; // Limpa a busca anterior
+            setTimeout(() => searchInput.focus(), 100);
+        }
+
+        window.renderProductSelectorList('');
+    }
+};
+
+window.closeProductSelectorModal = () => {
+    const modal = document.getElementById('modal-product-selector');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+};
+
+window.renderProductSelectorList = (searchTerm = '') => {
+    const listContainer = document.getElementById('product-selector-list');
+    if (!listContainer) return;
+
+    let filteredProducts = state.products;
+
+    if (searchTerm) {
+        const term = searchTerm.toLowerCase().trim();
+        filteredProducts = state.products.filter(p =>
+            p.name.toLowerCase().includes(term) ||
+            (p.code && String(p.code).includes(term))
+        );
+    }
+
+    if (filteredProducts.length === 0) {
+        listContainer.innerHTML = '<div class="p-8 text-center text-gray-500 text-sm italic">Nenhum produto encontrado.</div>';
+        return;
+    }
+
+    listContainer.innerHTML = filteredProducts.map(p => {
+        const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://placehold.co/100?text=Sem+Foto';
+        const safeName = p.name.replace(/'/g, "\\'"); // Impede que aspas no nome quebrem o clique
+
+        return `
+            <div onclick="selectProductForFilter('${safeName}')" 
+                 class="flex items-center gap-3 p-3 border-b border-gray-800 hover:bg-gray-800 cursor-pointer transition active:scale-[0.98] rounded">
+                <img src="${imgUrl}" class="w-10 h-10 rounded object-cover border border-gray-700 bg-black shrink-0">
+                <div class="flex flex-col flex-1 min-w-0">
+                    <span class="text-white font-bold text-sm truncate">${p.name}</span>
+                    <span class="text-gray-500 text-[10px] font-mono mt-0.5">Cód: #${p.code || '-'}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+};
+
+window.selectProductForFilter = (productName) => {
+    // 1. Atualiza o input oculto que a tabela lê
+    const filterInput = document.getElementById('filter-search-product-value');
+    if (filterInput) filterInput.value = productName;
+
+    // 2. Atualiza o texto na tela (O ID exato do seu HTML)
+    const displaySpan = document.getElementById('selected-product-display');
+    if (displaySpan) {
+        displaySpan.innerText = productName;
+        displaySpan.classList.remove('text-gray-400');
+        displaySpan.classList.add('text-yellow-500'); // Deixa amarelinho pra mostrar que tem filtro ativo
+    }
+
+    // 3. Mostra o botão de (X) que estava escondido no seu HTML
+    const btnClearX = document.getElementById('btn-clear-prod-selection');
+    if (btnClearX) {
+        btnClearX.classList.remove('hidden');
+        btnClearX.classList.add('flex');
+    }
+
+    // Fecha o modal e roda o filtro da tabela
+    window.closeProductSelectorModal();
+    if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
+};
+
+window.clearProductFilter = (e) => {
+    // Impede que clicar no X acabe ativando o fundo e abrindo o modal de novo
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    // 1. Zera a memória do filtro
+    const filterInput = document.getElementById('filter-search-product-value');
+    if (filterInput) filterInput.value = '';
+
+    // 2. Volta o texto visual ao estado inicial
+    const displaySpan = document.getElementById('selected-product-display');
+    if (displaySpan) {
+        displaySpan.innerText = 'Selecionar produto...';
+        displaySpan.classList.remove('text-yellow-500');
+        displaySpan.classList.add('text-gray-400');
+    }
+
+    // 3. Esconde o botão de (X) novamente
+    const btnClearX = document.getElementById('btn-clear-prod-selection');
+    if (btnClearX) {
+        btnClearX.classList.add('hidden');
+        btnClearX.classList.remove('flex');
+    }
+
+    // Limpa a busca interna do modal para a próxima vez
+    const internalSearch = document.getElementById('selector-internal-search');
+    if (internalSearch) internalSearch.value = '';
+
+    // Roda a tabela para exibir todas as vendas de novo
+    if (typeof filterAndRenderSales === 'function') filterAndRenderSales();
+};
+
+// ✨ BLINDAGEM DO BOTÃO GERAL "LIMPAR" ✨
+// Ensinamos o seu botão geral a apagar a nossa caixa personalizada
+setTimeout(() => {
+    const btnClear = document.getElementById('btn-clear-filters');
+    if (btnClear) {
+        const oldOnClick = btnClear.onclick;
+        btnClear.onclick = (e) => {
+            if (oldOnClick) oldOnClick(e); // Limpa as datas, nome de cliente, etc
+            clearProductFilter(null); // Limpa a nossa caixa "Selecionar produto..."
+        };
+    }
+}, 1000);
+
+
+// =================================================================
+// 📊 GERADOR DE RELATÓRIOS PERSONALIZADOS
+// =================================================================
+
+window.openReportModal = () => {
+    const modal = document.getElementById('modal-report-config');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        document.getElementById('report-card').classList.remove('scale-95');
+    }, 10);
+};
+
+window.closeReportModal = () => {
+    const modal = document.getElementById('modal-report-config');
+    modal.classList.add('opacity-0');
+    document.getElementById('report-card').classList.add('scale-95');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }, 300);
+};
+
+window.executeCustomReport = () => {
+    // 1. CAPTURA CONFIGURAÇÕES DO MODAL
+    const format = document.querySelector('input[name="rep-format"]:checked').value;
+    const statusFiltro = document.querySelector('input[name="rep-status"]:checked').value;
+    const sortType = document.getElementById('rep-sort').value;
+
+    const config = {
+        format: format,
+        showCat: document.getElementById('rep-col-cat').checked,
+        showStock: document.getElementById('rep-col-stock').checked,
+        showPrice: document.getElementById('rep-col-price').checked,
+        showPromo: document.getElementById('rep-col-promo').checked,
+        showCost: document.getElementById('rep-col-cost').checked
+    };
+
+    // 2. FILTRAGEM DE DADOS
+    let productsToExport = [...state.products];
+
+    if (statusFiltro === 'ativos') {
+        productsToExport = productsToExport.filter(p => p.active !== false);
+    } else if (statusFiltro === 'inativos') {
+        productsToExport = productsToExport.filter(p => p.active === false);
+    }
+
+    if (productsToExport.length === 0) {
+        showToast("Nenhum produto atende a este filtro.", "error");
+        return;
+    }
+
+    // 3. PREPARAÇÃO DE MÉTRICAS (Para ordenação de Vendas/Estoque)
+    const metricsMap = {};
+    const validStatuses = ['Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'];
+    if (state.orders && (sortType === 'sales_desc' || sortType === 'sales_asc')) {
+        state.orders.forEach(order => {
+            if (validStatuses.includes(order.status)) {
+                order.items.forEach(item => {
+                    if (!metricsMap[item.id]) metricsMap[item.id] = 0;
+                    metricsMap[item.id] += (parseInt(item.qty) || 0);
+                });
+            }
+        });
+    }
+
+    // 4. ORDENAÇÃO DINÂMICA
+    productsToExport.sort((a, b) => {
+        const getStock = (p) => p.hasVariations && p.sizes ? p.sizes.reduce((acc, s) => acc + (parseInt(s.stock) || 0), 0) : (parseInt(p.stock) || parseInt(p.generalStock) || 0);
+
+        const codeA = parseInt(a.code) || 0; const codeB = parseInt(b.code) || 0;
+        const nameA = a.name.toLowerCase(); const nameB = b.name.toLowerCase();
+        const priceA = parseFloat(a.price) || 0; const priceB = parseFloat(b.price) || 0;
+        const stockA = getStock(a); const stockB = getStock(b);
+        const salesA = metricsMap[a.id] || 0; const salesB = metricsMap[b.id] || 0;
+
+        switch (sortType) {
+            case 'code_asc': return codeA - codeB;
+            case 'code_desc': return codeB - codeA;
+            case 'name_asc': return nameA.localeCompare(nameB);
+            case 'sales_desc': return salesB - salesA;
+            case 'sales_asc': return salesA - salesB;
+            case 'stock_desc': return stockB - stockA;
+            case 'stock_asc': return stockA - stockB;
+            case 'price_desc': return priceB - priceA;
+            case 'price_asc': return priceA - priceB;
+            default: return 0;
+        }
+    });
+
+    // 5. ENVIA PARA O UTILITÁRIOS FINALIZAR
+    if (typeof window.gerarRelatorioAvancado === 'function') {
+        window.gerarRelatorioAvancado(productsToExport, config);
+        closeReportModal();
+    } else {
+        alert("Erro: O arquivo utilitarios.js não carregou corretamente. Recarregue a página (Ctrl+F5).");
+    }
+};
+
+
+// =================================================================
+// 🚀 ATUALIZAÇÃO EM LOTE DE STATUS (ATIVO/INATIVO) COM FILTRO INTELIGENTE
+// =================================================================
+window.bulkChangeProductStatus = async (isActive) => {
+    // 1. Filtra apenas os produtos que REALMENTE precisam ser alterados
+    const productsToUpdate = [];
+
+    state.selectedProducts.forEach(id => {
+        const prod = state.products.find(p => p.id === id);
+        if (prod) {
+            // No sistema, se não tiver a tag "active", ele é considerado ativo por padrão
+            const isCurrentlyActive = prod.active !== false;
+
+            // Só adiciona na fila de atualização se o status atual for DIFERENTE do desejado
+            if (isCurrentlyActive !== isActive) {
+                productsToUpdate.push(id);
+            }
+        }
+    });
+
+    const countTotal = state.selectedProducts.size;
+    const countToUpdate = productsToUpdate.length;
+    const actionText = isActive ? 'ATIVAR' : 'INATIVAR';
+    const statusText = isActive ? 'ativos' : 'inativos';
+
+    // 2. Se nenhum produto precisar de mudança, avisa e cancela a ação
+    if (countToUpdate === 0) {
+        alert(`Todos os ${countTotal} itens selecionados já estão ${statusText}. Nenhuma alteração foi necessária.`);
+        state.selectedProducts.clear();
+        filterAndRenderProducts(); // Tira a seleção da tela
+        return;
+    }
+
+    // 3. Monta a mensagem de confirmação inteligente
+    let confirmMsg = `Tem certeza que deseja ${actionText} ${countToUpdate} produto(s)?`;
+
+    if (countTotal > countToUpdate) {
+        const ignorados = countTotal - countToUpdate;
+        confirmMsg = `Dos ${countTotal} itens selecionados, ${ignorados} já estavam ${statusText} e serão ignorados.\n\nDeseja ${actionText} os ${countToUpdate} produto(s) restantes?`;
+    }
+
+    if (!confirm(confirmMsg)) return;
+
+    // 4. Executa a atualização apenas nos que precisam
+    try {
+        document.body.style.cursor = 'wait';
+
+        const promises = productsToUpdate.map(id => {
+            return updateDoc(doc(db, `sites/${state.siteId}/products`, id), { active: isActive });
+        });
+
+        await Promise.all(promises);
+
+        // 5. Atualiza a memória RAM local instantaneamente
+        productsToUpdate.forEach(id => {
+            const idx = state.products.findIndex(p => p.id === id);
+            if (idx !== -1) state.products[idx].active = isActive;
+        });
+
+        // 6. Limpa a seleção e redesenha a tela
+        state.selectedProducts.clear();
+        setCachedData(`prods_${state.siteId}`, state.products, 60);
+        filterAndRenderProducts();
+
+        showToast(`${countToUpdate} produto(s) atualizado(s) com sucesso!`, 'success');
+
+    } catch (error) {
+        alert("Erro ao atualizar os produtos: " + error.message);
+    } finally {
+        document.body.style.cursor = 'default';
+    }
+};
+
+
+// =================================================================
+// 🧠 LÓGICA DE REORGANIZAÇÃO (COM DRAG & DROP PROFISSIONAL)
+// =================================================================
+
+function defaultProductSort(a, b) {
+    const isHighlightA = a.highlight === true ? 1 : 0;
+    const isHighlightB = b.highlight === true ? 1 : 0;
+    if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA;
+
+    const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
+    const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
+    if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
+
+    const codeA = parseInt(a.code) || 0;
+    const codeB = parseInt(b.code) || 0;
+    return codeB - codeA;
+}
+
+function catalogProductSort(a, b) {
+    const orderA = a.order !== undefined && a.order !== null ? parseFloat(a.order) : 999999;
+    const orderB = b.order !== undefined && b.order !== null ? parseFloat(b.order) : 999999;
+    if (orderA !== orderB) return orderA - orderB;
+    return defaultProductSort(a, b);
+}
+
+window.startReorderMode = async () => {
+    // 1. Limpa Filtros
+    const searchInput = document.getElementById('admin-search-prod');
+    const catInput = document.getElementById('admin-filter-cat');
+    const statusInput = document.getElementById('admin-filter-status');
+    if (searchInput) searchInput.value = '';
+    if (catInput) catInput.value = '';
+    if (statusInput) statusInput.value = '';
+
+    // 2. Prepara os Dados
+    state.backupProductsStr = JSON.stringify(state.products);
+    state.isReorderMode = true;
+    state.products.sort(catalogProductSort);
+    state.products.forEach((p, index) => p.order = (index + 1) * 10);
+
+    // Desenha a tela
+    renderProductsList(state.products);
+    showToast("Segure nas barrinhas para arrastar e reordenar.", "info");
+
+    // 3. Importa a Biblioteca de Física Dinamicamente (Se já não existir)
+    if (!window.Sortable) {
+        await new Promise(resolve => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js';
+            script.onload = resolve;
+            document.head.appendChild(script);
+        });
+    }
+
+    // 4. CSS que faz o item arrastado flutuar e deixa o "buraco" vazio na lista original
+    if (!document.getElementById('sortable-custom-styles')) {
+        const style = document.createElement('style');
+        style.id = 'sortable-custom-styles';
+        style.innerHTML = `
+            .sortable-ghost { opacity: 0 !important; } 
+            .sortable-drag { 
+                background-color: #1c1f2b !important; 
+                box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8) !important; 
+                transform: scale(1.02) !important;
+                border: 1px solid #eab308 !important;
+                border-radius: 8px !important;
+                z-index: 99999 !important;
+                opacity: 0.95 !important;
+                cursor: grabbing !important;
+            }
+            .drag-handle { touch-action: none; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // 5. Inicia o Controle
+    const container = document.getElementById('admin-product-scroll-container');
+    if (!container) return;
+
+    if (window.productSortable) window.productSortable.destroy();
+
+    window.productSortable = new Sortable(container, {
+        animation: 250,
+        handle: '.drag-handle', // SÓ permite pegar pelo ícone das barrinhas
+        forceFallback: true,
+        fallbackClass: 'sortable-drag', // O card que levanta na mão
+        ghostClass: 'sortable-ghost', // O espaço invisível que fica para trás
+        scroll: true, // Faz a tela rolar quando encostar na borda
+        scrollSensitivity: 80,
+        scrollSpeed: 15,
+        onEnd: function (evt) {
+            if (evt.newIndex !== evt.oldIndex) {
+                // Atualiza o array baseado de onde você tirou e onde soltou
+                const movedItem = state.products.splice(evt.oldIndex, 1)[0];
+                state.products.splice(evt.newIndex, 0, movedItem);
+
+                // Recalcula o peso
+                state.products.forEach((p, i) => p.order = (i + 1) * 10);
+
+                // Redesenha e reinicia o observador
+                renderProductsList(state.products);
+                window.startReorderMode();
+            }
+        }
+    });
+};
+
+window.reorderProductsArray = (fromIndex, toIndex) => {
+    const movedItem = state.products.splice(fromIndex, 1)[0];
+    state.products.splice(toIndex, 0, movedItem);
+
+    // Atualiza os pesos locais
+    state.products.forEach((p, index) => p.order = (index + 1) * 10);
+
+    // Renderiza direto a lista sem passar pelo filtro/ordenação das colunas
+    renderProductsList(state.products);
+};
+
+window.cancelReorder = () => {
+    // CORREÇÃO: Destrói o Arrastar ANTES de reconstruir a tela
+    if (window.productSortable) {
+        try { window.productSortable.destroy(); } catch (e) { }
+        window.productSortable = null;
+    }
+
+    if (state.backupProductsStr) state.products = JSON.parse(state.backupProductsStr);
+    state.isReorderMode = false;
+
+    if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+    showToast("Reorganização Cancelada.", "info");
+};
+
+window.saveReorder = async () => {
+    const btn = document.querySelector('button[onclick="saveReorder()"]');
+    if (btn) { btn.innerText = "⏳ Salvando..."; btn.disabled = true; }
+
+    // ✨ CORREÇÃO CRÍTICA: Destrói a biblioteca ANTES do Firebase começar a alterar a tela
+    if (window.productSortable) {
+        try { window.productSortable.destroy(); } catch (e) { }
+        window.productSortable = null;
+    }
+
+    try {
+        const promises = state.products.map((p) => {
+            if (p.order !== undefined) {
+                return updateDoc(doc(db, `sites/${state.siteId}/products`, p.id), { order: p.order });
+            }
+        });
+        await Promise.all(promises);
+
+        state.isReorderMode = false;
+        state.backupProductsStr = null;
+
+        setCachedData(`prods_${state.siteId}`, state.products, 60);
+        if (typeof renderCatalog === 'function') renderCatalog(state.products);
+        if (typeof filterAndRenderProducts === 'function') filterAndRenderProducts();
+
+        showToast("Nova ordem salva com sucesso!", "success");
+    } catch (e) {
+        alert("Erro ao salvar: " + e.message);
+    } finally {
+        if (btn) { btn.innerText = "Salvar"; btn.disabled = false; }
+    }
+};
+
+window.resetReorderToDefault = () => {
+    state.products.sort(defaultProductSort);
+    state.products.forEach((p, index) => p.order = (index + 1) * 10);
+    renderProductsList(state.products);
+    window.startReorderMode();
+    showToast("Ordem padrão calculada! Destaque > Oferta > Novo.", "info");
+};
+
+
+window.moveProductInReorder = (id, direction) => {
+    // Como os produtos estão listados por 'order', podemos apenas achar o index e trocar os valores
+    const currentIndex = state.products.findIndex(p => p.id === id);
+    if (currentIndex === -1) return;
+
+    const targetIndex = currentIndex + direction;
+    if (targetIndex < 0 || targetIndex >= state.products.length) return;
+
+    // Troca APENAS a propriedade order entre os dois produtos afetados
+    const tempOrder = state.products[currentIndex].order;
+    state.products[currentIndex].order = state.products[targetIndex].order;
+    state.products[targetIndex].order = tempOrder;
+
+    filterAndRenderProducts();
+};
+
+
+
 
 // ============================================================
 // CONECTOR GLOBAL FINAL (ÚNICO E OBRIGATÓRIO)
 // ============================================================
-
 // 1. Navegação e UI
 window.openCart = openCart;
 window.closeCartModal = closeCartModal;
@@ -8429,7 +10331,936 @@ window.markAsViewed = markAsViewed;
 window.clientCancelOrder = clientCancelOrder;
 window.retryWhatsapp = retryWhatsapp;
 
+window.openProductSelectorModal = openProductSelectorModal;
+window.closeProductSelectorModal = closeProductSelectorModal;
+window.renderProductSelectorList = renderProductSelectorList;
+window.selectProductForFilter = selectProductForFilter;
+window.clearProductFilter = clearProductFilter;
+
+window.startReorderMode = startReorderMode;
+window.cancelReorder = cancelReorder;
+window.resetReorderToDefault = resetReorderToDefault;
+window.moveProductInReorder = moveProductInReorder;
+window.saveReorder = saveReorder;
+
 // 6. DESTRAVA ESTATÍSTICAS (Se for admin logado)
 if (state.user && typeof loadAdminSales === 'function') {
     loadAdminSales();
+};
+
+
+
+
+// =================================================================
+// 📢 RADAR DE AVISOS EM TEMPO REAL (PROJETISTA -> LOJA)
+// =================================================================
+window.activeAvisosListener = null;
+
+// Destruímos a função antiga caso o cache insista em usá-la
+window.processarAvisos = () => { console.log("Processador antigo ignorado."); };
+
+window.loadAvisos = () => {
+    // 1. TRAVA NUCLEAR: Só roda se a tela preta do Admin estiver presente e visível
+    const viewAdmin = document.getElementById('view-admin');
+
+    if (!viewAdmin || viewAdmin.classList.contains('hidden')) {
+        console.log("🛑 Radar abortado: A tela de Admin não está visível.");
+        if (window.activeAvisosListener) {
+            window.activeAvisosListener();
+            window.activeAvisosListener = null;
+        }
+        return;
+    }
+
+    if (!state.siteId || state.siteId === 'demo') return;
+
+    // Evita ouvintes duplicados
+    if (window.activeAvisosListener) return;
+
+    console.log("📡 Ligando Radar de Avisos (Modo Admin Garantido)");
+
+    const avisosRef = collection(db, `sites/${state.siteId}/avisos`);
+    const q = query(avisosRef, where("lido", "==", false));
+
+    window.activeAvisosListener = onSnapshot(q, (snapshot) => {
+        // TRAVA 2: Dentro do retorno da mensagem (Caso o usuário clique pra voltar pra vitrine enquanto a msg chega)
+        const checkAdmin = document.getElementById('view-admin');
+        if (!checkAdmin || checkAdmin.classList.contains('hidden')) return;
+
+        const unreadCount = snapshot.docs.length;
+
+        // Acende o ícone do sino apenas no painel
+        try {
+            const alertIcon = document.getElementById('icone-avisos');
+            if (alertIcon) {
+                if (unreadCount > 0) {
+                    alertIcon.classList.remove('hidden');
+                    alertIcon.innerHTML = `<i class="fas fa-bell"></i> <span class="ml-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">${unreadCount}</span>`;
+                } else {
+                    alertIcon.classList.add('hidden');
+                }
+            }
+        } catch (e) { }
+
+        // Dispara a mensagem
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+                const aviso = change.doc.data();
+                const avisoId = change.doc.id;
+
+                if (!sessionStorage.getItem(`aviso_visto_${avisoId}`)) {
+                    sessionStorage.setItem(`aviso_visto_${avisoId}`, 'true');
+
+                    if (typeof showSystemModal === 'function') {
+                        showSystemModal(`🔔 COMUNICADO:\n\n${aviso.mensagem}`, 'warning');
+                    } else {
+                        alert(`🔔 COMUNICADO:\n\n${aviso.mensagem}`);
+                    }
+
+                    // Tenta marcar como lido
+                    updateDoc(doc(db, `sites/${state.siteId}/avisos`, avisoId), { lido: true })
+                        .catch(e => console.log("Erro ao marcar aviso", e));
+                }
+            }
+        });
+
+        if (typeof window.processarAvisos === 'function') {
+            window.processarAvisos();
+        }
+    }, (error) => {
+        console.log("🔒 Coleção de Avisos trancada aguardando senha.");
+    });
+};
+
+
+// =================================================================
+// 🖨️ MÓDULO DE IMPRESSÃO TÉRMICA - LOGO CENTRALIZADA E AVISO FISCAL
+// =================================================================
+window.printOrder = (orderId) => {
+    const order = state.orders.find(o => o.id === orderId);
+    if (!order) return alert("Pedido não encontrado.");
+
+    const storeProfile = state.storeProfile || {};
+    const storeName = storeProfile.name || "Loja";
+    const orderNumber = order.code || order.id.slice(0, 6);
+
+    // NOME CONFIGURADO PARA A IMPRESSÃO
+    const fileName = `Pedido_${orderNumber}`;
+
+    const dataObj = new Date(order.date);
+    const dataHoraFormatada = `${dataObj.toLocaleDateString('pt-BR')} às ${dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+
+    const subtotal = order.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
+    const frete = order.shippingFee || 0;
+    let descontos = (subtotal + frete) - order.total;
+    if (descontos < 0) descontos = 0;
+
+    const rawMethod = order.paymentMethod || '';
+    const cleanMethodName = rawMethod.split('[')[0].trim();
+
+    // 🔄 ALTERAÇÃO 1: Logo forçada a ficar no centro (display: block; margin: 0 auto)
+    const logoHtml = storeProfile.logo
+        ? `<img src="${storeProfile.logo}" style="display: block; margin: 0 auto 8px auto; max-width: 140px; max-height: 100px; object-fit: contain; filter: grayscale(100%) contrast(1.2);">`
+        : '';
+
+    let itemsHtml = order.items.map(i => `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="flex: 1; padding-right: 10px;">${i.qty}x ${i.name}${i.size !== 'U' ? ' (' + i.size + ')' : ''}</span>
+            <span style="white-space: nowrap;">${formatCurrency(i.price * i.qty)}</span>
+        </div>
+    `).join('');
+
+    // 1. Limpa resíduos de impressões anteriores
+    const oldContainer = document.getElementById('print-thermal-container');
+    if (oldContainer) oldContainer.remove();
+
+    const oldStyle = document.getElementById('print-thermal-style');
+    if (oldStyle) oldStyle.remove();
+
+    // 2. Cria o CSS que esconde o site e mostra só o cupom na hora de imprimir
+    const style = document.createElement('style');
+    style.id = 'print-thermal-style';
+    style.innerHTML = `
+        @media screen {
+            #print-thermal-container { display: none !important; }
+        }
+        @media print {
+            @page { margin: 0; size: 80mm auto; } 
+            body > *:not(#print-thermal-container) { display: none !important; }
+            body { background: #fff !important; margin: 0; padding: 0; }
+            #print-thermal-container { 
+                display: block !important; 
+                font-family: 'Courier New', monospace;
+                width: 280px;
+                font-size: 12px;
+                color: #000;
+                margin: 0 auto;
+                padding: 15px 10px;
+                background: #fff;
+            }
+        }
+        .p-center { text-align: center; }
+        .p-bold { font-weight: bold; }
+        .p-line { border-top: 1px dashed #000; margin: 8px 0; }
+    `;
+    document.head.appendChild(style);
+
+    // 3. Monta o Cupom invisível na página
+    const printContainer = document.createElement('div');
+    printContainer.id = 'print-thermal-container';
+
+    const addressText = order.customer.address || "Não informado (Retirada)";
+
+    printContainer.innerHTML = `
+        <div class="p-center">
+            ${logoHtml}
+            <h1 style="margin:0; font-size: 18px; font-weight: 900; text-transform: uppercase;">${storeName}</h1>
+            <p class="p-bold" style="margin: 5px 0;">PEDIDO: #${orderNumber}</p>
+            <p style="font-size: 10px; margin: 0;">${dataHoraFormatada}</p>
+        </div>
+        <div class="p-line"></div>
+        <p class="p-bold" style="margin: 0 0 5px 0;">DADOS DO CLIENTE:</p>
+        <p style="margin: 0;">${order.customer.name}</p>
+        <p style="margin: 0;">Tel: ${order.customer.phone}</p>
+        <p style="margin: 4px 0 0 0;">Endereço: ${addressText}</p>
+        <div class="p-line"></div>
+        ${itemsHtml}
+        <div class="p-line"></div>
+        <div style="display: flex; justify-content: space-between;">
+            <span>Subtotal:</span>
+            <span>${formatCurrency(subtotal)}</span>
+        </div>
+        ${frete > 0 ? `<div style="display: flex; justify-content: space-between;"><span>Frete:</span><span>+ ${formatCurrency(frete)}</span></div>` : ''}
+        ${descontos > 0 ? `<div style="display: flex; justify-content: space-between;"><span>Descontos:</span><span>- ${formatCurrency(descontos)}</span></div>` : ''}
+        <div class="p-line"></div>
+        <div style="display: flex; justify-content: space-between; font-size: 14px;">
+            <span class="p-bold">TOTAL:</span>
+            <span class="p-bold">${formatCurrency(order.total)}</span>
+        </div>
+        <div class="p-line"></div>
+        <p style="margin: 0;">PGTO: ${cleanMethodName}</p>
+        ${order.securityCode ? `<div class="p-center"><p style="font-size: 10px; margin-top:10px;">SEGURANÇA:</p><h1 style="margin:0;">${order.securityCode}</h1></div>` : ''}
+        <div class="p-line"></div>
+        <div class="p-center" style="margin-top: 10px;">
+            <p class="p-bold">*** ${order.status.toUpperCase()} ***</p>
+            <p style="font-size: 10px; margin-top: 5px;">Obrigado pela preferência!</p>
+            
+            <p style="font-size: 11px; margin-top: 8px; font-weight: bold; border-top: 1px solid #000; padding-top: 6px;">
+                *** NÃO É DOCUMENTO FISCAL ***<br>
+                <span style="font-size: 9px; font-weight: normal;">Comprovante de Controle Interno</span>
+            </p>
+        </div>
+    `;
+    document.body.appendChild(printContainer);
+
+    // 4. Salva o título do site e muda para o nome do pedido
+    const originalTitle = document.title;
+    document.title = fileName;
+
+    // 5. Chama a impressão e restaura o título assim que a janela fechar
+    setTimeout(() => {
+        window.print();
+        document.title = originalTitle;
+    }, 300);
+};
+
+
+// Clicar em qualquer lugar da tela fecha o Dropdown
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#global-cat-dropdown') && !e.target.closest('.categoria-btn')) {
+        fecharCatDropdown();
+    }
+});
+
+
+// =================================================================
+// 📄 GERENCIADOR DE TÓPICOS INSTITUCIONAIS (RICH TEXT)
+// =================================================================
+
+state.editingTopicIndex = -1;
+state.originalTopicState = "";
+
+const availableIcons = [
+    'fa-info-circle', 'fa-undo', 'fa-shield-alt',
+    'fa-truck', 'fa-star', 'fa-question-circle', 'fa-handshake', 'fa-gem', 'fa-heart',
+    'fa-money-bill-wave', 'fa-motorcycle', 'fa-shopping-cart', 'fa-box-open'
+];
+
+window.formatText = (command, value = null) => {
+    const editor = document.getElementById('topico-descricao-rich');
+    if (editor) {
+        editor.focus(); // 🔥 CORREÇÃO: Devolve o foco ao campo primeiro para reativar a seleção do texto
+    }
+    document.execCommand(command, false, value);
+    checkTopicChanges();
+};
+
+window.renderAdminTopics = () => {
+    const listContainer = document.getElementById('lista-topicos');
+    const chkMaster = document.getElementById('ativar-topicos-geral');
+    const formArea = document.getElementById('box-form-topico');
+
+    if (!listContainer || !chkMaster) return;
+
+    if (!state.storeProfile.customTopics) state.storeProfile.customTopics = [];
+    const isEnabled = !!state.storeProfile.enableCustomTopics;
+    chkMaster.checked = isEnabled;
+
+    if (formArea) {
+        if (isEnabled) formArea.classList.remove('opacity-50', 'pointer-events-none');
+        else formArea.classList.add('opacity-50', 'pointer-events-none');
+    }
+
+    listContainer.innerHTML = '';
+
+    if (state.storeProfile.customTopics.length === 0) {
+        listContainer.innerHTML = '<p class="text-gray-500 text-xs text-center py-4 italic border border-gray-800 rounded">Nenhum tópico criado ainda.</p>';
+        return;
+    }
+
+    state.storeProfile.customTopics.forEach((topic, index) => {
+        const isActive = topic.active !== false;
+        const bgClass = index === state.editingTopicIndex ? 'bg-blue-900/20 border-blue-500/50' : 'bg-black border-gray-700 hover:border-gray-500';
+
+        const isFirst = index === 0;
+        const isLast = index === state.storeProfile.customTopics.length - 1;
+
+        // ✨ ALTERAÇÃO: Removida a cor inline aqui. A lista do admin fica com texto branco padrão.
+        listContainer.innerHTML += `
+            <div class="flex items-center justify-between border rounded-md px-4 py-3 ${bgClass} transition-colors cursor-pointer group" ondblclick="editTopic(${index})">
+                <div class="flex items-center gap-3 flex-1 min-w-0">
+                    <i class="fas ${topic.icon || 'fa-file-alt'} text-gray-500 group-hover:text-yellow-500 transition"></i>
+                    <span class="text-white font-bold text-sm truncate pr-2">${topic.title}</span>
+                    <span class="text-[10px] text-gray-600 italic opacity-0 group-hover:opacity-100 transition md:inline hidden">(Duplo clique p/ editar)</span>
+                </div>
+                
+                <div class="flex items-center gap-2 shrink-0 pl-2 border-l border-gray-800">
+                    <button type="button" onclick="event.stopPropagation(); moveTopic(${index}, -1)" class="w-6 h-6 rounded bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center transition disabled:opacity-30" title="Mover para cima" ${isFirst ? 'disabled' : ''}>
+                        <i class="fas fa-arrow-up text-[10px]"></i>
+                    </button>
+                    <button type="button" onclick="event.stopPropagation(); moveTopic(${index}, 1)" class="w-6 h-6 rounded bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center transition disabled:opacity-30 mr-2" title="Mover para baixo" ${isLast ? 'disabled' : ''}>
+                        <i class="fas fa-arrow-down text-[10px]"></i>
+                    </button>
+
+                    <button type="button" onclick="event.stopPropagation(); deleteTopic(${index})" class="text-gray-600 hover:text-red-500 transition-colors p-1" title="Excluir">
+                        <i class="far fa-trash-alt text-base"></i>
+                    </button>
+                    
+                    <label class="relative inline-flex items-center cursor-pointer ml-2" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="sr-only peer" ${isActive ? 'checked' : ''} onchange="toggleTopicStatus(${index})">
+                        <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#10b981]"></div>
+                    </label>
+                </div>
+            </div>
+        `;
+    });
+};
+
+window.renderIconSelector = (selectedIcon = 'fa-file-alt') => {
+    const container = document.getElementById('icon-selector');
+    if (!container) return;
+
+    container.className = "flex flex-nowrap overflow-x-auto gap-1 bg-[#151720] p-1 rounded-md border border-gray-700 items-center hide-scroll h-9";
+
+    container.innerHTML = availableIcons.map(icon => {
+        const isSelected = icon === selectedIcon;
+        const color = isSelected ? 'text-yellow-500 bg-yellow-500/10 border-yellow-500' : 'text-gray-500 border-transparent hover:bg-gray-800';
+        return `
+            <button type="button" onclick="selectTopicIcon('${icon}')" class="shrink-0 w-7 h-7 rounded flex items-center justify-center transition ${color} text-[11px] outline-none">
+                <i class="fas ${icon}"></i>
+            </button>
+        `;
+    }).join('');
+
+    document.getElementById('topico-icone').value = selectedIcon;
+};
+
+window.selectTopicIcon = (icon) => {
+    renderIconSelector(icon);
+    checkTopicChanges();
+};
+
+window.checkTopicChanges = () => {
+    const title = document.getElementById('topico-titulo').value.trim();
+    let content = document.getElementById('topico-descricao-rich').innerHTML.trim();
+    const icon = document.getElementById('topico-icone').value;
+    const titleColor = document.getElementById('topico-cor-titulo').value;
+
+    const btnAcao = document.getElementById('btn-topico-acao');
+    const btnCancelar = document.getElementById('btn-cancelar-topico');
+    const descContainer = document.getElementById('topico-descricao-container');
+
+    if (btnAcao) btnAcao.disabled = false;
+    if (btnCancelar) btnCancelar.disabled = false;
+
+    if (content === '<br>') content = '';
+
+    const currentState = `${title}|${content}|${icon}|${titleColor}`;
+    const isEditing = state.editingTopicIndex >= 0;
+    const hasText = title !== '' || content !== '';
+    const hasChanged = currentState !== state.originalTopicState;
+
+    if (isEditing) {
+        descContainer.classList.remove('hidden');
+        btnCancelar.classList.remove('hidden');
+
+        if (hasChanged && hasText) {
+            btnAcao.classList.remove('hidden');
+            btnAcao.innerText = "Salvar Alterações";
+            btnAcao.className = "w-full md:w-auto px-8 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-md transition-colors shadow-md uppercase text-xs tracking-wide";
+        } else {
+            btnAcao.classList.add('hidden');
+        }
+    } else {
+        if (hasText) {
+            btnCancelar.classList.remove('hidden');
+            btnAcao.classList.remove('hidden');
+            btnAcao.innerText = "Criar Tópico";
+            btnAcao.className = "w-full md:w-auto px-8 py-2.5 bg-[#10b981] hover:bg-[#059669] text-white font-bold rounded-md transition-colors shadow-md uppercase text-xs tracking-wide";
+            descContainer.classList.remove('hidden');
+        } else {
+            btnCancelar.classList.add('hidden');
+            btnAcao.classList.remove('hidden');
+            btnAcao.innerText = "Novo";
+            btnAcao.className = "w-full md:w-auto px-8 py-2.5 bg-[#10b981] hover:bg-[#059669] text-white font-bold rounded-md transition-colors shadow-md uppercase text-xs tracking-wide";
+            descContainer.classList.add('hidden');
+        }
+    }
+};
+
+window.handleTopicAction = async () => {
+    const btnAcao = document.getElementById('btn-topico-acao');
+    const acaoTexto = btnAcao.innerText.trim().toUpperCase();
+
+    if (acaoTexto === "NOVO") {
+        document.getElementById('topico-descricao-container').classList.remove('hidden');
+        document.getElementById('topico-titulo').focus();
+        document.getElementById('btn-cancelar-topico').classList.remove('hidden');
+        btnAcao.innerText = "Criar Tópico";
+        return;
+    }
+
+    const title = document.getElementById('topico-titulo').value.trim();
+    const content = document.getElementById('topico-descricao-rich').innerHTML.trim();
+    const icon = document.getElementById('topico-icone').value;
+    const titleColor = document.getElementById('topico-cor-titulo').value;
+
+    if (!title) return showToast("Digite um título.", "error");
+    if (!content || content === '<br>') return showToast("A descrição não pode ficar vazia.", "error");
+
+    if (!state.storeProfile.customTopics) state.storeProfile.customTopics = [];
+
+    const originalText = btnAcao.innerText;
+
+    btnAcao.innerText = "Salvando...";
+    btnAcao.disabled = true;
+    document.getElementById('btn-cancelar-topico').disabled = true;
+
+    try {
+        if (state.editingTopicIndex >= 0) {
+            state.storeProfile.customTopics[state.editingTopicIndex] = {
+                ...state.storeProfile.customTopics[state.editingTopicIndex],
+                title,
+                content,
+                icon,
+                titleColor
+            };
+        } else {
+            state.storeProfile.customTopics.push({ title, content, icon, titleColor, active: true });
+        }
+
+        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { customTopics: state.storeProfile.customTopics }, { merge: true });
+
+        showToast("Tópico salvo!", "success");
+        resetTopicForm();
+        renderAdminTopics();
+        renderSidebarTopics();
+    } catch (error) {
+        showToast("Erro ao salvar.", "error");
+        btnAcao.innerText = originalText;
+    } finally {
+        if (btnAcao) btnAcao.disabled = false;
+        if (document.getElementById('btn-cancelar-topico')) document.getElementById('btn-cancelar-topico').disabled = false;
+    }
+};
+
+window.resetTopicForm = () => {
+    state.editingTopicIndex = -1;
+    document.getElementById('topico-titulo').value = '';
+
+    document.getElementById('topico-cor-titulo').value = '#ffffff';
+    document.getElementById('topico-titulo').style.color = '#ffffff';
+
+    document.getElementById('topico-descricao-rich').innerHTML = '';
+    document.getElementById('topico-descricao-container').classList.add('hidden');
+
+    const btnCancel = document.getElementById('btn-cancelar-topico');
+    if (btnCancel) {
+        btnCancel.classList.add('hidden');
+        btnCancel.disabled = false;
+    }
+
+    const btnAcao = document.getElementById('btn-topico-acao');
+    if (btnAcao) btnAcao.disabled = false;
+
+    renderIconSelector('fa-file-alt');
+    state.originalTopicState = "||fa-file-alt|#ffffff";
+
+    checkTopicChanges();
+    renderAdminTopics();
+};
+
+window.editTopic = (index) => {
+    const topic = state.storeProfile.customTopics[index];
+    if (!topic) return;
+
+    state.editingTopicIndex = index;
+
+    document.getElementById('topico-titulo').value = topic.title;
+    const tColor = topic.titleColor || '#ffffff';
+    document.getElementById('topico-cor-titulo').value = tColor;
+    document.getElementById('topico-titulo').style.color = tColor;
+
+    document.getElementById('topico-descricao-rich').innerHTML = topic.content;
+    renderIconSelector(topic.icon || 'fa-file-alt');
+
+    document.getElementById('topico-descricao-container').classList.remove('hidden');
+
+    state.originalTopicState = `${topic.title}|${topic.content}|${topic.icon || 'fa-file-alt'}|${tColor}`;
+    checkTopicChanges();
+
+    renderAdminTopics();
+    document.getElementById('topico-titulo').focus();
+    document.getElementById('topico-titulo').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+window.deleteTopic = async (index) => {
+    if (!confirm("Excluir este tópico definitivamente?")) return;
+    state.storeProfile.customTopics.splice(index, 1);
+    try {
+        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { customTopics: state.storeProfile.customTopics }, { merge: true });
+        if (state.editingTopicIndex === index) resetTopicForm();
+        renderAdminTopics();
+        renderSidebarTopics();
+    } catch (e) { showToast("Erro ao excluir.", "error"); }
+};
+
+window.toggleTopicStatus = async (index) => {
+    state.storeProfile.customTopics[index].active = !state.storeProfile.customTopics[index].active;
+    try {
+        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { customTopics: state.storeProfile.customTopics }, { merge: true });
+        renderSidebarTopics();
+    } catch (e) { }
+};
+
+window.moveTopic = async (index, direction) => {
+    const target = index + direction;
+    if (target < 0 || target >= state.storeProfile.customTopics.length) return;
+
+    const temp = state.storeProfile.customTopics[index];
+    state.storeProfile.customTopics[index] = state.storeProfile.customTopics[target];
+    state.storeProfile.customTopics[target] = temp;
+
+    renderAdminTopics();
+
+    try {
+        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { customTopics: state.storeProfile.customTopics }, { merge: true });
+        renderSidebarTopics();
+    } catch (e) { showToast("Erro ao mover.", "error"); }
+};
+
+window.renderSidebarTopics = () => {
+    const activeTopics = state.storeProfile.enableCustomTopics && state.storeProfile.customTopics
+        ? state.storeProfile.customTopics.filter(t => t.active !== false)
+        : [];
+
+    // --- 1. RENDERIZA NO MENU LATERAL (SIDEBAR) ---
+    let sidebarContainer = document.getElementById('sidebar-custom-topics');
+    if (sidebarContainer) {
+        sidebarContainer.innerHTML = '';
+        if (activeTopics.length > 0) {
+            sidebarContainer.innerHTML += `<div class="border-t border-gray-800 mx-2 pt-2 mb-2 "></div>`;
+            activeTopics.forEach((topic) => {
+                const originalIndex = state.storeProfile.customTopics.findIndex(t => t.title === topic.title);
+                const iconClass = topic.icon || 'fa-file-alt';
+
+                sidebarContainer.innerHTML += `
+                    <button onclick="openClientTopic(${originalIndex})"text-[var(--txt-body)] class="w-full text-left py-2.5 px-4 text-sm font-bold hover:text-white hover:bg-gray-800 rounded transition flex items-center gap-3">
+                        <i class="fas ${iconClass} w-5 text-center text-[var(--txt-body)] opacity-70"></i> ${topic.title}
+                    </button>
+                `;
+            });
+        }
+    }
+
+    // --- 2. RENDERIZA NO RODAPÉ (FOOTER) ---
+    let footerContainer = document.getElementById('footer-custom-topics');
+    if (footerContainer) {
+        footerContainer.innerHTML = '';
+        if (activeTopics.length > 0) {
+            activeTopics.forEach((topic) => {
+                const originalIndex = state.storeProfile.customTopics.findIndex(t => t.title === topic.title);
+
+                // Design profissional: link cinza que fica branco e com underline animado ao passar o mouse
+                footerContainer.innerHTML += `
+                    <button onclick="openClientTopic(${originalIndex})" class="text-xs md:text-sm font-bold text-gray-400 hover:text-white transition-colors duration-200 uppercase tracking-widest relative group outline-none">
+                        ${topic.title}
+                        <span class="absolute -bottom-1 left-1/2 w-0 h-px bg-yellow-500 group-hover:w-full group-hover:left-0 transition-all duration-300"></span>
+                    </button>
+                `;
+            });
+        }
+    }
+};
+
+window.openClientTopic = (index) => {
+    const topic = state.storeProfile.customTopics[index];
+    if (!topic) return;
+
+    const elTitle = document.getElementById('topic-display-title');
+    const elContent = document.getElementById('topic-display-content');
+
+    if (elTitle) {
+        elTitle.textContent = topic.title;
+        elTitle.classList.remove('text-transparent', 'bg-clip-text', 'bg-gradient-to-r', 'from-brand-pink', 'to-brand-blue');
+        // A cor definida entra em ação exclusivamente na tela de exibição do tópico!
+        elTitle.style.color = topic.titleColor || '#ffffff';
+    }
+
+    if (elContent) {
+        elContent.innerHTML = topic.content;
+        elContent.classList.add('rich-text-content');
+    }
+
+    showView('topic');
+
+    // ✨ CORREÇÃO: Só aciona o toggleSidebar se o menu lateral estiver visível na tela
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+        toggleSidebar();
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// =================================================================
+// 🛡️ MODAL DE ESTOQUE ESGOTADO (CHECKOUT)
+// =================================================================
+window.showOutOfStockModal = (outOfStockItems) => {
+    let modal = document.getElementById('out-of-stock-modal');
+
+    // Se o modal não existe no HTML, o JS cria ele na hora
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'out-of-stock-modal';
+        modal.className = "fixed inset-0 bg-black/90 z-[99999] flex items-center justify-center p-4 opacity-0 transition-opacity duration-300 backdrop-blur-sm hidden";
+        document.body.appendChild(modal);
+    }
+
+    // Monta a listinha vermelha bonita com os itens que deram problema
+    const itemsHtml = outOfStockItems.map(itemHtml => `
+        <div class="flex items-center gap-3 bg-red-900/20 border border-red-500/30 p-3 rounded-lg text-left">
+            <div class="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                <i class="fas fa-box-open text-red-500"></i>
+            </div>
+            <div class="flex-1 text-gray-200 text-sm leading-tight">${itemHtml}</div>
+        </div>
+    `).join('');
+
+    modal.innerHTML = `
+        <div class="bg-[#151720] border-t-4 border-t-red-500 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300" id="oos-card">
+            <div class="p-6 text-center">
+                <div class="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+                    <i class="fas fa-exclamation-triangle text-4xl text-red-500 animate-pulse"></i>
+                </div>
+                <h3 class="text-white font-extrabold text-2xl mb-2 tracking-tight">Ops! Estoque alterado.</h3>
+                <p class="text-gray-400 text-sm mb-6 leading-relaxed">
+                    Enquanto você preenchia os dados, alguém foi mais rápido e comprou as últimas unidades. Ajuste seu carrinho para prosseguir:
+                </p>
+
+                <div class="space-y-2 mb-6 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                    ${itemsHtml}
+                </div>
+
+                <button onclick="closeOutOfStockModal()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-red-900/50 uppercase tracking-wide flex items-center justify-center gap-2">
+                    <i class="fas fa-shopping-cart"></i> Voltar ao Carrinho
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Exibe com animação suave
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        document.getElementById('oos-card').classList.remove('scale-95');
+    }, 10);
+};
+
+window.closeOutOfStockModal = () => {
+    const modal = document.getElementById('out-of-stock-modal');
+    if (!modal) return;
+
+    // Oculta com animação
+    modal.classList.add('opacity-0');
+    document.getElementById('oos-card').classList.add('scale-95');
+
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+
+        // MÁGICA: Joga o cliente direto de volta pro carrinho!
+        if (typeof window.backToOrderList === 'function') {
+            window.backToOrderList();
+        }
+    }, 300);
+};
+
+
+// =================================================================
+// 🎁 SISTEMA DE CUPOM OFERECIDO NA VITRINE (POPUP CLIENTE)
+// =================================================================
+
+// 1. Chave Mestra Global
+window.toggleGlobalOfferCoupon = async (isActive) => {
+    if (!state.storeProfile) state.storeProfile = {};
+    state.storeProfile.offerCouponActive = isActive;
+
+    try {
+        await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { offerCouponActive: isActive }, { merge: true });
+        renderAdminCoupons(); // Redesenha a lista para mostrar/esconder as bolinhas
+        showToast(isActive ? "Oferta de cupom ativada!" : "Oferta de cupom desativada.");
+    } catch (e) {
+        showToast("Erro ao salvar configuração.", "error");
+    }
+};
+
+// 2. O Banner do Cliente
+window.showOfferedCoupon = () => {
+    // 1. Trava: O interruptor global da loja está ligado?
+    if (state.storeProfile?.offerCouponActive !== true) return;
+    
+    // 2. Trava: A lista de cupons já chegou do banco de dados?
+    if (!state.coupons || state.coupons.length === 0) return;
+
+    // 3. Acha o cupom que foi marcado como oferecido
+    const offered = state.coupons.find(c => c.isOffered === true);
+    if (!offered) return;
+
+    // ✨ 4. TRAVA DE VENCIMENTO: Se expirou, o cliente simplesmente não vê o banner!
+    if (offered.expiryDate) {
+        const expiry = new Date(offered.expiryDate);
+        if (new Date() > expiry) return; 
+    }
+
+    // 5. Se o cliente já fechou o banner hoje, ignora e deixa ele em paz
+    if (sessionStorage.getItem(`dismissed_coupon_${offered.code}`)) return;
+
+    // 6. Se o banner já estiver na tela, não faz nada (evita piscar na tela)
+    let banner = document.getElementById('floating-coupon-banner');
+    if (banner) return;
+
+    // 7. Cria o Banner
+    banner = document.createElement('div');
+    banner.id = 'floating-coupon-banner';
+    banner.className = 'fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-[#151720] border border-yellow-500/50 rounded-2xl shadow-2xl z-[9999] p-4 flex flex-col gap-2 transform translate-y-[150%] opacity-0 transition-all duration-700 ease-out';
+    document.body.appendChild(banner);
+
+    const desc = offered.type === 'percent' ? `${offered.val}% OFF` : `R$ ${formatCurrency(offered.val)} OFF`;
+
+    banner.innerHTML = `
+        <button onclick="closeOfferedCoupon('${offered.code}')" class="absolute top-2 right-2 text-gray-500 hover:text-white transition w-6 h-6 flex items-center justify-center bg-gray-800 hover:bg-red-600 rounded-full z-10">
+            <i class="fas fa-times text-xs"></i>
+        </button>
+        
+        <div class="flex items-center gap-3 relative z-0">
+            <div class="w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-500 flex items-center justify-center shrink-0 border border-yellow-500/30">
+                <i class="fas fa-ticket-alt text-xl animate-bounce"></i>
+            </div>
+            <div>
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Presente da loja!</p>
+                <p class="text-white font-extrabold text-sm mt-0.5">Use e ganhe <span class="text-green-400">${desc}</span></p>
+            </div>
+        </div>
+        
+        <div class="flex items-center justify-between bg-black border border-gray-700 rounded-xl p-2 mt-2 relative overflow-hidden group">
+            <div class="absolute inset-0 bg-yellow-500/5 group-hover:bg-yellow-500/10 transition pointer-events-none"></div>
+            <span class="text-yellow-500 font-mono font-bold tracking-widest text-lg pl-3 select-all">${offered.code}</span>
+            <button onclick="copyOfferedCoupon('${offered.code}')" class="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-lg font-bold text-xs uppercase transition shadow-md flex items-center gap-2 active:scale-95">
+                <i class="fas fa-copy"></i> Copiar
+            </button>
+        </div>
+    `;
+
+    // Sobe o banner 1 segundo após ser chamado
+    setTimeout(() => {
+        banner.classList.remove('translate-y-[150%]', 'opacity-0');
+    }, 1000);
+};
+
+window.closeOfferedCoupon = (code) => {
+    sessionStorage.setItem(`dismissed_coupon_${code}`, 'true');
+    const banner = document.getElementById('floating-coupon-banner');
+    if (banner) {
+        banner.classList.add('translate-y-[150%]', 'opacity-0');
+        setTimeout(() => banner.remove(), 700);
+    }
+};
+
+window.copyOfferedCoupon = (code) => {
+    navigator.clipboard.writeText(code).then(() => {
+        showToast("Cupom copiado! Cole no momento do pagamento.", "success");
+        closeOfferedCoupon(code);
+    }).catch(() => alert("Código: " + code));
+};
+
+window.setOfferedCoupon = async (couponId) => {
+    try {
+        const promises = state.coupons.map(c => {
+            const shouldBeOffered = (c.id === couponId);
+            if (c.isOffered !== shouldBeOffered) {
+                return updateDoc(doc(db, `sites/${state.siteId}/coupons`, c.id), { isOffered: shouldBeOffered });
+            }
+        });
+
+        await Promise.all(promises.filter(p => p !== undefined));
+        showToast("Cupom Destaque alterado!", "success");
+    } catch (error) {
+        showToast("Erro ao definir cupom.", "error");
+    }
+};
+
+// 3. Atualização Visual da Lista
+function renderAdminCoupons() {
+    if (!els.couponListAdmin) return;
+
+    // Sincroniza o botão global visualmente
+    const isGlobalActive = state.storeProfile?.offerCouponActive === true;
+    const toggleEl = document.getElementById('global-offer-coupon');
+    if (toggleEl) toggleEl.checked = isGlobalActive;
+
+    els.couponListAdmin.innerHTML = state.coupons.map((c, index) => {
+        const typeDisplay = c.type === 'percent'
+            ? `<span class="text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded text-[10px] whitespace-nowrap">${c.val}% OFF</span>`
+            : `<span class="text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded text-[10px] whitespace-nowrap">${formatCurrency(c.val)} OFF</span>`;
+
+        let isExpired = false;
+        let expiryDisplay = `<span class="text-[10px] text-green-500 font-bold flex items-center gap-1 whitespace-nowrap"><i class="fas fa-infinity text-[8px]"></i> Permanente</span>`;
+
+        if (c.expiryDate) {
+            const expiryDate = new Date(c.expiryDate);
+            const now = new Date();
+            const dateStr = expiryDate.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+            if (now > expiryDate) {
+                isExpired = true;
+                expiryDisplay = `<span class="text-[9px] text-red-400 font-bold bg-red-900/20 px-2 py-0.5 rounded border border-red-900/50 block mt-1 w-fit">EXPIRADO: ${dateStr}</span>`;
+            } else {
+                expiryDisplay = `<span class="text-[10px] text-gray-400 whitespace-nowrap">Expira: <span class="text-white font-bold">${dateStr}</span></span>`;
+            }
+        }
+
+        // Borda dourada se for o oferecido E o sistema estiver ligado!
+        const isOfferedAndActive = c.isOffered && isGlobalActive;
+        const borderClass = isExpired ? 'border-red-600 opacity-75' : (isOfferedAndActive ? 'border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.15)]' : 'border-green-500');
+        const isFocused = index === state.focusedCouponIndex;
+        const bgClass = isFocused ? 'bg-gray-700 ring-1 ring-yellow-500 z-10' : 'bg-[#151720] border-gray-800';
+
+        // Só desenha a bolinha (Radio Button) se a chave global estiver LIGADA
+        const radioHtml = isGlobalActive ? `
+            <label class="flex flex-col items-center justify-center cursor-pointer group/radio px-2 border-r border-gray-700" onclick="event.stopPropagation()">
+                <input type="radio" name="offered_coupon" class="w-4 h-4 text-yellow-500 bg-gray-900 border-gray-600 focus:ring-yellow-500 cursor-pointer" 
+                       ${c.isOffered ? 'checked' : ''} 
+                       onchange="setOfferedCoupon('${c.id}')" title="Oferecer este cupom na vitrine">
+                <span class="text-[8px] text-gray-500 group-hover/radio:text-yellow-500 mt-1 uppercase tracking-widest font-bold">Oferecer</span>
+            </label>
+        ` : '';
+
+        return `
+            <div id="coupon-item-${index}" 
+                 onclick="selectCoupon(${index})" 
+                 ondblclick="editCoupon('${c.id}')" 
+                 class="${bgClass} w-full border-l-4 ${borderClass} p-3 rounded-lg flex justify-between items-center shadow-sm mb-2 cursor-pointer transition select-none group relative overflow-hidden">
+                
+                ${isFocused ? '<div class="absolute -left-2 top-1/2 -translate-y-1/2 text-yellow-500 text-xs"><i class="fas fa-caret-right"></i></div>' : ''}
+
+                <div class="flex flex-col flex-1 min-w-0 pr-3 pointer-events-none">
+                    <span class="${isOfferedAndActive ? 'text-yellow-500' : 'text-green-500'} font-bold text-base tracking-wider truncate group-hover:text-white transition w-full block">
+                        ${c.code} ${isOfferedAndActive ? '<span class="text-[9px] bg-yellow-500 text-black px-1.5 py-0.5 rounded ml-2 align-middle shadow-md">OFERECIDO</span>' : ''}
+                    </span>
+                    
+                    <div class="flex flex-wrap items-center gap-2 mt-1">
+                        ${typeDisplay}
+                        ${!isExpired ? expiryDisplay : ''}
+                    </div>
+                    ${isExpired ? expiryDisplay : ''}
+                </div>
+                
+                <div class="flex items-center gap-1 shrink-0">
+                    ${radioHtml}
+                    <button onclick="event.stopPropagation(); deleteCoupon('${c.id}')" 
+                            class="w-9 h-9 ml-1 flex items-center justify-center bg-red-600/10 text-red-500 border border-red-600/30 hover:bg-red-600 hover:text-white rounded transition z-20 active:scale-95">
+                        <i class="fas fa-trash-alt text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
+
+window.checkAndRotateExpiredOfferedCoupon = async () => {
+    // Só executa a limpeza se for o admin logado (impede que clientes alterem o banco de dados)
+    if (!state.user) return;
+
+    // Procura o cupom que está marcado como oferecido atualmente
+    const offered = state.coupons.find(c => c.isOffered === true);
+    if (!offered) return;
+
+    // Verifica se ele tem data de expiração e se essa data já passou
+    if (offered.expiryDate) {
+        const expiry = new Date(offered.expiryDate);
+        const now = new Date();
+
+        if (now > expiry) {
+            const dateStr = expiry.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            
+            // Procura o próximo cupom válido (que não seja o atual e não esteja expirado)
+            const nextCoupon = state.coupons.find(c => {
+                if (c.id === offered.id) return false; // Ignora o que acabou de expirar
+                if (!c.expiryDate) return true; // Se for permanente, serve
+                return new Date(c.expiryDate) > now; // Se a data for no futuro, serve
+            });
+
+            try {
+                // 1. Remove o destaque do cupom expirado
+                await updateDoc(doc(db, `sites/${state.siteId}/coupons`, offered.id), { isOffered: false });
+
+                // 2. Lógica de substituição
+                if (nextCoupon) {
+                    // Ativa o próximo cupom válido
+                    await updateDoc(doc(db, `sites/${state.siteId}/coupons`, nextCoupon.id), { isOffered: true });
+                    
+                    // Mostra o aviso na tela do Admin
+                    if (typeof showSystemModal === 'function') {
+                        showSystemModal(`⚠️ ROTAÇÃO DE CUPOM:\n\nO cupom oferecido (${offered.code}) expirou em ${dateStr}.\n\nO sistema ativou automaticamente o próximo cupom válido: ${nextCoupon.code}.`, "warning");
+                    }
+                } else {
+                    // Se não tiver próximo, desliga a chave mestra global
+                    await setDoc(doc(db, `sites/${state.siteId}/settings`, 'profile'), { offerCouponActive: false }, { merge: true });
+                    if(state.storeProfile) state.storeProfile.offerCouponActive = false;
+                    
+                    // Atualiza o botão visual da chave mestra se a tela estiver aberta
+                    const toggleEl = document.getElementById('global-offer-coupon');
+                    if (toggleEl) toggleEl.checked = false;
+
+                    if (typeof showSystemModal === 'function') {
+                        showSystemModal(`⚠️ OFERTA DESATIVADA:\n\nO cupom oferecido (${offered.code}) expirou em ${dateStr}.\n\nComo não há outros cupons válidos, a oferta automática na vitrine foi DESLIGADA.`, "warning");
+                    }
+                }
+            } catch (e) {
+                console.error("Erro ao rotacionar cupom:", e);
+            }
+        }
+    }
+};

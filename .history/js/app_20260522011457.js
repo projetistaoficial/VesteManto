@@ -1630,17 +1630,10 @@ function renderCatalog(productsToRender) {
         }
     }
 
-    const sortMode = (document.getElementById('sort-filter')?.value || 'vitrine').toLowerCase();
+    const sortMode = document.getElementById('sort-filter')?.value || 'vitrine';
 
-    // ✨ ARMADURA: Garante que o valor do estoque e do preço sempre sejam números válidos
+    // ✨ ARMADURA: FORÇA O ESTOQUE PARA NÚMERO
     const getSafeStock = (val) => isNaN(parseInt(val)) ? 0 : parseInt(val);
-    const getSafePrice = (p) => {
-        let promo = parseFloat(p.promoPrice);
-        let normal = parseFloat(p.price);
-        if (!isNaN(promo) && promo > 0) return promo; // Se tem promoção válida, usa ela
-        if (!isNaN(normal) && normal > 0) return normal; // Senão, usa o normal
-        return 0; // Se tudo falhar, é 0
-    };
 
     filtered.sort((a, b) => {
         const stockA = getSafeStock(a.stock);
@@ -1649,48 +1642,34 @@ function renderCatalog(productsToRender) {
         const isSoldOutA = stockA <= 0 && (!state.globalSettings.allowNoStock && !a.allowNoStock);
         const isSoldOutB = stockB <= 0 && (!state.globalSettings.allowNoStock && !b.allowNoStock);
 
-        // Itens esgotados sempre vão pro final
+        // Itens esgotados sempre vão pro final (se o sistema bloquear venda sem estoque)
         if (isSoldOutA && !isSoldOutB) return 1;
         if (!isSoldOutA && isSoldOutB) return -1;
 
-        const priceA = getSafePrice(a);
-        const priceB = getSafePrice(b);
-        const nameA = (a.name || '').trim().toLowerCase();
-        const nameB = (b.name || '').trim().toLowerCase();
+        switch (sortMode) {
+            case 'vitrine':
+                // 1. REGRA SOBERANA: Ordem Manual
+                // Se você arrastou o produto, ele ganha um número de ordem. Esse número manda em tudo!
+                const orderA = a.order !== undefined && a.order !== null ? parseFloat(a.order) : 999999;
+                const orderB = b.order !== undefined && b.order !== null ? parseFloat(b.order) : 999999;
 
-        // 🔍 LÓGICA UNIVERSAL: Busca por "pedaços" do value do seu HTML
-        if (sortMode.includes('menor') || sortMode.includes('asc') && sortMode.includes('price')) {
-            return priceA - priceB;
+                if (orderA !== orderB) return orderA - orderB;
+
+                // 2. SE NÃO TIVER ORDEM MANUAL (ou clicar no botão Padrão), aplica a hierarquia:
+                const isHighlightA = a.highlight === true ? 1 : 0;
+                const isHighlightB = b.highlight === true ? 1 : 0;
+                if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA;
+
+                const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
+                const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
+                if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
+
+                const codeA = parseInt(a.code) || 0;
+                const codeB = parseInt(b.code) || 0;
+                return codeB - codeA;
+
+            // (Pode adicionar outros cases aqui se você tiver opções como "Maior Preço", "Menor Preço" no select)
         }
-        
-        if (sortMode.includes('maior') || sortMode.includes('desc') && sortMode.includes('price')) {
-            return priceB - priceA;
-        }
-        
-        if (sortMode.includes('nome') || sortMode.includes('name') || sortMode.includes('alfabetica')) {
-            return nameA.localeCompare(nameB);
-        }
-        
-        if (sortMode.includes('lancamento') || sortMode.includes('new') || sortMode.includes('date')) {
-            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.code) || 0;
-            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : parseInt(b.code) || 0;
-            return dateB - dateA;
-        }
-
-        // Padrão: Vitrine
-        const orderA = a.order !== undefined && a.order !== null ? parseFloat(a.order) : 999999;
-        const orderB = b.order !== undefined && b.order !== null ? parseFloat(b.order) : 999999;
-        if (orderA !== orderB) return orderA - orderB;
-
-        const isHighlightA = a.highlight === true ? 1 : 0;
-        const isHighlightB = b.highlight === true ? 1 : 0;
-        if (isHighlightA !== isHighlightB) return isHighlightB - isHighlightA;
-
-        const hasPromoA = (parseFloat(a.promoPrice) > 0) ? 1 : 0;
-        const hasPromoB = (parseFloat(b.promoPrice) > 0) ? 1 : 0;
-        if (hasPromoA !== hasPromoB) return hasPromoB - hasPromoA;
-
-        return (parseInt(b.code) || 0) - (parseInt(a.code) || 0);
     });
 
     if (filtered.length === 0) {
@@ -4294,7 +4273,7 @@ window.toggleCatDropdown = (parentName, event) => {
         const safeSubName = sub.name.replace(/'/g, "\\'");
         const shortName = sub.name.replace(parentName + ' - ', '');
         return `
-            <button onclick="filterByCat('${safeSubName}'); fecharCatDropdown()" class="block w-full text-left px-5 py-2.5 text-xs font-bold text-[var(--txt-body)] hover:bg-white/10 hover:text-white transition-colors outline-none">
+            <button onclick="filterByCat('${safeSubName}'); fecharCatDropdown()" class="block w-full text-left px-5 py-2.5 text-xs font-bold text-gray-400 hover:bg-white/10 hover:text-white transition-colors outline-none">
                 ${shortName}
             </button>
         `;
@@ -11064,7 +11043,7 @@ window.showOfferedCoupon = () => {
     // 7. Cria o Banner
     banner = document.createElement('div');
     banner.id = 'floating-coupon-banner';
-    banner.className = 'fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-[var(--bg-main)] border border-yellow-500/50 rounded-2xl shadow-2xl z-[9999] p-4 flex flex-col gap-2 transform translate-y-[150%] opacity-0 transition-all duration-700 ease-out';
+    banner.className = 'fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-[#151720] border border-yellow-500/50 rounded-2xl shadow-2xl z-[9999] p-4 flex flex-col gap-2 transform translate-y-[150%] opacity-0 transition-all duration-700 ease-out';
     document.body.appendChild(banner);
 
     const desc = offered.type === 'percent' ? `${offered.val}% OFF` : `R$ ${formatCurrency(offered.val)} OFF`;
@@ -11079,8 +11058,8 @@ window.showOfferedCoupon = () => {
                 <i class="fas fa-ticket-alt text-xl animate-bounce"></i>
             </div>
             <div>
-                <p class="text-[10px] text-[var(--txt-title)] font-bold uppercase tracking-widest">Presente da loja!</p>
-                <p class="text-[var(--txt-body)] font-extrabold text-sm mt-0.5">Use e ganhe <span class="text-green-400">${desc}</span></p>
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Presente da loja!</p>
+                <p class="text-white font-extrabold text-sm mt-0.5">Use e ganhe <span class="text-green-400">${desc}</span></p>
             </div>
         </div>
         

@@ -4162,124 +4162,7 @@ window.filterByCat = (catName) => {
 };
 
 // 3. RENDERIZADOR (Cria os botões na tela)
-function renderCategories() {
-    const populateSelect = (id) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const val = el.value;
-        el.innerHTML = `<option value="">Todas</option>`;
-        state.categories.forEach(c => el.innerHTML += `<option value="${c.name}">${c.name}</option>`);
-        if (val) el.value = val;
-    };
-    ['category-filter', 'admin-filter-cat', 'bulk-category-select', 'prod-cat-select', 'bulk-category-select-dynamic'].forEach(populateSelect);
 
-    const scrollContainer = document.getElementById('categorias-scroll');
-    if (scrollContainer) {
-        let activeCat = document.getElementById('category-filter')?.value || '';
-
-        if (activeCat !== '') {
-            const catExists = state.categories.some(c => c.name === activeCat || activeCat.startsWith(c.name + ' -'));
-            if (!catExists) { activeCat = ''; renderCatalog(state.products); }
-        }
-
-        let pillsHtml = '';
-        const principais = state.categories.filter(c => !c.name.includes(' - '));
-        const categoriasParaMostrar = principais.length > 0 ? principais : state.categories;
-        categoriasParaMostrar.sort((a, b) => (a.order || 0) - (b.order || 0));
-
-        categoriasParaMostrar.forEach(c => {
-            const safeName = c.name.replace(/'/g, "\\'");
-            const hasSubs = state.categories.some(sub => sub.name.startsWith(c.name + ' - '));
-
-            // 👉 ESTRUTURA BASE: Só estrutura e desfoque. As cores (bg-white/10) entram via JS.
-            const classesEstrutura = "categoria-btn flex items-center h-full rounded-full transition-all shrink-0 border backdrop-blur-md font-['Nunito'] font-black tracking-wide text-xs outline-none";
-
-            if (hasSubs) {
-                pillsHtml += `
-                    <div class="${classesEstrutura}" data-cat="${safeName}">
-                        <button onclick="filterByCat('${safeName}')" class="px-4 h-full rounded-l-full outline-none">
-                            ${c.name}
-                        </button>
-                        <button onclick="toggleCatDropdown('${safeName}', event)" class="px-3 h-full border-l border-white/20 flex items-center justify-center rounded-r-full hover:bg-black/30 outline-none transition-colors">
-                            <i class="fas fa-chevron-down text-[10px]"></i>
-                        </button>
-                    </div>
-                `;
-            } else {
-                pillsHtml += `
-                    <button onclick="filterByCat('${safeName}')" data-cat="${safeName}" class="${classesEstrutura} px-5 outline-none">
-                        ${c.name}
-                    </button>
-                `;
-            }
-        });
-
-        scrollContainer.innerHTML = pillsHtml;
-
-        // Ao terminar de desenhar, o JS pinta quem é quem
-        setTimeout(() => { window.aplicarCoresCategorias(activeCat); }, 10);
-
-        if (typeof initCategoryCarousel === 'function') initCategoryCarousel();
-    }
-
-    // --- SIDEBAR (MANTENHA A SUA CÓPIA AQUI) ---
-    const sidebarContainer = document.getElementById('sidebar-categories');
-    if (sidebarContainer) {
-        const tree = {};
-        state.categories.forEach(c => {
-            const parts = c.name.split(' - ');
-            let currentLevel = tree;
-            parts.forEach((part, index) => {
-                if (!currentLevel[part]) {
-                    const fullPath = parts.slice(0, index + 1).join(' - ');
-                    currentLevel[part] = { _path: fullPath, _children: {} };
-                }
-                currentLevel = currentLevel[part]._children;
-            });
-        });
-
-        const getOrder = (path) => {
-            const cat = state.categories.find(c => c.name === path);
-            return cat && cat.order !== undefined ? cat.order : 999;
-        };
-
-        const buildHtml = (node, level = 0) => {
-            let html = '';
-            const keys = Object.keys(node).sort((a, b) => {
-                const orderA = getOrder(node[a]._path);
-                const orderB = getOrder(node[b]._path);
-                if (orderA !== orderB) return orderA - orderB;
-                return a.localeCompare(b);
-            });
-
-            keys.forEach(key => {
-                const item = node[key];
-                const hasChildren = Object.keys(item._children).length > 0;
-                const safePath = item._path.replace(/'/g, "\\'");
-                const paddingLeft = level === 0 ? 12 : (level * 20) + 12;
-                const textStyle = level === 0 ? "text-[var(--txt-body)] font-bold uppercase tracking-wide text-sm" : "text-gray-300 font-medium text-sm hover:text-white";
-
-                if (hasChildren) {
-                    html += `
-                        <details class="group mb-1">
-                            <summary class="list-none flex items-center justify-between cursor-pointer rounded hover:bg-gray-800 transition pr-2 py-2">
-                                <span class="${textStyle} flex-1" style="padding-left:${paddingLeft}px" onclick="event.preventDefault(); filterByCat('${safePath}')">${key}</span>
-                                <span class="text-gray-500 text-sm transform transition-transform duration-200 group-open:rotate-180 p-2">▲</span>
-                            </summary>
-                            <div class="border-l border-gray-800 ml-4">${buildHtml(item._children, level + 1)}</div>
-                        </details>`;
-                } else {
-                    html += `
-                        <div class="block w-full text-left py-2 mb-1 rounded hover:bg-gray-800 cursor-pointer transition flex items-center" onclick="filterByCat('${safePath}')">
-                            <span class="${textStyle}" style="padding-left:${paddingLeft}px">${key}</span>
-                        </div>`;
-                }
-            });
-            return html;
-        };
-        sidebarContainer.innerHTML = `<div class="space-y-1 mt-2">${buildHtml(tree)}</div>`;
-    }
-}
 
 // 4. DROPDOWN DE SUBCATEGORIAS
 window.toggleCatDropdown = (parentName, event) => {
@@ -4294,7 +4177,7 @@ window.toggleCatDropdown = (parentName, event) => {
         const safeSubName = sub.name.replace(/'/g, "\\'");
         const shortName = sub.name.replace(parentName + ' - ', '');
         return `
-            <button onclick="filterByCat('${safeSubName}'); fecharCatDropdown()" class="block w-full text-left px-5 py-2.5 text-xs font-bold text-[var(--txt-body)] hover:bg-white/10 hover:text-white transition-colors outline-none">
+            <button onclick="filterByCat('${safeSubName}'); fecharCatDropdown()" class="block w-full text-left px-5 py-2.5 text-xs font-bold text-gray-400 hover:bg-white/10 hover:text-white transition-colors outline-none">
                 ${shortName}
             </button>
         `;
@@ -11064,7 +10947,7 @@ window.showOfferedCoupon = () => {
     // 7. Cria o Banner
     banner = document.createElement('div');
     banner.id = 'floating-coupon-banner';
-    banner.className = 'fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-[var(--bg-main)] border border-yellow-500/50 rounded-2xl shadow-2xl z-[9999] p-4 flex flex-col gap-2 transform translate-y-[150%] opacity-0 transition-all duration-700 ease-out';
+    banner.className = 'fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-[#151720] border border-yellow-500/50 rounded-2xl shadow-2xl z-[9999] p-4 flex flex-col gap-2 transform translate-y-[150%] opacity-0 transition-all duration-700 ease-out';
     document.body.appendChild(banner);
 
     const desc = offered.type === 'percent' ? `${offered.val}% OFF` : `R$ ${formatCurrency(offered.val)} OFF`;
@@ -11079,8 +10962,8 @@ window.showOfferedCoupon = () => {
                 <i class="fas fa-ticket-alt text-xl animate-bounce"></i>
             </div>
             <div>
-                <p class="text-[10px] text-[var(--txt-title)] font-bold uppercase tracking-widest">Presente da loja!</p>
-                <p class="text-[var(--txt-body)] font-extrabold text-sm mt-0.5">Use e ganhe <span class="text-green-400">${desc}</span></p>
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Presente da loja!</p>
+                <p class="text-white font-extrabold text-sm mt-0.5">Use e ganhe <span class="text-green-400">${desc}</span></p>
             </div>
         </div>
         
