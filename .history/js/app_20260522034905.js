@@ -11364,7 +11364,7 @@ window.showOfferedCoupon = () => {
             </div>
             <div>
                 <p class="text-[10px] text-[var(--txt-title)] font-bold uppercase tracking-widest">Presente da loja!</p>
-                <p class="text-[var(--txt-body)] font-extrabold text-sm mt-0.5">Use e ganhe <span class="text-green-400">${desc}</span></p>
+                <p class="text-[var(--txt-body)] font-extrabold text-sm mt-0.5">Use e ganhe<span class="text-green-400">${desc}</span></p>
             </div>
         </div>
         

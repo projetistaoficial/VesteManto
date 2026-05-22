@@ -11351,7 +11351,7 @@ window.showOfferedCoupon = () => {
     banner.className = 'fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-[var(--bg-main)] border border-yellow-500/50 rounded-2xl shadow-2xl z-[9999] p-4 flex flex-col gap-2 transform translate-y-[150%] opacity-0 transition-all duration-700 ease-out';
     document.body.appendChild(banner);
 
-    const desc = offered.type === 'percent' ? `${offered.val}% OFF` : `${formatCurrency(offered.val)} OFF`;
+    const desc = offered.type === 'percent' ? `${offered.val}% OFF` : ` ${formatCurrency(offered.val)} OFF`;
 
     banner.innerHTML = `
         <button onclick="closeOfferedCoupon('${offered.code}')" class="absolute top-2 right-2 text-gray-500 hover:text-white transition w-6 h-6 flex items-center justify-center bg-gray-800 hover:bg-red-600 rounded-full z-10">
