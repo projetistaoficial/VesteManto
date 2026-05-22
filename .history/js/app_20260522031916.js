@@ -8750,14 +8750,16 @@ window.updateStatusUI = (order) => {
     // 1. LÓGICA DA TIMELINE
     let currentStep = 0;
     
+    // Mapeamento original de progresso
     if (s === 'Aguardando aprovação' || s === 'Pendente') currentStep = 0;
     else if (s === 'Aprovado' || s === 'Preparando pedido') currentStep = 1;
     else if (s === 'Saiu para entrega') currentStep = 2;
     else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
 
-    // ✨ CORREÇÃO: Forçamos o step para 3 (Entregue) mesmo em reembolso parcial
+    // ✨ CORREÇÃO CRÍTICA: Status de Reembolso Parcial NÃO é entrega.
+    // Travamos em 1 (Preparando) ou 0 para que a bolinha verde (3) nunca seja atingida.
     if (isPartial) {
-        currentStep = 3; 
+        currentStep = 1; 
     }
 
     const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
@@ -8775,7 +8777,7 @@ window.updateStatusUI = (order) => {
 
     const progressWidth = Math.min(currentStep * 33.33, 100);
     
-    // Define a cor da barra baseada no status
+    // Define a cor da barra de progresso
     let barColor = 'bg-green-500';
     if (isCancelled) barColor = 'bg-red-500';
     if (isPartial) barColor = 'bg-purple-500';
@@ -8797,13 +8799,14 @@ window.updateStatusUI = (order) => {
                 labelClass = "text-red-500 font-bold";
             }
         } else if (isPartial) {
-            // ✨ ESTILO ROXO PARA REEMBOLSO PARCIAL (Independente da etapa)
-            if (index <= currentStep) {
-                circleClass = "bg-purple-600 border-2 border-purple-500 text-white";
+            // Estilo específico para Reembolso Parcial (Roxo)
+            if (index < currentStep) {
+                circleClass = "bg-purple-600 border-2 border-purple-500 text-black";
                 labelClass = "text-purple-400 font-bold";
-                if (index === currentStep) {
-                    glowEffect = "shadow-[0_0_15px_rgba(168,85,247,0.8)] scale-110";
-                }
+            } else if (index === currentStep) {
+                circleClass = "bg-purple-600 border-2 border-purple-500 text-white";
+                glowEffect = "shadow-[0_0_15px_rgba(168,85,247,0.8)] scale-110";
+                labelClass = "text-white font-bold";
             }
         } else {
             // Fluxo normal (Verde)

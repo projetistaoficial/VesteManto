@@ -434,22 +434,12 @@ function showToast(message, type = 'success') {
     if (!toast) {
         toast = document.createElement('div');
         toast.id = 'toast-notification';
-        // z-index altíssimo para ficar acima de modais
-        toast.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded shadow-2xl z-[999999] transition-all duration-300 opacity-0 translate-y-[-20px] border border-gray-700 font-bold flex items-center gap-2 pointer-events-none';
+        toast.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded shadow-2xl z-[100] transition-all duration-300 opacity-0 translate-y-[-20px] border border-gray-700 font-bold flex items-center gap-2';
         document.body.appendChild(toast);
     }
 
-    // ✨ CORREÇÃO: Usando 'let' em vez de 'const' para permitir a troca do ícone de erro
-    let icon = type === 'success' ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="fas fa-info-circle text-yellow-500"></i>';
-
-    if (type === 'error') {
-        toast.classList.remove('border-gray-700');
-        toast.classList.add('border-red-500/50');
-        icon = '<i class="fas fa-exclamation-circle text-red-500"></i>';
-    } else {
-        toast.classList.add('border-gray-700');
-        toast.classList.remove('border-red-500/50');
-    }
+    // Ícone baseado no tipo
+    const icon = type === 'success' ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="fas fa-info-circle text-yellow-500"></i>';
 
     toast.innerHTML = `${icon} <span>${message}</span>`;
 
@@ -458,10 +448,10 @@ function showToast(message, type = 'success') {
         toast.classList.remove('opacity-0', 'translate-y-[-20px]');
     });
 
-    // Remove depois de 2 segundos
+    // Remove depois de 1.5s
     setTimeout(() => {
         toast.classList.add('opacity-0', 'translate-y-[-20px]');
-    }, 2000);
+    }, 1500);
 }
 
 //Esta função controla a abertura e o desaparecimento das informações do cabeçalho da PEDIDOS na aba VENDAS.
@@ -2751,23 +2741,12 @@ function renderSalesList(orders) {
         }
         if (o.status.includes('Cancelado')) statusColorClass = 'text-red-500';
 
-        let itemsHtml = o.items.map(i => {
-            // Procura se tem devolução para este item exato
-            const refundedData = (o.refundedItems || []).find(r => r.id === i.id && r.size === i.size);
-            const refundedBadge = refundedData 
-                ? `<span class="text-[9px] bg-purple-900/40 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/30 uppercase tracking-widest font-bold ml-2">-${refundedData.qty} Devolvido</span>` 
-                : '';
-
-            return `
+        let itemsHtml = o.items.map(i => `
             <div class="bg-gray-800/50 p-2 rounded mb-1 border border-gray-700 flex justify-between items-center">
-                <span class="text-gray-300 text-sm font-medium flex items-center flex-wrap gap-1">
-                    ${i.qty}x ${i.name} ${i.size !== 'U' ? `<span class="text-gray-500 text-xs">(${i.size})</span>` : ''} 
-                    ${refundedBadge}
-                </span>
+                <span class="text-gray-300 text-sm font-medium">${i.qty}x ${i.name} <span class="text-gray-500 text-xs">(${i.size})</span></span>
                 <span class="text-white text-xs font-bold">${formatCurrency(i.price)}</span>
             </div>
-            `;
-        }).join('');
+        `).join('');
 
         // --- LÓGICA FINANCEIRA (CUPONS E DESCONTOS) ---
         const subTotalItens = o.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
@@ -8745,20 +8724,13 @@ window.updateStatusUI = (order) => {
 
     const s = order.status;
     const isCancelled = s.includes('Cancelado');
-    const isPartial = s === 'Parcialmente Reembolsado';
 
-    // 1. LÓGICA DA TIMELINE
+    // 1. LÓGICA DA TIMELINE (Mantida igual)
     let currentStep = 0;
-    
-    if (s === 'Aguardando aprovação' || s === 'Pendente') currentStep = 0;
+    if (s === 'Aguardando aprovação') currentStep = 0;
     else if (s === 'Aprovado' || s === 'Preparando pedido') currentStep = 1;
     else if (s === 'Saiu para entrega') currentStep = 2;
     else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
-
-    // ✨ CORREÇÃO: Forçamos o step para 3 (Entregue) mesmo em reembolso parcial
-    if (isPartial) {
-        currentStep = 3; 
-    }
 
     const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
     const step0Icon = (s === 'Aguardando aprovação' || isCancelled) ? 'fa-clock' : 'fa-thumbs-up';
@@ -8774,14 +8746,8 @@ window.updateStatusUI = (order) => {
     timelineHTML += `<div class="absolute top-[18px] left-7 right-7 h-0.5 bg-gray-700 -z-0"></div>`;
 
     const progressWidth = Math.min(currentStep * 33.33, 100);
-    
-    // Define a cor da barra baseada no status
-    let barColor = 'bg-green-500';
-    if (isCancelled) barColor = 'bg-red-500';
-    if (isPartial) barColor = 'bg-purple-500';
-
     if (!isCancelled) {
-        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 ${barColor} -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
+        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
     }
 
     steps.forEach((step, index) => {
@@ -8796,17 +8762,7 @@ window.updateStatusUI = (order) => {
                 iconClass = "fa-times";
                 labelClass = "text-red-500 font-bold";
             }
-        } else if (isPartial) {
-            // ✨ ESTILO ROXO PARA REEMBOLSO PARCIAL (Independente da etapa)
-            if (index <= currentStep) {
-                circleClass = "bg-purple-600 border-2 border-purple-500 text-white";
-                labelClass = "text-purple-400 font-bold";
-                if (index === currentStep) {
-                    glowEffect = "shadow-[0_0_15px_rgba(168,85,247,0.8)] scale-110";
-                }
-            }
         } else {
-            // Fluxo normal (Verde)
             if (index < currentStep) {
                 circleClass = "bg-green-500 border-2 border-green-500 text-black";
                 labelClass = "text-green-500 font-bold";

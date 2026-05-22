@@ -5,28 +5,6 @@ import { initStatsModule, updateStatsData } from './stats.js';
 import { checkAndActivateSupport, initSupportModule } from './support.js';
 import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
-// =================================================================
-// 🛡️ BLINDAGEM DE COR DO PAINEL ADMIN E SUPORTE
-// =================================================================
-if (!document.getElementById('admin-fixed-bg-style')) {
-    const styleAdminBg = document.createElement('style');
-    styleAdminBg.id = 'admin-fixed-bg-style';
-    styleAdminBg.innerHTML = `
-        /* Trava a cor de fundo do Admin e do Suporte para um tom escuro premium */
-        #view-admin, #view-support {
-            background-color: #0B0E14 !important; 
-            min-height: 100vh !important;
-            width: 100% !important;
-        }
-        
-        /* Garante que, se o Admin estiver aberto, o body não vaze cor nas bordas */
-        body:has(#view-admin:not(.hidden)), 
-        body:has(#view-support:not(.hidden)) {
-            background-color: #0B0E14 !important;
-        }
-    `;
-    document.head.appendChild(styleAdminBg);
-}
 
 // =================================================================
 // 1. HELPERS (FUNÇÕES AUXILIARES)
@@ -434,22 +412,12 @@ function showToast(message, type = 'success') {
     if (!toast) {
         toast = document.createElement('div');
         toast.id = 'toast-notification';
-        // z-index altíssimo para ficar acima de modais
-        toast.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded shadow-2xl z-[999999] transition-all duration-300 opacity-0 translate-y-[-20px] border border-gray-700 font-bold flex items-center gap-2 pointer-events-none';
+        toast.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded shadow-2xl z-[100] transition-all duration-300 opacity-0 translate-y-[-20px] border border-gray-700 font-bold flex items-center gap-2';
         document.body.appendChild(toast);
     }
 
-    // ✨ CORREÇÃO: Usando 'let' em vez de 'const' para permitir a troca do ícone de erro
-    let icon = type === 'success' ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="fas fa-info-circle text-yellow-500"></i>';
-
-    if (type === 'error') {
-        toast.classList.remove('border-gray-700');
-        toast.classList.add('border-red-500/50');
-        icon = '<i class="fas fa-exclamation-circle text-red-500"></i>';
-    } else {
-        toast.classList.add('border-gray-700');
-        toast.classList.remove('border-red-500/50');
-    }
+    // Ícone baseado no tipo
+    const icon = type === 'success' ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="fas fa-info-circle text-yellow-500"></i>';
 
     toast.innerHTML = `${icon} <span>${message}</span>`;
 
@@ -458,10 +426,10 @@ function showToast(message, type = 'success') {
         toast.classList.remove('opacity-0', 'translate-y-[-20px]');
     });
 
-    // Remove depois de 2 segundos
+    // Remove depois de 1.5s
     setTimeout(() => {
         toast.classList.add('opacity-0', 'translate-y-[-20px]');
-    }, 2000);
+    }, 1500);
 }
 
 //Esta função controla a abertura e o desaparecimento das informações do cabeçalho da PEDIDOS na aba VENDAS.
@@ -2745,29 +2713,15 @@ function renderSalesList(orders) {
             case 'Saiu para entrega': statusColorClass = 'text-orange-500'; break;
             case 'Entregue': case 'Concluído': statusColorClass = 'text-green-500'; break;
             case 'Reembolsado': statusColorClass = 'text-purple-500'; break;
-            case 'Parcialmente Reembolsado':
-                statusColorClass = 'text-purple-500'; 
-                break;
         }
         if (o.status.includes('Cancelado')) statusColorClass = 'text-red-500';
 
-        let itemsHtml = o.items.map(i => {
-            // Procura se tem devolução para este item exato
-            const refundedData = (o.refundedItems || []).find(r => r.id === i.id && r.size === i.size);
-            const refundedBadge = refundedData 
-                ? `<span class="text-[9px] bg-purple-900/40 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/30 uppercase tracking-widest font-bold ml-2">-${refundedData.qty} Devolvido</span>` 
-                : '';
-
-            return `
+        let itemsHtml = o.items.map(i => `
             <div class="bg-gray-800/50 p-2 rounded mb-1 border border-gray-700 flex justify-between items-center">
-                <span class="text-gray-300 text-sm font-medium flex items-center flex-wrap gap-1">
-                    ${i.qty}x ${i.name} ${i.size !== 'U' ? `<span class="text-gray-500 text-xs">(${i.size})</span>` : ''} 
-                    ${refundedBadge}
-                </span>
+                <span class="text-gray-300 text-sm font-medium">${i.qty}x ${i.name} <span class="text-gray-500 text-xs">(${i.size})</span></span>
                 <span class="text-white text-xs font-bold">${formatCurrency(i.price)}</span>
             </div>
-            `;
-        }).join('');
+        `).join('');
 
         // --- LÓGICA FINANCEIRA (CUPONS E DESCONTOS) ---
         const subTotalItens = o.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
@@ -2842,8 +2796,6 @@ function renderSalesList(orders) {
         const actionButtonsLeft = `<div class="flex items-center gap-2 w-full md:w-auto">${btnPrint}${btnFinance}</div>`;
 
         let controlsHtml = '';
-        
-        // ✨ CORREÇÃO: Usando 'o.status' em vez de 'order.status'
         if (o.status.includes('Cancelado')) {
             controlsHtml = `
                 <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700 w-full">
@@ -2854,19 +2806,16 @@ function renderSalesList(orders) {
             controlsHtml = `
                 <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700 w-full">
                     ${actionButtonsLeft}
-                    <span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold uppercase">Reembolso Total</span>
+                    <span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO REEMBOLSADO</span>
                 </div>`;
-        } else if (o.status === 'Concluído' || o.status === 'Parcialmente Reembolsado') {
-            const badgeLabel = o.status === 'Concluído' ? 'FINALIZADO' : 'REEMBOLSO PARCIAL';
-            const badgeColor = o.status === 'Concluído' ? 'bg-green-600' : 'bg-purple-600';
-            
+        } else if (o.status === 'Concluído') {
             controlsHtml = `
-                <div class="flex flex-col md:flex-row justify-between items-center gap-4 mt-4 pt-4 border-t border-gray-700 w-full">
+                <div class="flex justify-between items-center gap-2 mt-4 pt-4 border-t border-gray-700 w-full">
                     ${actionButtonsLeft}
                     <div class="flex items-center gap-2">
-                        <span class="${badgeColor} text-white px-4 py-2 rounded font-bold text-xs uppercase tracking-wide">${badgeLabel}</span>
-                        <button onclick="adminRefundOrder('${o.id}')" class="border border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-2 rounded text-xs transition font-bold flex items-center gap-1 shadow-sm">
-                            <i class="fas fa-undo"></i> Reembolsar
+                        <span class="bg-green-600 text-white px-4 py-2 rounded font-bold text-xs">FINALIZADO</span>
+                        <button onclick="adminRefundOrder('${o.id}')" class="border border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-2 rounded text-xs transition font-bold">
+                            <i class="fas fa-undo mr-1"></i> Reembolsar
                         </button>
                     </div>
                 </div>`;
@@ -8212,192 +8161,12 @@ window.adminCancelOrder = async (orderId) => {
     }
 };
 
-// =================================================================
-// 💰 SISTEMA DE REEMBOLSO PARCIAL E TOTAL (COM BLINDAGEM)
-// =================================================================
-
-window.adminRefundOrder = (orderId) => {
-    const order = state.orders.find(o => o.id === orderId);
-    if (!order) return;
-
-    let modal = document.getElementById('refund-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'refund-modal';
-        modal.className = "fixed inset-0 bg-black/90 z-[99999] flex items-center justify-center p-4 opacity-0 transition-opacity duration-300 backdrop-blur-sm hidden";
-        document.body.appendChild(modal);
-    }
-
-    // Pega o que já foi reembolsado anteriormente (se houver)
-    const previouslyRefunded = order.refundedItems || [];
-
-    let itemsHtml = order.items.map((item, index) => {
-        const prevRef = previouslyRefunded.find(r => r.id === item.id && r.size === item.size);
-        const prevRefQty = prevRef ? prevRef.qty : 0;
-        const availableToRefund = item.qty - prevRefQty;
-
-        // Se já devolveu tudo deste item
-        if (availableToRefund <= 0) {
-            return `
-                <div class="flex justify-between items-center text-gray-600 text-sm mb-3 opacity-50 bg-[#0a0c13] p-3 rounded-xl border border-gray-800/50">
-                    <span class="line-through flex-1 truncate pr-2">${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}</span>
-                    <span class="text-[10px] uppercase font-bold text-purple-500/50 border border-purple-500/20 px-2 py-1 rounded tracking-wide shrink-0">Devolvido</span>
-                </div>`;
-        }
-
-        // Item disponível para devolução (Com botões de mais/menos e trava visual)
-        return `
-            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-[#151720] p-3 rounded-xl mb-3 border border-gray-700/80 hover:border-purple-500/50 transition-colors gap-3">
-                <div class="flex flex-col flex-1 min-w-0">
-                    <span class="text-white text-sm font-bold truncate">${item.name} ${item.size !== 'U' ? `<span class="text-yellow-500 text-xs ml-1">(${item.size})</span>` : ''}</span>
-                    <span class="text-gray-400 text-[10px] uppercase tracking-wider mt-1">Comprado: ${item.qty} | Restante: <span class="text-green-400 font-bold">${availableToRefund}</span></span>
-                </div>
-                
-                <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0 bg-black/50 p-1.5 rounded-lg border border-gray-800 w-full sm:w-auto">
-                    <label class="text-[10px] text-gray-400 uppercase font-bold ml-2">Devolver:</label>
-                    <div class="flex items-center gap-1">
-                        <button onclick="document.getElementById('refund-qty-${index}').stepDown(); document.getElementById('refund-qty-${index}').dispatchEvent(new Event('input'))" class="w-7 h-7 bg-gray-800 hover:bg-gray-700 text-white rounded flex items-center justify-center transition active:scale-95"><i class="fas fa-minus text-[10px]"></i></button>
-                        
-                        <input type="number" min="0" max="${availableToRefund}" value="${availableToRefund}" 
-                               id="refund-qty-${index}"
-                               class="w-10 h-7 bg-transparent text-white border-none focus:ring-0 text-center text-sm font-bold refund-input p-0 outline-none"
-                               data-id="${item.id}" data-size="${item.size}" data-max="${availableToRefund}"
-                               oninput="if(this.value > ${availableToRefund}) this.value = ${availableToRefund}; if(this.value < 0) this.value = 0;">
-                               
-                        <button onclick="document.getElementById('refund-qty-${index}').stepUp(); document.getElementById('refund-qty-${index}').dispatchEvent(new Event('input'))" class="w-7 h-7 bg-gray-800 hover:bg-gray-700 text-white rounded flex items-center justify-center transition active:scale-95"><i class="fas fa-plus text-[10px]"></i></button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    // ESTRUTURA PREMIUM DO MODAL
-    modal.innerHTML = `
-        <div class="bg-[#0b0e14] border border-gray-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="refund-card">
-            
-            <div class="p-5 border-b border-gray-800 bg-[#0f111a] flex items-center justify-between shrink-0">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-500 border border-purple-500/20">
-                        <i class="fas fa-undo-alt"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-white font-extrabold text-lg leading-none">Reembolsar Pedido</h3>
-                        <p class="text-gray-400 text-[10px] uppercase tracking-widest mt-1 font-bold">Ref: #${order.code}</p>
-                    </div>
-                </div>
-                <button onclick="closeRefundModal()" class="w-8 h-8 rounded-full bg-gray-800 hover:bg-red-600 text-gray-400 hover:text-white flex items-center justify-center transition-colors">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-
-            <div class="p-5 overflow-y-auto custom-scrollbar flex-1 bg-[#0b0e14]">
-                <div class="bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 mb-5 flex gap-3 items-start">
-                    <i class="fas fa-info-circle text-blue-400 mt-0.5"></i>
-                    <p class="text-blue-200/70 text-xs leading-relaxed">
-                        Selecione a quantidade de itens que retornarão ao estoque. Os botões já respeitam o limite vendido.
-                    </p>
-                </div>
-
-                <div class="space-y-1">
-                    ${itemsHtml}
-                </div>
-            </div>
-
-            <div class="p-5 border-t border-gray-800 bg-[#0f111a] flex gap-3 shrink-0">
-                <button onclick="closeRefundModal()" class="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-bold py-3.5 rounded-xl transition text-xs uppercase tracking-wide">
-                    Cancelar
-                </button>
-                <button onclick="processRefund('${order.id}')" class="flex-[2] bg-purple-600 hover:bg-purple-500 text-white font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(147,51,234,0.2)] hover:shadow-[0_0_25px_rgba(147,51,234,0.4)] text-xs uppercase tracking-wide flex items-center justify-center gap-2">
-                    <i class="fas fa-check-circle"></i> Confirmar Devolução
-                </button>
-            </div>
-        </div>
-    `;
-
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    setTimeout(() => {
-        modal.classList.remove('opacity-0');
-        document.getElementById('refund-card').classList.remove('scale-95');
-    }, 10);
-};
-
-window.closeRefundModal = () => {
-    const modal = document.getElementById('refund-modal');
-    if (!modal) return;
-    modal.classList.add('opacity-0');
-    document.getElementById('refund-card').classList.add('scale-95');
-    setTimeout(() => {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }, 300);
-};
-
-window.processRefund = async (orderId) => {
-    const order = state.orders.find(o => o.id === orderId);
-    if (!order) return;
-
-    const inputs = document.querySelectorAll('.refund-input');
-    let itemsToRefundNow = [];
-    let totalQtyToRefundNow = 0;
-
-    // Coleta o que foi digitado com BLINDAGEM DUPLA (Lógica)
-    inputs.forEach(input => {
-        let qty = parseInt(input.value) || 0;
-        const maxAllowed = parseInt(input.dataset.max) || 0;
-        
-        // ✨ A TRAVA INVIOLÁVEL: Corta o valor se for maior que o permitido 
-        // (Isso previne que a pessoa burle o HTML editando o código da página)
-        if (qty > maxAllowed) qty = maxAllowed;
-        if (qty < 0) qty = 0;
-
-        if (qty > 0) {
-            itemsToRefundNow.push({
-                id: input.dataset.id,
-                size: input.dataset.size,
-                qty: qty
-            });
-            totalQtyToRefundNow += qty;
-        }
-    });
-
-    if (totalQtyToRefundNow === 0) return showToast("Você precisa devolver pelo menos 1 unidade.", "error");
-
-    if (!confirm(`Confirma a devolução de ${totalQtyToRefundNow} item(ns) ao estoque?`)) return;
-
-    try {
-        closeRefundModal();
-
-        // 1. Devolve APENAS as quantidades filtradas e permitidas
-        await processStockUpdate(itemsToRefundNow, 'add');
-
-        // 2. Combina os itens de hoje com os de reembolsos passados
-        const previouslyRefunded = order.refundedItems || [];
-        let newRefundedItems = [...previouslyRefunded];
-        
-        itemsToRefundNow.forEach(item => {
-            const existing = newRefundedItems.find(r => r.id === item.id && r.size === item.size);
-            if (existing) existing.qty += item.qty;
-            else newRefundedItems.push({...item});
-        });
-
-        // 3. Verifica se devolveu tudo ou apenas uma parte
-        const totalItemsInOrder = order.items.reduce((sum, item) => sum + item.qty, 0);
-        const totalItemsRefunded = newRefundedItems.reduce((sum, item) => sum + item.qty, 0);
-
-        const newStatus = (totalItemsRefunded >= totalItemsInOrder) ? 'Reembolsado' : 'Parcialmente Reembolsado';
-
-        // 4. Salva no banco de dados
-        await updateDoc(doc(db, `sites/${state.siteId}/sales`, orderId), {
-            status: newStatus,
-            refundedItems: newRefundedItems
-        });
-
-        showToast(`Sucesso! Status atualizado para: ${newStatus}`, "success");
-
-    } catch (error) {
-        console.error("Erro no reembolso:", error);
-        alert("Erro ao processar reembolso: " + error.message);
+// 5. Botão Reembolsar (Novo)
+window.adminRefundOrder = async (orderId) => {
+    if (confirm("Deseja REEMBOLSAR este pedido?\n\nIsso irá devolver os itens ao estoque e mudar o status para 'Reembolsado'.\nEsta ação é irreversível.")) {
+        // A função updateOrderStatusDB já lida com a devolução de estoque automaticamente
+        // porque "Reembolsado" não está na lista de status que "consomem" estoque.
+        await updateOrderStatusDB(orderId, 'Reembolsado');
     }
 };
 
@@ -8412,15 +8181,17 @@ window.adminRevertStatus = async (orderId) => {
 async function updateOrderStatusDB(orderId, newStatus) {
     try {
         const orderRef = doc(db, `sites/${state.siteId}/sales`, orderId);
+
+        // 1. Busca o pedido ATUAL
         const docSnap = await getDoc(orderRef);
         if (!docSnap.exists()) return alert("Pedido não encontrado.");
 
         const currentOrder = docSnap.data();
         const oldStatus = currentOrder.status || 'Aguardando aprovação';
 
-        // Adicionamos o Parcialmente Reembolsado na lista dos que seguram estoque
+        // 2. CONFIGURAÇÃO DAS REGRAS
         const stockConsumingStatuses = [
-            'Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído', 'Parcialmente Reembolsado'
+            'Aprovado', 'Preparando pedido', 'Saiu para entrega', 'Entregue', 'Concluído'
         ];
 
         const wasConsuming = stockConsumingStatuses.includes(oldStatus);
@@ -8432,27 +8203,10 @@ async function updateOrderStatusDB(orderId, newStatus) {
             await processStockUpdate(items, 'remove');
             showToast(`Estoque baixado com sucesso!`, 'success');
         }
-        // --- CENÁRIO B: DEVOLUÇÃO DE ESTOQUE (Foi Cancelado) ---
+        // --- CENÁRIO B: DEVOLUÇÃO DE ESTOQUE (Saiu de status válido) ---
         else if (wasConsuming && !isConsuming) {
-            
-            // ✨ BLINDAGEM: Descobre o que já foi devolvido para não duplicar estoque!
-            const previouslyRefunded = currentOrder.refundedItems || [];
-            const itemsToReturn = [];
-            
-            items.forEach(item => {
-                const prevRef = previouslyRefunded.find(r => r.id === item.id && r.size === item.size);
-                const prevRefQty = prevRef ? prevRef.qty : 0;
-                const qtyToReturn = item.qty - prevRefQty; // Pega só a diferença que falta
-                
-                if (qtyToReturn > 0) {
-                    itemsToReturn.push({...item, qty: qtyToReturn});
-                }
-            });
-
-            if (itemsToReturn.length > 0) {
-                await processStockUpdate(itemsToReturn, 'add');
-                showToast(`Estoque devolvido.`, 'info');
-            }
+            await processStockUpdate(items, 'add');
+            showToast(`Estoque devolvido.`, 'info');
         }
 
         // 3. Atualiza o pedido
@@ -8464,6 +8218,7 @@ async function updateOrderStatusDB(orderId, newStatus) {
         await updateDoc(orderRef, updateData);
 
     } catch (error) {
+        console.error("Erro ao atualizar status:", error);
         alert("Erro ao atualizar: " + error.message);
     }
 }
@@ -8620,34 +8375,32 @@ window.showOrderListView = () => {
         // Mapeamento visual
         switch (order.status) {
             case 'Aguardando aprovação':
-            case 'Pendente':
                 statusColor = 'bg-gray-400';
                 break;
+
+            // --- CORREÇÃO: SEPARANDO OS STATUS ---
             case 'Aprovado':
                 statusColor = 'bg-yellow-500';
-                statusLabel = 'Aprovado';
+                statusLabel = 'Aprovado'; // Exibe exatamente "Aprovado"
                 break;
+
             case 'Preparando pedido':
                 statusColor = 'bg-yellow-600';
                 statusLabel = 'Preparando Pedido';
                 break;
+            // -------------------------------------
+
             case 'Saiu para entrega':
                 statusColor = 'bg-orange-500';
                 statusLabel = 'Saiu para Entrega';
                 break;
             case 'Entregue':
-                statusColor = 'bg-green-500';
+                statusColor = 'bg-green-500'; // Entregue mas não finalizado
                 statusLabel = 'Entregue';
                 break;
             case 'Concluído':
                 statusColor = 'bg-green-600';
                 statusLabel = 'Concluído';
-                break;
-            // ✨ CORREÇÃO: ADICIONANDO OS REEMBOLSOS
-            case 'Reembolsado':
-            case 'Parcialmente Reembolsado':
-                statusColor = 'bg-purple-600';
-                statusLabel = order.status; 
                 break;
             case 'Cancelado':
             case 'Cancelado pelo Cliente':
@@ -8658,8 +8411,7 @@ window.showOrderListView = () => {
 
         // --- Legenda Superior ---
         let metaLabel = "Em andamento";
-        // ✨ CORREÇÃO: Informando ao sistema que reembolsos também encerram/finalizam o processo
-        if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente', 'Reembolsado', 'Parcialmente Reembolsado'].includes(order.status)) {
+        if (['Concluído', 'Entregue', 'Cancelado', 'Cancelado pelo Cliente'].includes(order.status)) {
             metaLabel = "Finalizado";
         }
 
@@ -8745,20 +8497,13 @@ window.updateStatusUI = (order) => {
 
     const s = order.status;
     const isCancelled = s.includes('Cancelado');
-    const isPartial = s === 'Parcialmente Reembolsado';
 
-    // 1. LÓGICA DA TIMELINE
+    // 1. LÓGICA DA TIMELINE (Mantida igual)
     let currentStep = 0;
-    
-    if (s === 'Aguardando aprovação' || s === 'Pendente') currentStep = 0;
+    if (s === 'Aguardando aprovação') currentStep = 0;
     else if (s === 'Aprovado' || s === 'Preparando pedido') currentStep = 1;
     else if (s === 'Saiu para entrega') currentStep = 2;
     else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
-
-    // ✨ CORREÇÃO: Forçamos o step para 3 (Entregue) mesmo em reembolso parcial
-    if (isPartial) {
-        currentStep = 3; 
-    }
 
     const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
     const step0Icon = (s === 'Aguardando aprovação' || isCancelled) ? 'fa-clock' : 'fa-thumbs-up';
@@ -8774,14 +8519,8 @@ window.updateStatusUI = (order) => {
     timelineHTML += `<div class="absolute top-[18px] left-7 right-7 h-0.5 bg-gray-700 -z-0"></div>`;
 
     const progressWidth = Math.min(currentStep * 33.33, 100);
-    
-    // Define a cor da barra baseada no status
-    let barColor = 'bg-green-500';
-    if (isCancelled) barColor = 'bg-red-500';
-    if (isPartial) barColor = 'bg-purple-500';
-
     if (!isCancelled) {
-        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 ${barColor} -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
+        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
     }
 
     steps.forEach((step, index) => {
@@ -8796,17 +8535,7 @@ window.updateStatusUI = (order) => {
                 iconClass = "fa-times";
                 labelClass = "text-red-500 font-bold";
             }
-        } else if (isPartial) {
-            // ✨ ESTILO ROXO PARA REEMBOLSO PARCIAL (Independente da etapa)
-            if (index <= currentStep) {
-                circleClass = "bg-purple-600 border-2 border-purple-500 text-white";
-                labelClass = "text-purple-400 font-bold";
-                if (index === currentStep) {
-                    glowEffect = "shadow-[0_0_15px_rgba(168,85,247,0.8)] scale-110";
-                }
-            }
         } else {
-            // Fluxo normal (Verde)
             if (index < currentStep) {
                 circleClass = "bg-green-500 border-2 border-green-500 text-black";
                 labelClass = "text-green-500 font-bold";
@@ -8835,20 +8564,13 @@ window.updateStatusUI = (order) => {
     let itemsHtml = order.items.map(i => {
         const itemTotal = i.price * i.qty;
         subTotalItems += itemTotal;
-        
-        // Verifica se este item específico já tem unidades reembolsadas
-        const refundedData = (order.refundedItems || []).find(r => r.id === i.id && r.size === i.size);
-        const refundedBadge = refundedData 
-            ? `<span class="text-[9px] bg-purple-900/40 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/30 uppercase tracking-widest font-bold ml-2">-${refundedData.qty} Devolvido</span>` 
-            : '';
-
         return `
         <div class="flex justify-between items-center text-sm text-gray-300 mb-2 border-b border-gray-800 pb-2 last:border-0">
-            <div class="flex items-center gap-2 flex-1 min-w-0">
-                 <span class="text-yellow-500 font-bold font-mono text-xs bg-yellow-900/20 px-1.5 rounded shrink-0">${i.qty}x</span>
-                 <span class="truncate">${i.name} ${i.size !== 'U' ? `<span class="text-xs text-gray-500">(${i.size})</span>` : ''} ${refundedBadge}</span>
+            <div class="flex items-center gap-2">
+                 <span class="text-yellow-500 font-bold font-mono text-xs bg-yellow-900/20 px-1.5 rounded">${i.qty}x</span>
+                 <span>${i.name} ${i.size !== 'U' ? `<span class="text-xs text-gray-500">(${i.size})</span>` : ''}</span>
             </div>
-            <span class="text-white font-bold text-xs shrink-0">${formatCurrency(itemTotal)}</span>
+            <span class="text-white font-bold text-xs">${formatCurrency(itemTotal)}</span>
         </div>`;
     }).join('');
 
@@ -9155,16 +8877,12 @@ function renderOrdersSummary(orders, filterStatus = '') {
     orders.forEach(o => {
         if (o.status.includes('Cancelado')) {
             counts['Cancelado']++;
-        // ✨ CORREÇÃO: Soma os parciais e totais na mesma caixa
-        } else if (o.status === 'Reembolsado' || o.status === 'Parcialmente Reembolsado') {
-            counts['Reembolsado']++;
         } else if (counts.hasOwnProperty(o.status)) {
             counts[o.status]++;
         }
 
         const isCancelado = o.status.includes('Cancelado');
-        // ✨ CORREÇÃO: Informa a variável que o parcial também é um reembolso
-        const isReembolsado = o.status === 'Reembolsado' || o.status === 'Parcialmente Reembolsado';
+        const isReembolsado = o.status === 'Reembolsado';
         const isAguardando = o.status === 'Aguardando aprovação';
 
         if (!isCancelado && !isReembolsado && !isAguardando) {

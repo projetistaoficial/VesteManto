@@ -8750,14 +8750,16 @@ window.updateStatusUI = (order) => {
     // 1. LÓGICA DA TIMELINE
     let currentStep = 0;
     
+    // Define a etapa atual de entrega
     if (s === 'Aguardando aprovação' || s === 'Pendente') currentStep = 0;
     else if (s === 'Aprovado' || s === 'Preparando pedido') currentStep = 1;
     else if (s === 'Saiu para entrega') currentStep = 2;
     else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
-
-    // ✨ CORREÇÃO: Forçamos o step para 3 (Entregue) mesmo em reembolso parcial
+    
+    // ✨ CORREÇÃO: Se for reembolso parcial, força o progresso para 2 (Saiu para Entrega) 
+    // ou mantém o estado anterior. O importante é NÃO deixar chegar no 3 (verde).
     if (isPartial) {
-        currentStep = 3; 
+        currentStep = 2; 
     }
 
     const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
@@ -8775,13 +8777,11 @@ window.updateStatusUI = (order) => {
 
     const progressWidth = Math.min(currentStep * 33.33, 100);
     
-    // Define a cor da barra baseada no status
-    let barColor = 'bg-green-500';
-    if (isCancelled) barColor = 'bg-red-500';
-    if (isPartial) barColor = 'bg-purple-500';
-
-    if (!isCancelled) {
-        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 ${barColor} -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
+    if (!isCancelled && !isPartial) {
+        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
+    } else if (isPartial) {
+        // Feedback visual diferente para reembolso parcial (ex: barra laranja ou cinza)
+        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 bg-orange-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
     }
 
     steps.forEach((step, index) => {
@@ -8797,16 +8797,16 @@ window.updateStatusUI = (order) => {
                 labelClass = "text-red-500 font-bold";
             }
         } else if (isPartial) {
-            // ✨ ESTILO ROXO PARA REEMBOLSO PARCIAL (Independente da etapa)
-            if (index <= currentStep) {
-                circleClass = "bg-purple-600 border-2 border-purple-500 text-white";
-                labelClass = "text-purple-400 font-bold";
-                if (index === currentStep) {
-                    glowEffect = "shadow-[0_0_15px_rgba(168,85,247,0.8)] scale-110";
-                }
+             // Estilo para reembolso parcial: Amarelo/Laranja (alerta)
+             if (index < currentStep) {
+                circleClass = "bg-orange-500 border-2 border-orange-500 text-black";
+                labelClass = "text-orange-500 font-bold";
+            } else if (index === currentStep) {
+                circleClass = "bg-orange-500 border-2 border-orange-500 text-white";
+                glowEffect = "shadow-[0_0_15px_rgba(249,115,22,0.8)] scale-110";
+                labelClass = "text-white font-bold";
             }
         } else {
-            // Fluxo normal (Verde)
             if (index < currentStep) {
                 circleClass = "bg-green-500 border-2 border-green-500 text-black";
                 labelClass = "text-green-500 font-bold";
@@ -8829,217 +8829,8 @@ window.updateStatusUI = (order) => {
     });
     timelineHTML += `</div>`;
 
-    // 2. CONTEÚDO DOS ITENS E CÁLCULOS
-    let subTotalItems = 0;
-
-    let itemsHtml = order.items.map(i => {
-        const itemTotal = i.price * i.qty;
-        subTotalItems += itemTotal;
-        
-        // Verifica se este item específico já tem unidades reembolsadas
-        const refundedData = (order.refundedItems || []).find(r => r.id === i.id && r.size === i.size);
-        const refundedBadge = refundedData 
-            ? `<span class="text-[9px] bg-purple-900/40 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/30 uppercase tracking-widest font-bold ml-2">-${refundedData.qty} Devolvido</span>` 
-            : '';
-
-        return `
-        <div class="flex justify-between items-center text-sm text-gray-300 mb-2 border-b border-gray-800 pb-2 last:border-0">
-            <div class="flex items-center gap-2 flex-1 min-w-0">
-                 <span class="text-yellow-500 font-bold font-mono text-xs bg-yellow-900/20 px-1.5 rounded shrink-0">${i.qty}x</span>
-                 <span class="truncate">${i.name} ${i.size !== 'U' ? `<span class="text-xs text-gray-500">(${i.size})</span>` : ''} ${refundedBadge}</span>
-            </div>
-            <span class="text-white font-bold text-xs shrink-0">${formatCurrency(itemTotal)}</span>
-        </div>`;
-    }).join('');
-
-    // --- LÓGICA FINANCEIRA (SEPARAÇÃO DE DESCONTOS) ---
-    const valFrete = order.shippingFee || 0;
-    const valTotalPago = order.total || 0;
-    const totalEsperado = subTotalItems + valFrete;
-
-    // 1. Calcula o total de "dinheiro que falta" (Desconto Total)
-    const valDescontoTotal = Math.max(0, totalEsperado - valTotalPago);
-
-    // 2. Separa o valor do Cupom
-    let valDescontoCupom = 0;
-    let nomeCupom = null;
-
-    if (order.couponData && order.couponData.value) {
-        valDescontoCupom = order.couponData.value;
-        nomeCupom = order.couponData.code;
-    } else if (order.cupom) {
-        // Fallback antigo
-        nomeCupom = order.cupom;
-    }
-
-    // 3. O que sobrar é Pix (Desconto Total - Desconto Cupom)
-    // Usamos Math.max(0, ...) para evitar negativos por arredondamento
-    const valDescontoPix = Math.max(0, valDescontoTotal - valDescontoCupom);
-
-    // --- CONSTROI O HTML FINANCEIRO ---
-    let financialHtml = `
-        <div class="mt-3 pt-3 border-t border-gray-700 flex flex-col gap-1">
-            <div class="flex justify-between text-xs text-gray-400">
-                <span>Subtotal</span>
-                <span>${formatCurrency(subTotalItems)}</span>
-            </div>
-    `;
-
-    if (valFrete > 0) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-gray-400">
-                <span>Taxa de Entrega</span>
-                <span>+ ${formatCurrency(valFrete)}</span>
-            </div>`;
-    }
-
-    // EXIBE CUPOM SEPARADO
-    if (valDescontoCupom > 0.05) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Cupom (${nomeCupom || 'Aplicado'})</span>
-                <span>- ${formatCurrency(valDescontoCupom)}</span>
-            </div>`;
-    }
-
-    // EXIBE PIX SEPARADO
-    if (valDescontoPix > 0.05) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Desconto Pix</span>
-                <span>- ${formatCurrency(valDescontoPix)}</span>
-            </div>`;
-    }
-
-    // Caso genérico (se tiver desconto mas não identificou a origem exata, ex: erro de arredondamento antigo)
-    if (valDescontoTotal > 0.05 && valDescontoCupom < 0.01 && valDescontoPix < 0.01) {
-        financialHtml += `
-            <div class="flex justify-between text-xs text-green-400 font-bold">
-                <span>Descontos</span>
-                <span>- ${formatCurrency(valDescontoTotal)}</span>
-            </div>`;
-    }
-
-    financialHtml += `
-            <div class="flex justify-between items-end mt-2 pt-2 border-t border-gray-700/50">
-                <span class="text-gray-300 font-bold text-sm">Total Final</span>
-                <span class="text-green-400 font-extrabold text-xl">${formatCurrency(valTotalPago)}</span>
-            </div>
-        </div>
-    `;
-
-    // Bloco de Forma de Pagamento
-    const paymentBlock = `
-        <div class="mt-3 bg-black/40 p-3 rounded border border-gray-700/50">
-            <p class="text-[10px] text-gray-500 uppercase font-bold mb-1"><i class="far fa-credit-card mr-1"></i> Forma de Pagamento</p>
-            <p class="text-xs text-white font-medium break-words">${order.paymentMethod || 'Não informado'}</p>
-        </div>
-    `;
-
-    const addressBlock = `
-        <div class="flex items-start gap-3 mt-4 bg-gray-900 p-3 rounded-lg border border-gray-800">
-            <i class="fas fa-map-marker-alt text-red-500 mt-1"></i>
-            <div class="flex-1">
-                <p class="text-gray-300 text-xs leading-relaxed">
-                    <span class="text-white font-bold block mb-0.5">Endereço de Entrega</span>
-                    ${order.customer.street}, ${order.customer.addressNum} ${order.customer.comp ? '- ' + order.customer.comp : ''}<br>
-                    ${order.customer.district}
-                </p>
-            </div>
-        </div>
-    `;
-
-    // Botão Reenviar WhatsApp
-    const isOnline = (order.paymentMethod || '').includes('Online');
-    const allowedResendStatuses = ['Aguardando aprovação', 'Aprovado', 'Preparando pedido'];
-    const canResend = isOnline && allowedResendStatuses.includes(order.status);
-
-    const resendBtnHTML = canResend ? `
-        <div class="mt-4 pt-3 border-t border-gray-700/50">
-            <button onclick="retryWhatsapp('${order.id}')" 
-                    class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg shadow-lg transition flex items-center justify-center gap-2 text-sm uppercase tracking-wide">
-                <i class="fab fa-whatsapp text-lg"></i> Reenviar Pedido no Zap
-            </button>
-            <p class="text-[10px] text-gray-500 text-center mt-2">Caso não tenha sido redirecionado ao finalizar a compra.</p>
-        </div>
-    ` : '';
-
-    // 3. RENDERIZAÇÃO FINAL
-    detailsContainer.innerHTML = `
-        <div class="mb-6">
-            <h2 class="text-2xl font-extrabold text-yellow-500 tracking-tight">PEDIDO #${order.code}</h2>
-            <p class="text-xs text-gray-500 uppercase font-bold tracking-widest mt-1">
-                ${new Date(order.date).toLocaleDateString('pt-BR')} às ${new Date(order.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-            </p>
-        </div>
-
-        ${timelineHTML}
-
-        ${order.securityCode && order.status === 'Saiu para entrega' ? `
-            <div class="bg-gray-800 border border-yellow-500/30 rounded-xl p-4 mb-6 text-center relative overflow-hidden group animate-pulse">
-                <div class="absolute inset-0 bg-yellow-500/5 group-hover:bg-yellow-500/10 transition"></div>
-                <p class="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Código de Segurança</p>
-                <p class="text-3xl font-mono font-bold text-yellow-500 tracking-[0.3em]">${order.securityCode}</p>
-                <p class="text-[10px] text-yellow-600/80 mt-1">Informe ao entregador</p>
-            </div>
-        ` : ''}
-
-        <div class="bg-[#151720] rounded-xl p-4 border border-gray-800">
-            <div class="mb-4 text-center border-b border-gray-700 pb-3">
-                <span class="text-xs text-gray-500 uppercase font-bold">Status Atual</span>
-                <h3 class="text-xl font-bold text-white mt-1">${order.status}</h3>
-            </div>
-
-            <h3 class="text-xs font-bold text-gray-400 uppercase mb-3">Resumo do Pedido</h3>
-            ${itemsHtml}
-            
-            ${financialHtml}
-            ${paymentBlock}
-            ${resendBtnHTML}
-        </div>
-
-        ${addressBlock}
-        
-        <div id="cancel-btn-area" class="mt-6"></div>
-    `;
-
-    // 4. LÓGICA DO BOTÃO CANCELAR
-    const btnArea = document.getElementById('cancel-btn-area');
-    if (!btnArea || isCancelled || currentStep > 0) {
-        if (btnArea) btnArea.innerHTML = '';
-        return;
-    }
-
-    if (order.status === 'Aguardando aprovação' || order.status === 'Pendente') {
-        const checkTimer = () => {
-            const now = new Date().getTime();
-            const limit = new Date(order.cancelLimit).getTime();
-            const distance = limit - now;
-
-            if (distance < 0) {
-                btnArea.innerHTML = `
-                    <div class="text-center">
-                        <p class="text-[10px] text-gray-600 mb-2">Tempo para cancelamento automático expirado</p>
-                        <button disabled class="w-full bg-gray-800 text-gray-600 font-bold py-3 rounded-xl cursor-not-allowed border border-gray-700 text-sm">Cancelamento indisponível</button>
-                    </div>`;
-                clearInterval(window.cancelTimerInterval);
-            } else {
-                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-                const fmtSec = seconds < 10 ? `0${seconds}` : seconds;
-
-                btnArea.innerHTML = `
-                    <button onclick="clientCancelOrder('${order.id}')" class="w-full bg-red-900/20 hover:bg-red-900/40 border border-red-900 text-red-500 hover:text-red-400 font-bold py-3 rounded-xl flex justify-between px-6 transition group">
-                        <span class="text-xs uppercase tracking-wide">Cancelar Pedido</span>
-                        <span class="font-mono text-sm bg-red-900/50 px-2 rounded text-white group-hover:bg-red-600 transition">${minutes}:${fmtSec}</span>
-                    </button>
-                    <p class="text-[10px] text-center text-gray-500 mt-2">Você pode cancelar até o cronômetro zerar.</p>
-                `;
-            }
-        };
-        checkTimer();
-        window.cancelTimerInterval = setInterval(checkTimer, 1000);
-    }
+    // ... (restante da sua função de renderização UI permanece igual) ...
+    // ...
 };
 
 // Nova função helper para o cliente cancelar

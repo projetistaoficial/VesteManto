@@ -434,22 +434,12 @@ function showToast(message, type = 'success') {
     if (!toast) {
         toast = document.createElement('div');
         toast.id = 'toast-notification';
-        // z-index altíssimo para ficar acima de modais
-        toast.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded shadow-2xl z-[999999] transition-all duration-300 opacity-0 translate-y-[-20px] border border-gray-700 font-bold flex items-center gap-2 pointer-events-none';
+        toast.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded shadow-2xl z-[100] transition-all duration-300 opacity-0 translate-y-[-20px] border border-gray-700 font-bold flex items-center gap-2';
         document.body.appendChild(toast);
     }
 
-    // ✨ CORREÇÃO: Usando 'let' em vez de 'const' para permitir a troca do ícone de erro
-    let icon = type === 'success' ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="fas fa-info-circle text-yellow-500"></i>';
-
-    if (type === 'error') {
-        toast.classList.remove('border-gray-700');
-        toast.classList.add('border-red-500/50');
-        icon = '<i class="fas fa-exclamation-circle text-red-500"></i>';
-    } else {
-        toast.classList.add('border-gray-700');
-        toast.classList.remove('border-red-500/50');
-    }
+    // Ícone baseado no tipo
+    const icon = type === 'success' ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="fas fa-info-circle text-yellow-500"></i>';
 
     toast.innerHTML = `${icon} <span>${message}</span>`;
 
@@ -458,10 +448,10 @@ function showToast(message, type = 'success') {
         toast.classList.remove('opacity-0', 'translate-y-[-20px]');
     });
 
-    // Remove depois de 2 segundos
+    // Remove depois de 1.5s
     setTimeout(() => {
         toast.classList.add('opacity-0', 'translate-y-[-20px]');
-    }, 2000);
+    }, 1500);
 }
 
 //Esta função controla a abertura e o desaparecimento das informações do cabeçalho da PEDIDOS na aba VENDAS.
@@ -2746,28 +2736,15 @@ function renderSalesList(orders) {
             case 'Entregue': case 'Concluído': statusColorClass = 'text-green-500'; break;
             case 'Reembolsado': statusColorClass = 'text-purple-500'; break;
             case 'Parcialmente Reembolsado':
-                statusColorClass = 'text-purple-500'; 
-                break;
         }
         if (o.status.includes('Cancelado')) statusColorClass = 'text-red-500';
 
-        let itemsHtml = o.items.map(i => {
-            // Procura se tem devolução para este item exato
-            const refundedData = (o.refundedItems || []).find(r => r.id === i.id && r.size === i.size);
-            const refundedBadge = refundedData 
-                ? `<span class="text-[9px] bg-purple-900/40 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/30 uppercase tracking-widest font-bold ml-2">-${refundedData.qty} Devolvido</span>` 
-                : '';
-
-            return `
+        let itemsHtml = o.items.map(i => `
             <div class="bg-gray-800/50 p-2 rounded mb-1 border border-gray-700 flex justify-between items-center">
-                <span class="text-gray-300 text-sm font-medium flex items-center flex-wrap gap-1">
-                    ${i.qty}x ${i.name} ${i.size !== 'U' ? `<span class="text-gray-500 text-xs">(${i.size})</span>` : ''} 
-                    ${refundedBadge}
-                </span>
+                <span class="text-gray-300 text-sm font-medium">${i.qty}x ${i.name} <span class="text-gray-500 text-xs">(${i.size})</span></span>
                 <span class="text-white text-xs font-bold">${formatCurrency(i.price)}</span>
             </div>
-            `;
-        }).join('');
+        `).join('');
 
         // --- LÓGICA FINANCEIRA (CUPONS E DESCONTOS) ---
         const subTotalItens = o.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
@@ -2842,30 +2819,28 @@ function renderSalesList(orders) {
         const actionButtonsLeft = `<div class="flex items-center gap-2 w-full md:w-auto">${btnPrint}${btnFinance}</div>`;
 
         let controlsHtml = '';
-        
-        // ✨ CORREÇÃO: Usando 'o.status' em vez de 'order.status'
-        if (o.status.includes('Cancelado')) {
+        if (order.status.includes('Cancelado')) {
             controlsHtml = `
                 <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700 w-full">
                     ${actionButtonsLeft}
                     <span class="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">PEDIDO CANCELADO</span>
                 </div>`;
-        } else if (o.status === 'Reembolsado') {
+        } else if (order.status === 'Reembolsado') {
             controlsHtml = `
                 <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-700 w-full">
                     ${actionButtonsLeft}
                     <span class="bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold uppercase">Reembolso Total</span>
                 </div>`;
-        } else if (o.status === 'Concluído' || o.status === 'Parcialmente Reembolsado') {
-            const badgeLabel = o.status === 'Concluído' ? 'FINALIZADO' : 'REEMBOLSO PARCIAL';
-            const badgeColor = o.status === 'Concluído' ? 'bg-green-600' : 'bg-purple-600';
+        } else if (order.status === 'Concluído' || order.status === 'Parcialmente Reembolsado') {
+            const badgeLabel = order.status === 'Concluído' ? 'FINALIZADO' : 'REEMBOLSO PARCIAL';
+            const badgeColor = order.status === 'Concluído' ? 'bg-green-600' : 'bg-purple-600';
             
             controlsHtml = `
                 <div class="flex flex-col md:flex-row justify-between items-center gap-4 mt-4 pt-4 border-t border-gray-700 w-full">
                     ${actionButtonsLeft}
                     <div class="flex items-center gap-2">
                         <span class="${badgeColor} text-white px-4 py-2 rounded font-bold text-xs uppercase tracking-wide">${badgeLabel}</span>
-                        <button onclick="adminRefundOrder('${o.id}')" class="border border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-2 rounded text-xs transition font-bold flex items-center gap-1 shadow-sm">
+                        <button onclick="adminRefundOrder('${order.id}')" class="border border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-2 rounded text-xs transition font-bold flex items-center gap-1 shadow-sm">
                             <i class="fas fa-undo"></i> Reembolsar
                         </button>
                     </div>
@@ -8213,7 +8188,7 @@ window.adminCancelOrder = async (orderId) => {
 };
 
 // =================================================================
-// 💰 SISTEMA DE REEMBOLSO PARCIAL E TOTAL (COM BLINDAGEM)
+// 💰 SISTEMA DE REEMBOLSO PARCIAL E TOTAL
 // =================================================================
 
 window.adminRefundOrder = (orderId) => {
@@ -8236,80 +8211,48 @@ window.adminRefundOrder = (orderId) => {
         const prevRefQty = prevRef ? prevRef.qty : 0;
         const availableToRefund = item.qty - prevRefQty;
 
-        // Se já devolveu tudo deste item
         if (availableToRefund <= 0) {
             return `
-                <div class="flex justify-between items-center text-gray-600 text-sm mb-3 opacity-50 bg-[#0a0c13] p-3 rounded-xl border border-gray-800/50">
-                    <span class="line-through flex-1 truncate pr-2">${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}</span>
-                    <span class="text-[10px] uppercase font-bold text-purple-500/50 border border-purple-500/20 px-2 py-1 rounded tracking-wide shrink-0">Devolvido</span>
+                <div class="flex justify-between items-center text-gray-600 text-sm mb-2 opacity-50 bg-gray-900/50 p-2 rounded border border-gray-800">
+                    <span class="line-through">${item.qty}x ${item.name} ${item.size !== 'U' ? `(${item.size})` : ''}</span>
+                    <span class="text-[10px] uppercase font-bold text-purple-500">Já devolvido</span>
                 </div>`;
         }
 
-        // Item disponível para devolução (Com botões de mais/menos e trava visual)
         return `
-            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-[#151720] p-3 rounded-xl mb-3 border border-gray-700/80 hover:border-purple-500/50 transition-colors gap-3">
-                <div class="flex flex-col flex-1 min-w-0">
-                    <span class="text-white text-sm font-bold truncate">${item.name} ${item.size !== 'U' ? `<span class="text-yellow-500 text-xs ml-1">(${item.size})</span>` : ''}</span>
-                    <span class="text-gray-400 text-[10px] uppercase tracking-wider mt-1">Comprado: ${item.qty} | Restante: <span class="text-green-400 font-bold">${availableToRefund}</span></span>
+            <div class="flex justify-between items-center bg-[#151720] p-3 rounded mb-2 border border-gray-700 hover:border-purple-500/50 transition">
+                <div class="flex flex-col flex-1">
+                    <span class="text-white text-sm font-bold truncate pr-2">${item.name} ${item.size !== 'U' ? `<span class="text-yellow-500 text-xs">(${item.size})</span>` : ''}</span>
+                    <span class="text-gray-400 text-[10px] uppercase tracking-wider mt-1">Comprado: ${item.qty} | Disp. p/ Devolver: <span class="text-green-400 font-bold">${availableToRefund}</span></span>
                 </div>
-                
-                <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0 bg-black/50 p-1.5 rounded-lg border border-gray-800 w-full sm:w-auto">
-                    <label class="text-[10px] text-gray-400 uppercase font-bold ml-2">Devolver:</label>
-                    <div class="flex items-center gap-1">
-                        <button onclick="document.getElementById('refund-qty-${index}').stepDown(); document.getElementById('refund-qty-${index}').dispatchEvent(new Event('input'))" class="w-7 h-7 bg-gray-800 hover:bg-gray-700 text-white rounded flex items-center justify-center transition active:scale-95"><i class="fas fa-minus text-[10px]"></i></button>
-                        
-                        <input type="number" min="0" max="${availableToRefund}" value="${availableToRefund}" 
-                               id="refund-qty-${index}"
-                               class="w-10 h-7 bg-transparent text-white border-none focus:ring-0 text-center text-sm font-bold refund-input p-0 outline-none"
-                               data-id="${item.id}" data-size="${item.size}" data-max="${availableToRefund}"
-                               oninput="if(this.value > ${availableToRefund}) this.value = ${availableToRefund}; if(this.value < 0) this.value = 0;">
-                               
-                        <button onclick="document.getElementById('refund-qty-${index}').stepUp(); document.getElementById('refund-qty-${index}').dispatchEvent(new Event('input'))" class="w-7 h-7 bg-gray-800 hover:bg-gray-700 text-white rounded flex items-center justify-center transition active:scale-95"><i class="fas fa-plus text-[10px]"></i></button>
-                    </div>
+                <div class="flex items-center gap-2 shrink-0 bg-black p-1.5 rounded-lg border border-gray-800">
+                    <label class="text-[10px] text-gray-500 uppercase font-bold ml-1">Qtd:</label>
+                    <input type="number" min="0" max="${availableToRefund}" value="${availableToRefund}" 
+                           id="refund-qty-${index}"
+                           class="w-12 h-7 bg-gray-900 text-white border border-gray-600 focus:border-purple-500 outline-none rounded text-center text-sm font-bold refund-input"
+                           data-id="${item.id}" data-size="${item.size}" data-name="${item.name.replace(/'/g, "\\'")}">
                 </div>
             </div>
         `;
     }).join('');
 
-    // ESTRUTURA PREMIUM DO MODAL
     modal.innerHTML = `
-        <div class="bg-[#0b0e14] border border-gray-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="refund-card">
-            
-            <div class="p-5 border-b border-gray-800 bg-[#0f111a] flex items-center justify-between shrink-0">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-500 border border-purple-500/20">
-                        <i class="fas fa-undo-alt"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-white font-extrabold text-lg leading-none">Reembolsar Pedido</h3>
-                        <p class="text-gray-400 text-[10px] uppercase tracking-widest mt-1 font-bold">Ref: #${order.code}</p>
-                    </div>
+        <div class="bg-[#0f111a] border-t-4 border-t-purple-500 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300" id="refund-card">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-white font-extrabold text-xl tracking-tight">Reembolsar Pedido</h3>
+                    <span class="bg-gray-800 text-gray-400 text-xs px-2 py-1 rounded font-mono font-bold">#${order.code}</span>
                 </div>
-                <button onclick="closeRefundModal()" class="w-8 h-8 rounded-full bg-gray-800 hover:bg-red-600 text-gray-400 hover:text-white flex items-center justify-center transition-colors">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
+                <p class="text-gray-400 text-xs mb-4">Informe a quantidade exata de cada produto que será devolvida ao estoque.</p>
 
-            <div class="p-5 overflow-y-auto custom-scrollbar flex-1 bg-[#0b0e14]">
-                <div class="bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 mb-5 flex gap-3 items-start">
-                    <i class="fas fa-info-circle text-blue-400 mt-0.5"></i>
-                    <p class="text-blue-200/70 text-xs leading-relaxed">
-                        Selecione a quantidade de itens que retornarão ao estoque. Os botões já respeitam o limite vendido.
-                    </p>
-                </div>
-
-                <div class="space-y-1">
+                <div class="max-h-64 overflow-y-auto custom-scrollbar mb-4 pr-1">
                     ${itemsHtml}
                 </div>
-            </div>
 
-            <div class="p-5 border-t border-gray-800 bg-[#0f111a] flex gap-3 shrink-0">
-                <button onclick="closeRefundModal()" class="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-bold py-3.5 rounded-xl transition text-xs uppercase tracking-wide">
-                    Cancelar
-                </button>
-                <button onclick="processRefund('${order.id}')" class="flex-[2] bg-purple-600 hover:bg-purple-500 text-white font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(147,51,234,0.2)] hover:shadow-[0_0_25px_rgba(147,51,234,0.4)] text-xs uppercase tracking-wide flex items-center justify-center gap-2">
-                    <i class="fas fa-check-circle"></i> Confirmar Devolução
-                </button>
+                <div class="flex gap-2 mt-4 pt-4 border-t border-gray-800">
+                    <button onclick="closeRefundModal()" class="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-bold py-3 rounded-xl transition text-sm">Cancelar</button>
+                    <button onclick="processRefund('${order.id}')" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-purple-900/30 text-sm">Confirmar Devolução</button>
+                </div>
             </div>
         </div>
     `;
@@ -8341,16 +8284,9 @@ window.processRefund = async (orderId) => {
     let itemsToRefundNow = [];
     let totalQtyToRefundNow = 0;
 
-    // Coleta o que foi digitado com BLINDAGEM DUPLA (Lógica)
+    // Coleta o que foi digitado no modal
     inputs.forEach(input => {
-        let qty = parseInt(input.value) || 0;
-        const maxAllowed = parseInt(input.dataset.max) || 0;
-        
-        // ✨ A TRAVA INVIOLÁVEL: Corta o valor se for maior que o permitido 
-        // (Isso previne que a pessoa burle o HTML editando o código da página)
-        if (qty > maxAllowed) qty = maxAllowed;
-        if (qty < 0) qty = 0;
-
+        const qty = parseInt(input.value) || 0;
         if (qty > 0) {
             itemsToRefundNow.push({
                 id: input.dataset.id,
@@ -8361,17 +8297,17 @@ window.processRefund = async (orderId) => {
         }
     });
 
-    if (totalQtyToRefundNow === 0) return showToast("Você precisa devolver pelo menos 1 unidade.", "error");
+    if (totalQtyToRefundNow === 0) return alert("Você precisa informar a quantidade de pelo menos 1 item para reembolsar.");
 
     if (!confirm(`Confirma a devolução de ${totalQtyToRefundNow} item(ns) ao estoque?`)) return;
 
     try {
         closeRefundModal();
 
-        // 1. Devolve APENAS as quantidades filtradas e permitidas
+        // 1. Devolve APENAS as quantidades selecionadas ao estoque
         await processStockUpdate(itemsToRefundNow, 'add');
 
-        // 2. Combina os itens de hoje com os de reembolsos passados
+        // 2. Combina os itens de hoje com os de reembolsos passados (se for a 2ª vez)
         const previouslyRefunded = order.refundedItems || [];
         let newRefundedItems = [...previouslyRefunded];
         
@@ -8745,20 +8681,13 @@ window.updateStatusUI = (order) => {
 
     const s = order.status;
     const isCancelled = s.includes('Cancelado');
-    const isPartial = s === 'Parcialmente Reembolsado';
 
-    // 1. LÓGICA DA TIMELINE
+    // 1. LÓGICA DA TIMELINE (Mantida igual)
     let currentStep = 0;
-    
-    if (s === 'Aguardando aprovação' || s === 'Pendente') currentStep = 0;
+    if (s === 'Aguardando aprovação') currentStep = 0;
     else if (s === 'Aprovado' || s === 'Preparando pedido') currentStep = 1;
     else if (s === 'Saiu para entrega') currentStep = 2;
     else if (s === 'Entregue' || s === 'Concluído') currentStep = 3;
-
-    // ✨ CORREÇÃO: Forçamos o step para 3 (Entregue) mesmo em reembolso parcial
-    if (isPartial) {
-        currentStep = 3; 
-    }
 
     const step0Label = (s === 'Aguardando aprovação' || isCancelled) ? 'Aguardando' : 'Aprovado';
     const step0Icon = (s === 'Aguardando aprovação' || isCancelled) ? 'fa-clock' : 'fa-thumbs-up';
@@ -8774,14 +8703,8 @@ window.updateStatusUI = (order) => {
     timelineHTML += `<div class="absolute top-[18px] left-7 right-7 h-0.5 bg-gray-700 -z-0"></div>`;
 
     const progressWidth = Math.min(currentStep * 33.33, 100);
-    
-    // Define a cor da barra baseada no status
-    let barColor = 'bg-green-500';
-    if (isCancelled) barColor = 'bg-red-500';
-    if (isPartial) barColor = 'bg-purple-500';
-
     if (!isCancelled) {
-        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 ${barColor} -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
+        timelineHTML += `<div class="absolute top-[18px] left-7 h-0.5 bg-green-500 -z-0 transition-all duration-1000" style="width: calc(${progressWidth}% - 3.5rem)"></div>`;
     }
 
     steps.forEach((step, index) => {
@@ -8796,17 +8719,7 @@ window.updateStatusUI = (order) => {
                 iconClass = "fa-times";
                 labelClass = "text-red-500 font-bold";
             }
-        } else if (isPartial) {
-            // ✨ ESTILO ROXO PARA REEMBOLSO PARCIAL (Independente da etapa)
-            if (index <= currentStep) {
-                circleClass = "bg-purple-600 border-2 border-purple-500 text-white";
-                labelClass = "text-purple-400 font-bold";
-                if (index === currentStep) {
-                    glowEffect = "shadow-[0_0_15px_rgba(168,85,247,0.8)] scale-110";
-                }
-            }
         } else {
-            // Fluxo normal (Verde)
             if (index < currentStep) {
                 circleClass = "bg-green-500 border-2 border-green-500 text-black";
                 labelClass = "text-green-500 font-bold";
@@ -9155,16 +9068,12 @@ function renderOrdersSummary(orders, filterStatus = '') {
     orders.forEach(o => {
         if (o.status.includes('Cancelado')) {
             counts['Cancelado']++;
-        // ✨ CORREÇÃO: Soma os parciais e totais na mesma caixa
-        } else if (o.status === 'Reembolsado' || o.status === 'Parcialmente Reembolsado') {
-            counts['Reembolsado']++;
         } else if (counts.hasOwnProperty(o.status)) {
             counts[o.status]++;
         }
 
         const isCancelado = o.status.includes('Cancelado');
-        // ✨ CORREÇÃO: Informa a variável que o parcial também é um reembolso
-        const isReembolsado = o.status === 'Reembolsado' || o.status === 'Parcialmente Reembolsado';
+        const isReembolsado = o.status === 'Reembolsado';
         const isAguardando = o.status === 'Aguardando aprovação';
 
         if (!isCancelado && !isReembolsado && !isAguardando) {
